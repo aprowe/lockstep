@@ -1,0 +1,415 @@
+use std::path::PathBuf;
+use tempfile::TempDir;
+
+use crate::ffmpeg::{atempo_chain, ffprobe_json, run_ffmpeg};
+
+// ── BPM Estimation ──────────────────────────────────────────────────────────
+
+/// Returns (bpm, beat_interval, snap_interval).
+/// Ported directly from frames2/backend/processor.py::estimate_bpm
+pub fn estimate_bpm(anchor_times: &[f64]) -> (f64, f64, f64) {
+    if anchor_times.len() < 2 {
+        return (120.0, 0.5, 0.5);
+    }
+
+    let mut sorted = anchor_times.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    let intervals: Vec<f64> = sorted.windows(2).map(|w| w[1] - w[0]).collect();
+
+    let mut sorted_intervals = intervals.clone();
+    sorted_intervals.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let median_interval = sorted_intervals[sorted_intervals.len() / 2];
+
+    if median_interval <= 0.0 {
+        return (120.0, 0.5, 0.5);
+    }
+
+    let clean: Vec<f64> = intervals
+        .iter()
+        .filter(|&&x| x > 0.0 && x < median_interval * 2.5)
+        .copied()
+        .collect();
+
+    let clean = if clean.is_empty() {
+        intervals.iter().filter(|&&x| x > 0.0).copied().collect::<Vec<_>>()
+    } else {
+        clean
+    };
+
+    if clean.is_empty() {
+        return (120.0, 0.5, 0.5);
+    }
+
+    let avg_interval = clean.iter().sum::<f64>() / clean.len() as f64;
+
+    let divisors: &[f64] = &[1.0, 2.0, 0.5, 4.0, 0.25, 3.0, 1.0 / 3.0];
+    let mut best_bpm: Option<f64> = None;
+    let mut best_interval = avg_interval;
+
+    for &divisor in divisors {
+        if divisor <= 0.0 {
+            continue;
+        }
+        let candidate_interval = avg_interval / divisor;
+        if candidate_interval <= 0.0 {
+            continue;
+        }
+        let candidate_bpm = 60.0 / candidate_interval;
+        if best_bpm.is_none() && (60.0..=180.0).contains(&candidate_bpm) {
+            best_bpm = Some(candidate_bpm);
+            best_interval = candidate_interval;
+        }
+    }
+
+    let (best_bpm, best_interval) = match best_bpm {
+        Some(bpm) => (bpm, best_interval),
+        None => (60.0 / avg_interval, avg_interval),
+    };
+
+    ((best_bpm * 100.0).round() / 100.0, best_interval, avg_interval)
+}
+
+// ── Time Map ────────────────────────────────────────────────────────────────
+
+/// Piecewise-linear time map: orig_time → output_time.
+/// Ported from frames2/backend/processor.py::_direct_time_map
+/// clip_start/clip_end define the range of the source video to process.
+fn direct_time_map(
+    orig_times: &[f64],
+    beat_times: &[f64],
+    clip_start: f64,
+    clip_end: f64,
+) -> Vec<(f64, f64)> {
+    let mut pairs: Vec<(f64, f64)> = orig_times
+        .iter()
+        .zip(beat_times.iter())
+        .map(|(&o, &b)| (o, b))
+        .collect();
+    pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+    // First sentinel: clip start maps to output time 0
+    let mut control_points: Vec<(f64, f64)> = vec![(clip_start, 0.0)];
+
+    for (orig_t, beat_t) in &pairs {
+        if *orig_t > control_points.last().unwrap().0 + 1e-6 {
+            control_points.push((*orig_t, *beat_t));
+        }
+    }
+
+    let (last_orig, last_beat) = *control_points.last().unwrap();
+    if clip_end > last_orig + 0.001 {
+        let tail_out = last_beat + (clip_end - last_orig);
+        control_points.push((clip_end, tail_out));
+    }
+
+    control_points
+}
+
+// ── Video Duration ───────────────────────────────────────────────────────────
+
+pub fn get_video_duration(path: &str) -> Result<f64, String> {
+    let info = ffprobe_json(path)?;
+    info["format"]["duration"]
+        .as_str()
+        .and_then(|s| s.parse::<f64>().ok())
+        .ok_or_else(|| "ffprobe: missing duration".to_string())
+}
+
+// ── Remap Video ─────────────────────────────────────────────────────────────
+
+pub struct WarpOptions {
+    pub orig_times: Vec<f64>,
+    pub beat_times: Vec<f64>,
+    pub bpm: f64,
+    pub beat_zero_time: f64,
+    pub add_to_end: bool,
+    pub trim_to_loop: bool,
+    pub loop_beats: Option<u32>,
+    pub normalize_bpm: bool,
+    pub fade_at_loop: bool,
+    /// Start of clip in source video (seconds). None = 0.0
+    pub clip_in: Option<f64>,
+    /// End of clip in source video (seconds). None = video duration
+    pub clip_out: Option<f64>,
+}
+
+/// Main time-warp pipeline. Ported from frames2/backend/processor.py::remap_video
+pub fn remap_video<F>(
+    input_path: &str,
+    opts: &WarpOptions,
+    output_path: &str,
+    progress: &F,
+) -> Result<(), String>
+where
+    F: Fn(f64, &str) + Send,
+{
+    let duration = get_video_duration(input_path)?;
+
+    let clip_start = opts.clip_in.unwrap_or(0.0).max(0.0);
+    let clip_end = opts.clip_out.unwrap_or(duration).min(duration);
+    let time_map = direct_time_map(&opts.orig_times, &opts.beat_times, clip_start, clip_end);
+
+    let tmp_dir = TempDir::new().map_err(|e| e.to_string())?;
+    let tmp_path = tmp_dir.path();
+
+    progress(0.02, "Building segments...");
+
+    let n_segs = time_map.len().saturating_sub(1);
+    let mut segment_files: Vec<PathBuf> = Vec::new();
+
+    for i in 0..n_segs {
+        let (in_start, _) = time_map[i];
+        let (in_end, _) = time_map[i + 1];
+        let (_, out_start) = time_map[i];
+        let (_, out_end) = time_map[i + 1];
+
+        let seg_in_dur = in_end - in_start;
+        let seg_out_dur = out_end - out_start;
+
+        if seg_in_dur <= 0.001 || seg_out_dur <= 0.001 {
+            continue;
+        }
+       
+        // Dont hard code these
+        let ratio = (seg_out_dur / seg_in_dur).max(0.5).min(2.0);
+
+        let seg_out = tmp_path.join(format!("seg_{i:04}.mp4"));
+        let seg_out_str = seg_out.to_string_lossy().to_string();
+
+        let atempo = atempo_chain(1.0 / ratio);
+        let setpts = format!("setpts={ratio:.6}*PTS");
+        let ss = format!("{in_start}");
+        let t = format!("{seg_in_dur}");
+        let ratio_str = format!("{ratio:.6}");
+
+        // Try with audio first
+        let result = run_ffmpeg(&[
+            "-y", "-hide_banner", "-loglevel", "error",
+            "-ss", &ss, "-t", &t, "-i", input_path,
+            "-vf", &setpts,
+            "-af", &atempo,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-c:a", "aac", "-b:a", "192k",
+            "-avoid_negative_ts", "make_zero",
+            &seg_out_str,
+        ]);
+
+        if result.is_err() {
+            // Fallback: no audio
+            run_ffmpeg(&[
+                "-y", "-hide_banner", "-loglevel", "error",
+                "-ss", &ss, "-t", &t, "-i", input_path,
+                "-vf", &setpts,
+                "-an",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-avoid_negative_ts", "make_zero",
+                &seg_out_str,
+            ])
+            .map_err(|e| format!("Segment {i} failed: {e}"))?;
+        }
+
+        if seg_out.exists() {
+            segment_files.push(seg_out);
+        }
+
+        progress(
+            0.02 + 0.78 * (i + 1) as f64 / n_segs as f64,
+            &format!("Segment {}/{}", i + 1, n_segs),
+        );
+    }
+
+    if segment_files.is_empty() {
+        return Err("No segments were created".to_string());
+    }
+
+    // Build concat list — forward slashes required on Windows too
+    let concat_path = tmp_path.join("concat.txt");
+    let concat_content: String = segment_files
+        .iter()
+        .map(|p| format!("file '{}'\n", p.to_string_lossy().replace('\\', "/")))
+        .collect();
+    std::fs::write(&concat_path, &concat_content).map_err(|e| e.to_string())?;
+
+    progress(0.82, "Concatenating segments...");
+
+    let concat_str = concat_path.to_string_lossy().to_string();
+
+    let concat_result = run_ffmpeg(&[
+        "-y", "-hide_banner", "-loglevel", "error",
+        "-f", "concat", "-safe", "0",
+        "-i", &concat_str,
+        "-c", "copy",
+        output_path,
+    ]);
+
+    if concat_result.is_err() {
+        // Re-encode fallback
+        run_ffmpeg(&[
+            "-y", "-hide_banner", "-loglevel", "error",
+            "-f", "concat", "-safe", "0",
+            "-i", &concat_str,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-c:a", "aac",
+            output_path,
+        ])
+        .map_err(|_| "FFmpeg concat failed".to_string())?;
+    }
+
+    progress(0.88, "Post-processing...");
+
+    let beat_interval = 60.0 / opts.bpm;
+
+    // Determine first beat time from first beat anchor
+    let first_beat_time = opts.beat_times.iter().copied().reduce(f64::min).unwrap_or(0.0);
+    let beat_zero = opts.beat_zero_time;
+
+    if let Some(loop_beats) = opts.loop_beats {
+        if loop_beats > 0 && opts.add_to_end && beat_zero > first_beat_time + 0.01 {
+            let loop_duration = loop_beats as f64 * beat_interval;
+            let pre_beat_dur = beat_zero - first_beat_time;
+
+            // Trim to [first_beat_time, first_beat_time + loop_duration]
+            let trimmed = format!("{output_path}.trim.mp4");
+            run_ffmpeg(&[
+                "-y", "-hide_banner", "-loglevel", "error",
+                "-ss", &format!("{first_beat_time}"),
+                "-t", &format!("{loop_duration}"),
+                "-i", output_path,
+                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-c:a", "aac", "-b:a", "192k",
+                &trimmed,
+            ])?;
+            std::fs::rename(&trimmed, output_path).map_err(|e| e.to_string())?;
+
+            // Rearrange: [beat_zero→end] + [first_beat→beat_zero]
+            let adjusted_zero = beat_zero - first_beat_time;
+            rearrange_loop(output_path, adjusted_zero, pre_beat_dur, tmp_path)?;
+        } else if loop_beats > 0 {
+            let loop_duration = loop_beats as f64 * beat_interval;
+            let loop_trim_start = beat_zero;
+            let trimmed = format!("{output_path}.loop.mp4");
+            let r = run_ffmpeg(&[
+                "-y", "-hide_banner", "-loglevel", "error",
+                "-ss", &format!("{loop_trim_start}"),
+                "-t", &format!("{loop_duration}"),
+                "-i", output_path,
+                "-c", "copy",
+                &trimmed,
+            ]);
+            if r.is_err() {
+                run_ffmpeg(&[
+                    "-y", "-hide_banner", "-loglevel", "error",
+                    "-ss", &format!("{loop_trim_start}"),
+                    "-t", &format!("{loop_duration}"),
+                    "-i", output_path,
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                    "-c:a", "aac",
+                    &trimmed,
+                ])?;
+            }
+            if std::path::Path::new(&trimmed).exists() {
+                std::fs::rename(&trimmed, output_path).map_err(|e| e.to_string())?;
+            }
+        }
+    } else if opts.add_to_end && beat_zero > first_beat_time + 0.01 {
+        let pre_beat_dur = beat_zero - first_beat_time;
+        rearrange_loop(output_path, beat_zero, pre_beat_dur, tmp_path)?;
+    } else if opts.trim_to_loop {
+        // Trim to last complete beat from beat_zero
+        let out_dur = get_video_duration(output_path)?;
+        let beats_in = ((out_dur - beat_zero) / beat_interval).floor() as u32;
+        if beats_in > 0 {
+            let trim_end = beat_zero + beats_in as f64 * beat_interval;
+            let trimmed = format!("{output_path}.trim.mp4");
+            let r = run_ffmpeg(&[
+                "-y", "-hide_banner", "-loglevel", "error",
+                "-ss", &format!("{beat_zero}"),
+                "-to", &format!("{trim_end}"),
+                "-i", output_path,
+                "-c", "copy",
+                &trimmed,
+            ]);
+            if r.is_err() {
+                run_ffmpeg(&[
+                    "-y", "-hide_banner", "-loglevel", "error",
+                    "-ss", &format!("{beat_zero}"),
+                    "-to", &format!("{trim_end}"),
+                    "-i", output_path,
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                    "-c:a", "aac",
+                    &trimmed,
+                ])?;
+            }
+            if std::path::Path::new(&trimmed).exists() {
+                std::fs::rename(&trimmed, output_path).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+
+    if opts.normalize_bpm && (opts.bpm - 120.0).abs() > 0.01 {
+        let speed = 120.0 / opts.bpm;
+        let normed = format!("{output_path}.norm.mp4");
+        let atempo = atempo_chain(speed);
+        run_ffmpeg(&[
+            "-y", "-hide_banner", "-loglevel", "error",
+            "-i", output_path,
+            "-vf", &format!("setpts=PTS/{speed:.6}"),
+            "-af", &atempo,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-c:a", "aac", "-b:a", "192k",
+            &normed,
+        ])?;
+        std::fs::rename(&normed, output_path).map_err(|e| e.to_string())?;
+    }
+
+    progress(1.0, "Done");
+    Ok(())
+}
+
+/// Split output at beat_zero_time, rearrange to: [beat_zero→end] + [0→beat_zero]
+fn rearrange_loop(
+    output_path: &str,
+    beat_zero_time: f64,
+    pre_beat_dur: f64,
+    tmp_path: &std::path::Path,
+) -> Result<(), String> {
+    if pre_beat_dur <= 0.01 {
+        return Ok(());
+    }
+
+    let part_b = tmp_path.join("loop_b.mp4").to_string_lossy().to_string();
+    let part_a = tmp_path.join("loop_a.mp4").to_string_lossy().to_string();
+    let enc = &["-c:v", "libx264", "-preset", "fast", "-crf", "23", "-c:a", "aac", "-b:a", "192k"];
+
+    run_ffmpeg(&[
+        &["-y", "-hide_banner", "-loglevel", "error",
+          "-ss", &format!("{beat_zero_time}"), "-i", output_path],
+        enc.as_slice(),
+        &[&part_b],
+    ].concat())?;
+
+    run_ffmpeg(&[
+        &["-y", "-hide_banner", "-loglevel", "error",
+          "-ss", "0", "-t", &format!("{pre_beat_dur}"), "-i", output_path],
+        enc.as_slice(),
+        &["-t", &format!("{pre_beat_dur}"), &part_a],
+    ].concat())?;
+
+    let rearranged = format!("{output_path}.loop.mp4");
+    run_ffmpeg(&[
+        "-y", "-hide_banner", "-loglevel", "error",
+        "-i", &part_b, "-i", &part_a,
+        "-filter_complex", "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]",
+        "-map", "[v]", "-map", "[a]",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-c:a", "aac", "-b:a", "192k",
+        &rearranged,
+    ])?;
+
+    if std::path::Path::new(&rearranged).exists() {
+        std::fs::rename(&rearranged, output_path).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}

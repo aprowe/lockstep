@@ -1,0 +1,135 @@
+.warp-view {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 0;
+}
+
+.warp-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  flex-wrap: wrap;
+  border-top: 1px solid #1e2028;
+}
+
+.warp-controls__divider {
+  width: 1px;
+  height: 20px;
+  background: #2a2c36;
+  margin: 0 4px;
+}
+
+.stretch-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.warp-controls__unit {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.warp-controls__label {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+.warp-controls__bpm {
+  width: 64px;
+  background: #1c1e26;
+  border: 1px solid #2a2c36;
+  border-radius: 4px;
+  color: #e5e7eb;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 14px;
+  padding: 4px 8px;
+  text-align: right;
+  outline: none;
+  -moz-appearance: textfield;
+}
+
+.warp-controls__bpm::-webkit-outer-spin-button,
+.warp-controls__bpm::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+}
+
+.warp-controls__bpm:focus {
+  border-color: #4b5563;
+}
+
+.warp-controls__action {
+  background: none;
+  border: 1px solid #2a2c36;
+  border-radius: 4px;
+  color: #6b7280;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+  white-space: nowrap;
+}
+
+.warp-controls__action:hover:not(:disabled) {
+  color: #e5e7eb;
+  border-color: #4b5563;
+}
+
+.warp-controls__action:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.warp-controls__check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6b7280;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.warp-controls__check input[type="checkbox"] {
+  accent-color: #22d3ee;
+  width: 12px;
+  height: 12px;
+  cursor: pointer;
+}
+
+/* Remove border-radius on connecting edges */
+.warp-view .timeline:first-child {
+  border-radius: 6px 6px 0 0;
+  border-bottom: none;
+}
+
+.warp-view .timeline:last-child {
+  border-radius: 0 0 6px 6px;
+  border-top: none;
+}
+
+/* Beat lines more visible on the bottom timeline */
+.warp-view .timeline:last-child .beat-line {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.warp-view .timeline:last-child .measure-line {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+/* Snap indicator: highlight beat line on hover during drag */
+.warp-view .timeline:last-child .track {
+  cursor: ew-resize;
+}

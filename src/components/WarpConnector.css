@@ -1,0 +1,29 @@
+.warp-connector {
+  position: relative;
+  width: 100%;
+  height: 52px;
+  background: #0a0b0f;
+  border-inline: 1px solid #2a2c36;
+  overflow: hidden;
+}
+
+.warp-connector--empty {
+  border-top: 1px dashed #1e2028;
+  border-bottom: 1px dashed #1e2028;
+}
+
+.warp-connector__svg {
+  display: block;
+}
+
+.warp-connector__label {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.25);
+  white-space: nowrap;
+  pointer-events: none;
+  letter-spacing: 0.03em;
+}

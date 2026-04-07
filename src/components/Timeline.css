@@ -1,0 +1,405 @@
+.timeline-label {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #4b5563;
+  padding: 6px 10px 0;
+  background: #1c1e26;
+}
+
+.timeline {
+  --track-h: 50px;
+  --ruler-h: 28px;
+  --minimap-h: 18px;
+  --handle-size: 12px;
+  --anchor-color: #f59e0b;
+  --beat-color: rgba(255, 255, 255, 0.06);
+  --track-bg: #111318;
+  --ruler-bg: #1c1e26;
+  --border-color: #2a2c36;
+
+  width: 100%;
+  user-select: none;
+  font-family: ui-monospace, Consolas, monospace;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* ── Ruler ──────────────────────────────────────────── */
+.ruler {
+  position: relative;
+  height: var(--ruler-h);
+  background: var(--ruler-bg);
+  border-bottom: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+/* Flipped: ruler sits below the track, border flips to top */
+.timeline--flip .ruler {
+  border-bottom: none;
+  border-top: 1px solid var(--border-color);
+}
+
+.tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+
+.tick::before {
+  content: '';
+  display: block;
+  width: 1px;
+  background: #3a3d4a;
+  margin-top: auto;
+}
+
+.tick--minor::before { height: 6px; }
+.tick--major::before { height: 12px; background: #555970; }
+
+.tick-label {
+  position: absolute;
+  top: 4px;
+  font-size: 10px;
+  color: #6b7280;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  left: 50%;
+}
+
+/* Flipped ruler: tick marks point upward, labels sit at bottom */
+.timeline--flip .tick {
+  top: auto;
+  bottom: 0;
+  flex-direction: column-reverse;
+}
+
+.timeline--flip .tick::before {
+  margin-top: 0;
+  margin-bottom: auto;
+}
+
+.timeline--flip .tick-label {
+  top: auto;
+  bottom: 4px;
+}
+
+/* ── Track ──────────────────────────────────────────── */
+.track {
+  position: relative;
+  height: var(--track-h);
+  background: var(--track-bg);
+  cursor: crosshair;
+  overflow: hidden;
+}
+
+.track--zoomed {
+  cursor: grab;
+}
+
+.track--zoomed:active {
+  cursor: grabbing;
+}
+
+.track--readonly {
+  cursor: default;
+}
+
+/* ── Segment bands ──────────────────────────────────── */
+.track-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.track-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #2e3140;
+  pointer-events: none;
+  letter-spacing: 0.04em;
+}
+
+/* ── Ruler seek ─────────────────────────────────────── */
+.ruler--clickable { cursor: crosshair; }
+
+/* ── Playhead ────────────────────────────────────────── */
+.playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #22d3ee;
+  pointer-events: none;
+  transform: translateX(-50%);
+  z-index: 15;
+  box-shadow: 0 0 6px rgba(34, 211, 238, 0.5);
+}
+
+.playhead--draggable {
+  pointer-events: auto;
+  cursor: ew-resize;
+  width: 13px;
+  background: transparent;
+  border-left: none;
+  box-shadow: none;
+}
+
+.playhead--draggable::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 100%;
+  background: #22d3ee;
+  box-shadow: 0 0 6px rgba(34, 211, 238, 0.5);
+  pointer-events: none;
+}
+
+/* ── Trim overlay ───────────────────────────────────── */
+.track-trim {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  z-index: 4;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* ── Beat grid ──────────────────────────────────────── */
+.beat-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--beat-color);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.measure-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+/* ── Anchors ────────────────────────────────────────── */
+.anchor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: grab;
+  z-index: 10;
+}
+
+.anchor:active { cursor: grabbing; }
+
+.anchor-handle {
+  width: var(--handle-size);
+  height: var(--handle-size);
+  background: var(--anchor-color);
+  border-radius: 2px;
+  transform: rotate(45deg) scale(0.85);
+  flex-shrink: 0;
+  margin-top: 6px;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.45);
+  transition: box-shadow 0.1s, transform 0.1s;
+}
+
+/* Flipped: handle at bottom, line gradient goes upward */
+.timeline--flip .anchor {
+  flex-direction: column-reverse;
+}
+
+.timeline--flip .anchor-handle {
+  margin-top: 0;
+  margin-bottom: 6px;
+}
+
+.timeline--flip .anchor-line {
+  background: linear-gradient(to top, var(--anchor-color), rgba(245, 158, 11, 0.1));
+}
+
+.timeline--flip .anchor-time {
+  bottom: auto;
+  top: 5px;
+}
+
+.anchor:hover .anchor-handle {
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.8);
+  transform: rotate(45deg) scale(1.05);
+}
+
+.anchor-line {
+  flex: 1;
+  width: 1px;
+  background: linear-gradient(to bottom, var(--anchor-color), rgba(245, 158, 11, 0.1));
+}
+
+.anchor-time {
+  position: absolute;
+  bottom: 5px;
+  font-size: 9px;
+  color: var(--anchor-color);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.1s;
+  pointer-events: none;
+}
+
+.anchor:hover .anchor-time { opacity: 0.9; }
+
+/* ── Beat-zero anchor ───────────────────────────────── */
+.anchor-zero-btn {
+  width: 14px;
+  height: 14px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: #4b5563;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 8px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s, border-color 0.1s;
+  flex-shrink: 0;
+  z-index: 11;
+}
+
+.anchor:hover .anchor-zero-btn {
+  opacity: 1;
+}
+
+.anchor-zero-btn--active {
+  opacity: 1 !important;
+  color: #22d3ee;
+  border-color: rgba(34, 211, 238, 0.4);
+}
+
+.anchor-zero-btn:not(.anchor-zero-btn--active):hover {
+  color: #e5e7eb;
+  border-color: #4b5563;
+}
+
+.anchor--zero .anchor-handle {
+  background: #22d3ee;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
+}
+
+.anchor--zero .anchor-line {
+  background: linear-gradient(to bottom, #22d3ee, rgba(34, 211, 238, 0.1));
+}
+
+/* ── Loop-start overlay ─────────────────────────────── */
+.loop-pre {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(34, 211, 238, 0.06);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.loop-start-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(34, 211, 238, 0.45);
+  pointer-events: none;
+  transform: translateX(-50%);
+  z-index: 5;
+}
+
+/* ── Loop-end overlay ───────────────────────────────── */
+.loop-end-shade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  z-index: 4;
+}
+
+.loop-end-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(245, 158, 11, 0.7);
+  pointer-events: none;
+  transform: translateX(-50%);
+  z-index: 5;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.4);
+}
+
+/* ── Ghost region (pre-beat appended at end preview) ── */
+.loop-ghost {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(34, 211, 238, 0.07);
+  border-left: 2px dashed rgba(34, 211, 238, 0.35);
+  border-right: 2px dashed rgba(34, 211, 238, 0.35);
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ── Minimap ────────────────────────────────────────── */
+/* In non-flipped layout minimap sits above the ruler (border below) */
+.minimap {
+  position: relative;
+  height: var(--minimap-h);
+  background: #0d0f14;
+  border-bottom: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.minimap-viewport {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border-inline: 1px solid rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+  min-width: 2px;
+}
+
+.minimap-anchor {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  width: 1px;
+  background: var(--anchor-color);
+  opacity: 0.6;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
