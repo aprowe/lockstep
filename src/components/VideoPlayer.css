@@ -1,10 +1,12 @@
 .video-player {
   display: flex;
   flex-direction: column;
+  height: 100%;
   background: #0d0e12;
-  border-radius: 6px;
+  border-radius: 0;
   overflow: hidden;
-  border: 1px solid #2a2c36;
+  border: none;
+  border-bottom: 1px solid #2a2c36;
   min-height: 0;
 }
 

@@ -3,6 +3,63 @@ use tauri::{AppHandle, Emitter};
 use crate::processor::{estimate_bpm, remap_video, WarpOptions};
 use crate::video::{get_video_info, VideoInfo};
 
+// ── Open Folder ───────────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+pub struct VideoEntry {
+    pub path: String,
+    pub name: String,
+}
+
+#[tauri::command]
+pub async fn open_folder(app: AppHandle) -> Result<Vec<VideoEntry>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let folder = app.dialog().file().blocking_pick_folder();
+
+    let folder_path = match folder {
+        Some(p) => p.into_path().map_err(|e| e.to_string())?,
+        None => return Err("cancelled".to_string()),
+    };
+
+    let video_exts = ["mp4", "mov", "avi", "mkv", "webm", "m4v"];
+    let mut entries = Vec::new();
+
+    let dir = std::fs::read_dir(&folder_path).map_err(|e| e.to_string())?;
+    for entry in dir.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .unwrap_or_default();
+        if video_exts.contains(&ext.as_str()) {
+            let name = path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            entries.push(VideoEntry {
+                path: path.to_string_lossy().to_string(),
+                name,
+            });
+        }
+    }
+
+    entries.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(entries)
+}
+
+// ── Load Video by Path ────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn load_video(path: String) -> Result<VideoInfo, String> {
+    get_video_info(&path)
+}
+
 // ── Open Video ───────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -163,6 +220,92 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
                 );
             }
         }
+    });
+
+    Ok(job_id)
+}
+
+// ── Diagnostic / Overlay Video ──────────────────────────────────────────────
+
+#[derive(serde::Deserialize)]
+pub struct DiagnosticRequest {
+    pub path: String,
+    pub bpm: f64,
+    pub beat_zero_time: f64,
+    /// "diagnostic" or "overlay"
+    pub mode: String,
+}
+
+#[tauri::command]
+pub async fn start_diagnostic(app: AppHandle, req: DiagnosticRequest) -> Result<String, String> {
+    let job_id = uuid::Uuid::new_v4().to_string();
+
+    let out_dir = std::env::temp_dir().join("vj-toolkit");
+    std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
+    let suffix = if req.mode == "overlay" { "overlay" } else { "diagnostic" };
+    let out_path = out_dir.join(format!("{suffix}_{}.mp4", &job_id));
+    let out_path_str = out_path.to_string_lossy().to_string();
+
+    let app_clone = app.clone();
+    let jid = job_id.clone();
+    let out_clone = out_path_str.clone();
+
+    tokio::spawn(async move {
+        let app2 = app_clone.clone();
+        let jid2 = jid.clone();
+        let out2 = out_clone.clone();
+        let mode = req.mode.clone();
+
+        let result = tokio::task::spawn_blocking(move || {
+            let progress = {
+                let app = app2.clone();
+                let j = jid2.clone();
+                let m = mode.clone();
+                move |percent: f64, msg: &str| {
+                    let _ = app.emit(
+                        "diagnostic-progress",
+                        serde_json::json!({
+                            "job_id": &j,
+                            "mode": &m,
+                            "percent": percent,
+                            "message": msg,
+                            "status": "running"
+                        }),
+                    );
+                }
+            };
+
+            if req.mode == "overlay" {
+                crate::diagnostic::generate_overlay_video(
+                    &req.path, &out2, req.bpm, req.beat_zero_time, &progress,
+                )
+            } else {
+                crate::diagnostic::generate_diagnostic_video(
+                    &req.path, &out2, req.bpm, req.beat_zero_time, &progress,
+                )
+            }
+        })
+        .await;
+
+        let status_payload = match result {
+            Ok(Ok(())) => serde_json::json!({
+                "job_id": &jid,
+                "percent": 1.0,
+                "status": "done",
+                "output_path": &out_clone
+            }),
+            Ok(Err(e)) => serde_json::json!({
+                "job_id": &jid,
+                "status": "error",
+                "error": e
+            }),
+            Err(e) => serde_json::json!({
+                "job_id": &jid,
+                "status": "error",
+                "error": e.to_string()
+            }),
+        };
+        let _ = app_clone.emit("diagnostic-progress", status_payload);
     });
 
     Ok(job_id)

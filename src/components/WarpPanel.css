@@ -1,12 +1,11 @@
 /* ── Panel container ───────────────────────────────────────── */
 .warp-panel {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   background: #0d0f14;
-  border: 1px solid #1e2028;
-  border-radius: 6px;
-  margin-top: 20px;
   font-family: ui-monospace, Consolas, monospace;
+  flex-shrink: 0;
+  overflow-y: auto;
 }
 
 /* ── Sections ──────────────────────────────────────────────── */
@@ -14,14 +13,12 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 16px 20px;
-  border-right: 1px solid #1e2028;
-  min-width: 180px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #1e2028;
 }
 
 .warp-panel__col:last-child {
-  border-right: none;
-  flex: 1;
+  border-bottom: none;
 }
 
 .warp-panel__col-header {
@@ -254,3 +251,10 @@
 }
 
 .warp-panel__new:hover { color: #9ca3af; }
+
+.warp-panel__debug-hint {
+  font-size: 9px;
+  color: #374151;
+  margin: 4px 0 0;
+  line-height: 1.4;
+}

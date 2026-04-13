@@ -7,6 +7,7 @@ import {
   computeOutputDuration,
   origBands,
   quantBands,
+  snapAllToBeat,
 } from '../utils/quantize'
 import { clampView } from '../utils/view'
 import type { Anchor, View, WarpData } from '../types'
@@ -46,6 +47,7 @@ export interface WarpViewHandle {
   exportMarkers(): void
   triggerImport(): void
   detectBpm(): Promise<number | null>
+  snapToBeat(): void
 }
 
 const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
@@ -242,6 +244,12 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     setOrigAnchors(next)
   }
 
+  // Stable refs so imperative handle methods always see current values
+  const beatRef = useRef(beat)
+  beatRef.current = beat
+  const beatOffsetRef = useRef(beatOffset)
+  beatOffsetRef.current = beatOffset
+
   const importRef = useRef<HTMLInputElement>(null)
 
   const exportMarkers = useCallback(() => {
@@ -386,6 +394,17 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         if (data.bpm && data.bpm > 0) { setBpm(data.bpm); return data.bpm }
       } catch {}
       return null
+    },
+    snapToBeat() {
+      const b = beatRef.current
+      const offset = beatOffsetRef.current
+      if (!b || b <= 0) return
+      setBeatAnchors(prev => {
+        const snapped = snapAllToBeat(prev, b, offset)
+        // All anchors are now manually positioned — remove linked-beat tracking
+        snapped.forEach(a => linkedBeat.current.delete(a.id))
+        return snapped
+      })
     },
   }), [origAnchors, duration, exportMarkers]) // eslint-disable-line react-hooks/exhaustive-deps
 

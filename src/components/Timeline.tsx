@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Anchor, Band, View } from '../types'
 import { stretchColor } from '../utils/quantize'
 import { clampView, MIN_VISIBLE } from '../utils/view'
@@ -195,19 +195,30 @@ export default function Timeline({
     [snapInterval, snapOffset, snapThresholdPx, visibleSpan],
   )
 
-  const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
+  // Keep a ref to the latest zoom state so the wheel handler never goes stale
+  const zoomRef = useRef({ viewStart: view.start, visibleSpan, setView })
+  zoomRef.current = { viewStart: view.start, visibleSpan, setView }
+
+  // Register a non-passive wheel listener so preventDefault() actually works in
+  // Tauri's WebView2 / WebKit — React's synthetic onWheel is passive in some runtimes.
+  useEffect(() => {
+    const el = trackRef.current
+    if (!el) return
+    const handler = (e: WheelEvent) => {
       if (!e.shiftKey) return
       e.preventDefault()
-      const cursorTime = xToTime(e.clientX)
+      const { viewStart, visibleSpan: span, setView: sv } = zoomRef.current
+      const rect = el.getBoundingClientRect()
+      const cursorTime = viewStart + ((e.clientX - rect.left) / rect.width) * span
       const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15
-      const newSpan = visibleSpan * factor
-      const ratio = (cursorTime - view.start) / visibleSpan
+      const newSpan = span * factor
+      const ratio = (cursorTime - viewStart) / span
       const ns = cursorTime - ratio * newSpan
-      setView({ start: ns, end: ns + newSpan })
-    },
-    [view.start, visibleSpan, xToTime, setView],
-  )
+      sv({ start: ns, end: ns + newSpan })
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, []) // only on mount — state is accessed via zoomRef
 
   const handleTrackPointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -373,7 +384,6 @@ export default function Timeline({
         onPointerMove={handleTrackPointerMove}
         onPointerUp={handleTrackPointerUp}
         onPointerLeave={handleTrackPointerUp}
-        onWheel={handleWheel}
       >
         {visibleBands?.map((b, i) => (
           <div

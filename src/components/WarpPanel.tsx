@@ -3,6 +3,7 @@ import type { RefObject } from 'react'
 import type { WarpViewHandle } from './WarpView'
 import type { WarpData } from '../types'
 import { startWarp, listenWarpProgress, saveOutput } from '../api/warp'
+import { startDiagnostic, listenDiagnosticProgress } from '../api/diagnostic'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import './WarpPanel.css'
 
@@ -79,7 +80,15 @@ export default function WarpPanel({
   const [saving, setSaving] = useState(false)
   const unlistenRef = useRef<UnlistenFn | null>(null)
 
-  useEffect(() => () => { unlistenRef.current?.() }, [])
+  // ── Diagnostic / Overlay state ─────────────────────────────────────────────
+  const [diagStatus, setDiagStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+  const [diagProgress, setDiagProgress] = useState(0)
+  const [diagOutputPath, setDiagOutputPath] = useState<string | null>(null)
+  const [diagMode, setDiagMode] = useState<'diagnostic' | 'overlay'>('diagnostic')
+  const [diagError, setDiagError] = useState<string | null>(null)
+  const unlistenDiagRef = useRef<UnlistenFn | null>(null)
+
+  useEffect(() => () => { unlistenRef.current?.(); unlistenDiagRef.current?.() }, [])
 
   const commitBpm = () => {
     const n = parseFloat(bpmInput)
@@ -196,6 +205,54 @@ export default function WarpPanel({
 
   const canProcess = !!warpData && anchorCount >= 1
 
+  const handleDiag = async (mode: 'diagnostic' | 'overlay') => {
+    if (!videoPath || !warpData) return
+    unlistenDiagRef.current?.()
+    setDiagMode(mode)
+    setDiagStatus('running')
+    setDiagProgress(0)
+    setDiagError(null)
+    setDiagOutputPath(null)
+
+    try {
+      const jobId = await startDiagnostic({
+        path: videoPath,
+        bpm: warpData.bpm,
+        beat_zero_time: warpData.beatZeroTime ?? 0,
+        mode,
+      })
+      unlistenDiagRef.current = await listenDiagnosticProgress(p => {
+        if (p.job_id !== jobId) return
+        setDiagProgress(p.percent ?? 0)
+        if (p.status === 'done' && p.output_path) {
+          setDiagStatus('done')
+          setDiagOutputPath(p.output_path)
+          unlistenDiagRef.current?.()
+        }
+        if (p.status === 'error') {
+          setDiagStatus('error')
+          setDiagError(p.error ?? 'Unknown error')
+          unlistenDiagRef.current?.()
+        }
+      })
+    } catch (e: any) {
+      setDiagStatus('error')
+      setDiagError(e.message ?? String(e))
+    }
+  }
+
+  const handleDiagSave = async () => {
+    if (!diagOutputPath) return
+    setSaving(true)
+    try {
+      await saveOutput({ source_path: diagOutputPath, suggested_name: `${diagMode}_${Math.round(warpData?.bpm ?? 120)}bpm.mp4` })
+    } catch (e: any) {
+      if (!String(e).includes('cancelled')) setDiagError(e.message ?? String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="warp-panel">
 
@@ -224,6 +281,7 @@ export default function WarpPanel({
         <div className="warp-panel__row warp-panel__row--actions">
           <button className="warp-panel__action" onClick={() => warpRef.current?.clearAnchors()} title="Remove all markers">Clear</button>
           <button className="warp-panel__action" onClick={() => warpRef.current?.resetAllLinks()} disabled={anchorCount === 0} title="Reset beat positions">Reset</button>
+          <button className="warp-panel__action" onClick={() => warpRef.current?.snapToBeat()} disabled={anchorCount === 0} title="Snap all beat markers to nearest beat (resolves conflicts)">Snap</button>
           <button className="warp-panel__action" onClick={() => warpRef.current?.exportMarkers()} disabled={anchorCount === 0} title="Download markers as JSON">Export</button>
           <button className="warp-panel__action" onClick={() => warpRef.current?.triggerImport()} title="Load markers from JSON">Import</button>
         </div>
@@ -292,6 +350,48 @@ export default function WarpPanel({
           <span className="warp-panel__filename" title={originalName}>{originalName}</span>
           <button className="warp-panel__new" onClick={onNew} title="Open a different video">✕</button>
         </div>
+      </div>
+
+      {/* ── Col 4: Debug ── */}
+      <div className="warp-panel__col">
+        <div className="warp-panel__col-header">Debug</div>
+
+        {diagStatus === 'running' ? (
+          <div className="warp-panel__progress">
+            <div className="warp-panel__progress-fill" style={{ width: `${diagProgress * 100}%` }} />
+          </div>
+        ) : (
+          <div className="warp-panel__row warp-panel__row--actions">
+            <button
+              className="warp-panel__action"
+              onClick={() => handleDiag('diagnostic')}
+              disabled={!canProcess}
+              title="Generate test video: metronome visuals with identical timing structure as source"
+            >Test</button>
+            <button
+              className="warp-panel__action"
+              onClick={() => handleDiag('overlay')}
+              disabled={!canProcess}
+              title="Overlay metronome HUD on top of the original video"
+            >Overlay</button>
+          </div>
+        )}
+
+        {diagStatus === 'error' && (
+          <span className="warp-panel__error" title={diagError ?? ''}>{diagError}</span>
+        )}
+
+        {diagStatus === 'done' && diagOutputPath && (
+          <button className="warp-panel__download" onClick={handleDiagSave} disabled={saving}>
+            {saving ? '…' : `↓ Save ${diagMode}`}
+          </button>
+        )}
+
+        <p className="warp-panel__debug-hint">
+          {diagStatus === 'idle' && 'Test: replace pixels, copy timing. Overlay: HUD on source.'}
+          {diagStatus === 'running' && `Generating ${diagMode}…`}
+          {diagStatus === 'done' && 'Ready to save.'}
+        </p>
       </div>
 
     </div>
