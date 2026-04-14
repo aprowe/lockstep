@@ -25,6 +25,23 @@ export default forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPla
 ) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const playingRef = useRef(false)
+  const rafRef = useRef<number | null>(null)
+  const onTimeUpdateRef = useRef(onTimeUpdate)
+  onTimeUpdateRef.current = onTimeUpdate
+
+  function startRaf() {
+    if (rafRef.current !== null) return
+    const tick = () => {
+      if (!playingRef.current) { rafRef.current = null; return }
+      onTimeUpdateRef.current?.(videoRef.current?.currentTime ?? 0)
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+  }
+
+  function stopRaf() {
+    if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+  }
 
   useImperativeHandle(ref, () => ({
     seek(time: number) {
@@ -51,10 +68,29 @@ export default forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPla
         ref={videoRef}
         src={src}
         className="video-player__video"
-        onTimeUpdate={e => onTimeUpdate?.((e.target as HTMLVideoElement).currentTime)}
-        onPlay={() => { playingRef.current = true; onPlayStateChange?.(true) }}
-        onPause={() => { playingRef.current = false; onPlayStateChange?.(false) }}
-        onEnded={() => { playingRef.current = false; onPlayStateChange?.(false) }}
+        onPlay={() => {
+          playingRef.current = true
+          onPlayStateChange?.(true)
+          startRaf()
+        }}
+        onPause={() => {
+          playingRef.current = false
+          onPlayStateChange?.(false)
+          stopRaf()
+          // Emit final position on pause/seek
+          onTimeUpdateRef.current?.(videoRef.current?.currentTime ?? 0)
+        }}
+        onEnded={() => {
+          playingRef.current = false
+          onPlayStateChange?.(false)
+          stopRaf()
+          onTimeUpdateRef.current?.(videoRef.current?.currentTime ?? 0)
+        }}
+        onSeeked={() => {
+          if (!playingRef.current) {
+            onTimeUpdateRef.current?.(videoRef.current?.currentTime ?? 0)
+          }
+        }}
       />
     </div>
   )
