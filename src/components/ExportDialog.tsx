@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { WarpData, Region } from '../types'
-import { startWarp, listenWarpProgress, saveOutput } from '../api/warp'
+import { startWarp, listenWarpProgress, saveOutput, pickExportFolder, saveToFolder } from '../api/warp'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import './ExportDialog.css'
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface ExportJob {
   label: string
@@ -27,6 +29,34 @@ interface ExportDialogProps {
 
 type ExportMode = 'current' | 'all' | 'selected'
 
+// ── Name pattern helpers ──────────────────────────────────────────────────────
+
+/**
+ * Available tokens: {name} {bpm} {in} {out} {n}
+ */
+function applyPattern(pattern: string, opts: {
+  name: string
+  bpm: number
+  clipIn: number | null
+  clipOut: number | null
+  index: number
+}): string {
+  const pad2 = (n: number) => String(Math.floor(n)).padStart(2, '0')
+  const fmtSec = (s: number | null) => {
+    if (s === null) return '0'
+    const m = Math.floor(s / 60), sec = s % 60
+    return m > 0 ? `${m}m${pad2(sec)}s` : `${Math.floor(sec)}s`
+  }
+  return pattern
+    .replace(/\{name\}/g, opts.name.replace(/\s+/g, '_'))
+    .replace(/\{bpm\}/g, String(Math.round(opts.bpm)))
+    .replace(/\{in\}/g, fmtSec(opts.clipIn))
+    .replace(/\{out\}/g, fmtSec(opts.clipOut))
+    .replace(/\{n\}/g, String(opts.index + 1).padStart(2, '0'))
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export default function ExportDialog({
   open, onClose, warpData, videoPath, originalName,
   loopBeats, addToEnd, trimToLoop, regions, activeRegionId,
@@ -48,7 +78,11 @@ export default function ExportDialog({
   const [mode, setMode] = useState<ExportMode>('current')
   const [selectedRegionIds, setSelectedRegionIds] = useState<Set<string>>(new Set())
 
-  // Reset state when dialog opens
+  // Output settings
+  const [destFolder, setDestFolder] = useState<string | null>(null)
+  const [namePattern, setNamePattern] = useState('{name}_{bpm}bpm')
+  const baseName = originalName.replace(/\.[^.]+$/, '')
+
   useEffect(() => {
     if (open) {
       setStatus('idle')
@@ -59,22 +93,22 @@ export default function ExportDialog({
       setCurrentJobIdx(0)
       setTotalJobs(0)
       cancelRef.current = false
-      // Default mode: if a clip is active, export current; else full video
-      setMode(activeRegionId ? 'current' : 'current')
       setSelectedRegionIds(new Set(regions.map(r => r.id)))
     }
-  }, [open, activeRegionId, regions])
+  }, [open, regions])
 
   useEffect(() => () => { unlistenRef.current?.() }, [])
 
   const activeRegion = regions.find(r => r.id === activeRegionId) ?? null
   const bpm = warpData?.bpm ?? 120
-  const canProcess = !!warpData && (warpData.origAnchors.length ?? 0) >= 1
+  // Allow export even with no markers (passthrough / cut only)
+  const canProcess = !!warpData || (videoPath.length > 0)
+  const hasMarkers = !!warpData && (warpData.origAnchors.length ?? 0) >= 1
 
   const buildJobs = (): ExportJob[] => {
     if (mode === 'current') {
       return [{
-        label: activeRegion ? activeRegion.name : 'Full Video',
+        label: activeRegion ? activeRegion.name : baseName,
         clipIn: activeRegion?.inPoint ?? null,
         clipOut: activeRegion?.outPoint ?? null,
         bpm: activeRegion?.bpm ?? bpm,
@@ -84,7 +118,7 @@ export default function ExportDialog({
     const list = mode === 'all' ? regions : regions.filter(r => selectedRegionIds.has(r.id))
     if (list.length === 0) {
       return [{
-        label: 'Full Video',
+        label: baseName,
         clipIn: null,
         clipOut: null,
         bpm,
@@ -100,8 +134,19 @@ export default function ExportDialog({
     }))
   }
 
+  const getFileName = (job: ExportJob, index: number) => {
+    const name = applyPattern(namePattern, {
+      name: job.label,
+      bpm: job.bpm,
+      clipIn: job.clipIn,
+      clipOut: job.clipOut,
+      index,
+    })
+    return `${name}.mp4`
+  }
+
   const process = async () => {
-    if (!warpData || !videoPath) return
+    if (!videoPath) return
     const jobs = buildJobs()
     setStatus('processing')
     setTotalJobs(jobs.length)
@@ -119,19 +164,22 @@ export default function ExportDialog({
       setProgress(0)
 
       try {
-        const pairs = [...warpData.origAnchors]
-          .sort((a, b) => a.time - b.time)
-          .map(oa => ({
-            orig: oa.time,
-            beat: warpData.beatAnchors.find(ba => ba.id === oa.id)?.time ?? oa.time,
-          }))
+        // If no markers, use empty arrays (passthrough trim only)
+        const pairs = hasMarkers
+          ? [...(warpData!.origAnchors)]
+              .sort((a, b) => a.time - b.time)
+              .map(oa => ({
+                orig: oa.time,
+                beat: warpData!.beatAnchors.find(ba => ba.id === oa.id)?.time ?? oa.time,
+              }))
+          : []
 
         const jobId = await startWarp({
           path: videoPath,
           orig_times: pairs.map(p => p.orig),
           beat_times: pairs.map(p => p.beat),
           bpm: job.bpm,
-          beat_zero_time: warpData.beatZeroTime ?? 0,
+          beat_zero_time: warpData?.beatZeroTime ?? 0,
           add_to_end: job.addToEnd,
           fade_at_loop: fadeAtLoop && job.addToEnd,
           trim_to_loop: trimToLoop,
@@ -167,22 +215,38 @@ export default function ExportDialog({
     if (!cancelRef.current) {
       setOutputPaths(results)
       setStatus('done')
+
+      // Auto-save to folder if one is selected
+      if (destFolder && results.length > 0) {
+        const jobs2 = buildJobs()
+        setSaving(true)
+        try {
+          for (let i = 0; i < results.length; i++) {
+            const fileName = getFileName(jobs2[i], i)
+            await saveToFolder({ source_path: results[i], dest_folder: destFolder, file_name: fileName })
+          }
+          setSavedCount(results.length)
+        } catch (e: any) {
+          if (!String(e).includes('cancelled')) setError(e.message ?? String(e))
+        } finally {
+          setSaving(false)
+        }
+      }
     }
   }
 
-  const handleSave = async (idx: number) => {
+  const handleSaveOne = async (idx: number) => {
     const path = outputPaths[idx]
     if (!path) return
     setSaving(true)
     try {
       const jobs = buildJobs()
-      const job = jobs[idx]
-      const baseName = originalName.replace(/\.[^.]+$/, '')
-      const suffix = job?.label && job.label !== 'Full Video'
-        ? `_${job.label.replace(/\s+/g, '_')}`
-        : '_warped'
-      const suggestedName = `${baseName}${suffix}_${Math.round(job?.bpm ?? bpm)}bpm.mp4`
-      await saveOutput({ source_path: path, suggested_name: suggestedName })
+      const fileName = getFileName(jobs[idx], idx)
+      if (destFolder) {
+        await saveToFolder({ source_path: path, dest_folder: destFolder, file_name: fileName })
+      } else {
+        await saveOutput({ source_path: path, suggested_name: fileName })
+      }
       setSavedCount(prev => prev + 1)
     } catch (e: any) {
       if (!String(e).includes('cancelled')) setError(e.message ?? String(e))
@@ -195,20 +259,28 @@ export default function ExportDialog({
     setSaving(true)
     try {
       const jobs = buildJobs()
-      const baseName = originalName.replace(/\.[^.]+$/, '')
       for (let i = 0; i < outputPaths.length; i++) {
-        const job = jobs[i]
-        const suffix = job?.label && job.label !== 'Full Video'
-          ? `_${job.label.replace(/\s+/g, '_')}`
-          : '_warped'
-        const suggestedName = `${baseName}${suffix}_${Math.round(job?.bpm ?? bpm)}bpm.mp4`
-        await saveOutput({ source_path: outputPaths[i], suggested_name: suggestedName })
+        const fileName = getFileName(jobs[i], i)
+        if (destFolder) {
+          await saveToFolder({ source_path: outputPaths[i], dest_folder: destFolder, file_name: fileName })
+        } else {
+          await saveOutput({ source_path: outputPaths[i], suggested_name: fileName })
+        }
       }
       setSavedCount(outputPaths.length)
     } catch (e: any) {
       if (!String(e).includes('cancelled')) setError(e.message ?? String(e))
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handlePickFolder = async () => {
+    try {
+      const folder = await pickExportFolder()
+      setDestFolder(folder)
+    } catch {
+      // cancelled
     }
   }
 
@@ -232,24 +304,29 @@ export default function ExportDialog({
   if (!open) return null
 
   const hasRegions = regions.length > 0
+  const jobs = buildJobs()
+  const previewName = jobs.length > 0 ? getFileName(jobs[0], 0) : ''
 
   return (
     <div className="export-overlay" onClick={handleClose}>
       <div className="export-dialog" onClick={e => e.stopPropagation()}>
+
         <div className="export-dialog__header">
           <span className="export-dialog__title">Export</span>
           <button className="export-dialog__close" onClick={handleClose}>
-            {status === 'processing' ? 'Cancel' : '\u2715'}
+            {status === 'processing' ? 'Cancel' : '✕'}
           </button>
         </div>
 
         <div className="export-dialog__body">
-          {/* Mode selector */}
+
+          {/* Clip mode selector */}
           {hasRegions && status === 'idle' && (
             <div className="export-dialog__modes">
               <button
                 className={`export-dialog__mode${mode === 'current' ? ' export-dialog__mode--active' : ''}`}
                 onClick={() => setMode('current')}
+                title={activeRegion ? activeRegion.name : 'Full Video'}
               >
                 {activeRegion ? activeRegion.name : 'Full Video'}
               </button>
@@ -257,18 +334,18 @@ export default function ExportDialog({
                 className={`export-dialog__mode${mode === 'all' ? ' export-dialog__mode--active' : ''}`}
                 onClick={() => setMode('all')}
               >
-                All Clips ({regions.length})
+                All ({regions.length})
               </button>
               <button
                 className={`export-dialog__mode${mode === 'selected' ? ' export-dialog__mode--active' : ''}`}
                 onClick={() => setMode('selected')}
               >
-                Select...
+                Select
               </button>
             </div>
           )}
 
-          {/* Clip selector for 'selected' mode */}
+          {/* Clip selector */}
           {mode === 'selected' && status === 'idle' && (
             <div className="export-dialog__clip-list">
               {regions.map(r => (
@@ -279,15 +356,51 @@ export default function ExportDialog({
                     onChange={() => toggleRegion(r.id)}
                   />
                   <span className="export-dialog__clip-name">{r.name}</span>
-                  <span className="export-dialog__clip-bpm">{Math.round(r.bpm)} bpm</span>
+                  <span className="export-dialog__clip-bpm">{Math.round(r.bpm)}</span>
                 </label>
               ))}
             </div>
           )}
 
+          {/* Output folder + name pattern */}
+          {status === 'idle' && (
+            <div className="export-dialog__output">
+              <div className="export-dialog__row">
+                <span className="export-dialog__row-label">Folder</span>
+                <button className="export-dialog__folder-btn" onClick={handlePickFolder}>
+                  {destFolder
+                    ? destFolder.split(/[\\/]/).pop()
+                    : 'Choose…'}
+                </button>
+                {destFolder && (
+                  <button className="export-dialog__folder-clear" onClick={() => setDestFolder(null)} title="Clear folder">✕</button>
+                )}
+              </div>
+              <div className="export-dialog__row">
+                <span className="export-dialog__row-label">Name</span>
+                <input
+                  className="export-dialog__pattern"
+                  value={namePattern}
+                  onChange={e => setNamePattern(e.target.value)}
+                  spellCheck={false}
+                />
+              </div>
+              <div className="export-dialog__preview">{previewName}</div>
+              <div className="export-dialog__tokens">
+                {['{name}', '{bpm}', '{in}', '{out}', '{n}'].map(t => (
+                  <button
+                    key={t}
+                    className="export-dialog__token"
+                    onClick={() => setNamePattern(p => p + t)}
+                  >{t}</button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Options */}
           {status === 'idle' && (
-            <>
+            <div className="export-dialog__options">
               {addToEnd && (
                 <label className="export-dialog__check">
                   <input type="checkbox" checked={fadeAtLoop} onChange={e => setFadeAtLoop(e.target.checked)} />
@@ -298,15 +411,16 @@ export default function ExportDialog({
                 <input type="checkbox" checked={normalizeBpm} onChange={e => setNormalizeBpm(e.target.checked)} />
                 Normalize BPM
               </label>
-            </>
+            </div>
           )}
 
           {/* Processing status */}
-          {status === 'processing' && totalJobs > 1 && (
+          {status === 'processing' && (
             <div className="export-dialog__job-info">
-              {currentJobLabel} ({currentJobIdx + 1}/{totalJobs})
+              {totalJobs > 1 ? `${currentJobLabel} (${currentJobIdx + 1}/${totalJobs})` : currentJobLabel}
             </div>
           )}
+
         </div>
 
         <div className="export-dialog__footer">
@@ -316,35 +430,33 @@ export default function ExportDialog({
 
           {status === 'processing' ? (
             <div className="export-dialog__progress">
-              <div className="export-dialog__progress-fill" style={{
-                width: `${((currentJobIdx + progress) / totalJobs) * 100}%`
-              }} />
+              <div
+                className="export-dialog__progress-fill"
+                style={{ width: `${((currentJobIdx + progress) / Math.max(totalJobs, 1)) * 100}%` }}
+              />
             </div>
           ) : status === 'done' && outputPaths.length > 0 ? (
             <div className="export-dialog__results">
               {outputPaths.length === 1 ? (
-                <button className="export-dialog__save" onClick={() => handleSave(0)} disabled={saving}>
-                  {saving ? '...' : savedCount > 0 ? 'Saved' : 'Save MP4'}
+                <button className="export-dialog__save" onClick={() => handleSaveOne(0)} disabled={saving}>
+                  {saving ? '…' : savedCount > 0 ? '✓ Saved' : destFolder ? '✓ Saved' : 'Save MP4'}
                 </button>
               ) : (
                 <>
-                  <button className="export-dialog__save" onClick={handleSaveAll} disabled={saving}>
-                    {saving ? '...' : savedCount >= outputPaths.length ? 'All Saved' : `Save All (${outputPaths.length})`}
+                  <button className="export-dialog__save" onClick={handleSaveAll} disabled={saving || savedCount >= outputPaths.length}>
+                    {saving ? '…' : savedCount >= outputPaths.length ? `✓ All Saved` : `Save All (${outputPaths.length})`}
                   </button>
                   <div className="export-dialog__result-list">
-                    {outputPaths.map((_, i) => {
-                      const jobs = buildJobs()
-                      return (
-                        <button
-                          key={i}
-                          className="export-dialog__result-item"
-                          onClick={() => handleSave(i)}
-                          disabled={saving}
-                        >
-                          {jobs[i]?.label ?? `Clip ${i + 1}`}
-                        </button>
-                      )
-                    })}
+                    {outputPaths.map((_, i) => (
+                      <button
+                        key={i}
+                        className="export-dialog__result-item"
+                        onClick={() => handleSaveOne(i)}
+                        disabled={saving}
+                      >
+                        {jobs[i]?.label ?? `Clip ${i + 1}`}
+                      </button>
+                    ))}
                   </div>
                 </>
               )}
@@ -355,14 +467,15 @@ export default function ExportDialog({
               onClick={process}
               disabled={!canProcess || (mode === 'selected' && selectedRegionIds.size === 0)}
             >
-              {mode === 'current' || !hasRegions
-                ? 'Process'
-                : mode === 'all'
-                  ? `Process ${regions.length} Clips`
-                  : `Process ${selectedRegionIds.size} Clips`}
+              {mode === 'all'
+                ? `Process ${regions.length}`
+                : mode === 'selected'
+                  ? `Process ${selectedRegionIds.size}`
+                  : 'Process'}
             </button>
           )}
         </div>
+
       </div>
     </div>
   )

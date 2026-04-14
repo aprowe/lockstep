@@ -59,3 +59,19 @@ export interface SaveRequest {
 export async function saveOutput(req: SaveRequest): Promise<void> {
   await invoke('save_output', { req })
 }
+
+/** Opens a native folder picker and returns the selected path. */
+export async function pickExportFolder(): Promise<string> {
+  return invoke<string>('pick_export_folder')
+}
+
+export interface SaveToFolderRequest {
+  source_path: string
+  dest_folder: string
+  file_name: string
+}
+
+/** Copies a temp output file directly to a folder without a save dialog. */
+export async function saveToFolder(req: SaveToFolderRequest): Promise<string> {
+  return invoke<string>('save_to_folder', { req })
+}

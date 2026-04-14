@@ -17,6 +17,8 @@ pub fn run() {
             commands::start_warp,
             commands::start_diagnostic,
             commands::save_output,
+            commands::pick_export_folder,
+            commands::save_to_folder,
             storage::save_video_state,
             storage::load_video_state,
             storage::list_saved_hashes,

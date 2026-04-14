@@ -376,3 +376,36 @@ pub async fn save_output(app: AppHandle, req: SaveRequest) -> Result<(), String>
         None => Err("cancelled".to_string()),
     }
 }
+
+// ── Pick Export Folder ────────────────────────────────────────────────────────
+
+/// Opens a native folder picker and returns the selected path.
+#[tauri::command]
+pub async fn pick_export_folder(app: AppHandle) -> Result<String, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let folder = app.dialog().file().blocking_pick_folder();
+    match folder {
+        Some(path) => path.into_path()
+            .map(|p| p.to_string_lossy().to_string())
+            .map_err(|e| e.to_string()),
+        None => Err("cancelled".to_string()),
+    }
+}
+
+// ── Save to Folder ────────────────────────────────────────────────────────────
+
+#[derive(serde::Deserialize)]
+pub struct SaveToFolderRequest {
+    pub source_path: String,
+    pub dest_folder: String,
+    pub file_name: String,
+}
+
+/// Copies a temp output file directly to a folder without a save dialog.
+#[tauri::command]
+pub async fn save_to_folder(req: SaveToFolderRequest) -> Result<String, String> {
+    let dest = std::path::Path::new(&req.dest_folder).join(&req.file_name);
+    std::fs::copy(&req.source_path, &dest)
+        .map_err(|e| format!("Save failed: {e}"))?;
+    Ok(dest.to_string_lossy().to_string())
+}
