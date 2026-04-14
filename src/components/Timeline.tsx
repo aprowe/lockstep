@@ -763,10 +763,15 @@ export default function Timeline({
         onPointerLeave={handleTrackPointerUp}
         onDoubleClick={e => {
           if ((e.target as HTMLElement).closest('.anchor')) return
-          if ((e.target as HTMLElement).closest('.clip-overlay')) return
-          if (noAdd || !canInteract) return
           const rect = trackRef.current!.getBoundingClientRect()
           const time = Math.max(0, Math.min(duration, view.start + ((e.clientX - rect.left) / rect.width) * visibleSpan))
+          // If click is in the bar area (top 14px) of a clip overlay → zoom to that clip
+          if (!flip && clipOverlays) {
+            const clickY = e.clientY - rect.top
+            const hit = clickY <= 14 ? clipOverlays.find(c => time >= c.inPoint && time <= c.outPoint) : null
+            if (hit) { setView({ start: hit.inPoint, end: hit.outPoint }); return }
+          }
+          if (noAdd || !canInteract) return
           const marginSec = (mergeMarginPx / rect.width) * visibleSpan
           const nearby = anchors.reduce<{ anchor: Anchor; dist: number } | null>((best, a) => {
             const dist = Math.abs(a.time - time)
@@ -836,20 +841,12 @@ export default function Timeline({
               data-clip-id={clip.id}
               className={`clip-overlay${clip.active ? ' clip-overlay--active' : ''} clip-overlay--color-${(clip.colorIndex ?? 0) % 8}`}
               style={{ left: `${left}%`, width: `${width}%` }}
-              onDoubleClick={e => {
-                e.stopPropagation()
-                setView({ start: clip.inPoint, end: clip.outPoint })
-              }}
             >
               {/* Handle bar — only on the top (non-flipped) timeline */}
               {!flip && (
                 <div
                   className="clip-overlay__bar"
-                  onDoubleClick={e => {
-                    e.stopPropagation()
-                    // Zoom to fit this clip
-                    setView({ start: clip.inPoint, end: clip.outPoint })
-                  }}
+                  onDoubleClick={e => { e.stopPropagation(); setView({ start: clip.inPoint, end: clip.outPoint }) }}
                 >
                   <div className="clip-overlay__handle clip-overlay__handle--left" />
                   <span className="clip-overlay__label">{clip.name}</span>

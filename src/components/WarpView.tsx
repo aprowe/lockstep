@@ -311,11 +311,11 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     const EPS = 1e-6
     if (clipIn !== undefined && (augOrig.length === 0 || augOrig[0].time - clipIn > EPS)) {
       augOrig.unshift({ id: -9998, time: clipIn })
-      augBeat.unshift({ id: -9998, time: interpOrigToBeat(clipIn) })
+      augBeat.unshift({ id: -9998, time: clipIn })
     }
     if (clipOut !== undefined && (augOrig.length === 0 || clipOut - augOrig[augOrig.length - 1].time > EPS)) {
       augOrig.push({ id: -9999, time: clipOut })
-      augBeat.push({ id: -9999, time: interpOrigToBeat(clipOut) })
+      augBeat.push({ id: -9999, time: clipOut })
     }
     return buildSegments(augOrig, augBeat, duration, outputDuration)
   }, [sortedOrig, sortedBeat, duration, outputDuration, clipIn, clipOut])

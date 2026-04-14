@@ -4,6 +4,19 @@ import ContextMenu from './ContextMenu'
 import type { ContextMenuState } from './ContextMenu'
 import './RegionSidebar.css'
 
+// ── Color palette (must match Timeline.css clip-overlay--color-N) ────────────
+
+const PALETTE = [
+  { h: 0,   s: 75, l: 55 },
+  { h: 30,  s: 80, l: 52 },
+  { h: 58,  s: 80, l: 48 },
+  { h: 115, s: 65, l: 45 },
+  { h: 183, s: 65, l: 42 },
+  { h: 213, s: 70, l: 55 },
+  { h: 270, s: 60, l: 55 },
+  { h: 305, s: 65, l: 52 },
+]
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtTime(s: number): string {
@@ -172,8 +185,9 @@ export default function RegionSidebar({
         </div>
 
         {/* User-defined regions */}
-        {regions.map(region => {
+        {regions.map((region, idx) => {
           const active = activeRegionId === region.id
+          const { h, s, l } = PALETTE[idx % PALETTE.length]
           return (
             <div
               key={region.id}
@@ -183,6 +197,10 @@ export default function RegionSidebar({
               onContextMenu={e => openContextMenu(e, region)}
             >
               <div className="rsi-item__row">
+                <span
+                  className="rsi-item__swatch"
+                  style={{ background: `hsl(${h},${s}%,${l}%)` }}
+                />
                 {renamingId === region.id ? (
                   <input
                     ref={inputRef}
@@ -200,13 +218,6 @@ export default function RegionSidebar({
                 ) : (
                   <div className="rsi-item__name">{region.name}</div>
                 )}
-                <button
-                  className="rsi-item__del"
-                  onClick={e => { e.stopPropagation(); onDeleteRegion(region.id) }}
-                  title="Delete region"
-                >
-                  ✕
-                </button>
               </div>
 
               {/* In/out row — editable when active */}

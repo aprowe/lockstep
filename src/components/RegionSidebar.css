@@ -77,6 +77,14 @@
   gap: 4px;
 }
 
+.rsi-item__swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
 .rsi-item__name {
   font-size: 13px;
   color: #e2dbd2;

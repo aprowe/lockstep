@@ -58,7 +58,7 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
               <line
                 key={i}
                 x1={oX} y1={0} x2={qX} y2={1}
-                stroke={linked ? 'rgba(245,158,11,0.75)' : 'rgba(200,180,150,0.35)'}
+                stroke={linked ? 'rgba(245,158,11,0.75)' : 'rgba(245,158,11,0.35)'}
                 strokeWidth={linked ? '0.9' : '0.6'}
                 strokeDasharray={linked ? undefined : '2 3'}
                 vectorEffect="non-scaling-stroke"
