@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react'
 import type { Region } from '../types'
+import ContextMenu from './ContextMenu'
+import type { ContextMenuState } from './ContextMenu'
 import './RegionSidebar.css'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -39,6 +41,7 @@ interface RegionSidebarProps {
   onDeleteRegion: (id: string) => void
   onRename: (id: string, name: string) => void
   onUpdateInOut: (id: string, inPoint: number, outPoint: number) => void
+  onExportRegion?: (id: string) => void
 }
 
 // ── Editable timecode field ──────────────────────────────────────────────────
@@ -107,10 +110,12 @@ export default function RegionSidebar({
   onDeleteRegion,
   onRename,
   onUpdateInOut,
+  onExportRegion,
 }: RegionSidebarProps) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
 
   const startRename = (region: Region, e?: React.MouseEvent) => {
     e?.stopPropagation()
@@ -122,6 +127,21 @@ export default function RegionSidebar({
   const commitRename = () => {
     if (renamingId && renameValue.trim()) onRename(renamingId, renameValue.trim())
     setRenamingId(null)
+  }
+
+  const openContextMenu = (e: React.MouseEvent, region: Region) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      items: [
+        { label: 'Rename', action: () => startRename(region) },
+        ...(onExportRegion ? [{ label: 'Export', action: () => onExportRegion(region.id) }] : []),
+        { separator: true as const },
+        { label: 'Delete', action: () => onDeleteRegion(region.id), danger: true },
+      ],
+    })
   }
 
   return (
@@ -160,6 +180,7 @@ export default function RegionSidebar({
               className={`rsi-item${active ? ' rsi-item--active' : ''}`}
               onClick={() => onSelectRegion(region.id)}
               onDoubleClick={e => startRename(region, e)}
+              onContextMenu={e => openContextMenu(e, region)}
             >
               <div className="rsi-item__row">
                 {renamingId === region.id ? (
@@ -220,6 +241,10 @@ export default function RegionSidebar({
           </div>
         )}
       </div>
+
+      {contextMenu && (
+        <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />
+      )}
     </div>
   )
 }

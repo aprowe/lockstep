@@ -567,14 +567,12 @@ export default function Timeline({
             onSelectionChange?.(new Set([g.anchorId]))
           }
         } else {
-          // Click on empty area — deselect or seek
+          // Click on empty area — deselect and seek
           const sel = selectionRef.current
           if (sel && sel.size > 0) {
             onSelectionChange?.(new Set())
-          } else if (scrubOnTrackClick) {
-            onTrackScrub?.(Math.max(0, Math.min(duration, g.time)))
           }
-          // Marker creation moved to double-click handler
+          onTrackScrub?.(Math.max(0, Math.min(duration, g.time)))
         }
         return
       }

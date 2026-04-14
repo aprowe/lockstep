@@ -306,6 +306,10 @@ export default function App() {
                 onDeleteRegion={deleteRegion}
                 onRename={renameRegion}
                 onUpdateInOut={updateRegionInOut}
+                onExportRegion={(id) => {
+                  setActiveRegionId(id)
+                  setExportOpen(true)
+                }}
               />
               {/* 5px spacer matching vj-resizer height */}
               <div style={{ height: 5, flexShrink: 0, background: '#1b1814' }} />

@@ -858,7 +858,6 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         onClipOverlayMove={onClipOverlayMove}
         beatRangeStart={clipIn}
         beatRangeEnd={clipOut}
-        scrubOnTrackClick={clipIn !== undefined}
         onTrackScrub={onSeek}
       />
       <WarpConnector
