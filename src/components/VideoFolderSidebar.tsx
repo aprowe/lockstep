@@ -8,6 +8,7 @@ interface VideoFolderSidebarProps {
   onSelectVideo: (path: string) => void
   width?: number
   markerCountByPath?: Record<string, number>
+  onCollapse?: () => void
 }
 
 export default function VideoFolderSidebar({
@@ -17,6 +18,7 @@ export default function VideoFolderSidebar({
   onSelectVideo,
   width,
   markerCountByPath = {},
+  onCollapse,
 }: VideoFolderSidebarProps) {
   return (
     <div className="vf-sidebar" style={width !== undefined ? { width } : undefined}>
@@ -29,6 +31,15 @@ export default function VideoFolderSidebar({
         >
           ⊕
         </button>
+        {onCollapse && (
+          <button
+            className="vf-sidebar__collapse-btn"
+            onClick={onCollapse}
+            title="Collapse sidebar"
+          >
+            ◀
+          </button>
+        )}
       </div>
 
       {videos.length === 0 ? (

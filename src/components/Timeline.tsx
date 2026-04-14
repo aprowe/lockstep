@@ -73,6 +73,8 @@ export interface TimelineProps {
   onClipOverlayResize?: (id: string, inPoint: number, outPoint: number) => void
   /** Called while the user drags a clip overlay by its handle bar */
   onClipOverlayMove?: (id: string, inPoint: number, outPoint: number) => void
+  /** Right-click on a clip overlay bar */
+  onClipOverlayContextMenu?: (id: string, x: number, y: number) => void
   /** Only render beat grid lines within this time range */
   beatRangeStart?: number
   beatRangeEnd?: number
@@ -204,6 +206,7 @@ export default function Timeline({
   onClipOverlayCreate,
   onClipOverlayResize,
   onClipOverlayMove,
+  onClipOverlayContextMenu,
   beatRangeStart,
   beatRangeEnd,
   scrubOnTrackClick = false,
@@ -847,6 +850,11 @@ export default function Timeline({
                 <div
                   className="clip-overlay__bar"
                   onDoubleClick={e => { e.stopPropagation(); setView({ start: clip.inPoint, end: clip.outPoint }) }}
+                  onContextMenu={e => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    onClipOverlayContextMenu?.(clip.id, e.clientX, e.clientY)
+                  }}
                 >
                   <div className="clip-overlay__handle clip-overlay__handle--left" />
                   <span className="clip-overlay__label">{clip.name}</span>

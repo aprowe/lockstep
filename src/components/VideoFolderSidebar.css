@@ -49,6 +49,24 @@
   color: #f59e0b;
 }
 
+.vf-sidebar__collapse-btn {
+  width: 20px;
+  height: 20px;
+  background: none;
+  border: none;
+  color: #6b5f52;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin-left: auto;
+}
+
+.vf-sidebar__collapse-btn:hover { color: #b5a898; }
+
 /* ── Empty state ──────────────────────────────────────────── */
 .vf-sidebar__empty {
   flex: 1;

@@ -52,6 +52,7 @@ interface WarpViewProps {
   onClipOverlayCreate?: (inPoint: number, outPoint: number) => void
   onClipOverlayResize?: (id: string, inPoint: number, outPoint: number) => void
   onClipOverlayMove?: (id: string, inPoint: number, outPoint: number) => void
+  onClipOverlayContextMenu?: (id: string, x: number, y: number) => void
 }
 
 export interface WarpViewHandle {
@@ -107,6 +108,7 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
   onClipOverlayCreate,
   onClipOverlayResize,
   onClipOverlayMove,
+  onClipOverlayContextMenu,
 }, ref) {
   // Selection: use props if provided, else internal state
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set())
@@ -886,6 +888,7 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         onClipOverlayCreate={onClipOverlayCreate}
         onClipOverlayResize={onClipOverlayResize}
         onClipOverlayMove={onClipOverlayMove}
+        onClipOverlayContextMenu={onClipOverlayContextMenu}
         beatRangeStart={clipIn}
         beatRangeEnd={clipOut}
         onTrackScrub={onSeek}

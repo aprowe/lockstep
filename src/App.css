@@ -110,6 +110,21 @@
   background: #f59e0b;
 }
 
+/* ── Collapsed file sidebar rail ───────────────────────── */
+.vj-sidebar-collapsed {
+  width: 18px;
+  flex-shrink: 0;
+  background: #1b1814;
+  border-right: 1px solid #2a241e;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.vj-sidebar-collapsed:hover { background: #221e18; }
+.vj-sidebar-collapsed__icon { font-size: 8px; color: #6b5f52; }
+
 /* ── Drag-and-drop overlay ──────────────────────────────── */
 .app-drop-overlay {
   position: fixed;

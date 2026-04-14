@@ -7,9 +7,9 @@ export function snapToBeat(time: number, bpm: number): number {
 }
 
 /**
- * Snaps all beat anchors to the nearest beat grid, resolving conflicts so no
- * two anchors land on the same beat. Uses greedy closest-first assignment, then
- * enforces strictly-increasing order to match orig anchor ordering.
+ * Snaps beat anchors to the nearest beat grid position.
+ * Closest anchor wins when two anchors want the same beat — the other
+ * keeps its original time (no outward pushing to force every anchor onto a beat).
  *
  * @param anchors  Beat anchors to snap (need not be sorted)
  * @param beat     Beat interval in seconds (60 / bpm)
@@ -28,55 +28,20 @@ export function snapAllToBeat(
     return { id: a.id, time: a.time, idealK: k, dist: Math.abs(a.time - (beatOffset + k * beat)) }
   })
 
-  // Priority: closest anchor gets its ideal beat first
+  // Closest anchor claims its beat first; conflicts are left unsnapped
   const byDist = [...candidates].sort((a, b) => a.dist - b.dist)
-
   const claimedKs = new Set<number>()
-  const assignment = new Map<number, number>() // anchor.id → beat time
+  const assignment = new Map<number, number>() // anchor.id → snapped time
 
   for (const c of byDist) {
     if (!claimedKs.has(c.idealK)) {
       claimedKs.add(c.idealK)
       assignment.set(c.id, beatOffset + c.idealK * beat)
-    } else {
-      // Search outward from idealK for nearest unclaimed beat
-      let foundK: number | null = null
-      for (let d = 1; d <= 500; d++) {
-        const kUp = c.idealK + d
-        const kDown = c.idealK - d
-        const upFree = !claimedKs.has(kUp)
-        const downFree = !claimedKs.has(kDown)
-        if (upFree && downFree) {
-          const dUp = Math.abs(c.time - (beatOffset + kUp * beat))
-          const dDown = Math.abs(c.time - (beatOffset + kDown * beat))
-          foundK = dUp <= dDown ? kUp : kDown
-          break
-        } else if (upFree) { foundK = kUp; break }
-        else if (downFree) { foundK = kDown; break }
-      }
-      if (foundK !== null) {
-        claimedKs.add(foundK)
-        assignment.set(c.id, beatOffset + foundK * beat)
-      }
     }
+    // Conflict: don't snap — anchor keeps its original time
   }
 
-  // Enforce strictly-increasing order in the same sequence as original anchors
-  // (Beat anchors are ordered to match orig anchor ordering.)
-  const ordered = [...anchors].sort((a, b) => a.time - b.time).map(a => ({
-    id: a.id,
-    beatTime: assignment.get(a.id) ?? beatOffset + Math.round((a.time - beatOffset) / beat) * beat,
-  }))
-
-  for (let i = 1; i < ordered.length; i++) {
-    if (ordered[i].beatTime <= ordered[i - 1].beatTime) {
-      const prevK = Math.round((ordered[i - 1].beatTime - beatOffset) / beat)
-      ordered[i].beatTime = beatOffset + (prevK + 1) * beat
-    }
-  }
-
-  const resultMap = new Map(ordered.map(o => [o.id, o.beatTime]))
-  return anchors.map(a => ({ ...a, time: resultMap.get(a.id) ?? a.time }))
+  return anchors.map(a => ({ ...a, time: assignment.get(a.id) ?? a.time }))
 }
 
 /**

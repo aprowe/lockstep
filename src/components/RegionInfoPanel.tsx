@@ -258,40 +258,40 @@ export default function RegionInfoPanel({
 
         <div className="rip__divider" />
 
-        {/* Start at */}
-        <div className="rip__row">
-          <span className="rip__label">Start</span>
-          {onStartAtChange && anchorsInClip.length > 0 ? (
-            <select
-              className="rip__select"
-              value={beatZeroOrigTime !== null && beatZeroOrigTime !== undefined
-                ? String(beatZeroOrigTime)
-                : '__clip_start__'
-              }
-              onChange={e => {
-                const val = e.target.value
-                if (val === '__clip_start__') {
-                  onStartAtChange(null)
-                  onAddToEndChange(false)
-                } else {
-                  onStartAtChange(Number(val))
-                  onAddToEndChange(true)
+        {/* Start at — only for actual clips, not Full Video */}
+        {activeRegion && (
+          <div className="rip__row">
+            <span className="rip__label">Start</span>
+            {onStartAtChange && anchorsInClip.length > 0 ? (
+              <select
+                className="rip__select"
+                value={beatZeroOrigTime !== null && beatZeroOrigTime !== undefined
+                  ? String(beatZeroOrigTime)
+                  : '__clip_start__'
                 }
-              }}
-            >
-              <option value="__clip_start__">Clip start</option>
-              {anchorsInClip.map(a => (
-                <option key={a.id} value={String(a.time)}>
-                  {formatTimecode(a.time)}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <span className="rip__value" style={{ color: '#5a4e42', fontSize: '12px' }}>
-              Clip start
-            </span>
-          )}
-        </div>
+                onChange={e => {
+                  const val = e.target.value
+                  if (val === '__clip_start__') {
+                    onStartAtChange(null)
+                    onAddToEndChange(false)
+                  } else {
+                    onStartAtChange(Number(val))
+                    onAddToEndChange(true)
+                  }
+                }}
+              >
+                <option value="__clip_start__">Clip start</option>
+                {anchorsInClip.map(a => (
+                  <option key={a.id} value={String(a.time)}>
+                    {formatTimecode(a.time)}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="rip__value" style={{ color: '#5a4e42', fontSize: '12px' }}>Clip start</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

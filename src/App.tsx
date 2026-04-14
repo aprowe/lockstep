@@ -11,6 +11,8 @@ import type { MenuDef } from './components/MenuBar'
 import VideoFolderSidebar from './components/VideoFolderSidebar'
 import RegionSidebar from './components/RegionSidebar'
 import RegionInfoPanel from './components/RegionInfoPanel'
+import ContextMenu from './components/ContextMenu'
+import type { ContextMenuState } from './components/ContextMenu'
 import { useProject } from './context/ProjectContext'
 import './App.css'
 
@@ -68,12 +70,15 @@ export default function App() {
 
   const [timelineHeight, setTimelineHeight] = useState(DEFAULT_TIMELINE)
   const [sidebarWidth, setSidebarWidth] = useState(170)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [clipSidebarWidth, setClipSidebarWidth] = useState(170)
   const [rightWidth, setRightWidth] = useState(280)
   const [gridDiv, setGridDiv] = useState(1)
   const [playing, setPlaying] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [clipContextMenu, setClipContextMenu] = useState<ContextMenuState | null>(null)
+  const [pendingRenameId, setPendingRenameId] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [pendingZoom, setPendingZoom] = useState<{ start: number; end: number } | null>(null)
 
@@ -247,7 +252,7 @@ export default function App() {
     ],
   }), [video])
 
-  const canExport = !!warpData && anchorCount >= 1
+  const canExport = !!video
 
   const clipIn = activeRegion?.inPoint ?? undefined
   const clipOut = activeRegion?.outPoint ?? undefined
@@ -275,20 +280,29 @@ export default function App() {
       <div className="vj-body">
         {folderVideos.length > 0 && (
           <>
-            <VideoFolderSidebar
-              videos={folderVideos}
-              selectedPath={video?.path ?? null}
-              onOpenFolder={openFolder}
-              onSelectVideo={selectVideo}
-              width={sidebarWidth}
-              markerCountByPath={markerCountByPath}
-            />
-            <div
-              className="vj-panel-resizer"
-              onPointerDown={handleLeftResizerDown}
-              onPointerMove={handleLeftResizerMove}
-              onPointerUp={handleLeftResizerUp}
-            />
+            {sidebarCollapsed ? (
+              <div className="vj-sidebar-collapsed" onClick={() => setSidebarCollapsed(false)} title="Expand file browser">
+                <span className="vj-sidebar-collapsed__icon">▶</span>
+              </div>
+            ) : (
+              <VideoFolderSidebar
+                videos={folderVideos}
+                selectedPath={video?.path ?? null}
+                onOpenFolder={openFolder}
+                onSelectVideo={selectVideo}
+                width={sidebarWidth}
+                markerCountByPath={markerCountByPath}
+                onCollapse={() => setSidebarCollapsed(true)}
+              />
+            )}
+            {!sidebarCollapsed && (
+              <div
+                className="vj-panel-resizer"
+                onPointerDown={handleLeftResizerDown}
+                onPointerMove={handleLeftResizerMove}
+                onPointerUp={handleLeftResizerUp}
+              />
+            )}
           </>
         )}
 
@@ -330,6 +344,8 @@ export default function App() {
                   setActiveRegionId(id)
                   setExportOpen(true)
                 }}
+                pendingRenameId={pendingRenameId}
+                onPendingRenameConsumed={() => setPendingRenameId(null)}
               />
               {/* 5px spacer matching vj-resizer height */}
               <div style={{ height: 5, flexShrink: 0, background: '#1b1814' }} />
@@ -467,6 +483,20 @@ export default function App() {
                   onClipOverlayCreate={addRegion}
                   onClipOverlayResize={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
                   onClipOverlayMove={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
+                  onClipOverlayContextMenu={(id, x, y) => {
+                    const region = regions.find(r => r.id === id)
+                    if (!region) return
+                    setClipContextMenu({
+                      x, y,
+                      title: region.name,
+                      items: [
+                        { label: 'Rename', action: () => { setActiveRegionId(id); setPendingRenameId(id) } },
+                        { label: 'Export', action: () => { setActiveRegionId(id); setExportOpen(true) } },
+                        { separator: true as const },
+                        { label: 'Delete', action: () => deleteRegion(id), danger: true },
+                      ],
+                    })
+                  }}
                 />
               </div>
             </div>
@@ -484,7 +514,9 @@ export default function App() {
               <div style={{ height: 5, flexShrink: 0, background: '#1b1814' }} />
               <div style={{ height: timelineHeight, flexShrink: 0, overflow: 'hidden' }}>
                 <MarkerList
-                  origAnchors={warpData?.origAnchors ?? []}
+                  origAnchors={(warpData?.origAnchors ?? []).filter(a =>
+                    activeRegion ? a.time >= activeRegion.inPoint - 0.001 && a.time <= activeRegion.outPoint + 0.001 : true
+                  )}
                   beatAnchors={warpData?.beatAnchors ?? []}
                   duration={video.duration}
                   fps={video.fps}
@@ -519,6 +551,9 @@ export default function App() {
       )}
 
       {/* Export dialog */}
+      {clipContextMenu && (
+        <ContextMenu menu={clipContextMenu} onClose={() => setClipContextMenu(null)} />
+      )}
       <ExportDialog
         open={exportOpen}
         onClose={() => setExportOpen(false)}

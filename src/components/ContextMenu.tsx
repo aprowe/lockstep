@@ -11,6 +11,7 @@ export interface ContextMenuState {
   x: number
   y: number
   items: ContextMenuItem[]
+  title?: string
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -58,6 +59,7 @@ export default function ContextMenu({ menu, onClose }: ContextMenuProps) {
       style={{ left: menu.x, top: menu.y }}
       onContextMenu={e => e.preventDefault()}
     >
+      {menu.title && <div className="ctx-menu__title">{menu.title}</div>}
       {menu.items.map((item, i) => {
         if ('separator' in item) {
           return <div key={i} className="ctx-menu__sep" />

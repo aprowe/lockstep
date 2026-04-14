@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Region } from '../types'
 import ContextMenu from './ContextMenu'
 import type { ContextMenuState } from './ContextMenu'
@@ -55,6 +55,9 @@ interface RegionSidebarProps {
   onRename: (id: string, name: string) => void
   onUpdateInOut: (id: string, inPoint: number, outPoint: number) => void
   onExportRegion?: (id: string) => void
+  /** When set, immediately starts inline rename for this region id */
+  pendingRenameId?: string | null
+  onPendingRenameConsumed?: () => void
 }
 
 // ── Editable timecode field ──────────────────────────────────────────────────
@@ -124,6 +127,8 @@ export default function RegionSidebar({
   onRename,
   onUpdateInOut,
   onExportRegion,
+  pendingRenameId,
+  onPendingRenameConsumed,
 }: RegionSidebarProps) {
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
@@ -137,6 +142,16 @@ export default function RegionSidebar({
     setTimeout(() => inputRef.current?.select(), 20)
   }
 
+  // Allow external callers (e.g. timeline right-click) to trigger rename
+  useEffect(() => {
+    if (!pendingRenameId) return
+    const region = regions.find(r => r.id === pendingRenameId)
+    if (region) startRename(region)
+    onPendingRenameConsumed?.()
+  }, [pendingRenameId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+
+
   const commitRename = () => {
     if (renamingId && renameValue.trim()) onRename(renamingId, renameValue.trim())
     setRenamingId(null)
@@ -148,6 +163,7 @@ export default function RegionSidebar({
     setContextMenu({
       x: e.clientX,
       y: e.clientY,
+      title: region.name,
       items: [
         { label: 'Rename', action: () => startRename(region) },
         ...(onExportRegion ? [{ label: 'Export', action: () => onExportRegion(region.id) }] : []),

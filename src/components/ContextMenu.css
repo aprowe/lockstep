@@ -12,6 +12,18 @@
   user-select: none;
 }
 
+.ctx-menu__title {
+  padding: 4px 8px 5px;
+  font-size: 11px;
+  color: #7a6e62;
+  border-bottom: 1px solid #2e2820;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
 .ctx-menu__item {
   display: block;
   width: 100%;
