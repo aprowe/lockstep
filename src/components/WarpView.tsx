@@ -76,6 +76,8 @@ export interface WarpViewHandle {
   zoomOut(): void
   zoomToFit(): void
   zoomToRegion(from: number, to: number): void
+  /** Set beat zero by orig-space anchor time (null = clear beat zero) */
+  setBeatZeroByOrigTime(origTime: number | null): void
 }
 
 const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
@@ -122,6 +124,19 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
   })
   const linkedBeat = useRef<Set<number>>(new Set())
 
+  // ── Clip boundary anchors (linked to clipIn/clipOut) ─────────────────────────
+  // When a clip region is active, we maintain real anchors at the clip edges so
+  // they participate in the warp mapping. Their orig time tracks the clip edge;
+  // their beat time can be freely adjusted.
+  const clipInAnchorId = useRef<number | null>(null)
+  const clipOutAnchorId = useRef<number | null>(null)
+  // State mirrors for triggering re-renders when IDs change (for boundaryAnchorIds Set)
+  const [clipInAnchorIdState, setClipInAnchorIdState] = useState<number | null>(null)
+  const [clipOutAnchorIdState, setClipOutAnchorIdState] = useState<number | null>(null)
+  // Track previous clipIn/clipOut to detect genuine changes vs initial render
+  const prevClipInRef = useRef<number | undefined>(clipIn)
+  const prevClipOutRef = useRef<number | undefined>(clipOut)
+
   const historyStack = useRef<HistoryEntry[]>([{
     origAnchors: initialOrigAnchors ?? [],
     beatAnchors: initialBeatAnchors ?? [],
@@ -139,6 +154,69 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     const match = initialBeatAnchors.find(a => Math.abs(a.time - initialBeatZeroAnchorTime) < 0.001)
     return match?.id ?? null
   })
+
+  // ── Mount: create boundary anchors at clipIn/clipOut ─────────────────────────
+  useEffect(() => {
+    const ensureBoundary = (
+      time: number | undefined,
+      anchorIdRef: React.MutableRefObject<number | null>,
+      setIdState: (id: number | null) => void,
+    ) => {
+      if (time === undefined) return
+      // Re-use existing anchor at that position rather than creating a duplicate
+      const existing = origAnchorsRef.current.find(a => Math.abs(a.time - time) < 0.001)
+      if (existing) {
+        anchorIdRef.current = existing.id
+        setIdState(existing.id)
+      } else {
+        const id = newAnchorId()
+        anchorIdRef.current = id
+        setIdState(id)
+        linkedBeat.current.add(id)
+        setOrigAnchors(prev => [...prev, { id, time }])
+        setBeatAnchors(prev => [...prev, { id, time }])
+      }
+    }
+    ensureBoundary(clipIn, clipInAnchorId, setClipInAnchorIdState)
+    ensureBoundary(clipOut, clipOutAnchorId, setClipOutAnchorIdState)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Update boundary anchors when clip edges change ────────────────────────────
+  useEffect(() => {
+    const prevClipIn = prevClipInRef.current
+    prevClipInRef.current = clipIn
+    if (prevClipIn === clipIn) return // no change
+    if (clipIn === undefined) return
+    const id = clipInAnchorId.current
+    if (id === null) return
+    setOrigAnchors(prev => prev.map(a => a.id === id ? { ...a, time: clipIn } : a))
+    setBeatAnchors(prev => prev.map(a => {
+      if (a.id !== id) return a
+      return linkedBeat.current.has(id) ? { ...a, time: clipIn } : a
+    }))
+  }, [clipIn]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const prevClipOut = prevClipOutRef.current
+    prevClipOutRef.current = clipOut
+    if (prevClipOut === clipOut) return // no change
+    if (clipOut === undefined) return
+    const id = clipOutAnchorId.current
+    if (id === null) return
+    setOrigAnchors(prev => prev.map(a => a.id === id ? { ...a, time: clipOut } : a))
+    setBeatAnchors(prev => prev.map(a => {
+      if (a.id !== id) return a
+      return linkedBeat.current.has(id) ? { ...a, time: clipOut } : a
+    }))
+  }, [clipOut]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Memoized Set of boundary anchor IDs for visual styling in Timeline
+  const boundaryAnchorIds = useMemo(() => {
+    const ids = new Set<number>()
+    if (clipInAnchorIdState !== null) ids.add(clipInAnchorIdState)
+    if (clipOutAnchorIdState !== null) ids.add(clipOutAnchorIdState)
+    return ids
+  }, [clipInAnchorIdState, clipOutAnchorIdState])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -192,11 +270,15 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
       const inInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')
       if (!inInput && (e.key === 'Delete' || e.key === 'Backspace')) {
         const ids = selectedIdsRef.current
-        if (ids.size > 0) {
+        // Don't delete boundary anchors (they're linked to clip edges)
+        const deletable = new Set([...ids].filter(id =>
+          id !== clipInAnchorId.current && id !== clipOutAnchorId.current
+        ))
+        if (deletable.size > 0) {
           e.preventDefault()
-          ids.forEach(id => linkedBeat.current.delete(id))
-          setOrigAnchors(prev => prev.filter(a => !ids.has(a.id)))
-          setBeatAnchors(prev => prev.filter(a => !ids.has(a.id)))
+          deletable.forEach(id => linkedBeat.current.delete(id))
+          setOrigAnchors(prev => prev.filter(a => !deletable.has(a.id)))
+          setBeatAnchors(prev => prev.filter(a => !deletable.has(a.id)))
           setSelectedIds(new Set())
         }
         return
@@ -466,10 +548,25 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
 
   const handleOrigChange = (next: Anchor[]) => {
     const prevIds = new Set(origAnchors.map(a => a.id))
-    const nextIds = new Set(next.map(a => a.id))
-    const added = next.filter(a => !prevIds.has(a.id))
+    let nextIds = new Set(next.map(a => a.id))
+
+    // Restore any boundary anchors that were removed (they can't be deleted via drag)
+    const boundaryIds = [clipInAnchorId.current, clipOutAnchorId.current].filter((id): id is number => id !== null)
+    let restored = next
+    for (const id of boundaryIds) {
+      if (!nextIds.has(id)) {
+        const orig = origAnchors.find(a => a.id === id)
+        if (orig) {
+          restored = [...restored, orig]
+          nextIds = new Set([...nextIds, id])
+        }
+      }
+    }
+    const nextFinal = restored
+
+    const added = nextFinal.filter(a => !prevIds.has(a.id))
     const removedIds = [...prevIds].filter(id => !nextIds.has(id))
-    const moved = next.filter(a => {
+    const moved = nextFinal.filter(a => {
       const prev = origAnchors.find(p => p.id === a.id)
       return prev && prev.time !== a.time
     })
@@ -494,7 +591,7 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
       }
       return updated
     })
-    setOrigAnchors(next)
+    setOrigAnchors(nextFinal)
   }
 
   // Stable refs so imperative handle methods always see current values
@@ -615,6 +712,18 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     [sortedBeat],
   )
 
+  // Anchors whose beat position equals their orig position (unmanually-adjusted)
+  const linkedAnchorIds = useMemo(() => {
+    const ids = new Set<number>()
+    for (const origA of origAnchors) {
+      const beatA = beatAnchors.find(b => b.id === origA.id)
+      if (beatA && Math.abs(beatA.time - origA.time) < 0.001) {
+        ids.add(origA.id)
+      }
+    }
+    return ids
+  }, [origAnchors, beatAnchors])
+
   useImperativeHandle(ref, () => ({
     addAnchor(time: number) {
       const clamped = Math.max(0, Math.min(duration, time))
@@ -634,9 +743,13 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     },
     deleteSelected(ids: Set<number>) {
       if (ids.size === 0) return
-      ids.forEach(id => linkedBeat.current.delete(id))
-      setOrigAnchors(prev => prev.filter(a => !ids.has(a.id)))
-      setBeatAnchors(prev => prev.filter(a => !ids.has(a.id)))
+      // Protect boundary anchors from deletion
+      const deletable = new Set([...ids].filter(id =>
+        id !== clipInAnchorId.current && id !== clipOutAnchorId.current
+      ))
+      deletable.forEach(id => linkedBeat.current.delete(id))
+      setOrigAnchors(prev => prev.filter(a => !deletable.has(a.id)))
+      setBeatAnchors(prev => prev.filter(a => !deletable.has(a.id)))
       setSelectedIds(new Set())
     },
     resetSelected(ids: Set<number>) {
@@ -708,6 +821,14 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     },
     zoomToRegion(from: number, to: number) {
       handleViewChangeRef.current({ start: from, end: to })
+    },
+    setBeatZeroByOrigTime(origTime: number | null) {
+      if (origTime === null) {
+        setBeatZeroId(null)
+        return
+      }
+      const anchor = origAnchorsRef.current.find(a => Math.abs(a.time - origTime) < 0.001)
+      if (anchor) setBeatZeroId(anchor.id)
     },
   }), [origAnchors, duration, exportMarkers, undo, redo]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -859,6 +980,8 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         beatRangeStart={clipIn}
         beatRangeEnd={clipOut}
         onTrackScrub={onSeek}
+        boundaryAnchorIds={boundaryAnchorIds}
+        linkedAnchorIds={linkedAnchorIds}
       />
       <WarpConnector
         ref={connectorRef}
@@ -901,6 +1024,8 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         onClipOverlaySelect={onClipOverlaySelect}
         beatRangeStart={clipIn}
         beatRangeEnd={clipOut}
+        boundaryAnchorIds={boundaryAnchorIds}
+        linkedAnchorIds={linkedAnchorIds}
       />
       <input
         ref={importRef}

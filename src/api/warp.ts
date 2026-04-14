@@ -76,7 +76,46 @@ export async function saveToFolder(req: SaveToFolderRequest): Promise<string> {
   return invoke<string>('save_to_folder', { req })
 }
 
+/** Opens the given folder path in the OS file manager. */
+export async function revealInFolder(path: string): Promise<void> {
+  return invoke('reveal_in_folder', { path })
+}
+
 /** Writes a text file (e.g. JSON metadata) to a given path. */
 export async function writeTextFile(path: string, content: string): Promise<void> {
   return invoke('write_text_file', { req: { path, content } })
+}
+
+// ── Video Sidecar ─────────────────────────────────────────────────────────────
+
+/** Returns the JSON string from <video_stem>.json next to the source video, or null. */
+export async function checkVideoSidecar(videoPath: string): Promise<string | null> {
+  return invoke<string | null>('check_video_sidecar', { videoPath })
+}
+
+/** Writes JSON to <video_stem>.json next to the source video. */
+export async function writeVideoSidecar(videoPath: string, content: string): Promise<void> {
+  return invoke('write_video_sidecar', { videoPath, content })
+}
+
+/** Deletes <video_stem>.json next to the source video if it exists. */
+export async function deleteVideoSidecar(videoPath: string): Promise<void> {
+  return invoke('delete_video_sidecar', { videoPath })
+}
+
+export interface JsonFileResult {
+  jsonContent: string
+  videoPath: string
+}
+
+/** Opens a native JSON file picker, returns the JSON content and path to sibling video. */
+export async function openJsonFile(): Promise<JsonFileResult> {
+  const raw = await invoke<{ json_content: string; video_path: string }>('open_json_file')
+  return { jsonContent: raw.json_content, videoPath: raw.video_path }
+}
+
+/** Reads a .json sidecar at the given path and finds the sibling video. */
+export async function readJsonSidecarForVideo(jsonPath: string): Promise<JsonFileResult> {
+  const raw = await invoke<{ json_content: string; video_path: string }>('read_json_sidecar_for_video', { jsonPath })
+  return { jsonContent: raw.json_content, videoPath: raw.video_path }
 }

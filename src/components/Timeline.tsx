@@ -80,6 +80,10 @@ export interface TimelineProps {
   scrubOnTrackClick?: boolean
   /** Called when scrubbing on the track body (requires scrubOnTrackClick) */
   onTrackScrub?: (time: number) => void
+  /** IDs of anchors that are linked to clip boundaries — rendered with a distinct style */
+  boundaryAnchorIds?: Set<number>
+  /** IDs of anchors whose beat position matches orig (unmanually adjusted) — shown with link indicator */
+  linkedAnchorIds?: Set<number>
 }
 
 /** A clip block overlaid on the timeline track at the same zoom level */
@@ -89,6 +93,8 @@ export interface ClipOverlay {
   inPoint: number
   outPoint: number
   active: boolean
+  /** 0-based index for color cycling (optional, defaults to 0) */
+  colorIndex?: number
 }
 
 type GestureState =
@@ -202,6 +208,8 @@ export default function Timeline({
   beatRangeEnd,
   scrubOnTrackClick = false,
   onTrackScrub,
+  boundaryAnchorIds,
+  linkedAnchorIds,
 }: TimelineProps) {
   const [internalView, setInternalView] = useState<View>({ start: 0, end: duration })
   const isControlled = controlledView !== undefined
@@ -826,7 +834,7 @@ export default function Timeline({
             <div
               key={clip.id}
               data-clip-id={clip.id}
-              className={`clip-overlay${clip.active ? ' clip-overlay--active' : ''}`}
+              className={`clip-overlay${clip.active ? ' clip-overlay--active' : ''} clip-overlay--color-${(clip.colorIndex ?? 0) % 8}`}
               style={{ left: `${left}%`, width: `${width}%` }}
             >
               {/* Handle bar — only on the top (non-flipped) timeline */}
@@ -873,10 +881,12 @@ export default function Timeline({
 
         {anchors.map(anchor => {
           const isSelected = selectedIds?.has(anchor.id) ?? false
+          const isBoundary = boundaryAnchorIds?.has(anchor.id) ?? false
+          const isLinked = linkedAnchorIds?.has(anchor.id) ?? false
           return (
           <div
             key={`a-${anchor.id}`}
-            className={`anchor${anchorZeroId === anchor.id ? ' anchor--zero' : ''}${isSelected ? ' anchor--selected' : ''}`}
+            className={`anchor${anchorZeroId === anchor.id ? ' anchor--zero' : ''}${isSelected ? ' anchor--selected' : ''}${isBoundary ? ' anchor--boundary' : ''}${isLinked ? ' anchor--linked' : ''}`}
             style={{ left: `${timeToPercent(anchor.time)}%` }}
             onPointerDown={e => handleAnchorPointerDown(e, anchor)}
             onDoubleClick={e => handleAnchorDblClick(e, anchor.id)}

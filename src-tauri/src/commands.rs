@@ -424,3 +424,135 @@ pub async fn write_text_file(req: WriteTextFileRequest) -> Result<(), String> {
     std::fs::write(&req.path, &req.content)
         .map_err(|e| format!("Write failed: {e}"))
 }
+
+// ── Video Sidecar (<video_stem>.json next to source video) ───────────────────
+
+/// Returns the JSON content of `<video_stem>.json` if it exists next to the video, or null.
+#[tauri::command]
+pub async fn check_video_sidecar(video_path: String) -> Result<Option<String>, String> {
+    let path = std::path::Path::new(&video_path);
+    let sidecar = path.with_extension("json");
+    if sidecar.exists() {
+        let content = std::fs::read_to_string(&sidecar).map_err(|e| e.to_string())?;
+        Ok(Some(content))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Writes JSON content to `<video_stem>.json` next to the source video.
+#[tauri::command]
+pub async fn write_video_sidecar(video_path: String, content: String) -> Result<(), String> {
+    let path = std::path::Path::new(&video_path);
+    let sidecar = path.with_extension("json");
+    std::fs::write(&sidecar, &content).map_err(|e| e.to_string())
+}
+
+/// Deletes `<video_stem>.json` next to the source video, if it exists.
+#[tauri::command]
+pub async fn delete_video_sidecar(video_path: String) -> Result<(), String> {
+    let path = std::path::Path::new(&video_path);
+    let sidecar = path.with_extension("json");
+    if sidecar.exists() {
+        std::fs::remove_file(&sidecar).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[derive(serde::Serialize)]
+pub struct JsonFileResult {
+    pub json_content: String,
+    pub video_path: String,
+}
+
+/// Opens a native JSON file picker, reads the file, and finds the sibling video by stem.
+#[tauri::command]
+pub async fn open_json_file(app: AppHandle) -> Result<JsonFileResult, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let file = app
+        .dialog()
+        .file()
+        .add_filter("Marker JSON", &["json"])
+        .blocking_pick_file();
+
+    let json_path = match file {
+        Some(p) => p.into_path().map_err(|e| e.to_string())?,
+        None => return Err("cancelled".to_string()),
+    };
+
+    let content = std::fs::read_to_string(&json_path).map_err(|e| e.to_string())?;
+
+    let video_exts = ["mp4", "mov", "avi", "mkv", "webm", "m4v"];
+    let stem = json_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    let parent = json_path
+        .parent()
+        .unwrap_or(std::path::Path::new("."));
+
+    for ext in &video_exts {
+        let candidate = parent.join(format!("{stem}.{ext}"));
+        if candidate.exists() {
+            return Ok(JsonFileResult {
+                json_content: content,
+                video_path: candidate.to_string_lossy().to_string(),
+            });
+        }
+    }
+
+    Err(format!("No video file found for '{stem}' in the same folder"))
+}
+
+// ── Reveal in OS file manager ─────────────────────────────────────────────────
+
+/// Opens the given folder path in the OS file manager (Explorer / Finder / Nautilus).
+#[tauri::command]
+pub async fn reveal_in_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Reads the JSON sidecar at the given path directly (e.g. drag-dropped .json file).
+#[tauri::command]
+pub async fn read_json_sidecar_for_video(json_path: String) -> Result<JsonFileResult, String> {
+    let path = std::path::Path::new(&json_path);
+    let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+
+    let video_exts = ["mp4", "mov", "avi", "mkv", "webm", "m4v"];
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+    let parent = path.parent().unwrap_or(std::path::Path::new("."));
+
+    for ext in &video_exts {
+        let candidate = parent.join(format!("{stem}.{ext}"));
+        if candidate.exists() {
+            return Ok(JsonFileResult {
+                json_content: content,
+                video_path: candidate.to_string_lossy().to_string(),
+            });
+        }
+    }
+
+    Err(format!("No video file found for '{stem}' in the same folder"))
+}

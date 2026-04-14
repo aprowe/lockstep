@@ -14,6 +14,16 @@ interface RegionInfoPanelProps {
   onMaxStretchChange: (v: number) => void
   onAddToEndChange: (v: boolean) => void
   onUpdateRegionInOut?: (id: string, inPoint: number, outPoint: number) => void
+  /** Orig-space time of the current beat-zero anchor (null = clip start) */
+  beatZeroOrigTime?: number | null
+  /** Called when user picks "Start at" marker (null = clip start) */
+  onStartAtChange?: (origTime: number | null) => void
+}
+
+function formatTimecode(s: number): string {
+  const m = Math.floor(s / 60)
+  const sec = (s % 60).toFixed(2).padStart(5, '0')
+  return m > 0 ? `${m}:${sec}` : `${sec}s`
 }
 
 export default function RegionInfoPanel({
@@ -26,6 +36,8 @@ export default function RegionInfoPanel({
   onMaxStretchChange,
   onAddToEndChange,
   onUpdateRegionInOut,
+  beatZeroOrigTime,
+  onStartAtChange,
 }: RegionInfoPanelProps) {
   const bpm = warpData?.bpm ?? 120
   const minStretch = warpData?.minStretch ?? 0.5
@@ -37,6 +49,16 @@ export default function RegionInfoPanel({
     : duration
   const totalBeats = beat > 0 ? regionSpan / beat : 0
   const markerCount = warpData?.origAnchors.length ?? 0
+
+  // Anchors within the active clip for "Start at" selector
+  const anchorsInClip = (() => {
+    if (!warpData) return []
+    const clipIn = activeRegion?.inPoint ?? 0
+    const clipOut = activeRegion?.outPoint ?? duration
+    return [...warpData.origAnchors]
+      .filter(a => a.time >= clipIn - 0.001 && a.time <= clipOut + 0.001)
+      .sort((a, b) => a.time - b.time)
+  })()
 
   // Lock: which value stays fixed when the region is resized
   const [lock, setLock] = useState<LockTarget>('bpm')
@@ -236,15 +258,40 @@ export default function RegionInfoPanel({
 
         <div className="rip__divider" />
 
-        {/* Add to end */}
-        <label className="rip__check">
-          <input
-            type="checkbox"
-            checked={addToEnd}
-            onChange={e => onAddToEndChange(e.target.checked)}
-          />
-          <span className="rip__check-label">Add pre-beat to end</span>
-        </label>
+        {/* Start at */}
+        <div className="rip__row">
+          <span className="rip__label">Start</span>
+          {onStartAtChange && anchorsInClip.length > 0 ? (
+            <select
+              className="rip__select"
+              value={beatZeroOrigTime !== null && beatZeroOrigTime !== undefined
+                ? String(beatZeroOrigTime)
+                : '__clip_start__'
+              }
+              onChange={e => {
+                const val = e.target.value
+                if (val === '__clip_start__') {
+                  onStartAtChange(null)
+                  onAddToEndChange(false)
+                } else {
+                  onStartAtChange(Number(val))
+                  onAddToEndChange(true)
+                }
+              }}
+            >
+              <option value="__clip_start__">Clip start</option>
+              {anchorsInClip.map(a => (
+                <option key={a.id} value={String(a.time)}>
+                  {formatTimecode(a.time)}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="rip__value" style={{ color: '#5a4e42', fontSize: '12px' }}>
+              Clip start
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )

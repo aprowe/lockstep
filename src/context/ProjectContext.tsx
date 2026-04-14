@@ -3,6 +3,12 @@ import type { VideoInfo, WarpData, Region, SavedVideoState, Anchor } from '../ty
 import type { VideoEntry } from '../api/video'
 import { openFolder, openVideo, loadVideoFromPath, listFolderVideos } from '../api/video'
 import { saveVideoState, loadVideoState, getFileHash } from '../api/storage'
+import {
+  checkVideoSidecar,
+  writeVideoSidecar,
+  deleteVideoSidecar,
+  openJsonFile as openJsonFileApi,
+} from '../api/warp'
 
 // ── State shape ─────────────────────────────────────────────────────────────
 
@@ -43,6 +49,8 @@ interface ProjectActions {
   setActiveRegionId: (id: string | null) => void
   updateRegionInOut: (id: string, inPoint: number, outPoint: number) => void
   renameRegion: (id: string, name: string) => void
+  openJsonFile: () => Promise<void>
+  resetVideoData: () => Promise<void>
 }
 
 type ProjectCtx = ProjectState & ProjectActions
@@ -120,7 +128,25 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       return
     }
     setMarkersLoaded(false)
-    loadVideoState(video.fileHash).then(state => {
+
+    const doLoad = async () => {
+      let state: SavedVideoState | null = null
+
+      // Prefer sidecar next to the video file (portable project file)
+      try {
+        const sidecarContent = await checkVideoSidecar(video.path)
+        if (sidecarContent) {
+          state = JSON.parse(sidecarContent) as SavedVideoState
+        }
+      } catch { /* sidecar unreadable or malformed — fall through */ }
+
+      // Fall back to internal hash-based storage
+      if (!state) {
+        try {
+          state = await loadVideoState(video.fileHash)
+        } catch { /* no internal state */ }
+      }
+
       const dr = state?.defaultRegion ?? null
       setGlobalMarkers(dr)
       // Migrate old regions: strip anchor arrays
@@ -142,7 +168,9 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       setMarkersLoaded(true)
       const count = dr?.origAnchors?.length ?? 0
       setMarkerCountByPath(prev => ({ ...prev, [video.path]: count }))
-    }).catch(() => {
+    }
+
+    doLoad().catch(() => {
       setGlobalMarkers(null)
       setRegions([])
       setActiveRegionIdState(null)
@@ -195,7 +223,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     const vid = videoRef.current
     if (!vid) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => {
+    saveTimerRef.current = setTimeout(async () => {
       const wd = warpDataRef.current
       const gm = globalMarkersRef.current
       const state: SavedVideoState = {
@@ -213,7 +241,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         },
         regions: regionsRef.current,
       }
+      // Save to internal hash-based storage
       saveVideoState(vid.fileHash, state).catch(() => { /* best effort */ })
+      // Also write sidecar next to the source video (portable project file)
+      try {
+        await writeVideoSidecar(vid.path, JSON.stringify(state, null, 2))
+      } catch { /* read-only location or other failure — best effort */ }
       const count = state.defaultRegion.origAnchors.length
       setMarkerCountByPath(prev => ({ ...prev, [vid.path]: count }))
     }, 500)
@@ -376,6 +409,56 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setRegions(prev => prev.map(r => r.id === id ? { ...r, name } : r))
   }, [])
 
+  /** Open a .json sidecar picker → find sibling video → load both. */
+  const openJsonFileAction = useCallback(async () => {
+    try {
+      const { videoPath } = await openJsonFileApi()
+      const info = await loadVideoFromPath(videoPath)
+      setFolderVideos([])
+      loadVideo(info)
+    } catch (e: any) {
+      const msg = String(e)
+      if (msg.includes('cancelled')) return
+      console.error('Failed to open marker JSON:', e)
+    }
+  }, [loadVideo])
+
+  /** Reset all data for the current video (clears markers, regions, deletes sidecar). */
+  const resetVideoDataAction = useCallback(async () => {
+    const vid = videoRef.current
+    if (!vid) return
+
+    // Clear in-memory state
+    setGlobalMarkers(null)
+    setRegions([])
+    setActiveRegionIdState(null)
+    setWarpData(null)
+    setLoopBeats(null)
+    setTrimToLoop(false)
+    setAddToEnd(false)
+
+    // Overwrite internal storage with empty state
+    const emptyState: SavedVideoState = {
+      version: 2,
+      defaultRegion: {
+        origAnchors: [],
+        beatAnchors: [],
+        bpm: 120,
+        minStretch: 0.5,
+        maxStretch: 2.0,
+        beatZeroAnchorTime: null,
+        loopBeats: null,
+        trimToLoop: false,
+        addToEnd: false,
+      },
+      regions: [],
+    }
+    saveVideoState(vid.fileHash, emptyState).catch(() => {})
+    // Delete sidecar next to source video
+    deleteVideoSidecar(vid.path).catch(() => {})
+    setMarkerCountByPath(prev => ({ ...prev, [vid.path]: 0 }))
+  }, [])
+
   const ctx: ProjectCtx = {
     folderVideos,
     video,
@@ -407,6 +490,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setActiveRegionId,
     updateRegionInOut,
     renameRegion,
+    openJsonFile: openJsonFileAction,
+    resetVideoData: resetVideoDataAction,
   }
 
   return (

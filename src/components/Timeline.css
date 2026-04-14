@@ -349,6 +349,37 @@
   background: linear-gradient(to bottom, #e07540, rgba(224, 117, 64, 0.1));
 }
 
+/* ── Boundary anchors (linked to clip edges) ──────────── */
+.anchor--boundary .anchor-handle {
+  background: #60a5fa;
+  box-shadow: 0 0 7px rgba(96, 165, 250, 0.5);
+}
+.anchor--boundary .anchor-line {
+  background: linear-gradient(to bottom, #60a5fa, rgba(96, 165, 250, 0.1));
+}
+.timeline--flip .anchor--boundary .anchor-line {
+  background: linear-gradient(to top, #60a5fa, rgba(96, 165, 250, 0.1));
+}
+.anchor--boundary .anchor-time {
+  color: #93c5fd;
+}
+
+/* ── Linked anchors (beat = orig, subtle chain dot) ─────── */
+.anchor--linked .anchor-handle {
+  position: relative;
+}
+.anchor--linked .anchor-handle::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+}
+
 /* ── Clip in/out overlays ───────────────────────────────── */
 .clip-out-of-range {
   position: absolute;
@@ -390,14 +421,27 @@
 }
 
 /* ── Clip overlays ────────────────────────────────────────────────────────── */
+/* 8-color palette for region cycling (h, s, l of the region hue) */
+.clip-overlay--color-0 { --clip-h: 32; --clip-s: 70%; --clip-l: 50%; }  /* amber */
+.clip-overlay--color-1 { --clip-h: 173; --clip-s: 60%; --clip-l: 40%; } /* teal */
+.clip-overlay--color-2 { --clip-h: 270; --clip-s: 60%; --clip-l: 55%; } /* purple */
+.clip-overlay--color-3 { --clip-h: 330; --clip-s: 65%; --clip-l: 55%; } /* pink */
+.clip-overlay--color-4 { --clip-h: 86; --clip-s: 55%; --clip-l: 45%; }  /* lime */
+.clip-overlay--color-5 { --clip-h: 199; --clip-s: 65%; --clip-l: 45%; } /* sky */
+.clip-overlay--color-6 { --clip-h: 0; --clip-s: 65%; --clip-l: 50%; }   /* red */
+.clip-overlay--color-7 { --clip-h: 239; --clip-s: 55%; --clip-l: 55%; } /* indigo */
+
 /* Body: very subtle background, completely non-interactive */
 .clip-overlay {
+  --clip-h: 32;
+  --clip-s: 70%;
+  --clip-l: 50%;
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(122, 80, 40, 0.06);
-  border-left: 1px solid rgba(160, 100, 50, 0.18);
-  border-right: 1px solid rgba(160, 100, 50, 0.18);
+  background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.06);
+  border-left: 1px solid hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.18);
+  border-right: 1px solid hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.18);
   box-sizing: border-box;
   pointer-events: none;
   z-index: 1;
@@ -405,8 +449,8 @@
 }
 
 .clip-overlay--active {
-  background: rgba(224, 117, 64, 0.08);
-  border-color: rgba(224, 117, 64, 0.35);
+  background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.10);
+  border-color: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.40);
 }
 
 /* Handle bar at top — the only interactive part */
@@ -416,8 +460,8 @@
   left: 0;
   right: 0;
   height: 14px;
-  background: rgba(122, 80, 40, 0.35);
-  border-bottom: 1px solid rgba(160, 100, 50, 0.3);
+  background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.35);
+  border-bottom: 1px solid hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.30);
   border-radius: 2px 2px 0 0;
   cursor: grab;
   pointer-events: auto;
@@ -427,16 +471,16 @@
 }
 
 .clip-overlay--active .clip-overlay__bar {
-  background: rgba(224, 117, 64, 0.45);
-  border-bottom-color: rgba(224, 117, 64, 0.5);
+  background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.50);
+  border-bottom-color: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.55);
 }
 
 .clip-overlay__bar:hover {
-  background: rgba(160, 100, 50, 0.5);
+  background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.45);
 }
 
 .clip-overlay--active .clip-overlay__bar:hover {
-  background: rgba(224, 117, 64, 0.55);
+  background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.60);
 }
 
 .clip-overlay__label {

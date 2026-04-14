@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { WarpData, Region } from '../types'
-import { startWarp, listenWarpProgress, saveOutput, pickExportFolder, saveToFolder, writeTextFile } from '../api/warp'
+import { startWarp, listenWarpProgress, saveOutput, pickExportFolder, saveToFolder, writeTextFile, revealInFolder } from '../api/warp'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import './ExportDialog.css'
 
@@ -32,11 +32,13 @@ type ExportMode = 'current' | 'all' | 'selected'
 // ── Name pattern helpers ──────────────────────────────────────────────────────
 
 /**
- * Available tokens: {name} {bpm} {in} {out} {n}
+ * Available tokens: {name} {stem} {bpm} {beats} {in} {out} {n}
  */
 function applyPattern(pattern: string, opts: {
   name: string
+  stem: string
   bpm: number
+  beats: number | null
   clipIn: number | null
   clipOut: number | null
   index: number
@@ -49,7 +51,9 @@ function applyPattern(pattern: string, opts: {
   }
   return pattern
     .replace(/\{name\}/g, opts.name.replace(/\s+/g, '_'))
+    .replace(/\{stem\}/g, opts.stem.replace(/\s+/g, '_'))
     .replace(/\{bpm\}/g, String(Math.round(opts.bpm)))
+    .replace(/\{beats\}/g, opts.beats !== null ? String(opts.beats) : '')
     .replace(/\{in\}/g, fmtSec(opts.clipIn))
     .replace(/\{out\}/g, fmtSec(opts.clipOut))
     .replace(/\{n\}/g, String(opts.index + 1).padStart(2, '0'))
@@ -57,15 +61,32 @@ function applyPattern(pattern: string, opts: {
 
 // ── Marker sidecar ────────────────────────────────────────────────────────────
 
-function buildMarkerJson(warpData: WarpData): string {
+function buildMarkerJson(warpData: WarpData, opts: {
+  videoName: string
+  exportFolder: string | null
+}): string {
   const { origAnchors, beatAnchors, bpm, minStretch, maxStretch, addToEnd, beatZeroTime } = warpData
-  return JSON.stringify({ origAnchors, beatAnchors, bpm, minStretch, maxStretch, addToEnd, beatZeroTime }, null, 2)
+  return JSON.stringify({
+    videoName: opts.videoName,
+    exportFolder: opts.exportFolder,
+    origAnchors, beatAnchors, bpm, minStretch, maxStretch, addToEnd, beatZeroTime,
+  }, null, 2)
 }
 
 /** Given a saved video path like /foo/bar.mp4, writes /foo/bar.json */
-async function writeMarkerSidecar(videoPath: string, warpData: WarpData): Promise<void> {
+async function writeMarkerSidecar(videoPath: string, warpData: WarpData, opts: {
+  videoName: string
+  exportFolder: string | null
+}): Promise<void> {
   const jsonPath = videoPath.replace(/\.[^.]+$/, '.json')
-  await writeTextFile(jsonPath, buildMarkerJson(warpData))
+  await writeTextFile(jsonPath, buildMarkerJson(warpData, opts))
+}
+
+/** Extract parent folder from a file path (works with / and \) */
+function parentFolder(filePath: string): string {
+  const norm = filePath.replace(/\\/g, '/')
+  const idx = norm.lastIndexOf('/')
+  return idx > 0 ? filePath.substring(0, idx) : filePath
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -85,16 +106,19 @@ export default function ExportDialog({
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [savedCount, setSavedCount] = useState(0)
+  const [savedFolder, setSavedFolder] = useState<string | null>(null)
   const unlistenRef = useRef<UnlistenFn | null>(null)
   const cancelRef = useRef(false)
 
   const [mode, setMode] = useState<ExportMode>('current')
   const [selectedRegionIds, setSelectedRegionIds] = useState<Set<string>>(new Set())
 
-  // Output settings
-  const [destFolder, setDestFolder] = useState<string | null>(null)
+  // Output settings — default folder is the video's parent folder
+  const videoFolder = useMemo(() => videoPath ? parentFolder(videoPath) : null, [videoPath])
+  const [customFolder, setCustomFolder] = useState<string | null>(null)
+  const destFolder = customFolder ?? videoFolder
   const [namePattern, setNamePattern] = useState('{name}_{bpm}bpm')
-  const baseName = originalName.replace(/\.[^.]+$/, '')
+  const baseName = originalName.replace(/\.[^.]+$/, '')  // stem of source video
 
   useEffect(() => {
     if (open) {
@@ -103,6 +127,7 @@ export default function ExportDialog({
       setError(null)
       setOutputPaths([])
       setSavedCount(0)
+      setSavedFolder(null)
       setCurrentJobIdx(0)
       setTotalJobs(0)
       cancelRef.current = false
@@ -150,7 +175,9 @@ export default function ExportDialog({
   const getFileName = (job: ExportJob, index: number) => {
     const name = applyPattern(namePattern, {
       name: job.label,
+      stem: baseName,
       bpm: job.bpm,
+      beats: loopBeats,
       clipIn: job.clipIn,
       clipOut: job.clipOut,
       index,
@@ -165,6 +192,7 @@ export default function ExportDialog({
     setTotalJobs(jobs.length)
     setOutputPaths([])
     setError(null)
+    setSavedFolder(null)
     cancelRef.current = false
 
     const results: string[] = []
@@ -237,9 +265,10 @@ export default function ExportDialog({
           for (let i = 0; i < results.length; i++) {
             const fileName = getFileName(jobs2[i], i)
             const savedPath = await saveToFolder({ source_path: results[i], dest_folder: destFolder, file_name: fileName })
-            if (warpData) await writeMarkerSidecar(savedPath, warpData)
+            if (warpData) await writeMarkerSidecar(savedPath, warpData, { videoName: originalName, exportFolder: destFolder })
           }
           setSavedCount(results.length)
+          setSavedFolder(destFolder)
         } catch (e: any) {
           if (!String(e).includes('cancelled')) setError(e.message ?? String(e))
         } finally {
@@ -262,8 +291,9 @@ export default function ExportDialog({
       } else {
         savedPath = await saveOutput({ source_path: path, suggested_name: fileName })
       }
-      if (warpData) await writeMarkerSidecar(savedPath, warpData)
+      if (warpData) await writeMarkerSidecar(savedPath, warpData, { videoName: originalName, exportFolder: destFolder })
       setSavedCount(prev => prev + 1)
+      setSavedFolder(parentFolder(savedPath))
     } catch (e: any) {
       if (!String(e).includes('cancelled')) setError(e.message ?? String(e))
     } finally {
@@ -275,6 +305,7 @@ export default function ExportDialog({
     setSaving(true)
     try {
       const jobs = buildJobs()
+      let lastFolder: string | null = null
       for (let i = 0; i < outputPaths.length; i++) {
         const fileName = getFileName(jobs[i], i)
         let savedPath: string
@@ -283,9 +314,11 @@ export default function ExportDialog({
         } else {
           savedPath = await saveOutput({ source_path: outputPaths[i], suggested_name: fileName })
         }
-        if (warpData) await writeMarkerSidecar(savedPath, warpData)
+        if (warpData) await writeMarkerSidecar(savedPath, warpData, { videoName: originalName, exportFolder: destFolder })
+        lastFolder = parentFolder(savedPath)
       }
       setSavedCount(outputPaths.length)
+      if (lastFolder) setSavedFolder(lastFolder)
     } catch (e: any) {
       if (!String(e).includes('cancelled')) setError(e.message ?? String(e))
     } finally {
@@ -296,7 +329,7 @@ export default function ExportDialog({
   const handlePickFolder = async () => {
     try {
       const folder = await pickExportFolder()
-      setDestFolder(folder)
+      setCustomFolder(folder)
     } catch {
       // cancelled
     }
@@ -385,13 +418,15 @@ export default function ExportDialog({
             <div className="export-dialog__output">
               <div className="export-dialog__row">
                 <span className="export-dialog__row-label">Folder</span>
-                <button className="export-dialog__folder-btn" onClick={handlePickFolder}>
-                  {destFolder
-                    ? destFolder.split(/[\\/]/).pop()
-                    : 'Choose…'}
+                <button
+                  className="export-dialog__folder-btn"
+                  onClick={handlePickFolder}
+                  title={destFolder ?? ''}
+                >
+                  <span className="export-dialog__folder-path">{destFolder ?? 'Choose…'}</span>
                 </button>
-                {destFolder && (
-                  <button className="export-dialog__folder-clear" onClick={() => setDestFolder(null)} title="Clear folder">✕</button>
+                {customFolder && (
+                  <button className="export-dialog__folder-clear" onClick={() => setCustomFolder(null)} title="Reset to video folder">✕</button>
                 )}
               </div>
               <div className="export-dialog__row">
@@ -405,7 +440,7 @@ export default function ExportDialog({
               </div>
               <div className="export-dialog__preview">{previewName}</div>
               <div className="export-dialog__tokens">
-                {['{name}', '{bpm}', '{in}', '{out}', '{n}'].map(t => (
+                {['{name}', '{stem}', '{bpm}', '{beats}', '{in}', '{out}', '{n}'].map(t => (
                   <button
                     key={t}
                     className="export-dialog__token"
@@ -456,14 +491,36 @@ export default function ExportDialog({
           ) : status === 'done' && outputPaths.length > 0 ? (
             <div className="export-dialog__results">
               {outputPaths.length === 1 ? (
-                <button className="export-dialog__save" onClick={() => handleSaveOne(0)} disabled={saving}>
-                  {saving ? '…' : savedCount > 0 ? '✓ Saved' : destFolder ? '✓ Saved' : 'Save MP4'}
-                </button>
+                <div className="export-dialog__results-row">
+                  <button className="export-dialog__save" onClick={() => handleSaveOne(0)} disabled={saving}>
+                    {saving ? '…' : savedCount > 0 ? '✓ Saved' : destFolder ? '✓ Saved' : 'Save MP4'}
+                  </button>
+                  {savedFolder && (
+                    <button
+                      className="export-dialog__open-folder"
+                      onClick={() => revealInFolder(savedFolder)}
+                      title={savedFolder}
+                    >
+                      Open Folder
+                    </button>
+                  )}
+                </div>
               ) : (
                 <>
-                  <button className="export-dialog__save" onClick={handleSaveAll} disabled={saving || savedCount >= outputPaths.length}>
-                    {saving ? '…' : savedCount >= outputPaths.length ? `✓ All Saved` : `Save All (${outputPaths.length})`}
-                  </button>
+                  <div className="export-dialog__results-row">
+                    <button className="export-dialog__save" onClick={handleSaveAll} disabled={saving || savedCount >= outputPaths.length}>
+                      {saving ? '…' : savedCount >= outputPaths.length ? `✓ All Saved` : `Save All (${outputPaths.length})`}
+                    </button>
+                    {savedFolder && (
+                      <button
+                        className="export-dialog__open-folder"
+                        onClick={() => revealInFolder(savedFolder)}
+                        title={savedFolder}
+                      >
+                        Open Folder
+                      </button>
+                    )}
+                  </div>
                   <div className="export-dialog__result-list">
                     {outputPaths.map((_, i) => (
                       <button

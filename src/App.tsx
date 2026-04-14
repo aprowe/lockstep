@@ -18,6 +18,9 @@ const VIDEO_EXTS = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v']
 function hasVideoExt(p: string) {
   return VIDEO_EXTS.includes(p.split('.').pop()?.toLowerCase() ?? '')
 }
+function hasJsonExt(p: string) {
+  return p.split('.').pop()?.toLowerCase() === 'json'
+}
 
 // ── Layout constants ─────────────────────────────────────────────────────────
 
@@ -59,6 +62,8 @@ export default function App() {
     updateRegionInOut,
     renameRegion,
     markerCountByPath,
+    openJsonFile,
+    resetVideoData,
   } = useProject()
 
   const [timelineHeight, setTimelineHeight] = useState(DEFAULT_TIMELINE)
@@ -109,10 +114,22 @@ export default function App() {
           const firstVideo = paths.find(hasVideoExt)
           if (firstVideo) {
             await selectVideo(firstVideo)
-          } else {
-            // Otherwise treat the first dropped path as a folder
-            await loadFolderFromPath(paths[0])
+            return
           }
+          // If a .json sidecar is dropped, find its sibling video and load both
+          const firstJson = paths.find(hasJsonExt)
+          if (firstJson) {
+            try {
+              const { readJsonSidecarForVideo } = await import('./api/warp')
+              const { videoPath } = await readJsonSidecarForVideo(firstJson)
+              await selectVideo(videoPath)
+            } catch (err: any) {
+              if (!String(err).includes('cancelled')) console.error('JSON drop failed:', err)
+            }
+            return
+          }
+          // Otherwise treat the first dropped path as a folder
+          await loadFolderFromPath(paths[0])
         }
       }).then(fn => { unlisten = fn })
     })
@@ -199,13 +216,16 @@ export default function App() {
     items: [
       { label: 'Open File', shortcut: 'Ctrl+O', action: openFile },
       { label: 'Open Folder', shortcut: 'Ctrl+Shift+O', action: openFolder },
+      { label: 'Open Markers…', action: openJsonFile },
       { separator: true },
       { label: 'Import Markers', shortcut: 'Ctrl+I', action: () => warpRef.current?.triggerImport(), disabled: !video },
       { label: 'Export Markers', shortcut: 'Ctrl+E', action: () => warpRef.current?.exportMarkers(), disabled: !video || anchorCount === 0 },
       { separator: true },
+      { label: 'Reset Video Data', action: resetVideoData, disabled: !video },
+      { separator: true },
       { label: 'Close Video', action: closeVideo, disabled: !video },
     ],
-  }), [openFile, openFolder, closeVideo, video, anchorCount])
+  }), [openFile, openFolder, openJsonFile, resetVideoData, closeVideo, video, anchorCount])
 
   const editMenu: MenuDef = useMemo(() => ({
     label: 'Edit',
@@ -324,6 +344,13 @@ export default function App() {
                   onMaxStretchChange={v => warpRef.current?.setMaxStretch(v)}
                   onAddToEndChange={setAddToEnd}
                   onUpdateRegionInOut={updateRegionInOut}
+                  beatZeroOrigTime={(() => {
+                    if (!warpData) return null
+                    const zeroBA = warpData.beatAnchors.find(ba => Math.abs(ba.time - warpData.beatZeroTime) < 0.001)
+                    if (!zeroBA) return null
+                    return warpData.origAnchors.find(oa => oa.id === zeroBA.id)?.time ?? null
+                  })()}
+                  onStartAtChange={origTime => warpRef.current?.setBeatZeroByOrigTime(origTime)}
                 />
               </div>
             </div>
@@ -428,12 +455,13 @@ export default function App() {
                   onSendToNewRegion={(inPoint, outPoint) =>
                     addRegion(inPoint, outPoint)
                   }
-                  clipOverlays={regions.map(r => ({
+                  clipOverlays={regions.map((r, idx) => ({
                     id: r.id,
                     name: r.name,
                     inPoint: r.inPoint,
                     outPoint: r.outPoint,
                     active: r.id === activeRegionId,
+                    colorIndex: idx,
                   }))}
                   onClipOverlaySelect={setActiveRegionId}
                   onClipOverlayCreate={addRegion}

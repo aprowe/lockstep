@@ -154,6 +154,24 @@
   background: #2a2418;
 }
 
+/* ── Start at select ───────────────────────────────────── */
+.rip__select {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 6px;
+  background: #131110;
+  border: 1px solid #2c2720;
+  border-radius: 4px;
+  color: #c2b8ae;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.1s;
+}
+.rip__select:focus { border-color: #e07540; }
+.rip__select option { background: #1b1814; }
+
 /* ── Checkbox row ──────────────────────────────────────── */
 
 .rip__check {

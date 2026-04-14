@@ -169,11 +169,19 @@
   cursor: pointer;
   text-align: left;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   transition: border-color 0.1s;
 }
 .export-dialog__folder-btn:hover { border-color: #5a4e42; color: #c2b8ae; }
+/* Show path right-to-left so the relevant end is visible */
+.export-dialog__folder-path {
+  display: block;
+  direction: rtl;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  unicode-bidi: plaintext;
+}
 
 .export-dialog__folder-clear {
   background: none;
@@ -318,6 +326,26 @@
   flex-direction: column;
   gap: 6px;
 }
+
+.export-dialog__results-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.export-dialog__open-folder {
+  padding: 7px 12px;
+  background: none;
+  border: 1px solid #2c2720;
+  border-radius: 4px;
+  color: #7a6e62;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.1s, border-color 0.1s;
+}
+.export-dialog__open-folder:hover { color: #b5a898; border-color: #5a4e42; }
 
 .export-dialog__save {
   padding: 7px 14px;
