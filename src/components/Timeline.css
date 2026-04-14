@@ -422,14 +422,14 @@
 
 /* ── Clip overlays ────────────────────────────────────────────────────────── */
 /* 8-color palette for region cycling (h, s, l of the region hue) */
-.clip-overlay--color-0 { --clip-h: 32; --clip-s: 70%; --clip-l: 50%; }  /* amber */
-.clip-overlay--color-1 { --clip-h: 173; --clip-s: 60%; --clip-l: 40%; } /* teal */
-.clip-overlay--color-2 { --clip-h: 270; --clip-s: 60%; --clip-l: 55%; } /* purple */
-.clip-overlay--color-3 { --clip-h: 330; --clip-s: 65%; --clip-l: 55%; } /* pink */
-.clip-overlay--color-4 { --clip-h: 86; --clip-s: 55%; --clip-l: 45%; }  /* lime */
-.clip-overlay--color-5 { --clip-h: 199; --clip-s: 65%; --clip-l: 45%; } /* sky */
-.clip-overlay--color-6 { --clip-h: 0; --clip-s: 65%; --clip-l: 50%; }   /* red */
-.clip-overlay--color-7 { --clip-h: 239; --clip-s: 55%; --clip-l: 55%; } /* indigo */
+.clip-overlay--color-0 { --clip-h: 0;   --clip-s: 75%; --clip-l: 55%; } /* red */
+.clip-overlay--color-1 { --clip-h: 30;  --clip-s: 80%; --clip-l: 52%; } /* orange */
+.clip-overlay--color-2 { --clip-h: 58;  --clip-s: 80%; --clip-l: 48%; } /* yellow */
+.clip-overlay--color-3 { --clip-h: 115; --clip-s: 65%; --clip-l: 45%; } /* green */
+.clip-overlay--color-4 { --clip-h: 183; --clip-s: 65%; --clip-l: 42%; } /* cyan */
+.clip-overlay--color-5 { --clip-h: 213; --clip-s: 70%; --clip-l: 55%; } /* blue */
+.clip-overlay--color-6 { --clip-h: 270; --clip-s: 60%; --clip-l: 55%; } /* violet */
+.clip-overlay--color-7 { --clip-h: 305; --clip-s: 65%; --clip-l: 52%; } /* pink */
 
 /* Body: very subtle background, completely non-interactive */
 .clip-overlay {

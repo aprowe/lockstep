@@ -631,6 +631,12 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     return ids
   }, [origAnchors, beatAnchors])
 
+  // For each segment boundary (index maps to sortedOrig[i]), is the anchor linked?
+  const linkedBoundaries = useMemo(
+    () => sortedOrig.map(a => linkedAnchorIds.has(a.id)),
+    [sortedOrig, linkedAnchorIds],
+  )
+
   useImperativeHandle(ref, () => ({
     addAnchor(time: number) {
       const clamped = Math.max(0, Math.min(duration, time))
@@ -893,6 +899,7 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         outputDuration={outputDuration}
         clipIn={clipIn}
         clipOut={clipOut}
+        linkedBoundaries={linkedBoundaries}
       />
       <Timeline
         flip

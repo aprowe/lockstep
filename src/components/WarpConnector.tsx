@@ -12,6 +12,8 @@ interface WarpConnectorProps {
   /** Clip in/out — draws shaded overlays and boundary lines when set */
   clipIn?: number
   clipOut?: number
+  /** For each segment boundary (length = segments.length - 1): true = anchor is unmanually-adjusted */
+  linkedBoundaries?: boolean[]
 }
 
 /** Convert a full-duration percentage to view-space percentage */
@@ -20,7 +22,7 @@ function toView(pct: number, totalDuration: number, view: View): number {
 }
 
 const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
-  function WarpConnector({ segments, view, origDuration, outputDuration, clipIn, clipOut }, ref) {
+  function WarpConnector({ segments, view, origDuration, outputDuration, clipIn, clipOut, linkedBoundaries }, ref) {
     if (segments.length === 0) {
       return <div ref={ref} className="warp-connector warp-connector--empty" />
     }
@@ -51,16 +53,36 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
           {segments.slice(1).map((seg, i) => {
             const oX = toView(seg.origLeft, origDuration, view)
             const qX = toView(seg.quantLeft, outputDuration, view)
+            const linked = linkedBoundaries?.[i] ?? false
             return (
               <line
                 key={i}
                 x1={oX} y1={0} x2={qX} y2={1}
-                stroke="rgba(255,240,220,0.15)"
-                strokeWidth="0.4"
+                stroke={linked ? 'rgba(245,158,11,0.75)' : 'rgba(200,180,150,0.35)'}
+                strokeWidth={linked ? '0.9' : '0.6'}
+                strokeDasharray={linked ? undefined : '2 3'}
                 vectorEffect="non-scaling-stroke"
               />
             )
           })}
+
+          {/* Vertical lines at clip in/out boundaries */}
+          {clipIn !== undefined && (() => {
+            const x = timeToViewPct(clipIn, view)
+            return x >= 0 && x <= 100 ? (
+              <line x1={x} y1={0} x2={x} y2={1}
+                stroke="rgba(255,255,255,0.45)" strokeWidth="1"
+                vectorEffect="non-scaling-stroke" />
+            ) : null
+          })()}
+          {clipOut !== undefined && clipOut < origDuration && (() => {
+            const x = timeToViewPct(clipOut, view)
+            return x >= 0 && x <= 100 ? (
+              <line x1={x} y1={0} x2={x} y2={1}
+                stroke="rgba(255,255,255,0.45)" strokeWidth="1"
+                vectorEffect="non-scaling-stroke" />
+            ) : null
+          })()}
         </svg>
 
         {/* Ratio labels — positioned at midpoint of each segment in view space */}

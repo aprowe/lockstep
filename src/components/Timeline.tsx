@@ -763,7 +763,7 @@ export default function Timeline({
         onPointerLeave={handleTrackPointerUp}
         onDoubleClick={e => {
           if ((e.target as HTMLElement).closest('.anchor')) return
-          if ((e.target as HTMLElement).closest('.clip-overlay__bar')) return
+          if ((e.target as HTMLElement).closest('.clip-overlay')) return
           if (noAdd || !canInteract) return
           const rect = trackRef.current!.getBoundingClientRect()
           const time = Math.max(0, Math.min(duration, view.start + ((e.clientX - rect.left) / rect.width) * visibleSpan))
@@ -836,6 +836,10 @@ export default function Timeline({
               data-clip-id={clip.id}
               className={`clip-overlay${clip.active ? ' clip-overlay--active' : ''} clip-overlay--color-${(clip.colorIndex ?? 0) % 8}`}
               style={{ left: `${left}%`, width: `${width}%` }}
+              onDoubleClick={e => {
+                e.stopPropagation()
+                setView({ start: clip.inPoint, end: clip.outPoint })
+              }}
             >
               {/* Handle bar — only on the top (non-flipped) timeline */}
               {!flip && (
