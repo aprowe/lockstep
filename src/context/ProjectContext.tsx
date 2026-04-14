@@ -16,11 +16,11 @@ interface ProjectState {
   playhead: number
   detectingBpm: boolean
   markersLoaded: boolean
+  /** Global markers for the current video (always the full set) */
   initialMarkers: SavedVideoState['defaultRegion'] | null
   loopBeats: number | null
   trimToLoop: boolean
   addToEnd: boolean
-  /** Number of orig markers saved for each video path in the current folder */
   markerCountByPath: Record<string, number>
 }
 
@@ -39,14 +39,6 @@ interface ProjectActions {
   setTrimToLoop: (v: boolean) => void
   setAddToEnd: (v: boolean) => void
   addRegion: (inPoint: number, outPoint: number) => void
-  addRegionWithMarkers: (inPoint: number, outPoint: number, markers: {
-    origAnchors: Anchor[]
-    beatAnchors: Anchor[]
-    bpm: number
-    minStretch: number
-    maxStretch: number
-    beatZeroAnchorTime: number | null
-  }) => void
   deleteRegion: (id: string) => void
   setActiveRegionId: (id: string | null) => void
   updateRegionInOut: (id: string, inPoint: number, outPoint: number) => void
@@ -74,7 +66,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   const [playhead, setPlayhead] = useState(0)
   const [detectingBpm, setDetectingBpm] = useState(false)
   const [markersLoaded, setMarkersLoaded] = useState(false)
-  const [defaultRegionMarkers, setDefaultRegionMarkers] = useState<SavedVideoState['defaultRegion'] | null>(null)
+  const [globalMarkers, setGlobalMarkers] = useState<SavedVideoState['defaultRegion'] | null>(null)
   const [loopBeats, setLoopBeats] = useState<number | null>(null)
   const [trimToLoop, setTrimToLoop] = useState(false)
   const [addToEnd, setAddToEnd] = useState(false)
@@ -89,8 +81,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   activeRegionIdRef.current = activeRegionId
   const regionsRef = useRef<Region[]>([])
   regionsRef.current = regions
-  const defaultRegionMarkersRef = useRef<SavedVideoState['defaultRegion'] | null>(null)
-  defaultRegionMarkersRef.current = defaultRegionMarkers
+  const globalMarkersRef = useRef<SavedVideoState['defaultRegion'] | null>(null)
+  globalMarkersRef.current = globalMarkers
   const loopBeatsRef = useRef(loopBeats)
   const trimToLoopRef = useRef(trimToLoop)
   const addToEndRef = useRef(addToEnd)
@@ -98,23 +90,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   trimToLoopRef.current = trimToLoop
   addToEndRef.current = addToEnd
 
-  // Compute initialMarkers from activeRegionId
+  // initialMarkers: always the global set, with BPM/stretch overridden from active region
   const initialMarkers: SavedVideoState['defaultRegion'] | null = (() => {
-    if (activeRegionId === null) {
-      return defaultRegionMarkers
-    }
+    if (!globalMarkers) return null
+    if (activeRegionId === null) return globalMarkers
     const region = regions.find(r => r.id === activeRegionId)
-    if (!region) return defaultRegionMarkers
+    if (!region) return globalMarkers
     return {
-      origAnchors: region.origAnchors,
-      beatAnchors: region.beatAnchors,
+      ...globalMarkers,
       bpm: region.bpm,
       minStretch: region.minStretch,
       maxStretch: region.maxStretch,
-      beatZeroAnchorTime: region.beatZeroAnchorTime,
-      loopBeats: region.loopBeats,
-      trimToLoop: region.trimToLoop,
       addToEnd: region.addToEnd,
+      beatZeroAnchorTime: null, // inPoint is beat zero for regions
     }
   })()
 
@@ -125,7 +113,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   // ── Load markers from backend when video changes ─────────────────────────
   useEffect(() => {
     if (!video) {
-      setDefaultRegionMarkers(null)
+      setGlobalMarkers(null)
       setRegions([])
       setActiveRegionIdState(null)
       setMarkersLoaded(true)
@@ -134,18 +122,28 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setMarkersLoaded(false)
     loadVideoState(video.fileHash).then(state => {
       const dr = state?.defaultRegion ?? null
-      setDefaultRegionMarkers(dr)
-      setRegions(state?.regions ?? [])
+      setGlobalMarkers(dr)
+      // Migrate old regions: strip anchor arrays
+      const loadedRegions = (state?.regions ?? []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        inPoint: r.inPoint,
+        outPoint: r.outPoint,
+        bpm: r.bpm ?? 120,
+        minStretch: r.minStretch ?? 0.5,
+        maxStretch: r.maxStretch ?? 2.0,
+        addToEnd: r.addToEnd ?? false,
+      }))
+      setRegions(loadedRegions)
       setActiveRegionIdState(null)
       setLoopBeats(dr?.loopBeats ?? null)
       setTrimToLoop(dr?.trimToLoop ?? false)
       setAddToEnd(dr?.addToEnd ?? false)
       setMarkersLoaded(true)
-      // Update sidebar count for this video
       const count = dr?.origAnchors?.length ?? 0
       setMarkerCountByPath(prev => ({ ...prev, [video.path]: count }))
     }).catch(() => {
-      setDefaultRegionMarkers(null)
+      setGlobalMarkers(null)
       setRegions([])
       setActiveRegionIdState(null)
       setLoopBeats(null)
@@ -155,50 +153,43 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     })
   }, [video])
 
-  // ── Sync warp data changes to active region ───────────────────────────────
+  // ── Sync warp data changes to global markers + active region BPM/stretch ──
   useEffect(() => {
     if (!warpData) return
+    // Always update global markers (anchors are global)
+    setGlobalMarkers(prev => ({
+      origAnchors: warpData.origAnchors,
+      beatAnchors: warpData.beatAnchors,
+      bpm: warpData.bpm,
+      minStretch: warpData.minStretch,
+      maxStretch: warpData.maxStretch,
+      beatZeroAnchorTime: prev?.beatZeroAnchorTime ?? warpData.beatZeroTime,
+      loopBeats: prev?.loopBeats,
+      trimToLoop: prev?.trimToLoop,
+      addToEnd: prev?.addToEnd,
+    }))
+    // If a region is active, sync BPM/stretch to the region
     const curRegionId = activeRegionIdRef.current
     if (curRegionId !== null) {
       setRegions(prev => prev.map(r =>
         r.id === curRegionId
-          ? {
-              ...r,
-              origAnchors: warpData.origAnchors,
-              beatAnchors: warpData.beatAnchors,
-              bpm: warpData.bpm,
-              minStretch: warpData.minStretch,
-              maxStretch: warpData.maxStretch,
-              beatZeroAnchorTime: warpData.beatZeroTime,
-            }
+          ? { ...r, bpm: warpData.bpm, minStretch: warpData.minStretch, maxStretch: warpData.maxStretch }
           : r
       ))
-    } else {
-      setDefaultRegionMarkers(prev => prev === null ? null : {
-        ...prev,
-        origAnchors: warpData.origAnchors,
-        beatAnchors: warpData.beatAnchors,
-        bpm: warpData.bpm,
-        minStretch: warpData.minStretch,
-        maxStretch: warpData.maxStretch,
-        beatZeroAnchorTime: warpData.beatZeroTime,
-      })
     }
   }, [warpData])
 
-  // ── Sync loop/trim/addToEnd to active region ──────────────────────────────
+  // ── Sync addToEnd to active region ────────────────────────────────────────
   useEffect(() => {
     const curRegionId = activeRegionIdRef.current
     if (curRegionId !== null) {
       setRegions(prev => prev.map(r =>
-        r.id === curRegionId
-          ? { ...r, loopBeats, trimToLoop, addToEnd }
-          : r
+        r.id === curRegionId ? { ...r, addToEnd } : r
       ))
     }
-  }, [loopBeats, trimToLoop, addToEnd])
+  }, [addToEnd])
 
-  // ── Persist warp data + loop settings to backend on change ──────────────
+  // ── Persist to backend on change ──────────────────────────────────────────
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const scheduleSave = useCallback(() => {
     const vid = videoRef.current
@@ -206,16 +197,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
       const wd = warpDataRef.current
-      const dr = defaultRegionMarkersRef.current
+      const gm = globalMarkersRef.current
       const state: SavedVideoState = {
         version: 2,
         defaultRegion: {
-          origAnchors: wd?.origAnchors ?? dr?.origAnchors ?? [],
-          beatAnchors: wd?.origAnchors != null ? (wd.beatAnchors ?? []) : (dr?.beatAnchors ?? []),
-          bpm: wd?.bpm ?? dr?.bpm ?? 120,
-          minStretch: wd?.minStretch ?? dr?.minStretch ?? 0.5,
-          maxStretch: wd?.maxStretch ?? dr?.maxStretch ?? 2.0,
-          beatZeroAnchorTime: wd?.beatZeroTime ?? dr?.beatZeroAnchorTime ?? null,
+          origAnchors: wd?.origAnchors ?? gm?.origAnchors ?? [],
+          beatAnchors: wd?.origAnchors != null ? (wd.beatAnchors ?? []) : (gm?.beatAnchors ?? []),
+          bpm: wd?.bpm ?? gm?.bpm ?? 120,
+          minStretch: wd?.minStretch ?? gm?.minStretch ?? 0.5,
+          maxStretch: wd?.maxStretch ?? gm?.maxStretch ?? 2.0,
+          beatZeroAnchorTime: wd?.beatZeroTime ?? gm?.beatZeroAnchorTime ?? null,
           loopBeats: loopBeatsRef.current,
           trimToLoop: trimToLoopRef.current,
           addToEnd: addToEndRef.current,
@@ -223,7 +214,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
         regions: regionsRef.current,
       }
       saveVideoState(vid.fileHash, state).catch(() => { /* best effort */ })
-      // Keep sidebar count in sync with current marker count
       const count = state.defaultRegion.origAnchors.length
       setMarkerCountByPath(prev => ({ ...prev, [vid.path]: count }))
     }, 500)
@@ -254,7 +244,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setWarpData(null)
     setPlayhead(0)
     setMarkerCountByPath({})
-    // Asynchronously populate marker counts for each entry
     entries.forEach(entry => {
       getFileHash(entry.path)
         .then(hash => loadVideoState(hash))
@@ -262,7 +251,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
           const count = state?.defaultRegion?.origAnchors?.length ?? 0
           setMarkerCountByPath(prev => ({ ...prev, [entry.path]: count }))
         })
-        .catch(() => { /* no saved state = 0 markers, skip */ })
+        .catch(() => {})
     })
   }, [])
 
@@ -298,45 +287,34 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setAddToEnd(false)
     setRegions([])
     setActiveRegionIdState(null)
-    setDefaultRegionMarkers(null)
+    setGlobalMarkers(null)
   }, [])
 
-  // Flush current warp data to the outgoing region/defaultRegion, then switch
+  // Flush warp data to global markers, then switch region
   const setActiveRegionId = useCallback((id: string | null) => {
-    const outgoingId = activeRegionIdRef.current
     const wd = warpDataRef.current
 
-    // Flush current warp data to outgoing region/default
+    // Flush current warp data to global markers
     if (wd) {
+      setGlobalMarkers(prev => ({
+        origAnchors: wd.origAnchors,
+        beatAnchors: wd.beatAnchors,
+        bpm: wd.bpm,
+        minStretch: wd.minStretch,
+        maxStretch: wd.maxStretch,
+        beatZeroAnchorTime: prev?.beatZeroAnchorTime ?? wd.beatZeroTime,
+        loopBeats: prev?.loopBeats,
+        trimToLoop: prev?.trimToLoop,
+        addToEnd: prev?.addToEnd,
+      }))
+      // Flush BPM/stretch to outgoing region
+      const outgoingId = activeRegionIdRef.current
       if (outgoingId !== null) {
         setRegions(prev => prev.map(r =>
           r.id === outgoingId
-            ? {
-                ...r,
-                origAnchors: wd.origAnchors,
-                beatAnchors: wd.beatAnchors,
-                bpm: wd.bpm,
-                minStretch: wd.minStretch,
-                maxStretch: wd.maxStretch,
-                beatZeroAnchorTime: wd.beatZeroTime,
-                loopBeats: loopBeatsRef.current,
-                trimToLoop: trimToLoopRef.current,
-                addToEnd: addToEndRef.current,
-              }
+            ? { ...r, bpm: wd.bpm, minStretch: wd.minStretch, maxStretch: wd.maxStretch, addToEnd: addToEndRef.current }
             : r
         ))
-      } else {
-        setDefaultRegionMarkers({
-          origAnchors: wd.origAnchors,
-          beatAnchors: wd.beatAnchors,
-          bpm: wd.bpm,
-          minStretch: wd.minStretch,
-          maxStretch: wd.maxStretch,
-          beatZeroAnchorTime: wd.beatZeroTime,
-          loopBeats: loopBeatsRef.current,
-          trimToLoop: trimToLoopRef.current,
-          addToEnd: addToEndRef.current,
-        })
       }
     }
 
@@ -344,19 +322,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setActiveRegionIdState(id)
     setWarpData(null)
 
-    // Load loop settings from incoming region
+    // Load settings from incoming region
     if (id !== null) {
       const incoming = regionsRef.current.find(r => r.id === id)
       if (incoming) {
-        setLoopBeats(incoming.loopBeats ?? null)
-        setTrimToLoop(incoming.trimToLoop ?? false)
         setAddToEnd(incoming.addToEnd ?? false)
       }
     } else {
-      const dr = defaultRegionMarkersRef.current
-      setLoopBeats(dr?.loopBeats ?? null)
-      setTrimToLoop(dr?.trimToLoop ?? false)
-      setAddToEnd(dr?.addToEnd ?? false)
+      const gm = globalMarkersRef.current
+      setLoopBeats(gm?.loopBeats ?? null)
+      setTrimToLoop(gm?.trimToLoop ?? false)
+      setAddToEnd(gm?.addToEnd ?? false)
     }
   }, [])
 
@@ -364,70 +340,31 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     const existingCount = regionsRef.current.length
     const name = `Clip ${existingCount + 1}`
     const id = `region_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+    // Inherit BPM from current warp data or global markers
+    const wd = warpDataRef.current
+    const gm = globalMarkersRef.current
     const newRegion: Region = {
       id,
       name,
       inPoint,
       outPoint,
-      origAnchors: [],
-      beatAnchors: [],
-      bpm: 120,
-      minStretch: 0.5,
-      maxStretch: 2.0,
-      beatZeroAnchorTime: null,
-      trimToLoop: false,
-      loopBeats: null,
+      bpm: wd?.bpm ?? gm?.bpm ?? 120,
+      minStretch: wd?.minStretch ?? gm?.minStretch ?? 0.5,
+      maxStretch: wd?.maxStretch ?? gm?.maxStretch ?? 2.0,
       addToEnd: false,
     }
     setRegions(prev => [...prev, newRegion])
-    // Auto-select the new region
-    setActiveRegionId(id)
-  }, [setActiveRegionId])
-
-  const addRegionWithMarkers = useCallback((
-    inPoint: number,
-    outPoint: number,
-    markers: {
-      origAnchors: Anchor[]
-      beatAnchors: Anchor[]
-      bpm: number
-      minStretch: number
-      maxStretch: number
-      beatZeroAnchorTime: number | null
-    },
-  ) => {
-    const existingCount = regionsRef.current.length
-    const name = `Clip ${existingCount + 1}`
-    const id = `region_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-    const newRegion: Region = {
-      id,
-      name,
-      inPoint,
-      outPoint,
-      origAnchors: markers.origAnchors,
-      beatAnchors: markers.beatAnchors,
-      bpm: markers.bpm,
-      minStretch: markers.minStretch,
-      maxStretch: markers.maxStretch,
-      beatZeroAnchorTime: markers.beatZeroAnchorTime,
-      trimToLoop: false,
-      loopBeats: null,
-      addToEnd: false,
-    }
-    setRegions(prev => [...prev, newRegion])
-    setActiveRegionId(id)
-  }, [setActiveRegionId])
+  }, [])
 
   const deleteRegion = useCallback((id: string) => {
     setRegions(prev => prev.filter(r => r.id !== id))
     if (activeRegionIdRef.current === id) {
-      // Go back to default (full video)
       setActiveRegionIdState(null)
       setWarpData(null)
-      const dr = defaultRegionMarkersRef.current
-      setLoopBeats(dr?.loopBeats ?? null)
-      setTrimToLoop(dr?.trimToLoop ?? false)
-      setAddToEnd(dr?.addToEnd ?? false)
+      const gm = globalMarkersRef.current
+      setLoopBeats(gm?.loopBeats ?? null)
+      setTrimToLoop(gm?.trimToLoop ?? false)
+      setAddToEnd(gm?.addToEnd ?? false)
     }
   }, [])
 
@@ -466,7 +403,6 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setTrimToLoop,
     setAddToEnd,
     addRegion,
-    addRegionWithMarkers,
     deleteRegion,
     setActiveRegionId,
     updateRegionInOut,

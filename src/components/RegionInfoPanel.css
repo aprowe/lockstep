@@ -1,0 +1,194 @@
+/* ── Region Info Panel ──────────────────────────────────── */
+
+.rip {
+  height: 100%;
+  background: #1b1814;
+  border-right: 1px solid #2c2720;
+  border-top: 1px solid #2c2720;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+}
+
+.rip__header {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  height: 26px;
+  background: #252018;
+  border-bottom: 1px solid #2c2720;
+  flex-shrink: 0;
+}
+
+.rip__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #a09488;
+}
+
+.rip__body {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+/* ── Rows ──────────────────────────────────────────────── */
+
+.rip__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rip__label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7a6e62;
+  flex-shrink: 0;
+  min-width: 50px;
+}
+
+.rip__value {
+  color: #c2b8ae;
+  font-size: 12px;
+}
+
+.rip__value--computed {
+  color: #7a6e62;
+  font-style: italic;
+}
+
+/* ── Input fields ──────────────────────────────────────── */
+
+.rip__input {
+  width: 52px;
+  background: #231f18;
+  border: 1px solid #38312a;
+  border-radius: 4px;
+  color: #e2dbd2;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  padding: 2px 6px;
+  text-align: right;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.rip__input::-webkit-outer-spin-button,
+.rip__input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.rip__input:focus { border-color: #a09488; }
+
+.rip__input--wide {
+  width: 64px;
+}
+
+/* ── Lock button ───────────────────────────────────────── */
+
+.rip__lock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: none;
+  border: 1px solid #38312a;
+  border-radius: 4px;
+  color: #5a5048;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.1s, border-color 0.1s, background 0.1s;
+}
+
+.rip__lock:hover {
+  color: #a09488;
+  border-color: #a09488;
+}
+
+.rip__lock--active {
+  color: #e07540;
+  border-color: rgba(224, 117, 64, 0.4);
+  background: rgba(224, 117, 64, 0.08);
+}
+
+.rip__lock--active:hover {
+  color: #e07540;
+  border-color: rgba(224, 117, 64, 0.6);
+  background: rgba(224, 117, 64, 0.14);
+}
+
+/* ── Beat adjustment buttons ───────────────────────────── */
+
+.rip__btn-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 50px; /* align with inputs (match .rip__label min-width) */
+  padding-left: 6px;
+}
+
+.rip__adj {
+  background: #231f18;
+  border: 1px solid #38312a;
+  border-radius: 4px;
+  color: #a09488;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  padding: 1px 6px;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: color 0.1s, border-color 0.1s, background 0.1s;
+}
+
+.rip__adj:hover {
+  color: #e2dbd2;
+  border-color: #a09488;
+  background: #2a2418;
+}
+
+/* ── Checkbox row ──────────────────────────────────────── */
+
+.rip__check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.rip__check input[type="checkbox"] {
+  accent-color: #e07540;
+  cursor: pointer;
+}
+
+.rip__check-label {
+  font-size: 11px;
+  color: #c2b8ae;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* ── Empty state ───────────────────────────────────────── */
+
+.rip__empty {
+  padding: 12px 10px;
+  font-size: 11px;
+  color: #5a5048;
+  font-style: italic;
+}
+
+/* ── Divider ───────────────────────────────────────────── */
+
+.rip__divider {
+  height: 1px;
+  background: #2c2720;
+  margin: 2px 0;
+}

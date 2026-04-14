@@ -19,16 +19,6 @@ interface MarkerListProps {
   onDeleteSelected?: () => void
   onResetSelected?: () => void
   onSnapSelected?: () => void
-  minStretch: number
-  maxStretch: number
-  onMinStretchChange?: (v: number) => void
-  onMaxStretchChange?: (v: number) => void
-  loopBeats: number | null
-  onLoopBeatsChange?: (v: number | null) => void
-  addToEnd: boolean
-  onAddToEndChange?: (v: boolean) => void
-  trimToLoop: boolean
-  onTrimToLoopChange?: (v: boolean) => void
 }
 
 export default function MarkerList({
@@ -36,10 +26,6 @@ export default function MarkerList({
   fps, bpm, beatZeroTime,
   selectedIds, onSelectionChange, onSeek,
   onClear, onReset, onSnap, onDeleteSelected, onResetSelected, onSnapSelected,
-  minStretch, maxStretch, onMinStretchChange, onMaxStretchChange,
-  loopBeats, onLoopBeatsChange,
-  addToEnd, onAddToEndChange,
-  trimToLoop, onTrimToLoopChange,
 }: MarkerListProps) {
   const beatDuration = 60 / bpm
   const sorted = [...origAnchors].sort((a, b) => a.time - b.time)
@@ -68,36 +54,12 @@ export default function MarkerList({
 
   return (
     <div className="marker-list">
-      {/* Loop / trim / prepend — above the marker list */}
-      <div className="ml-section">
-        <div className="ml-section__header">Loop</div>
-        <div className="ml-top-settings__row">
-          <span className="ml-settings__label">Loop</span>
-          <input
-            className="ml-loop__input"
-            type="number" min={1} placeholder="—"
-            value={loopBeats ?? ''}
-            onChange={e => { const v = parseInt(e.target.value); onLoopBeatsChange?.(isNaN(v) || v <= 0 ? null : v) }}
-          />
-          <span className="ml-loop__unit">beats</span>
-          <label className="ml-settings__check">
-            <input type="checkbox" checked={trimToLoop} onChange={e => onTrimToLoopChange?.(e.target.checked)} />
-            Trim
-          </label>
-          <label className="ml-settings__check">
-            <input type="checkbox" checked={addToEnd} onChange={e => onAddToEndChange?.(e.target.checked)} />
-            Prepend
-          </label>
-        </div>
+      {/* Header + actions */}
+      <div className="ml-section__header">
+        <span>Markers</span>
+        <span className="ml-section__header-count">{origAnchors.length}</span>
       </div>
-
-      {/* Markers section */}
-      <div className="ml-section ml-section--grow">
-        <div className="ml-section__header">
-          <span>Markers</span>
-          <span className="ml-section__header-count">{origAnchors.length}</span>
-        </div>
-        <div className="ml-actions">
+      <div className="ml-actions">
         {hasSelection ? (
           <>
             <button className="ml-actions__btn" onClick={onDeleteSelected}>Delete</button>
@@ -114,8 +76,8 @@ export default function MarkerList({
         )}
       </div>
 
-        {/* Scrollable list */}
-        <div className="ml-scroll">
+      {/* Scrollable list */}
+      <div className="ml-scroll">
         {sorted.length === 0 ? (
           <div className="ml-empty">No markers placed</div>
         ) : (
@@ -161,32 +123,6 @@ export default function MarkerList({
             )
           })
         )}
-        </div>
-      </div>
-
-      {/* Stretch settings */}
-      <div className="ml-section">
-        <div className="ml-section__header">Stretch</div>
-        <div className="ml-settings">
-          <div className="ml-settings__row">
-            <span className="ml-settings__label">Min</span>
-            <input
-              className="ml-settings__input"
-              type="number" min={0.1} max={1.99} step={0.05}
-              value={minStretch.toFixed(2)}
-              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) onMinStretchChange?.(v) }}
-            />
-            <span className="ml-settings__unit">×</span>
-            <span className="ml-settings__label">Max</span>
-            <input
-              className="ml-settings__input"
-              type="number" min={0.51} max={8} step={0.05}
-              value={maxStretch.toFixed(2)}
-              onChange={e => { const v = parseFloat(e.target.value); if (!isNaN(v)) onMaxStretchChange?.(v) }}
-            />
-            <span className="ml-settings__unit">×</span>
-          </div>
-        </div>
       </div>
     </div>
   )

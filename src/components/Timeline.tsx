@@ -45,14 +45,6 @@ export interface TimelineProps {
   anchorZeroId?: number
   /** Called when user clicks the "set as beat 0" button on an anchor */
   onAnchorSetZero?: (id: number) => void
-  /** When set, draws a loop-start marker at this time and shades the pre region */
-  loopStartAt?: number
-  /** Start of the pre-beat shade (defaults to 0 if omitted) */
-  loopPreStart?: number
-  /** When set, draws a loop-end line and shades the region after it */
-  loopEndAt?: number
-  /** When set, draws a ghost/preview region (e.g. pre-beat section appended at end) */
-  ghostRegion?: { start: number; end: number }
   /** Beat grid subdivision divisor: 1=quarter, 2=8th, 3=triplet, 4=16th, etc. */
   gridDiv?: number
   /** Flip layout: track on top, ruler below, label at bottom. No minimap. */
@@ -71,15 +63,45 @@ export interface TimelineProps {
   onTrackContextMenu?: (time: number, x: number, y: number) => void
   /** If a click lands within this many px of an existing anchor, update that anchor instead of adding a new one. Future: expose as user setting. Default: 10 */
   mergeMarginPx?: number
+  /** Clip blocks to render as shaded overlays on this track (same zoom as timeline) */
+  clipOverlays?: ClipOverlay[]
+  /** Called when the user clicks a clip overlay */
+  onClipOverlaySelect?: (id: string) => void
+  /** Called when the user draws a new clip by dragging on empty track space */
+  onClipOverlayCreate?: (inPoint: number, outPoint: number) => void
+  /** Called while the user resizes a clip overlay edge */
+  onClipOverlayResize?: (id: string, inPoint: number, outPoint: number) => void
+  /** Called while the user drags a clip overlay by its handle bar */
+  onClipOverlayMove?: (id: string, inPoint: number, outPoint: number) => void
+  /** Only render beat grid lines within this time range */
+  beatRangeStart?: number
+  beatRangeEnd?: number
+  /** When true, clicking empty track space seeks instead of placing a marker */
+  scrubOnTrackClick?: boolean
+  /** Called when scrubbing on the track body (requires scrubOnTrackClick) */
+  onTrackScrub?: (time: number) => void
+}
+
+/** A clip block overlaid on the timeline track at the same zoom level */
+export interface ClipOverlay {
+  id: string
+  name: string
+  inPoint: number
+  outPoint: number
+  active: boolean
 }
 
 type GestureState =
   | null
-  | { type: 'potential'; x: number; y: number; time: number; anchorId?: number; ctrlKey?: boolean; shiftKey?: boolean }
+  | { type: 'potential'; x: number; y: number; time: number; anchorId?: number; clipId?: string; clipInPoint?: number; clipOutPoint?: number; ctrlKey?: boolean; shiftKey?: boolean }
   | { type: 'panning'; lastX: number }
   | { type: 'anchor-drag'; id: number }
   | { type: 'group-drag'; ids: number[]; startTimes: Map<number, number>; lastX: number }
   | { type: 'lasso'; startX: number; startTime: number; currentX: number; currentTime: number }
+  | { type: 'clip-create'; startTime: number; currentTime: number }
+  | { type: 'clip-resize'; id: string; edge: 'left' | 'right'; inPoint: number; outPoint: number }
+  | { type: 'clip-move'; id: string; startTime: number; inPoint: number; outPoint: number }
+  | { type: 'scrub' }
 
 function rulerTicks(viewStart: number, viewEnd: number) {
   const span = viewEnd - viewStart
@@ -131,6 +153,12 @@ type BeatLine = { time: number; measure: boolean; onBeat: boolean }
 
 let nextId = 1
 export function newAnchorId() { return nextId++ }
+/** Ensure counter is above all existing anchor IDs to prevent collisions */
+export function bumpAnchorIdCounter(anchors: { id: number }[]) {
+  for (const a of anchors) {
+    if (a.id >= nextId) nextId = a.id + 1
+  }
+}
 
 export default function Timeline({
   duration,
@@ -156,10 +184,6 @@ export default function Timeline({
   musicalRuler = false,
   anchorZeroId,
   onAnchorSetZero,
-  loopStartAt,
-  loopPreStart,
-  loopEndAt,
-  ghostRegion,
   gridDiv = 1,
   flip = false,
   selectedIds,
@@ -169,6 +193,15 @@ export default function Timeline({
   onAnchorContextMenu,
   onTrackContextMenu,
   mergeMarginPx = 10,
+  clipOverlays,
+  onClipOverlaySelect,
+  onClipOverlayCreate,
+  onClipOverlayResize,
+  onClipOverlayMove,
+  beatRangeStart,
+  beatRangeEnd,
+  scrubOnTrackClick = false,
+  onTrackScrub,
 }: TimelineProps) {
   const [internalView, setInternalView] = useState<View>({ start: 0, end: duration })
   const isControlled = controlledView !== undefined
@@ -184,6 +217,7 @@ export default function Timeline({
 
   const [rulerHover, setRulerHover] = useState<number | null>(null)
   const [lassoRect, setLassoRect] = useState<{ left: number; width: number } | null>(null)
+  const [clipCreatePreview, setClipCreatePreview] = useState<{ start: number; end: number } | null>(null)
 
   const trackRef = useRef<HTMLDivElement>(null)
   const rulerRef = useRef<HTMLDivElement>(null)
@@ -210,16 +244,31 @@ export default function Timeline({
     [view.start, visibleSpan],
   )
 
-  /** Proximity snap: only snaps if within snapThresholdPx of a beat */
+  /** Proximity snap: snaps to beat grid and clip overlay edges */
   const trySnap = useCallback(
     (rawTime: number): number => {
-      if (!snapInterval || snapInterval <= 0) return rawTime
-      const nearest = snapOffset + Math.round((rawTime - snapOffset) / snapInterval) * snapInterval
       const rect = trackRef.current?.getBoundingClientRect()
       const thresholdSec = rect ? (snapThresholdPx / rect.width) * visibleSpan : MIN_VISIBLE
-      return Math.abs(rawTime - nearest) <= thresholdSec ? nearest : rawTime
+      let best = rawTime
+      let bestDist = thresholdSec
+      // Snap to beat grid
+      if (snapInterval && snapInterval > 0) {
+        const nearest = snapOffset + Math.round((rawTime - snapOffset) / snapInterval) * snapInterval
+        const d = Math.abs(rawTime - nearest)
+        if (d < bestDist) { bestDist = d; best = nearest }
+      }
+      // Snap to clip overlay edges
+      if (clipOverlays) {
+        for (const c of clipOverlays) {
+          const dIn = Math.abs(rawTime - c.inPoint)
+          if (dIn < bestDist) { bestDist = dIn; best = c.inPoint }
+          const dOut = Math.abs(rawTime - c.outPoint)
+          if (dOut < bestDist) { bestDist = dOut; best = c.outPoint }
+        }
+      }
+      return best
     },
-    [snapInterval, snapOffset, snapThresholdPx, visibleSpan],
+    [snapInterval, snapOffset, snapThresholdPx, visibleSpan, clipOverlays],
   )
 
   // Keep a ref to the latest zoom state so the wheel handler never goes stale
@@ -249,13 +298,37 @@ export default function Timeline({
 
   const handleTrackPointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (!canInteract) return
-      if ((e.target as HTMLElement).closest('.anchor')) return
+      const target = e.target as HTMLElement
+      if (target.closest('.anchor')) return
       if (e.button !== 0) return
+      // Clip overlay bar interaction — resize handles or move
+      const barEl = target.closest<HTMLElement>('.clip-overlay__bar')
+      if (barEl) {
+        const overlayEl = barEl.closest<HTMLElement>('.clip-overlay')
+        const id = overlayEl?.dataset.clipId
+        if (id) {
+          const clip = clipOverlays?.find(c => c.id === id)
+          if (clip) {
+            e.stopPropagation()
+            e.currentTarget.setPointerCapture(e.pointerId)
+            const resizeHandle = target.closest<HTMLElement>('.clip-overlay__handle')
+            if (resizeHandle) {
+              const edge = resizeHandle.classList.contains('clip-overlay__handle--left') ? 'left' : 'right'
+              gesture.current = { type: 'clip-resize', id, edge, inPoint: clip.inPoint, outPoint: clip.outPoint }
+            } else {
+              // Click or drag on bar body — start as potential, resolve on move/up
+              gesture.current = { type: 'potential', x: e.clientX, y: e.clientY, time: xToTime(e.clientX), clipId: id, clipInPoint: clip.inPoint, clipOutPoint: clip.outPoint }
+            }
+            return
+          }
+        }
+      }
+      // Clip overlay body is background — clicks pass through to track
+      if (!canInteract && !scrubOnTrackClick) return
       e.currentTarget.setPointerCapture(e.pointerId)
       gesture.current = { type: 'potential', x: e.clientX, y: e.clientY, time: xToTime(e.clientX) }
     },
-    [canInteract, xToTime],
+    [canInteract, xToTime, clipOverlays, scrubOnTrackClick, onClipOverlayCreate],
   )
 
   const handleTrackPointerMove = useCallback(
@@ -267,7 +340,10 @@ export default function Timeline({
         const dx = Math.abs(e.clientX - g.x)
         const dy = Math.abs(e.clientY - g.y)
         if (dx > 4 || dy > 4) {
-          if (g.anchorId != null) {
+          if (g.clipId != null && g.clipInPoint != null && g.clipOutPoint != null) {
+            // Dragging a clip bar → move
+            gesture.current = { type: 'clip-move', id: g.clipId, startTime: xToTime(e.clientX), inPoint: g.clipInPoint, outPoint: g.clipOutPoint }
+          } else if (g.anchorId != null) {
             // Dragging an anchor — select it first if not selected, then drag
             if (onSelectionChange && !(selectionRef.current?.has(g.anchorId))) {
               onSelectionChange(new Set([g.anchorId]))
@@ -277,7 +353,7 @@ export default function Timeline({
             // Shift+drag = pan
             gesture.current = { type: 'panning', lastX: e.clientX }
           } else if (onSelectionChange) {
-            // Non-shift drag on empty area = lasso selection
+            // Drag on empty area = lasso selection
             onSelectionChange(new Set())
             const time = xToTime(e.clientX)
             gesture.current = { type: 'lasso', startX: g.x, startTime: g.time, currentX: e.clientX, currentTime: time }
@@ -369,9 +445,92 @@ export default function Timeline({
           return { ...a, time: g.startTimes.get(a.id)! + clampedDelta }
         })
         onAnchorsChange?.(updated)
+        return
+      }
+
+      if (g.type === 'clip-create') {
+        const time = xToTime(e.clientX)
+        gesture.current = { ...g, currentTime: time }
+        setClipCreatePreview({ start: Math.min(g.startTime, time), end: Math.max(g.startTime, time) })
+        return
+      }
+
+      if (g.type === 'clip-resize') {
+        const raw = xToTime(e.clientX)
+        const rect = trackRef.current?.getBoundingClientRect()
+        const snapSec = rect ? (snapThresholdPx / rect.width) * visibleSpan : 0
+        // Build snap targets: anchors + other clip edges + beat grid
+        const targets: number[] = anchors.map(a => a.time)
+        if (clipOverlays) {
+          for (const c of clipOverlays) {
+            if (c.id === g.id) continue
+            targets.push(c.inPoint, c.outPoint)
+          }
+        }
+        // Add beat grid snap targets
+        if (snapInterval && snapInterval > 0) {
+          const nearest = snapOffset + Math.round((raw - snapOffset) / snapInterval) * snapInterval
+          targets.push(nearest)
+        }
+        const snap = (t: number) => {
+          let best = t, bestD = snapSec
+          for (const s of targets) { const d = Math.abs(t - s); if (d < bestD) { bestD = d; best = s } }
+          return best
+        }
+        if (g.edge === 'left') {
+          const inPoint = Math.min(snap(raw), g.outPoint - 0.1)
+          gesture.current = { ...g, inPoint }
+          onClipOverlayResize?.(g.id, inPoint, g.outPoint)
+        } else {
+          const outPoint = Math.max(snap(raw), g.inPoint + 0.1)
+          gesture.current = { ...g, outPoint }
+          onClipOverlayResize?.(g.id, g.inPoint, outPoint)
+        }
+        return
+      }
+
+      if (g.type === 'clip-move') {
+        const time = xToTime(e.clientX)
+        const delta = time - g.startTime
+        const span = g.outPoint - g.inPoint
+        let newIn = Math.max(0, Math.min(duration - span, g.inPoint + delta))
+        // Build snap targets: anchors + other clip edges + beat grid
+        const rect = trackRef.current?.getBoundingClientRect()
+        const snapSec = rect ? (snapThresholdPx / rect.width) * visibleSpan : 0
+        const targets: number[] = anchors.map(a => a.time)
+        if (clipOverlays) {
+          for (const c of clipOverlays) {
+            if (c.id === g.id) continue
+            targets.push(c.inPoint, c.outPoint)
+          }
+        }
+        // Add beat grid snap targets for both edges
+        if (snapInterval && snapInterval > 0) {
+          const nearestIn = snapOffset + Math.round((newIn - snapOffset) / snapInterval) * snapInterval
+          const nearestOut = snapOffset + Math.round(((newIn + span) - snapOffset) / snapInterval) * snapInterval
+          targets.push(nearestIn, nearestOut)
+        }
+        let bestDist = snapSec
+        for (const s of targets) {
+          // Snap inPoint to target
+          const dIn = Math.abs(newIn - s)
+          if (dIn < bestDist) { bestDist = dIn; newIn = s }
+          // Snap outPoint to target
+          const dOut = Math.abs((newIn + span) - s)
+          if (dOut < bestDist) { bestDist = dOut; newIn = s - span }
+        }
+        newIn = Math.max(0, Math.min(duration - span, newIn))
+        const newOut = newIn + span
+        onClipOverlayMove?.(g.id, newIn, newOut)
+        return
+      }
+
+      if (g.type === 'scrub') {
+        onTrackScrub?.(Math.max(0, Math.min(duration, xToTime(e.clientX))))
+        return
       }
     },
-    [view, visibleSpan, duration, xToTime, trySnap, setView, anchors, onAnchorsChange, getBounds, onSelectionChange, timeToPercent],
+    [view, visibleSpan, duration, xToTime, trySnap, setView, anchors, onAnchorsChange, getBounds, onSelectionChange, timeToPercent, onClipOverlayCreate, onClipOverlayResize, onClipOverlayMove, onTrackScrub, scrubOnTrackClick, clipOverlays, snapThresholdPx],
   )
 
   const handleTrackPointerUp = useCallback(
@@ -381,20 +540,20 @@ export default function Timeline({
       setLassoRect(null)
 
       if (g?.type === 'potential') {
-        if (g.anchorId != null) {
+        if (g.clipId != null) {
+          // Click on clip bar (no drag) → select the clip
+          onClipOverlaySelect?.(g.clipId)
+        } else if (g.anchorId != null) {
           // Anchor click — handle selection
           const sel = selectionRef.current ?? new Set<number>()
           if (g.ctrlKey) {
-            // Ctrl+click: toggle
             const next = new Set(sel)
             if (next.has(g.anchorId)) next.delete(g.anchorId)
             else next.add(g.anchorId)
             onSelectionChange?.(next)
           } else if (g.shiftKey) {
-            // Shift+click: range select from last to this
             const sorted = [...anchors].sort((a, b) => a.time - b.time)
             const clickedIdx = sorted.findIndex(a => a.id === g.anchorId)
-            // Find the index of the first currently selected anchor for range
             let startIdx = clickedIdx
             for (let i = 0; i < sorted.length; i++) {
               if (sel.has(sorted[i].id)) { startIdx = i; break }
@@ -405,46 +564,54 @@ export default function Timeline({
             for (let i = lo; i <= hi; i++) next.add(sorted[i].id)
             onSelectionChange?.(next)
           } else {
-            // Plain click: select only this anchor
             onSelectionChange?.(new Set([g.anchorId]))
           }
         } else {
-          // Click on empty area
+          // Click on empty area — deselect or seek
           const sel = selectionRef.current
           if (sel && sel.size > 0) {
-            // Has selection — just deselect, don't place marker
             onSelectionChange?.(new Set())
-          } else if (!noAdd) {
-            // No selection — place or update a marker
-            const time = Math.max(0, Math.min(duration, g.time))
-            const rect = trackRef.current?.getBoundingClientRect()
-            const marginSec = rect ? (mergeMarginPx / rect.width) * visibleSpan : 0
-            const nearby = anchors.reduce<{ anchor: Anchor; dist: number } | null>((best, a) => {
-              const dist = Math.abs(a.time - time)
-              if (dist <= marginSec && (!best || dist < best.dist)) return { anchor: a, dist }
-              return best
-            }, null)
-            if (nearby) {
-              onAnchorsChange?.(anchors.map(a => a.id === nearby.anchor.id ? { ...a, time } : a))
-            } else {
-              onAnchorsChange?.([...anchors, { id: newAnchorId(), time }])
-            }
+          } else if (scrubOnTrackClick) {
+            onTrackScrub?.(Math.max(0, Math.min(duration, g.time)))
           }
+          // Marker creation moved to double-click handler
         }
         return
       }
 
       if (g?.type === 'lasso') {
-        // Selection was already updated during move; just clear the visual
         return
       }
 
       if (g?.type === 'group-drag') {
-        // Commit the drag — anchors are already updated during move
+        return
+      }
+
+      if (g?.type === 'clip-create') {
+        setClipCreatePreview(null)
+        const start = Math.min(g.startTime, g.currentTime)
+        const end = Math.max(g.startTime, g.currentTime)
+        if (end - start >= 0.1) {
+          onClipOverlayCreate?.(start, end)
+        }
+        return
+      }
+
+      if (g?.type === 'clip-resize') {
+        // Already committed live during move
+        return
+      }
+
+      if (g?.type === 'clip-move') {
+        // Already committed live during move
+        return
+      }
+
+      if (g?.type === 'scrub') {
         return
       }
     },
-    [noAdd, duration, anchors, onAnchorsChange, onSelectionChange, mergeMarginPx, visibleSpan],
+    [noAdd, canInteract, duration, anchors, onAnchorsChange, onSelectionChange, mergeMarginPx, visibleSpan, scrubOnTrackClick, onTrackScrub, onClipOverlayCreate, onClipOverlaySelect],
   )
 
   const handleAnchorPointerDown = useCallback(
@@ -520,6 +687,8 @@ export default function Timeline({
     const gridInterval = beat / gridDiv
     const first = snapOffset + Math.ceil((view.start - snapOffset) / gridInterval) * gridInterval
     for (let t = first; t <= view.end + 1e-9; t += gridInterval) {
+      if (beatRangeStart !== undefined && t < beatRangeStart - 1e-9) continue
+      if (beatRangeEnd   !== undefined && t > beatRangeEnd   + 1e-9) continue
       const rawBeat = (t - snapOffset) / beat
       const beatIdx = Math.round(rawBeat * gridDiv)
       const onBeat = beatIdx % gridDiv === 0
@@ -553,10 +722,11 @@ export default function Timeline({
       >
         {ticks.map((tick) => {
           const major = 'major' in tick ? tick.major : tick.type === 'measure'
+          const outsideClip = !flip && ((clipIn !== undefined && tick.time < clipIn - 0.01) || (clipOut !== undefined && tick.time > clipOut + 0.01))
           return (
             <div
               key={`t-${tick.time}`}
-              className={`tick ${major ? 'tick--major' : 'tick--minor'}`}
+              className={`tick ${major ? 'tick--major' : 'tick--minor'}${outsideClip ? ' tick--dimmed' : ''}`}
               style={{ left: `${timeToPercent(tick.time)}%` }}
             >
               {tick.label && <span className="tick-label">{tick.label}</span>}
@@ -578,6 +748,24 @@ export default function Timeline({
         onPointerMove={handleTrackPointerMove}
         onPointerUp={handleTrackPointerUp}
         onPointerLeave={handleTrackPointerUp}
+        onDoubleClick={e => {
+          if ((e.target as HTMLElement).closest('.anchor')) return
+          if ((e.target as HTMLElement).closest('.clip-overlay__bar')) return
+          if (noAdd || !canInteract) return
+          const rect = trackRef.current!.getBoundingClientRect()
+          const time = Math.max(0, Math.min(duration, view.start + ((e.clientX - rect.left) / rect.width) * visibleSpan))
+          const marginSec = (mergeMarginPx / rect.width) * visibleSpan
+          const nearby = anchors.reduce<{ anchor: Anchor; dist: number } | null>((best, a) => {
+            const dist = Math.abs(a.time - time)
+            if (dist <= marginSec && (!best || dist < best.dist)) return { anchor: a, dist }
+            return best
+          }, null)
+          if (nearby) {
+            onAnchorsChange?.(anchors.map(a => a.id === nearby.anchor.id ? { ...a, time } : a))
+          } else {
+            onAnchorsChange?.([...anchors, { id: newAnchorId(), time }])
+          }
+        }}
         onContextMenu={e => {
           if ((e.target as HTMLElement).closest('.anchor')) return
           e.preventDefault()
@@ -589,28 +777,16 @@ export default function Timeline({
       >
         {/* Clip out-of-range overlays */}
         {clipIn !== undefined && clipIn > view.start && (
-          <>
-            <div
-              className="clip-out-of-range"
-              style={{ left: 0, width: `${timeToPercent(clipIn)}%` }}
-            />
-            <div
-              className="clip-boundary"
-              style={{ left: `${timeToPercent(clipIn)}%` }}
-            />
-          </>
+          <div
+            className="clip-out-of-range"
+            style={{ left: 0, width: `${timeToPercent(clipIn)}%` }}
+          />
         )}
         {clipOut !== undefined && clipOut < duration && (
-          <>
-            <div
-              className="clip-out-of-range"
-              style={{ left: `${timeToPercent(clipOut)}%`, right: 0 }}
-            />
-            <div
-              className="clip-boundary"
-              style={{ left: `${timeToPercent(clipOut)}%` }}
-            />
-          </>
+          <div
+            className="clip-out-of-range"
+            style={{ left: `${timeToPercent(clipOut)}%`, right: 0 }}
+          />
         )}
 
         {visibleBands?.map((b, i) => (
@@ -635,13 +811,49 @@ export default function Timeline({
           />
         )}
 
-        {beatLines.map(({ time, measure, onBeat }) => (
-          <div
-            key={`bl-${time}`}
-            className={measure ? 'measure-line' : onBeat ? 'beat-line' : 'sub-beat-line'}
-            style={{ left: `${timeToPercent(time)}%` }}
-          />
-        ))}
+        {/* Clip overlays — subtle shaded blocks with interactive handle at top */}
+        {clipOverlays && clipOverlays.map(clip => {
+          const left = Math.max(0, timeToPercent(clip.inPoint))
+          const right = Math.min(100, timeToPercent(clip.outPoint))
+          const width = right - left
+          if (width <= 0) return null
+          return (
+            <div
+              key={clip.id}
+              data-clip-id={clip.id}
+              className={`clip-overlay${clip.active ? ' clip-overlay--active' : ''}`}
+              style={{ left: `${left}%`, width: `${width}%` }}
+            >
+              {/* Handle bar — only on the top (non-flipped) timeline */}
+              {!flip && (
+                <div
+                  className="clip-overlay__bar"
+                  onDoubleClick={e => {
+                    e.stopPropagation()
+                    // Zoom to fit this clip
+                    setView({ start: clip.inPoint, end: clip.outPoint })
+                  }}
+                >
+                  <div className="clip-overlay__handle clip-overlay__handle--left" />
+                  <span className="clip-overlay__label">{clip.name}</span>
+                  <div className="clip-overlay__handle clip-overlay__handle--right" />
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        {beatLines.map(({ time, measure, onBeat }) => {
+          const outsideClip = !flip && ((clipIn !== undefined && time < clipIn - 0.01) || (clipOut !== undefined && time > clipOut + 0.01))
+          const base = measure ? 'measure-line' : onBeat ? 'beat-line' : 'sub-beat-line'
+          return (
+            <div
+              key={`bl-${time}`}
+              className={`${base}${outsideClip ? ' beat-dimmed' : ''}`}
+              style={{ left: `${timeToPercent(time)}%` }}
+            />
+          )
+        })}
 
         {playhead !== undefined && (
           <div
@@ -652,49 +864,6 @@ export default function Timeline({
 
         {rulerHover !== null && onRulerClick && (
           <div className="playhead-ghost" style={{ left: `${timeToPercent(rulerHover)}%` }} />
-        )}
-
-        {loopStartAt !== undefined && loopStartAt > 0 && (() => {
-          const preStartPct = loopPreStart !== undefined ? timeToPercent(loopPreStart) : 0
-          const preEndPct = timeToPercent(loopStartAt)
-          return (
-            <>
-              <div
-                className="loop-pre"
-                style={{ left: `${preStartPct}%`, width: `${preEndPct - preStartPct}%` }}
-              />
-              <div
-                className="loop-start-line"
-                style={{ left: `${preEndPct}%` }}
-              />
-            </>
-          )
-        })()}
-
-        {loopEndAt !== undefined && (
-          <>
-            <div
-              className="loop-end-shade"
-              style={{
-                left: `${timeToPercent(loopEndAt)}%`,
-                width: `${((duration - loopEndAt) / visibleSpan) * 100}%`,
-              }}
-            />
-            <div
-              className="loop-end-line"
-              style={{ left: `${timeToPercent(loopEndAt)}%` }}
-            />
-          </>
-        )}
-
-        {ghostRegion !== undefined && (
-          <div
-            className="loop-ghost"
-            style={{
-              left: `${timeToPercent(ghostRegion.start)}%`,
-              width: `${((ghostRegion.end - ghostRegion.start) / visibleSpan) * 100}%`,
-            }}
-          />
         )}
 
         {anchors.map(anchor => {
@@ -728,7 +897,7 @@ export default function Timeline({
                 className={`anchor-zero-btn${anchorZeroId === anchor.id ? ' anchor-zero-btn--active' : ''}`}
                 onPointerDown={e => e.stopPropagation()}
                 onClick={e => { e.stopPropagation(); onAnchorSetZero(anchor.id) }}
-                title={anchorZeroId === anchor.id ? 'Beat zero reference' : 'Set as beat zero'}
+                title={anchorZeroId === anchor.id ? 'Remove beat zero' : 'Set as beat zero'}
               >
                 0
               </button>

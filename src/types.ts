@@ -52,20 +52,17 @@ export interface WarpData {
   addToEnd: boolean
 }
 
-/** A user-defined sub-region of a video with independent warp state */
+/** A user-defined sub-region of a video.
+ *  Markers are global to the video — the region just defines a view window.
+ *  Beat zero is always the region's inPoint. */
 export interface Region {
   id: string
   name: string
-  inPoint: number              // seconds in original video
+  inPoint: number              // seconds in original video — also beat zero
   outPoint: number             // seconds in original video
-  origAnchors: Anchor[]
-  beatAnchors: Anchor[]
   bpm: number
   minStretch: number
   maxStretch: number
-  beatZeroAnchorTime: number | null
-  trimToLoop: boolean
-  loopBeats: number | null
   addToEnd: boolean
 }
 
@@ -77,7 +74,7 @@ export interface SelectionState {
 
 /** Persisted per-video state */
 export interface SavedVideoState {
-  version: 2
+  version: 2 | 3
   defaultRegion: {
     origAnchors: Anchor[]
     beatAnchors: Anchor[]

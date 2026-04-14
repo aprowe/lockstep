@@ -10,7 +10,7 @@ import MenuBar from './components/MenuBar'
 import type { MenuDef } from './components/MenuBar'
 import VideoFolderSidebar from './components/VideoFolderSidebar'
 import RegionSidebar from './components/RegionSidebar'
-import RegionStrip from './components/RegionStrip'
+import RegionInfoPanel from './components/RegionInfoPanel'
 import { useProject } from './context/ProjectContext'
 import './App.css'
 
@@ -54,7 +54,6 @@ export default function App() {
     setTrimToLoop,
     setAddToEnd,
     addRegion,
-    addRegionWithMarkers,
     deleteRegion,
     setActiveRegionId,
     updateRegionInOut,
@@ -71,6 +70,7 @@ export default function App() {
   const [exportOpen, setExportOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [isDragOver, setIsDragOver] = useState(false)
+  const [pendingZoom, setPendingZoom] = useState<{ start: number; end: number } | null>(null)
 
   const playerRef = useRef<VideoPlayerHandle>(null)
   const warpRef = useRef<WarpViewHandle>(null)
@@ -78,6 +78,11 @@ export default function App() {
   const lDragStart = useRef<{ x: number; w: number } | null>(null)
   const rDragStart = useRef<{ x: number; w: number } | null>(null)
   const cDragStart = useRef<{ x: number; w: number } | null>(null)
+
+  // Clear pendingZoom after it's consumed by WarpView on mount
+  useEffect(() => {
+    if (pendingZoom) setPendingZoom(null)
+  }, [pendingZoom])
 
   // ── Drag and drop ─────────────────────────────────────────────────────────
 
@@ -279,18 +284,44 @@ export default function App() {
           </div>
         ) : (
           <>
-            {/* Region sidebar */}
-            <div style={{ width: clipSidebarWidth, flexShrink: 0, height: '100%' }}>
+            {/* Region sidebar (top) + info panel (bottom, aligned with timeline) */}
+            <div style={{ width: clipSidebarWidth, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
               <RegionSidebar
                 duration={video.duration}
                 regions={regions}
                 activeRegionId={activeRegionId}
-                onSelectRegion={setActiveRegionId}
+                onSelectRegion={(id) => {
+                  setActiveRegionId(id)
+                  if (id) {
+                    const region = regions.find(r => r.id === id)
+                    if (region) {
+                      playerRef.current?.seek(region.inPoint)
+                      setPendingZoom({ start: region.inPoint, end: region.outPoint })
+                    }
+                  } else {
+                    setPendingZoom(null)
+                  }
+                }}
                 onAddRegion={addRegion}
                 onDeleteRegion={deleteRegion}
                 onRename={renameRegion}
                 onUpdateInOut={updateRegionInOut}
               />
+              {/* 5px spacer matching vj-resizer height */}
+              <div style={{ height: 5, flexShrink: 0, background: '#1b1814' }} />
+              <div style={{ height: timelineHeight, flexShrink: 0, overflow: 'hidden' }}>
+                <RegionInfoPanel
+                  activeRegion={activeRegion ?? null}
+                  warpData={warpData}
+                  duration={video.duration}
+                  addToEnd={addToEnd}
+                  onBpmChange={handleBpmChange}
+                  onMinStretchChange={v => warpRef.current?.setMinStretch(v)}
+                  onMaxStretchChange={v => warpRef.current?.setMaxStretch(v)}
+                  onAddToEndChange={setAddToEnd}
+                  onUpdateRegionInOut={updateRegionInOut}
+                />
+              </div>
             </div>
             <div
               className="vj-panel-resizer"
@@ -351,24 +382,12 @@ export default function App() {
                 anchorCount={anchorCount}
                 gridDiv={gridDiv}
                 onGridDivChange={setGridDiv}
-              />
-
-              <RegionStrip
-                duration={video.duration}
-                regions={regions}
-                activeRegionId={activeRegionId}
-                playhead={playhead}
-                onSelectRegion={setActiveRegionId}
-                onAddRegion={addRegion}
-                onUpdateInOut={updateRegionInOut}
-                onDeleteRegion={deleteRegion}
-                onZoomToRegion={id => {
-                  const r = regions.find(r => r.id === id)
-                  if (r) warpRef.current?.zoomToRegion(r.inPoint, r.outPoint)
-                }}
-                onShiftScroll={delta => {
-                  if (delta > 0) warpRef.current?.zoomOut()
-                  else warpRef.current?.zoomIn()
+                onNewRegion={() => {
+                  const beat = (warpData?.bpm ?? 120) > 0 ? 60 / (warpData?.bpm ?? 120) : 0.5
+                  const halfSpan = Math.max(beat * 4, 2) / 2
+                  const inPoint = Math.max(0, playhead - halfSpan)
+                  const outPoint = Math.min(video.duration, playhead + halfSpan)
+                  addRegion(inPoint, outPoint)
                 }}
               />
 
@@ -388,7 +407,6 @@ export default function App() {
                   initialMinStretch={initialMarkers?.minStretch}
                   initialMaxStretch={initialMarkers?.maxStretch}
                   addToEnd={addToEnd}
-                  initialBeatZeroAnchorTime={initialMarkers?.beatZeroAnchorTime ?? undefined}
                   initialOrigAnchors={initialMarkers?.origAnchors}
                   initialBeatAnchors={initialMarkers?.beatAnchors}
                   playhead={playhead}
@@ -402,9 +420,21 @@ export default function App() {
                   onSelectionChange={setSelectedIds}
                   clipIn={clipIn}
                   clipOut={clipOut}
-                  onSendToNewRegion={(inPoint, outPoint, markers) =>
-                    addRegionWithMarkers(inPoint, outPoint, markers)
+                  initialViewOverride={pendingZoom ?? undefined}
+                  onSendToNewRegion={(inPoint, outPoint) =>
+                    addRegion(inPoint, outPoint)
                   }
+                  clipOverlays={regions.map(r => ({
+                    id: r.id,
+                    name: r.name,
+                    inPoint: r.inPoint,
+                    outPoint: r.outPoint,
+                    active: r.id === activeRegionId,
+                  }))}
+                  onClipOverlaySelect={setActiveRegionId}
+                  onClipOverlayCreate={addRegion}
+                  onClipOverlayResize={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
+                  onClipOverlayMove={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
                 />
               </div>
             </div>
@@ -415,34 +445,30 @@ export default function App() {
               onPointerMove={handleRightResizerMove}
               onPointerUp={handleRightResizerUp}
             />
-            <div className="vj-right-panel" style={{ width: rightWidth }}>
-              <MarkerList
-                origAnchors={warpData?.origAnchors ?? []}
-                beatAnchors={warpData?.beatAnchors ?? []}
-                duration={video.duration}
-                fps={video.fps}
-                bpm={warpData?.bpm ?? 120}
-                beatZeroTime={warpData?.beatZeroTime ?? 0}
-                selectedIds={selectedIds}
-                onSelectionChange={setSelectedIds}
-                onSeek={t => playerRef.current?.seek(t)}
-                onClear={() => warpRef.current?.clearAnchors()}
-                onReset={() => warpRef.current?.resetAllLinks()}
-                onSnap={() => warpRef.current?.snapToBeat()}
-                onDeleteSelected={() => warpRef.current?.deleteSelected(selectedIds)}
-                onResetSelected={() => warpRef.current?.resetSelected(selectedIds)}
-                onSnapSelected={() => warpRef.current?.snapSelected(selectedIds)}
-                minStretch={warpData?.minStretch ?? 0.5}
-                maxStretch={warpData?.maxStretch ?? 2.0}
-                onMinStretchChange={v => warpRef.current?.setMinStretch(v)}
-                onMaxStretchChange={v => warpRef.current?.setMaxStretch(v)}
-                loopBeats={loopBeats}
-                onLoopBeatsChange={setLoopBeats}
-                addToEnd={addToEnd}
-                onAddToEndChange={setAddToEnd}
-                trimToLoop={trimToLoop}
-                onTrimToLoopChange={setTrimToLoop}
-              />
+            {/* Right column: empty top area + markers panel aligned with timeline */}
+            <div style={{ width: rightWidth, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ flex: 1, minHeight: 0 }} />
+              {/* 5px spacer matching vj-resizer height */}
+              <div style={{ height: 5, flexShrink: 0, background: '#1b1814' }} />
+              <div style={{ height: timelineHeight, flexShrink: 0, overflow: 'hidden' }}>
+                <MarkerList
+                  origAnchors={warpData?.origAnchors ?? []}
+                  beatAnchors={warpData?.beatAnchors ?? []}
+                  duration={video.duration}
+                  fps={video.fps}
+                  bpm={warpData?.bpm ?? 120}
+                  beatZeroTime={warpData?.beatZeroTime ?? 0}
+                  selectedIds={selectedIds}
+                  onSelectionChange={setSelectedIds}
+                  onSeek={t => playerRef.current?.seek(t)}
+                  onClear={() => warpRef.current?.clearAnchors()}
+                  onReset={() => warpRef.current?.resetAllLinks()}
+                  onSnap={() => warpRef.current?.snapToBeat()}
+                  onDeleteSelected={() => warpRef.current?.deleteSelected(selectedIds)}
+                  onResetSelected={() => warpRef.current?.resetSelected(selectedIds)}
+                  onSnapSelected={() => warpRef.current?.snapSelected(selectedIds)}
+                />
+              </div>
             </div>
           </>
         )}
@@ -470,8 +496,8 @@ export default function App() {
         loopBeats={loopBeats}
         addToEnd={addToEnd}
         trimToLoop={trimToLoop}
-        clipIn={activeRegion?.inPoint ?? null}
-        clipOut={activeRegion?.outPoint ?? null}
+        regions={regions}
+        activeRegionId={activeRegionId}
       />
     </div>
   )

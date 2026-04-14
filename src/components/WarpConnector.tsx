@@ -9,6 +9,9 @@ interface WarpConnectorProps {
   view: View
   origDuration: number
   outputDuration: number
+  /** Clip in/out — draws shaded overlays and boundary lines when set */
+  clipIn?: number
+  clipOut?: number
 }
 
 /** Convert a full-duration percentage to view-space percentage */
@@ -17,7 +20,7 @@ function toView(pct: number, totalDuration: number, view: View): number {
 }
 
 const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
-  function WarpConnector({ segments, view, origDuration, outputDuration }, ref) {
+  function WarpConnector({ segments, view, origDuration, outputDuration, clipIn, clipOut }, ref) {
     if (segments.length === 0) {
       return <div ref={ref} className="warp-connector warp-connector--empty" />
     }
@@ -76,6 +79,20 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
             </div>
           )
         })}
+
+        {/* Clip region shading */}
+        {clipIn !== undefined && clipIn > view.start && (
+          <div
+            className="warp-connector__out-of-range"
+            style={{ left: 0, width: `${timeToViewPct(clipIn, view)}%` }}
+          />
+        )}
+        {clipOut !== undefined && clipOut < origDuration && (
+          <div
+            className="warp-connector__out-of-range"
+            style={{ left: `${timeToViewPct(clipOut, view)}%`, right: 0 }}
+          />
+        )}
       </div>
     )
   }

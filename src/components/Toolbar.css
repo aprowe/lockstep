@@ -71,6 +71,12 @@
 }
 .tb-btn--inout:hover { background: rgba(122, 184, 224, 0.1); color: #9fd0f0; }
 
+.tb-btn--region {
+  color: #c2a870;
+  border-color: rgba(194, 168, 112, 0.25);
+}
+.tb-btn--region:hover { background: rgba(194, 168, 112, 0.1); color: #e0c888; }
+
 .tb-btn--tap {
   width: auto;
   padding: 0 10px;

@@ -40,13 +40,14 @@ interface ToolbarProps {
   anchorCount?: number
   gridDiv?: number
   onGridDivChange?: (div: number) => void
+  onNewRegion?: () => void
 }
 
 export default function Toolbar({
   playerRef, duration, fps, playing, currentTime,
   onMark, onJumpPrev, onJumpNext, onZoomToRegion, onSetIn, onSetOut,
   bpm, onBpmChange, onBpmDetect, detectingBpm, anchorCount = 0,
-  gridDiv, onGridDivChange,
+  gridDiv, onGridDivChange, onNewRegion,
 }: ToolbarProps) {
   const [bpmInput, setBpmInput] = useState(String(bpm ?? 120))
   const [speed, setSpeed] = useState(1)
@@ -132,6 +133,11 @@ export default function Toolbar({
         )}
         {onSetOut && (
           <button className="tb-btn tb-btn--inout" onClick={onSetOut} title="Set region Out point at playhead (O)">O</button>
+        )}
+        {onNewRegion && (
+          <button className="tb-btn tb-btn--region" onClick={onNewRegion} title="New region at playhead">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="4" x2="12" y2="20"/><line x1="4" y1="12" x2="20" y2="12"/></svg>
+          </button>
         )}
         <button className="tb-btn" onClick={onJumpPrev} disabled={!onJumpPrev} title="Jump to previous marker">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm12 0-8.5 6 8.5 6z"/></svg>
