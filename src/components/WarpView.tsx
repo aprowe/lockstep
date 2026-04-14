@@ -1,14 +1,17 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { analyzeAnchors } from '../api/warp'
 import Timeline, { newAnchorId } from './Timeline'
 import WarpConnector from './WarpConnector'
+import ContextMenu from './ContextMenu'
+import type { ContextMenuState } from './ContextMenu'
 import {
   buildSegments,
   computeOutputDuration,
   origBands,
   quantBands,
+  snapAllToBeat,
 } from '../utils/quantize'
-import { clampView } from '../utils/view'
+import { clampView, initialView } from '../utils/view'
 import type { Anchor, View, WarpData } from '../types'
 import './WarpView.css'
 
@@ -34,6 +37,19 @@ interface WarpViewProps {
   videoPath?: string
   trimToLoop?: boolean
   loopBeats?: number | null
+  gridDiv?: number
+  selectedIds?: Set<number>
+  onSelectionChange?: (ids: Set<number>) => void
+  clipIn?: number
+  clipOut?: number
+  onSendToNewRegion?: (inPoint: number, outPoint: number, markers: {
+    origAnchors: Anchor[]
+    beatAnchors: Anchor[]
+    bpm: number
+    minStretch: number
+    maxStretch: number
+    beatZeroAnchorTime: number | null
+  }) => void
 }
 
 export interface WarpViewHandle {
@@ -46,6 +62,18 @@ export interface WarpViewHandle {
   exportMarkers(): void
   triggerImport(): void
   detectBpm(): Promise<number | null>
+  snapToBeat(): void
+  deleteSelected(ids: Set<number>): void
+  resetSelected(ids: Set<number>): void
+  snapSelected(ids: Set<number>): void
+  undo(): void
+  redo(): void
+  selectAll(): void
+  deselect(): void
+  zoomIn(): void
+  zoomOut(): void
+  zoomToFit(): void
+  zoomToRegion(from: number, to: number): void
 }
 
 const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
@@ -63,7 +91,17 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
   videoPath,
   trimToLoop = false,
   loopBeats,
+  gridDiv = 1,
+  selectedIds: selectedIdsProp,
+  onSelectionChange: onSelectionChangeProp,
+  clipIn,
+  clipOut,
+  onSendToNewRegion,
 }, ref) {
+  // Selection: use props if provided, else internal state
+  const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set())
+  const selectedIds = selectedIdsProp ?? internalSelectedIds
+  const setSelectedIds = onSelectionChangeProp ?? setInternalSelectedIds
   const [origAnchors, setOrigAnchors] = useState<Anchor[]>(initialOrigAnchors ?? [])
   const [beatAnchors, setBeatAnchors] = useState<Anchor[]>(initialBeatAnchors ?? [])
   const linkedBeat = useRef<Set<number>>(new Set())
@@ -76,7 +114,13 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
   }])
   const historyIdx = useRef(0)
   const isApplyingHistory = useRef(false)
-  const [view, setView] = useState<View>({ start: 0, end: duration })
+  const [view, setView] = useState<View>(() => {
+    if (clipIn !== undefined || clipOut !== undefined) {
+      // Show the entire clip region on first mount
+      return { start: clipIn ?? 0, end: clipOut ?? duration }
+    }
+    return initialView(duration, initialBpm)
+  })
   const [bpm, setBpm] = useState(initialBpm)
   const [minStretch, setMinStretch] = useState(initialMinStretch ?? 0.5)
   const [maxStretch, setMaxStretch] = useState(initialMaxStretch ?? 2.0)
@@ -134,13 +178,26 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const active = document.activeElement
+      const inInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')
+      if (!inInput && (e.key === 'Delete' || e.key === 'Backspace')) {
+        const ids = selectedIdsRef.current
+        if (ids.size > 0) {
+          e.preventDefault()
+          ids.forEach(id => linkedBeat.current.delete(id))
+          setOrigAnchors(prev => prev.filter(a => !ids.has(a.id)))
+          setBeatAnchors(prev => prev.filter(a => !ids.has(a.id)))
+          setSelectedIds(new Set())
+        }
+        return
+      }
       if (!e.ctrlKey && !e.metaKey) return
       if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo() }
       if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); redo() }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [undo, redo])
+  }, [undo, redo, setSelectedIds])
 
   const beat = 60 / bpm
 
@@ -211,6 +268,85 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     [maxDuration],
   )
 
+  // ── Shift+drag-to-pan anywhere in the WarpView ─────────────────────────────
+
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  const warpContainerRef = useRef<HTMLDivElement>(null)
+  const connectorRef = useRef<HTMLDivElement>(null)
+  const [shiftHeld, setShiftHeld] = useState(false)
+  const [panning, setPanning] = useState(false)
+  const [mouseOver, setMouseOver] = useState(false)
+  const panGesture = useRef<{ lastX: number; width: number } | null>(null)
+  // Stable refs so capture-phase handlers never go stale
+  const viewRef = useRef(view); viewRef.current = view
+  const maxDurationRef = useRef(maxDuration); maxDurationRef.current = maxDuration
+  const handleViewChangeRef = useRef(handleViewChange); handleViewChangeRef.current = handleViewChange
+
+  // Scroll-zoom on the warp connector (mirrors Timeline's wheel handler)
+  useEffect(() => {
+    const el = connectorRef.current
+    if (!el) return
+    const handler = (e: WheelEvent) => {
+      if (!e.shiftKey) return
+      e.preventDefault()
+      const v = viewRef.current
+      const span = v.end - v.start
+      const rect = el.getBoundingClientRect()
+      const cursorTime = v.start + ((e.clientX - rect.left) / rect.width) * span
+      const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15
+      const newSpan = span * factor
+      const ratio = (cursorTime - v.start) / span
+      const ns = cursorTime - ratio * newSpan
+      handleViewChangeRef.current({ start: ns, end: ns + newSpan })
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, [])
+
+  useEffect(() => {
+    const el = warpContainerRef.current
+    if (!el) return
+
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Shift') setShiftHeld(true) }
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') { setShiftHeld(false); panGesture.current = null; setPanning(false) }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+
+    const onDown = (e: PointerEvent) => {
+      if (!e.shiftKey || e.button !== 0) return
+      e.stopPropagation()
+      const rect = el.getBoundingClientRect()
+      el.setPointerCapture(e.pointerId)
+      panGesture.current = { lastX: e.clientX, width: rect.width }
+      setPanning(true)
+    }
+    const onMove = (e: PointerEvent) => {
+      const g = panGesture.current
+      if (!g || !e.buttons) return
+      const v = viewRef.current
+      const span = v.end - v.start
+      const delta = ((g.lastX - e.clientX) / g.width) * span
+      handleViewChangeRef.current({ start: v.start + delta, end: v.end + delta })
+      panGesture.current = { ...g, lastX: e.clientX }
+    }
+    const onUp = () => { panGesture.current = null; setPanning(false) }
+
+    el.addEventListener('pointerdown', onDown, { capture: true })
+    el.addEventListener('pointermove', onMove, { capture: true })
+    el.addEventListener('pointerup', onUp, { capture: true })
+    el.addEventListener('pointercancel', onUp, { capture: true })
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      el.removeEventListener('pointerdown', onDown, { capture: true })
+      el.removeEventListener('pointermove', onMove, { capture: true })
+      el.removeEventListener('pointerup', onUp, { capture: true })
+      el.removeEventListener('pointercancel', onUp, { capture: true })
+    }
+  }, []) // stable via refs
+
   const handleOrigChange = (next: Anchor[]) => {
     const prevIds = new Set(origAnchors.map(a => a.id))
     const nextIds = new Set(next.map(a => a.id))
@@ -241,6 +377,17 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     })
     setOrigAnchors(next)
   }
+
+  // Stable refs so imperative handle methods always see current values
+  const beatRef = useRef(beat)
+  beatRef.current = beat
+  const gridDivRef = useRef(gridDiv)
+  gridDivRef.current = gridDiv
+  const beatOffsetRef = useRef(beatOffset)
+  beatOffsetRef.current = beatOffset
+  const origAnchorsRef = useRef(origAnchors); origAnchorsRef.current = origAnchors
+  const beatAnchorsRef = useRef(beatAnchors); beatAnchorsRef.current = beatAnchors
+  const selectedIdsRef = useRef(selectedIds); selectedIdsRef.current = selectedIds
 
   const importRef = useRef<HTMLInputElement>(null)
 
@@ -374,6 +521,38 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         return prev
       })
     },
+    deleteSelected(ids: Set<number>) {
+      if (ids.size === 0) return
+      ids.forEach(id => linkedBeat.current.delete(id))
+      setOrigAnchors(prev => prev.filter(a => !ids.has(a.id)))
+      setBeatAnchors(prev => prev.filter(a => !ids.has(a.id)))
+      setSelectedIds(new Set())
+    },
+    resetSelected(ids: Set<number>) {
+      if (ids.size === 0) return
+      const origMap = new Map(origAnchors.map(a => [a.id, a.time]))
+      setBeatAnchors(prev => prev.map(a => {
+        if (!ids.has(a.id)) return a
+        linkedBeat.current.add(a.id)
+        return { ...a, time: origMap.get(a.id) ?? a.time }
+      }))
+    },
+    snapSelected(ids: Set<number>) {
+      if (ids.size === 0) return
+      const b = beatRef.current / gridDivRef.current
+      const offset = beatOffsetRef.current
+      if (!b || b <= 0) return
+      setBeatAnchors(prev => {
+        const toSnap = prev.filter(a => ids.has(a.id))
+        const snapped = snapAllToBeat(toSnap, b, offset)
+        const snapMap = new Map(snapped.map(a => [a.id, a.time]))
+        return prev.map(a => {
+          if (!snapMap.has(a.id)) return a
+          linkedBeat.current.delete(a.id)
+          return { ...a, time: snapMap.get(a.id)! }
+        })
+      })
+    },
     setBpm(b: number) { setBpm(b) },
     setMinStretch(v: number) { setMinStretch(v) },
     setMaxStretch(v: number) { setMaxStretch(v) },
@@ -387,25 +566,182 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
       } catch {}
       return null
     },
-  }), [origAnchors, duration, exportMarkers]) // eslint-disable-line react-hooks/exhaustive-deps
+    snapToBeat() {
+      const b = beatRef.current / gridDivRef.current
+      const offset = beatOffsetRef.current
+      if (!b || b <= 0) return
+      setBeatAnchors(prev => {
+        const snapped = snapAllToBeat(prev, b, offset)
+        snapped.forEach(a => linkedBeat.current.delete(a.id))
+        return snapped
+      })
+    },
+    undo,
+    redo,
+    selectAll() { setSelectedIds(new Set(origAnchors.map(a => a.id))) },
+    deselect() { setSelectedIds(new Set()) },
+    zoomIn() {
+      const v = viewRef.current
+      const mid = (v.start + v.end) / 2
+      const span = (v.end - v.start) / 1.5
+      handleViewChangeRef.current({ start: mid - span / 2, end: mid + span / 2 })
+    },
+    zoomOut() {
+      const v = viewRef.current
+      const mid = (v.start + v.end) / 2
+      const span = (v.end - v.start) * 1.5
+      handleViewChangeRef.current({ start: mid - span / 2, end: mid + span / 2 })
+    },
+    zoomToFit() {
+      handleViewChangeRef.current({ start: 0, end: maxDurationRef.current })
+    },
+    zoomToRegion(from: number, to: number) {
+      handleViewChangeRef.current({ start: from, end: to })
+    },
+  }), [origAnchors, duration, exportMarkers, undo, redo]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Context menu builders ─────────────────────────────────────────────────
+
+  const handleAnchorContextMenu = useCallback((id: number, x: number, y: number) => {
+    const curSel = selectedIdsRef.current
+    const targetIds = curSel.has(id) ? curSel : new Set([id])
+    if (!curSel.has(id)) setSelectedIds(new Set([id]))
+
+    setContextMenu({
+      x, y,
+      items: [
+        {
+          label: targetIds.size > 1 ? `Delete ${targetIds.size} markers` : 'Delete marker',
+          danger: true,
+          action: () => {
+            const ids = targetIds
+            ids.forEach(i => linkedBeat.current.delete(i))
+            setOrigAnchors(prev => prev.filter(a => !ids.has(a.id)))
+            setBeatAnchors(prev => prev.filter(a => !ids.has(a.id)))
+            setSelectedIds(new Set())
+          },
+        },
+        {
+          label: targetIds.size > 1 ? 'Reset links' : 'Reset link',
+          action: () => {
+            const ids = targetIds
+            const origMap = new Map(origAnchorsRef.current.map(a => [a.id, a.time]))
+            setBeatAnchors(prev => prev.map(a => {
+              if (!ids.has(a.id)) return a
+              linkedBeat.current.add(a.id)
+              return { ...a, time: origMap.get(a.id) ?? a.time }
+            }))
+          },
+        },
+        {
+          label: 'Snap to beat',
+          action: () => {
+            const ids = targetIds
+            const b = beatRef.current / gridDivRef.current
+            const offset = beatOffsetRef.current
+            if (!b || b <= 0) return
+            setBeatAnchors(prev => {
+              const toSnap = prev.filter(a => ids.has(a.id))
+              const snapped = snapAllToBeat(toSnap, b, offset)
+              const snapMap = new Map(snapped.map(a => [a.id, a.time]))
+              return prev.map(a => {
+                if (!snapMap.has(a.id)) return a
+                linkedBeat.current.delete(a.id)
+                return { ...a, time: snapMap.get(a.id)! }
+              })
+            })
+          },
+        },
+        ...(onSendToNewRegion ? [
+          { separator: true as const },
+          {
+            label: 'Send to new region',
+            action: () => {
+              const ids = targetIds
+              const selOrig = origAnchorsRef.current.filter(a => ids.has(a.id))
+              const selBeat = beatAnchorsRef.current.filter(a => ids.has(a.id))
+              if (selOrig.length === 0) return
+              const times = selOrig.map(a => a.time)
+              const inPoint = Math.min(...times)
+              const outPoint = Math.max(...times)
+              onSendToNewRegion(
+                inPoint,
+                outPoint,
+                {
+                  origAnchors: selOrig,
+                  beatAnchors: selBeat,
+                  bpm: beatRef.current > 0 ? 60 / beatRef.current : 120,
+                  minStretch: minStretch,
+                  maxStretch: maxStretch,
+                  beatZeroAnchorTime: beatOffsetRef.current,
+                },
+              )
+            },
+          },
+        ] : []),
+      ],
+    })
+  }, [setSelectedIds, onSendToNewRegion, minStretch, maxStretch])
+
+  const handleTrackContextMenu = useCallback((time: number, x: number, y: number) => {
+    setContextMenu({
+      x, y,
+      items: [
+        {
+          label: 'Add marker here',
+          action: () => {
+            const clamped = Math.max(0, Math.min(duration, time))
+            handleOrigChange([...origAnchorsRef.current, { id: newAnchorId(), time: clamped }])
+          },
+        },
+        { separator: true },
+        {
+          label: 'Zoom to fit',
+          action: () => handleViewChangeRef.current({ start: 0, end: maxDurationRef.current }),
+        },
+        {
+          label: 'Zoom to region',
+          action: () => handleViewChangeRef.current({ start: clipIn ?? 0, end: clipOut ?? duration }),
+          disabled: clipIn === undefined && clipOut === undefined,
+        },
+      ],
+    })
+  }, [duration, clipIn, clipOut, handleOrigChange])
+
+  const warpCursor = panning
+    ? { cursor: 'grabbing' }
+    : (shiftHeld && mouseOver) ? { cursor: 'grab' } : {}
 
   return (
-    <div className="warp-view">
+    <div
+      ref={warpContainerRef}
+      className="warp-view"
+      style={warpCursor}
+      onMouseEnter={() => setMouseOver(true)}
+      onMouseLeave={() => setMouseOver(false)}
+    >
       <Timeline
         duration={duration}
         bpm={bpm}
+        gridDiv={gridDiv}
         anchors={origAnchors}
         onAnchorsChange={handleOrigChange}
         bands={origBands(segments)}
-        label="Original video"
         view={view}
         onViewChange={handleViewChange}
         maxDuration={maxDuration}
         playhead={playhead}
         onRulerClick={onSeek}
         onAnchorClick={onSeek}
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        clipIn={clipIn}
+        clipOut={clipOut}
+        onAnchorContextMenu={handleAnchorContextMenu}
+        onTrackContextMenu={handleTrackContextMenu}
       />
       <WarpConnector
+        ref={connectorRef}
         segments={segments}
         view={view}
         origDuration={duration}
@@ -416,6 +752,7 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         duration={outputDuration}
         trimAt={trimToLoop ? effectiveOutputDuration : undefined}
         bpm={bpm}
+        gridDiv={gridDiv}
         anchors={quantAnchors}
         onAnchorsChange={handleBeatChange}
         snapInterval={beat}
@@ -426,16 +763,20 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         onAnchorDblClick={handleBeatAnchorReset}
         getBounds={getBeatAnchorBounds}
         bands={quantBands(segments)}
-        label="Beat assignment — drag to assign, double-click to reset, click 0 to set beat zero"
         view={view}
         onViewChange={handleViewChange}
         maxDuration={maxDuration}
         anchorZeroId={effectiveBeatZeroId ?? undefined}
         onAnchorSetZero={handleSetBeatZero}
-        loopStartAt={addToEnd && preBeatDur > 0 ? beatOffset : undefined}
+        loopStartAt={loopEndAt !== undefined && beatOffset > 0 ? beatOffset : undefined}
         loopPreStart={addToEnd && preBeatDur > 0 ? firstBeatTime : undefined}
         loopEndAt={loopEndAt}
         ghostRegion={ghostRegion}
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        clipIn={clipIn}
+        clipOut={clipOut !== undefined ? Math.min(clipOut, outputDuration) : undefined}
+        onAnchorContextMenu={handleAnchorContextMenu}
       />
       <input
         ref={importRef}
@@ -444,6 +785,9 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         style={{ display: 'none' }}
         onChange={importMarkers}
       />
+      {contextMenu && (
+        <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />
+      )}
     </div>
   )
 })

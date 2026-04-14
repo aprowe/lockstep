@@ -287,27 +287,20 @@ where
             rearrange_loop(output_path, adjusted_zero, pre_beat_dur, tmp_path)?;
         } else if loop_beats > 0 {
             let loop_duration = loop_beats as f64 * beat_interval;
-            let loop_trim_start = beat_zero;
             let trimmed = format!("{output_path}.loop.mp4");
-            let r = run_ffmpeg(&[
+            // Re-encode (not stream-copy) so FFmpeg decodes accurately to beat_zero
+            // and makes it keyframe 0.  Stream-copy would fast-seek to the nearest
+            // keyframe *before* beat_zero and dump those pre-beat frames with PTS=0.
+            run_ffmpeg(&[
                 "-y", "-hide_banner", "-loglevel", "error",
-                "-ss", &format!("{loop_trim_start}"),
+                "-ss", &format!("{beat_zero}"),
                 "-t", &format!("{loop_duration}"),
                 "-i", output_path,
-                "-c", "copy",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-c:a", "aac", "-b:a", "192k",
+                "-avoid_negative_ts", "make_zero",
                 &trimmed,
-            ]);
-            if r.is_err() {
-                run_ffmpeg(&[
-                    "-y", "-hide_banner", "-loglevel", "error",
-                    "-ss", &format!("{loop_trim_start}"),
-                    "-t", &format!("{loop_duration}"),
-                    "-i", output_path,
-                    "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-                    "-c:a", "aac",
-                    &trimmed,
-                ])?;
-            }
+            ])?;
             if std::path::Path::new(&trimmed).exists() {
                 std::fs::rename(&trimmed, output_path).map_err(|e| e.to_string())?;
             }

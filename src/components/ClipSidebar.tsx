@@ -1,107 +1,178 @@
-import { useRef } from 'react'
-import type { Clip } from '../types'
+import { useState, useRef } from 'react'
+import type { Region } from '../types'
 import './ClipSidebar.css'
 
-function fmtTime(s: number) {
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function fmtTime(s: number): string {
   const m = Math.floor(s / 60)
-  const sec = (s % 60).toFixed(1).padStart(4, '0')
-  return `${m}:${sec}`
+  const sec = s % 60
+  return m > 0
+    ? `${m}:${String(Math.floor(sec)).padStart(2, '0')}.${String(Math.floor((sec % 1) * 100)).padStart(2, '0')}`
+    : `${Math.floor(sec)}.${String(Math.floor((sec % 1) * 100)).padStart(2, '0')}s`
 }
+
+// ── Props ────────────────────────────────────────────────────────────────────
 
 interface ClipSidebarProps {
-  clips: Clip[]
-  activeClipId: string | null  // null = full video mode
-  videoDuration: number
+  duration: number
   playhead: number
-  onSelectFull: () => void
-  onSelectClip: (id: string) => void
-  onAddClip: () => void
-  onDeleteClip: (id: string) => void
-  onSetIn: (id: string) => void
-  onSetOut: (id: string) => void
-  onRenameClip: (id: string, name: string) => void
+  regions: Region[]
+  activeRegionId: string | null
+  onSelectRegion: (id: string | null) => void
+  onAddRegion: (inPoint: number, outPoint: number) => void
+  onDeleteRegion: (id: string) => void
+  onUpdateInOut: (id: string, inPoint: number, outPoint: number) => void
+  onRename: (id: string, name: string) => void
+  width?: number
 }
 
+// ── Component ────────────────────────────────────────────────────────────────
+
 export default function ClipSidebar({
-  clips, activeClipId, videoDuration, playhead,
-  onSelectFull, onSelectClip, onAddClip,
-  onDeleteClip, onSetIn, onSetOut, onRenameClip,
+  duration,
+  playhead,
+  regions,
+  activeRegionId,
+  onSelectRegion,
+  onAddRegion,
+  onDeleteRegion,
+  onUpdateInOut,
+  onRename,
 }: ClipSidebarProps) {
-  const editingRef = useRef<HTMLInputElement | null>(null)
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const renameInputRef = useRef<HTMLInputElement>(null)
+
+  const activeRegion = activeRegionId !== null
+    ? regions.find(r => r.id === activeRegionId) ?? null
+    : null
+
+  const handleStartRename = (region: Region) => {
+    setRenamingId(region.id)
+    setRenameValue(region.name)
+    setTimeout(() => renameInputRef.current?.select(), 30)
+  }
+
+  const handleCommitRename = () => {
+    if (renamingId && renameValue.trim()) {
+      onRename(renamingId, renameValue.trim())
+    }
+    setRenamingId(null)
+  }
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') handleCommitRename()
+    if (e.key === 'Escape') setRenamingId(null)
+  }
 
   return (
-    <div className="clip-sidebar">
-      <div className="clip-sidebar__header">
-        <span className="clip-sidebar__title">Clips</span>
+    <div className="cs-sidebar">
+      {/* Header */}
+      <div className="cs-header">
+        <span className="cs-header__label">Clips</span>
         <button
-          className="clip-sidebar__add"
-          onClick={onAddClip}
-          title="Add clip at current playhead"
-        >+</button>
+          className="cs-header__add"
+          onClick={() => onAddRegion(0, duration)}
+          title="Add clip"
+        >
+          +
+        </button>
       </div>
-
-      {/* Full video entry */}
-      <div
-        className={`clip-entry clip-entry--full${activeClipId === null ? ' clip-entry--active' : ''}`}
-        onClick={onSelectFull}
-      >
-        <span className="clip-entry__icon">▶</span>
-        <span className="clip-entry__name">Full Video</span>
-        <span className="clip-entry__dur">{fmtTime(videoDuration)}</span>
-      </div>
-
-      {clips.length > 0 && <div className="clip-sidebar__divider" />}
 
       {/* Clip list */}
-      {clips.map(clip => {
-        const isActive = clip.id === activeClipId
-        const dur = clip.outPoint - clip.inPoint
-        return (
-          <div
-            key={clip.id}
-            className={`clip-entry${isActive ? ' clip-entry--active' : ''}`}
-            onClick={() => onSelectClip(clip.id)}
-          >
-            <div className="clip-entry__top">
-              <span className="clip-entry__icon">▶</span>
-              <input
-                ref={isActive ? editingRef : undefined}
-                className="clip-entry__name-input"
-                value={clip.name}
-                onClick={e => e.stopPropagation()}
-                onChange={e => onRenameClip(clip.id, e.target.value)}
-              />
-              <button
-                className="clip-entry__delete"
-                onClick={e => { e.stopPropagation(); onDeleteClip(clip.id) }}
-                title="Delete clip"
-              >✕</button>
-            </div>
-            <div className="clip-entry__meta">
-              <span className="clip-entry__range">
-                {fmtTime(clip.inPoint)} – {fmtTime(clip.outPoint)}
-              </span>
-              <span className="clip-entry__dur-small">{fmtTime(dur)}</span>
-            </div>
-            <div className="clip-entry__actions">
-              <button
-                className="clip-entry__btn"
-                onClick={e => { e.stopPropagation(); onSetIn(clip.id) }}
-                title={`Set in point to ${fmtTime(playhead)}`}
-              >Set In</button>
-              <button
-                className="clip-entry__btn"
-                onClick={e => { e.stopPropagation(); onSetOut(clip.id) }}
-                title={`Set out point to ${fmtTime(playhead)}`}
-              >Set Out</button>
+      <div className="cs-list">
+        {/* Full Video (default) */}
+        <div
+          className={`cs-item${activeRegionId === null ? ' cs-item--active' : ''}`}
+          onClick={() => onSelectRegion(null)}
+        >
+          <div className="cs-item__arrow">{activeRegionId === null ? '▶' : ''}</div>
+          <div className="cs-item__info">
+            <div className="cs-item__name">Full Video</div>
+            <div className="cs-item__range">
+              {fmtTime(0)} – {fmtTime(duration)}
             </div>
           </div>
-        )
-      })}
+        </div>
 
-      {clips.length === 0 && (
-        <div className="clip-sidebar__empty">
-          Click + to add a clip
+        {/* User-defined clips */}
+        {regions.map(region => (
+          <div
+            key={region.id}
+            className={`cs-item${activeRegionId === region.id ? ' cs-item--active' : ''}`}
+            onClick={() => onSelectRegion(region.id)}
+            onDoubleClick={() => handleStartRename(region)}
+          >
+            <div className="cs-item__arrow">{activeRegionId === region.id ? '▶' : ''}</div>
+            <div className="cs-item__info">
+              {renamingId === region.id ? (
+                <input
+                  ref={renameInputRef}
+                  className="cs-rename-input"
+                  value={renameValue}
+                  onChange={e => setRenameValue(e.target.value)}
+                  onBlur={handleCommitRename}
+                  onKeyDown={handleRenameKeyDown}
+                  onClick={e => e.stopPropagation()}
+                  autoFocus
+                />
+              ) : (
+                <div className="cs-item__name">{region.name}</div>
+              )}
+              <div className="cs-item__range">
+                {fmtTime(region.inPoint)} – {fmtTime(region.outPoint)}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* In/Out editor — only shown for user clips */}
+      {activeRegion !== null && (
+        <div className="cs-inout">
+          <div className="cs-inout__divider" />
+
+          <div className="cs-inout__row">
+            <span className="cs-inout__label">In:</span>
+            <span className="cs-inout__time">{fmtTime(activeRegion.inPoint)}</span>
+            <button
+              className="cs-inout__set"
+              onClick={() => onUpdateInOut(activeRegion.id, playhead, activeRegion.outPoint)}
+              title="Set in point to playhead"
+            >
+              Set
+            </button>
+          </div>
+
+          <div className="cs-inout__row">
+            <span className="cs-inout__label">Out:</span>
+            <span className="cs-inout__time">{fmtTime(activeRegion.outPoint)}</span>
+            <button
+              className="cs-inout__set"
+              onClick={() => onUpdateInOut(activeRegion.id, activeRegion.inPoint, playhead)}
+              title="Set out point to playhead"
+            >
+              Set
+            </button>
+          </div>
+
+          <div className="cs-inout__actions">
+            <button
+              className="cs-inout__btn"
+              onClick={() => handleStartRename(activeRegion)}
+              title="Rename clip"
+            >
+              Rename ✎
+            </button>
+            <button
+              className="cs-inout__btn cs-inout__btn--danger"
+              onClick={() => onDeleteRegion(activeRegion.id)}
+              title="Delete clip"
+            >
+              Delete ✗
+            </button>
+          </div>
         </div>
       )}
     </div>

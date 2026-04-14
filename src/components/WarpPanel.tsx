@@ -6,69 +6,31 @@ import { startWarp, listenWarpProgress, saveOutput } from '../api/warp'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import './WarpPanel.css'
 
-function StretchInput({
-  label, value, onChange, min, max, step = 0.05,
-}: {
-  label: string; value: number; onChange: (v: number) => void
-  min: number; max: number; step?: number
-}) {
-  const [raw, setRaw] = useState(value.toFixed(2))
-  useEffect(() => setRaw(value.toFixed(2)), [value])
-  const commit = () => {
-    const n = parseFloat(raw)
-    if (!isNaN(n) && n >= min && n <= max) onChange(n)
-    else setRaw(value.toFixed(2))
-  }
-  return (
-    <div className="warp-panel__row">
-      <span className="warp-panel__label">{label}</span>
-      <input
-        className="warp-panel__num-input"
-        type="number" min={min} max={max} step={step} value={raw}
-        onChange={e => setRaw(e.target.value)}
-        onBlur={commit}
-        onKeyDown={e => e.key === 'Enter' && commit()}
-      />
-      <span className="warp-panel__unit">×</span>
-    </div>
-  )
-}
-
 interface WarpPanelProps {
   warpRef: RefObject<WarpViewHandle | null>
   warpData: WarpData | null
   videoPath: string
   originalName: string
-  trimToLoop: boolean
-  onTrimToLoopChange: (v: boolean) => void
+  onNew: () => void
   loopBeats: number | null
   onLoopBeatsChange: (v: number | null) => void
   addToEnd: boolean
   onAddToEndChange: (v: boolean) => void
-  onNew: () => void
-  clipIn?: number | null
-  clipOut?: number | null
+  trimToLoop: boolean
+  onTrimToLoopChange: (v: boolean) => void
+  exportOpen: boolean
+  onExportOpenChange: (v: boolean) => void
 }
 
 export default function WarpPanel({
-  warpRef, warpData, videoPath, originalName,
-  trimToLoop, onTrimToLoopChange,
+  warpRef, warpData, videoPath, originalName, onNew,
   loopBeats, onLoopBeatsChange,
   addToEnd, onAddToEndChange,
-  onNew,
-  clipIn, clipOut,
+  trimToLoop, onTrimToLoopChange,
+  exportOpen, onExportOpenChange,
 }: WarpPanelProps) {
-  const [bpmInput, setBpmInput] = useState(String(warpData?.bpm ?? 120))
-  const [minStretch, setMinStretchLocal] = useState(warpData?.minStretch ?? 0.5)
-  const [maxStretch, setMaxStretchLocal] = useState(warpData?.maxStretch ?? 2.0)
 
-  useEffect(() => { if (warpData?.bpm != null) setBpmInput(String(warpData.bpm)) }, [warpData?.bpm])
-  useEffect(() => { if (warpData?.minStretch != null) setMinStretchLocal(warpData.minStretch) }, [warpData?.minStretch])
-  useEffect(() => { if (warpData?.maxStretch != null) setMaxStretchLocal(warpData.maxStretch) }, [warpData?.maxStretch])
-
-  const [detecting, setDetecting] = useState(false)
-  const tapTimesRef = useRef<number[]>([])
-  const tapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // ── Export dialog state ────────────────────────────────────────────────────
   const [fadeAtLoop, setFadeAtLoop] = useState(false)
   const [normalizeBpm, setNormalizeBpm] = useState(false)
   const [status, setStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle')
@@ -81,50 +43,9 @@ export default function WarpPanel({
 
   useEffect(() => () => { unlistenRef.current?.() }, [])
 
-  const commitBpm = () => {
-    const n = parseFloat(bpmInput)
-    if (n > 0 && n <= 999) warpRef.current?.setBpm(n)
-    else setBpmInput(String(warpData?.bpm ?? 120))
-  }
-
-  const handleTap = () => {
-    const now = performance.now()
-    const taps = tapTimesRef.current
-    if (taps.length > 0 && now - taps[taps.length - 1] > 2000) tapTimesRef.current = []
-    tapTimesRef.current.push(now)
-    if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current)
-    tapTimeoutRef.current = setTimeout(() => { tapTimesRef.current = [] }, 2000)
-    if (tapTimesRef.current.length >= 2) {
-      const intervals = tapTimesRef.current.slice(1).map((t, i) => t - tapTimesRef.current[i])
-      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length
-      const bpmValue = Math.round(60000 / avgInterval)
-      if (bpmValue > 0 && bpmValue <= 999) {
-        setBpmInput(String(bpmValue))
-        warpRef.current?.setBpm(bpmValue)
-      }
-    }
-  }
-
-  const handleDetect = async () => {
-    setDetecting(true)
-    await warpRef.current?.detectBpm()
-    setDetecting(false)
-  }
-
-  const handleMinStretch = (v: number) => {
-    const clamped = Math.min(v, maxStretch - 0.05)
-    setMinStretchLocal(clamped)
-    warpRef.current?.setMinStretch(clamped)
-  }
-
-  const handleMaxStretch = (v: number) => {
-    const clamped = Math.max(v, minStretch + 0.05)
-    setMaxStretchLocal(clamped)
-    warpRef.current?.setMaxStretch(clamped)
-  }
-
   const bpm = warpData?.bpm ?? 120
   const anchorCount = warpData?.origAnchors.length ?? 0
+  const canProcess = !!warpData && anchorCount >= 1
 
   const process = async () => {
     if (!warpData || !videoPath) return
@@ -135,12 +56,10 @@ export default function WarpPanel({
     setOutputPath(null)
 
     try {
-      // Sort orig and beat anchors by orig time before sending
-      const offset = clipIn ?? 0
       const pairs = [...warpData.origAnchors]
         .sort((a, b) => a.time - b.time)
         .map(oa => ({
-          orig: oa.time + offset,  // convert clip-local time to absolute video time
+          orig: oa.time,
           beat: warpData.beatAnchors.find(ba => ba.id === oa.id)?.time ?? oa.time,
         }))
 
@@ -155,8 +74,8 @@ export default function WarpPanel({
         trim_to_loop: trimToLoop,
         loop_beats: loopBeats ?? null,
         normalize_bpm: normalizeBpm,
-        clip_in: clipIn ?? null,
-        clip_out: clipOut ?? null,
+        clip_in: null,
+        clip_out: null,
       })
 
       unlistenRef.current = await listenWarpProgress(payload => {
@@ -166,8 +85,9 @@ export default function WarpPanel({
           setStatus('done')
           setOutputPath(payload.output_path)
           const baseName = originalName.replace(/\.[^.]+$/, '')
-          const beats = loopBeats ?? (payload.percent ? Math.round((warpData.beatZeroTime ?? 0) * bpm / 60) : null)
-          setSuggestedName(beats ? `${baseName}_${beats}beats_${Math.round(bpm)}bpm.mp4` : `${baseName}_warped.mp4`)
+          setSuggestedName(loopBeats
+            ? `${baseName}_${loopBeats}beats_${Math.round(bpm)}bpm.mp4`
+            : `${baseName}_warped.mp4`)
           unlistenRef.current?.()
         }
         if (payload.status === 'error') {
@@ -194,106 +114,96 @@ export default function WarpPanel({
     }
   }
 
-  const canProcess = !!warpData && anchorCount >= 1
+  // Reset export state when dialog opens
+  useEffect(() => {
+    if (exportOpen) { setStatus('idle'); setProgress(0); setError(null); setOutputPath(null) }
+  }, [exportOpen])
+
+  const handleCloseExport = () => {
+    if (status === 'processing') return
+    onExportOpenChange(false)
+  }
 
   return (
-    <div className="warp-panel">
+    <>
+      <div className="warp-panel">
 
-      {/* ── Col 1: Tempo ── */}
-      <div className="warp-panel__col">
-        <div className="warp-panel__col-header">Tempo</div>
-        <div className="warp-panel__row">
-          <span className="warp-panel__label">BPM</span>
-          <input
-            className="warp-panel__bpm-input"
-            type="number" min={1} max={999} value={bpmInput}
-            onChange={e => setBpmInput(e.target.value)}
-            onBlur={commitBpm}
-            onKeyDown={e => e.key === 'Enter' && commitBpm()}
-          />
-          <button className="warp-panel__action" onClick={handleDetect}
-            disabled={detecting || anchorCount < 2} title="Estimate BPM from anchor spacing">
-            {detecting ? '…' : '⟳'}
-          </button>
-          <button className="warp-panel__action" onClick={handleTap} title="Tap tempo">
-            Tap
-          </button>
-        </div>
-        <StretchInput label="Min" value={minStretch} min={0.1} max={maxStretch} onChange={handleMinStretch} />
-        <StretchInput label="Max" value={maxStretch} min={minStretch} max={8} onChange={handleMaxStretch} />
-        <div className="warp-panel__row warp-panel__row--actions">
-          <button className="warp-panel__action" onClick={() => warpRef.current?.clearAnchors()} title="Remove all markers">Clear</button>
-          <button className="warp-panel__action" onClick={() => warpRef.current?.resetAllLinks()} disabled={anchorCount === 0} title="Reset beat positions">Reset</button>
-          <button className="warp-panel__action" onClick={() => warpRef.current?.exportMarkers()} disabled={anchorCount === 0} title="Download markers as JSON">Export</button>
-          <button className="warp-panel__action" onClick={() => warpRef.current?.triggerImport()} title="Load markers from JSON">Import</button>
-        </div>
-      </div>
-
-      {/* ── Col 2: Loop ── */}
-      <div className="warp-panel__col">
-        <div className="warp-panel__col-header">Loop</div>
-        <div className="warp-panel__row">
-          <span className="warp-panel__label">Beats</span>
-          <input
-            className="warp-panel__num-input" type="number" min={1} placeholder="—"
-            value={loopBeats ?? ''}
-            onChange={e => {
-              const v = parseInt(e.target.value)
-              onLoopBeatsChange(isNaN(v) || v <= 0 ? null : v)
-            }}
-            disabled={status === 'processing'}
-          />
-        </div>
-        <label className="warp-panel__check">
-          <input type="checkbox" checked={addToEnd} onChange={e => onAddToEndChange(e.target.checked)} />
-          Pre-beat
-        </label>
-        {addToEnd && (
-          <label className="warp-panel__check warp-panel__check--sub">
-            <input type="checkbox" checked={fadeAtLoop} onChange={e => setFadeAtLoop(e.target.checked)} />
-            Fade at loop
-          </label>
-        )}
-        <label className="warp-panel__check">
-          <input type="checkbox" checked={trimToLoop} onChange={e => onTrimToLoopChange(e.target.checked)} />
-          Trim to beat
-        </label>
-      </div>
-
-      {/* ── Col 3: Output ── */}
-      <div className="warp-panel__col warp-panel__col--output">
-        <div className="warp-panel__col-header">Output</div>
-        <label className="warp-panel__check">
-          <input type="checkbox" checked={normalizeBpm} onChange={e => setNormalizeBpm(e.target.checked)} />
-          Normalize BPM
-        </label>
-
-        {status === 'processing' ? (
-          <div className="warp-panel__progress">
-            <div className="warp-panel__progress-fill" style={{ width: `${progress * 100}%` }} />
-          </div>
-        ) : (
-          <button className="warp-panel__btn" onClick={process} disabled={!canProcess}>
-            Process
-          </button>
-        )}
-
-        {status === 'error' && (
-          <span className="warp-panel__error" title={error ?? ''}>{error}</span>
-        )}
-
-        {status === 'done' && outputPath && (
-          <button className="warp-panel__download" onClick={handleSave} disabled={saving}>
-            {saving ? '…' : '↓ Save MP4'}
-          </button>
-        )}
-
+        {/* ── File row ── */}
         <div className="warp-panel__file-row">
           <span className="warp-panel__filename" title={originalName}>{originalName}</span>
-          <button className="warp-panel__new" onClick={onNew} title="Open a different video">✕</button>
+          <button className="warp-panel__new" onClick={onNew} title="Close video">✕</button>
         </div>
+
+        {/* ── Warp options ── */}
+        <div className="warp-panel__section">
+          <div className="warp-panel__row">
+            <span className="warp-panel__label">Loop beats</span>
+            <input
+              className="warp-panel__num-input"
+              type="number" min={1} placeholder="—"
+              value={loopBeats ?? ''}
+              onChange={e => { const v = parseInt(e.target.value); onLoopBeatsChange(isNaN(v) || v <= 0 ? null : v) }}
+            />
+          </div>
+
+          <label className="warp-panel__check">
+            <input type="checkbox" checked={trimToLoop} onChange={e => onTrimToLoopChange(e.target.checked)} />
+            Trim to beat
+          </label>
+
+          <label className="warp-panel__check">
+            <input type="checkbox" checked={addToEnd} onChange={e => onAddToEndChange(e.target.checked)} />
+            Pre-beat intro
+          </label>
+        </div>
+
       </div>
 
-    </div>
+      {/* ── Export dialog ── */}
+      {exportOpen && (
+        <div className="export-overlay" onClick={handleCloseExport}>
+          <div className="export-dialog" onClick={e => e.stopPropagation()}>
+            <div className="export-dialog__header">
+              <span className="export-dialog__title">Export Options</span>
+              <button className="export-dialog__close" onClick={handleCloseExport} disabled={status === 'processing'}>✕</button>
+            </div>
+
+            <div className="export-dialog__body">
+              {addToEnd && (
+                <label className="export-dialog__check">
+                  <input type="checkbox" checked={fadeAtLoop} onChange={e => setFadeAtLoop(e.target.checked)} disabled={status === 'processing'} />
+                  Fade at loop
+                </label>
+              )}
+
+              <label className="export-dialog__check">
+                <input type="checkbox" checked={normalizeBpm} onChange={e => setNormalizeBpm(e.target.checked)} disabled={status === 'processing'} />
+                Normalize BPM
+              </label>
+            </div>
+
+            <div className="export-dialog__footer">
+              {status === 'error' && (
+                <span className="export-dialog__error" title={error ?? ''}>{error}</span>
+              )}
+
+              {status === 'processing' ? (
+                <div className="warp-panel__progress">
+                  <div className="warp-panel__progress-fill" style={{ width: `${progress * 100}%` }} />
+                </div>
+              ) : status === 'done' && outputPath ? (
+                <button className="warp-panel__download" onClick={handleSave} disabled={saving}>
+                  {saving ? '…' : '↓ Save MP4'}
+                </button>
+              ) : (
+                <button className="warp-panel__btn" onClick={process} disabled={!canProcess}>
+                  Process
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }

@@ -1,11 +1,11 @@
 .timeline-label {
   font-family: ui-monospace, Consolas, monospace;
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #4b5563;
+  color: #a09488;
   padding: 6px 10px 0;
-  background: #1c1e26;
+  background: #1c1915;
 }
 
 .timeline {
@@ -14,10 +14,10 @@
   --minimap-h: 18px;
   --handle-size: 12px;
   --anchor-color: #f59e0b;
-  --beat-color: rgba(255, 255, 255, 0.06);
-  --track-bg: #111318;
-  --ruler-bg: #1c1e26;
-  --border-color: #2a2c36;
+  --beat-color: rgba(255, 240, 220, 0.07);
+  --track-bg: #171410;
+  --ruler-bg: #1c1915;
+  --border-color: #38312a;
 
   width: 100%;
   user-select: none;
@@ -36,7 +36,6 @@
   overflow: hidden;
 }
 
-/* Flipped: ruler sits below the track, border flips to top */
 .timeline--flip .ruler {
   border-bottom: none;
   border-top: 1px solid var(--border-color);
@@ -56,24 +55,23 @@
   content: '';
   display: block;
   width: 1px;
-  background: #3a3d4a;
+  background: #7a6e62;
   margin-top: auto;
 }
 
 .tick--minor::before { height: 6px; }
-.tick--major::before { height: 12px; background: #555970; }
+.tick--major::before { height: 12px; background: #a09488; }
 
 .tick-label {
   position: absolute;
   top: 4px;
-  font-size: 10px;
-  color: #6b7280;
+  font-size: 13px;
+  color: #c2b8ae;
   white-space: nowrap;
   transform: translateX(-50%);
   left: 50%;
 }
 
-/* Flipped ruler: tick marks point upward, labels sit at bottom */
 .timeline--flip .tick {
   top: auto;
   bottom: 0;
@@ -100,11 +98,7 @@
 }
 
 .track--zoomed {
-  cursor: grab;
-}
-
-.track--zoomed:active {
-  cursor: grabbing;
+  cursor: crosshair;
 }
 
 .track--readonly {
@@ -117,7 +111,7 @@
   top: 0;
   bottom: 0;
   pointer-events: none;
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  border-right: 1px solid rgba(255, 240, 220, 0.06);
 }
 
 .track-hint {
@@ -126,8 +120,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 11px;
-  color: #2e3140;
+  font-size: 13px;
+  color: #2a2418;
   pointer-events: none;
   letter-spacing: 0.04em;
 }
@@ -141,33 +135,22 @@
   top: 0;
   bottom: 0;
   width: 3px;
-  background: #22d3ee;
+  background: #e07540;
   pointer-events: none;
   transform: translateX(-50%);
   z-index: 15;
-  box-shadow: 0 0 6px rgba(34, 211, 238, 0.5);
+  box-shadow: 0 0 6px rgba(224, 117, 64, 0.5);
 }
 
-.playhead--draggable {
-  pointer-events: auto;
-  cursor: ew-resize;
-  width: 13px;
-  background: transparent;
-  border-left: none;
-  box-shadow: none;
-}
-
-.playhead--draggable::after {
-  content: '';
+.playhead-ghost {
   position: absolute;
   top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 2px;
-  height: 100%;
-  background: #22d3ee;
-  box-shadow: 0 0 6px rgba(34, 211, 238, 0.5);
+  bottom: 0;
+  width: 1px;
+  background: rgba(224, 117, 64, 0.35);
   pointer-events: none;
+  transform: translateX(-50%);
+  z-index: 14;
 }
 
 /* ── Trim overlay ───────────────────────────────────── */
@@ -178,7 +161,7 @@
   background: rgba(0, 0, 0, 0.45);
   pointer-events: none;
   z-index: 4;
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-left: 1px solid rgba(255, 240, 220, 0.1);
 }
 
 /* ── Beat grid ──────────────────────────────────────── */
@@ -190,6 +173,7 @@
   background: var(--beat-color);
   pointer-events: none;
   transform: translateX(-50%);
+  opacity: var(--beat-opacity, 1);
 }
 
 .measure-line {
@@ -197,9 +181,21 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 240, 220, 0.18);
   pointer-events: none;
   transform: translateX(-50%);
+  opacity: var(--beat-opacity, 1);
+}
+
+.sub-beat-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--beat-color);
+  pointer-events: none;
+  transform: translateX(-50%);
+  opacity: calc(var(--beat-opacity, 1) * 0.35);
 }
 
 /* ── Anchors ────────────────────────────────────────── */
@@ -229,7 +225,6 @@
   transition: box-shadow 0.1s, transform 0.1s;
 }
 
-/* Flipped: handle at bottom, line gradient goes upward */
 .timeline--flip .anchor {
   flex-direction: column-reverse;
 }
@@ -262,7 +257,7 @@
 .anchor-time {
   position: absolute;
   bottom: 5px;
-  font-size: 9px;
+  font-size: 11px;
   color: var(--anchor-color);
   white-space: nowrap;
   opacity: 0;
@@ -272,6 +267,37 @@
 
 .anchor:hover .anchor-time { opacity: 0.9; }
 
+/* ── Selected anchor ───────────────────────────────── */
+.anchor--selected .anchor-handle {
+  background: #e2dbd2;
+  box-shadow: 0 0 10px rgba(226, 219, 210, 0.7);
+}
+
+.anchor--selected .anchor-line {
+  background: linear-gradient(to bottom, #e2dbd2, rgba(226, 219, 210, 0.1));
+}
+
+.timeline--flip .anchor--selected .anchor-line {
+  background: linear-gradient(to top, #e2dbd2, rgba(226, 219, 210, 0.1));
+}
+
+.anchor--selected .anchor-time {
+  color: #e2dbd2;
+  opacity: 0.8;
+}
+
+/* ── Lasso selection rectangle ─────────────────────── */
+.lasso-rect {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(224, 117, 64, 0.1);
+  border-left: 1px solid rgba(224, 117, 64, 0.4);
+  border-right: 1px solid rgba(224, 117, 64, 0.4);
+  pointer-events: none;
+  z-index: 8;
+}
+
 /* ── Beat-zero anchor ───────────────────────────────── */
 .anchor-zero-btn {
   width: 14px;
@@ -279,9 +305,9 @@
   background: none;
   border: 1px solid transparent;
   border-radius: 3px;
-  color: #4b5563;
+  color: #7a6e62;
   font-family: ui-monospace, Consolas, monospace;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -300,22 +326,22 @@
 
 .anchor-zero-btn--active {
   opacity: 1 !important;
-  color: #22d3ee;
-  border-color: rgba(34, 211, 238, 0.4);
+  color: #e07540;
+  border-color: rgba(224, 117, 64, 0.4);
 }
 
 .anchor-zero-btn:not(.anchor-zero-btn--active):hover {
-  color: #e5e7eb;
-  border-color: #4b5563;
+  color: #e2dbd2;
+  border-color: #7a6e62;
 }
 
 .anchor--zero .anchor-handle {
-  background: #22d3ee;
-  box-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
+  background: #e07540;
+  box-shadow: 0 0 8px rgba(224, 117, 64, 0.5);
 }
 
 .anchor--zero .anchor-line {
-  background: linear-gradient(to bottom, #22d3ee, rgba(34, 211, 238, 0.1));
+  background: linear-gradient(to bottom, #e07540, rgba(224, 117, 64, 0.1));
 }
 
 /* ── Loop-start overlay ─────────────────────────────── */
@@ -323,7 +349,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(34, 211, 238, 0.06);
+  background: rgba(224, 117, 64, 0.06);
   pointer-events: none;
   z-index: 3;
 }
@@ -333,7 +359,7 @@
   top: 0;
   bottom: 0;
   width: 2px;
-  background: rgba(34, 211, 238, 0.45);
+  background: rgba(224, 117, 64, 0.45);
   pointer-events: none;
   transform: translateX(-50%);
   z-index: 5;
@@ -366,19 +392,36 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(34, 211, 238, 0.07);
-  border-left: 2px dashed rgba(34, 211, 238, 0.35);
-  border-right: 2px dashed rgba(34, 211, 238, 0.35);
+  background: rgba(224, 117, 64, 0.07);
+  border-left: 2px dashed rgba(224, 117, 64, 0.35);
+  border-right: 2px dashed rgba(224, 117, 64, 0.35);
   pointer-events: none;
   z-index: 5;
 }
 
+/* ── Clip in/out overlays ───────────────────────────────── */
+.clip-out-of-range {
+  position: absolute;
+  top: 0; bottom: 0;
+  background: rgba(0,0,0,0.45);
+  pointer-events: none;
+  z-index: 1;
+}
+.clip-boundary {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: rgba(224,117,64,0.7);
+  pointer-events: none;
+  z-index: 2;
+  transform: translateX(-50%);
+}
+
 /* ── Minimap ────────────────────────────────────────── */
-/* In non-flipped layout minimap sits above the ruler (border below) */
 .minimap {
   position: relative;
   height: var(--minimap-h);
-  background: #0d0f14;
+  background: #100e0c;
   border-bottom: 1px solid var(--border-color);
   overflow: hidden;
 }
@@ -387,8 +430,8 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.06);
-  border-inline: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 240, 220, 0.08);
+  border-inline: 1px solid rgba(255, 240, 220, 0.2);
   pointer-events: none;
   min-width: 2px;
 }

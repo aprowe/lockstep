@@ -1,0 +1,186 @@
+/* ── Region Sidebar ─────────────────────────────────────── */
+
+.rsi-sidebar {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #1b1814;
+  border-right: 1px solid #2c2720;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* ── Header ─────────────────────────────────────────────── */
+
+.rsi-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  height: 30px;
+  background: #252018;
+  border-bottom: 1px solid #2c2720;
+  flex-shrink: 0;
+}
+
+.rsi-header__label {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #a09488;
+}
+
+.rsi-header__add {
+  background: none;
+  border: 1px solid #38312a;
+  border-radius: 4px;
+  color: #c2b8ae;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 6px 1px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+}
+.rsi-header__add:hover {
+  color: #e07540;
+  border-color: #e07540;
+}
+
+/* ── List ───────────────────────────────────────────────── */
+
+.rsi-list {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.rsi-item {
+  padding: 7px 10px 6px;
+  border-bottom: 1px solid #2c2720;
+  cursor: pointer;
+  transition: background 0.08s;
+}
+.rsi-item:hover:not(.rsi-item--active) { background: #201d18; }
+
+.rsi-item--active {
+  background: #261f15;
+  border-left: 2px solid #e07540;
+  padding-left: 8px;
+}
+
+.rsi-item__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rsi-item__name {
+  font-size: 13px;
+  color: #e2dbd2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.rsi-item--active .rsi-item__name {
+  color: #e07540;
+}
+
+.rsi-item__range {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  color: #7a6e62;
+  margin-top: 2px;
+}
+
+/* ── Delete button ──────────────────────────────────────── */
+
+.rsi-item__del {
+  background: none;
+  border: none;
+  color: #7a6e62;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 1px 3px;
+  flex-shrink: 0;
+  line-height: 1;
+  border-radius: 3px;
+  transition: color 0.1s;
+}
+.rsi-item__del:hover { color: #e07540; }
+
+/* ── Inline rename ──────────────────────────────────────── */
+
+.rsi-rename {
+  flex: 1;
+  background: #171410;
+  border: 1px solid #e07540;
+  border-radius: 3px;
+  color: #e2dbd2;
+  font-size: 13px;
+  padding: 1px 5px;
+  outline: none;
+  min-width: 0;
+}
+
+/* ── Editable in/out row ────────────────────────────────── */
+
+.rsi-item__inout {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+}
+
+.rsi-item__inout-label {
+  color: #7ab8e0;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.rsi-item__inout-sep {
+  color: #7a6e62;
+  flex-shrink: 0;
+}
+
+.rsi-time-value {
+  color: #c2b8ae;
+  cursor: text;
+  border-bottom: 1px dashed transparent;
+  transition: border-color 0.1s, color 0.1s;
+  padding: 0 1px;
+}
+.rsi-time-value:hover {
+  color: #e2dbd2;
+  border-bottom-color: #a09488;
+}
+
+.rsi-time-input {
+  width: 72px;
+  background: #171410;
+  border: 1px solid #7ab8e0;
+  border-radius: 3px;
+  color: #e2dbd2;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  padding: 1px 4px;
+  outline: none;
+}
+
+/* ── Empty hint ─────────────────────────────────────────── */
+
+.rsi-hint {
+  padding: 14px 10px;
+  font-size: 12px;
+  color: #7a6e62;
+  line-height: 1.5;
+  font-style: italic;
+}

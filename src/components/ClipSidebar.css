@@ -1,189 +1,222 @@
-.clip-sidebar {
-  width: 190px;
-  flex-shrink: 0;
-  background: #111318;
-  border-right: 1px solid #1e2028;
+/* ── Clip Sidebar ────────────────────────────────────────── */
+.cs-sidebar {
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  overflow-x: hidden;
+  height: 100%;
+  font-family: ui-monospace, Consolas, monospace;
+  background: #1b1814;
+  border-right: 1px solid #2c2720;
+  overflow: hidden;
 }
 
-/* ── Header ─────────────────────────────────────────────── */
-.clip-sidebar__header {
+/* ── Header ────────────────────────────────────────────── */
+.cs-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px 8px;
-  border-bottom: 1px solid #1e2028;
+  padding: 7px 10px;
+  background: #252018;
+  border-bottom: 1px solid #2c2720;
   flex-shrink: 0;
 }
 
-.clip-sidebar__title {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 10px;
+.cs-header__label {
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #6b7280;
+  color: #c2b8ae;
 }
 
-.clip-sidebar__add {
+.cs-header__add {
   width: 20px;
   height: 20px;
   background: none;
-  border: 1px solid #374151;
+  border: 1px solid #38312a;
   border-radius: 4px;
-  color: #9ca3af;
+  color: #b5a898;
   font-size: 16px;
   line-height: 1;
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: border-color 0.15s, color 0.15s;
-  padding: 0;
-}
-
-.clip-sidebar__add:hover {
-  border-color: #f59e0b;
-  color: #f59e0b;
-}
-
-.clip-sidebar__divider {
-  height: 1px;
-  background: #1e2028;
-  flex-shrink: 0;
-}
-
-.clip-sidebar__empty {
-  padding: 16px 12px;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 10px;
-  color: #374151;
-  text-align: center;
-}
-
-/* ── Clip Entry ──────────────────────────────────────────── */
-.clip-entry {
-  padding: 8px 10px;
   cursor: pointer;
-  border-bottom: 1px solid #1a1c22;
-  transition: background 0.1s;
+  padding: 0;
+  transition: color 0.1s, border-color 0.1s;
+}
+
+.cs-header__add:hover {
+  color: #e2dbd2;
+  border-color: #a09488;
+}
+
+/* ── List ──────────────────────────────────────────────── */
+.cs-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* ── Clip item ─────────────────────────────────────────── */
+.cs-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 7px 8px;
+  cursor: pointer;
+  border-bottom: 1px solid #231f18;
+  transition: background 0.08s;
+}
+
+.cs-item:hover {
+  background: #201d18;
+}
+
+.cs-item--active {
+  background: #2a2018;
+  border-left: 2px solid #e07540;
+  padding-left: 6px;
+}
+
+.cs-item--active:hover {
+  background: #2e2418;
+}
+
+.cs-item__arrow {
+  font-size: 8px;
+  color: #e07540;
+  margin-top: 3px;
+  width: 10px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.cs-item__info {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
-.clip-entry:hover { background: #161820; }
-.clip-entry--active { background: #1a1f2e; border-left: 2px solid #f59e0b; padding-left: 8px; }
-.clip-entry--full { flex-direction: row; align-items: center; gap: 6px; padding: 8px 10px; }
-
-.clip-entry__top {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.clip-entry__icon {
-  font-size: 8px;
-  color: #4b5563;
-  flex-shrink: 0;
-}
-
-.clip-entry--active .clip-entry__icon { color: #f59e0b; }
-
-.clip-entry__name {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 11px;
-  color: #d1d5db;
-  flex: 1;
+.cs-item__name {
+  font-size: 13px;
+  color: #e2dbd2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.clip-entry__name-input {
-  flex: 1;
-  min-width: 0;
-  background: none;
-  border: none;
-  color: #d1d5db;
-  font-family: ui-monospace, Consolas, monospace;
+.cs-item__range {
   font-size: 11px;
-  padding: 0;
+  color: #a09488;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Rename input ──────────────────────────────────────── */
+.cs-rename-input {
+  width: 100%;
+  background: #171410;
+  border: 1px solid #e07540;
+  border-radius: 3px;
+  color: #e2dbd2;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 1px 4px;
   outline: none;
-  cursor: text;
 }
 
-.clip-entry__name-input:focus {
-  color: #f3f4f6;
-  background: #1e2028;
-  border-radius: 2px;
-  padding: 1px 3px;
+/* ── In/Out editor ─────────────────────────────────────── */
+.cs-inout {
+  flex-shrink: 0;
+  background: #1c1915;
 }
 
-.clip-entry__delete {
-  background: none;
-  border: none;
-  color: #374151;
-  font-size: 10px;
-  cursor: pointer;
-  padding: 0 2px;
-  line-height: 1;
-  transition: color 0.1s;
+.cs-inout__divider {
+  height: 1px;
+  background: #2c2720;
+}
+
+.cs-inout__row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-bottom: 1px solid #231f18;
+}
+
+.cs-inout__label {
+  font-size: 11px;
+  color: #a09488;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  width: 22px;
   flex-shrink: 0;
 }
 
-.clip-entry__delete:hover { color: #ef4444; }
-
-.clip-entry__dur {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 10px;
-  color: #4b5563;
-  margin-left: auto;
-}
-
-.clip-entry__meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-left: 14px;
-}
-
-.clip-entry__range {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 9px;
-  color: #4b5563;
-}
-
-.clip-entry__dur-small {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 9px;
-  color: #374151;
-}
-
-.clip-entry__actions {
-  display: flex;
-  gap: 4px;
-  padding-left: 14px;
-}
-
-.clip-entry__btn {
+.cs-inout__time {
+  font-size: 12px;
+  color: #c2b8ae;
   flex: 1;
-  padding: 2px 4px;
-  background: #1e2028;
-  border: 1px solid #2d3141;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cs-inout__set {
+  background: none;
+  border: 1px solid #38312a;
   border-radius: 3px;
-  color: #6b7280;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 9px;
+  color: #b5a898;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 2px 6px;
   cursor: pointer;
-  transition: border-color 0.1s, color 0.1s;
+  transition: color 0.1s, border-color 0.1s;
+  flex-shrink: 0;
+  letter-spacing: 0.04em;
+}
+
+.cs-inout__set:hover {
+  color: #e2dbd2;
+  border-color: #a09488;
+}
+
+.cs-inout__actions {
+  display: flex;
+  gap: 5px;
+  padding: 7px 10px;
+}
+
+.cs-inout__btn {
+  flex: 1;
+  background: none;
+  border: 1px solid #38312a;
+  border-radius: 4px;
+  color: #b5a898;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 4px 6px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+  white-space: nowrap;
   text-align: center;
 }
 
-.clip-entry__btn:hover {
-  border-color: #f59e0b;
-  color: #f59e0b;
+.cs-inout__btn:hover {
+  color: #e2dbd2;
+  border-color: #a09488;
+}
+
+.cs-inout__btn--danger {
+  color: #c2b8ae;
+}
+
+.cs-inout__btn--danger:hover {
+  color: #e07540;
+  border-color: rgba(224, 117, 64, 0.5);
 }
