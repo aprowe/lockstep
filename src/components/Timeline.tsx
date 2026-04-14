@@ -266,6 +266,11 @@ export default function Timeline({
           if (dOut < bestDist) { bestDist = dOut; best = c.outPoint }
         }
       }
+      // Snap to playhead
+      if (playhead !== undefined) {
+        const d = Math.abs(rawTime - playhead)
+        if (d < bestDist) { bestDist = d; best = playhead }
+      }
       return best
     },
     [snapInterval, snapOffset, snapThresholdPx, visibleSpan, clipOverlays],
@@ -459,7 +464,7 @@ export default function Timeline({
         const raw = xToTime(e.clientX)
         const rect = trackRef.current?.getBoundingClientRect()
         const snapSec = rect ? (snapThresholdPx / rect.width) * visibleSpan : 0
-        // Build snap targets: anchors + other clip edges + beat grid
+        // Build snap targets: anchors + other clip edges + beat grid + playhead
         const targets: number[] = anchors.map(a => a.time)
         if (clipOverlays) {
           for (const c of clipOverlays) {
@@ -467,6 +472,7 @@ export default function Timeline({
             targets.push(c.inPoint, c.outPoint)
           }
         }
+        if (playhead !== undefined) targets.push(playhead)
         // Add beat grid snap targets
         if (snapInterval && snapInterval > 0) {
           const nearest = snapOffset + Math.round((raw - snapOffset) / snapInterval) * snapInterval
@@ -494,7 +500,7 @@ export default function Timeline({
         const delta = time - g.startTime
         const span = g.outPoint - g.inPoint
         let newIn = Math.max(0, Math.min(duration - span, g.inPoint + delta))
-        // Build snap targets: anchors + other clip edges + beat grid
+        // Build snap targets: anchors + other clip edges + beat grid + playhead
         const rect = trackRef.current?.getBoundingClientRect()
         const snapSec = rect ? (snapThresholdPx / rect.width) * visibleSpan : 0
         const targets: number[] = anchors.map(a => a.time)
@@ -504,6 +510,7 @@ export default function Timeline({
             targets.push(c.inPoint, c.outPoint)
           }
         }
+        if (playhead !== undefined) targets.push(playhead)
         // Add beat grid snap targets for both edges
         if (snapInterval && snapInterval > 0) {
           const nearestIn = snapOffset + Math.round((newIn - snapOffset) / snapInterval) * snapInterval

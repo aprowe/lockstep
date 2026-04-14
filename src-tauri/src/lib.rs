@@ -19,6 +19,7 @@ pub fn run() {
             commands::save_output,
             commands::pick_export_folder,
             commands::save_to_folder,
+            commands::write_text_file,
             storage::save_video_state,
             storage::load_video_state,
             storage::list_saved_hashes,

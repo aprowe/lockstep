@@ -896,6 +896,7 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         playhead={beatPlayhead}
         onRulerClick={seekFromBeat}
         onAnchorClick={seekFromBeat}
+        onTrackScrub={seekFromBeat}
         clipOverlays={clipOverlays}
         onClipOverlaySelect={onClipOverlaySelect}
         beatRangeStart={clipIn}

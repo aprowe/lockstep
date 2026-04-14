@@ -55,9 +55,9 @@ export interface SaveRequest {
   suggested_name: string
 }
 
-/** Opens a native save dialog and copies the output file to the chosen location. */
-export async function saveOutput(req: SaveRequest): Promise<void> {
-  await invoke('save_output', { req })
+/** Opens a native save dialog and copies the output file to the chosen location. Returns the saved path. */
+export async function saveOutput(req: SaveRequest): Promise<string> {
+  return invoke<string>('save_output', { req })
 }
 
 /** Opens a native folder picker and returns the selected path. */
@@ -74,4 +74,9 @@ export interface SaveToFolderRequest {
 /** Copies a temp output file directly to a folder without a save dialog. */
 export async function saveToFolder(req: SaveToFolderRequest): Promise<string> {
   return invoke<string>('save_to_folder', { req })
+}
+
+/** Writes a text file (e.g. JSON metadata) to a given path. */
+export async function writeTextFile(path: string, content: string): Promise<void> {
+  return invoke('write_text_file', { req: { path, content } })
 }

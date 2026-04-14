@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { WarpData, Region } from '../types'
-import { startWarp, listenWarpProgress, saveOutput, pickExportFolder, saveToFolder } from '../api/warp'
+import { startWarp, listenWarpProgress, saveOutput, pickExportFolder, saveToFolder, writeTextFile } from '../api/warp'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import './ExportDialog.css'
 
@@ -53,6 +53,19 @@ function applyPattern(pattern: string, opts: {
     .replace(/\{in\}/g, fmtSec(opts.clipIn))
     .replace(/\{out\}/g, fmtSec(opts.clipOut))
     .replace(/\{n\}/g, String(opts.index + 1).padStart(2, '0'))
+}
+
+// ── Marker sidecar ────────────────────────────────────────────────────────────
+
+function buildMarkerJson(warpData: WarpData): string {
+  const { origAnchors, beatAnchors, bpm, minStretch, maxStretch, addToEnd, beatZeroTime } = warpData
+  return JSON.stringify({ origAnchors, beatAnchors, bpm, minStretch, maxStretch, addToEnd, beatZeroTime }, null, 2)
+}
+
+/** Given a saved video path like /foo/bar.mp4, writes /foo/bar.json */
+async function writeMarkerSidecar(videoPath: string, warpData: WarpData): Promise<void> {
+  const jsonPath = videoPath.replace(/\.[^.]+$/, '.json')
+  await writeTextFile(jsonPath, buildMarkerJson(warpData))
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -223,7 +236,8 @@ export default function ExportDialog({
         try {
           for (let i = 0; i < results.length; i++) {
             const fileName = getFileName(jobs2[i], i)
-            await saveToFolder({ source_path: results[i], dest_folder: destFolder, file_name: fileName })
+            const savedPath = await saveToFolder({ source_path: results[i], dest_folder: destFolder, file_name: fileName })
+            if (warpData) await writeMarkerSidecar(savedPath, warpData)
           }
           setSavedCount(results.length)
         } catch (e: any) {
@@ -242,11 +256,13 @@ export default function ExportDialog({
     try {
       const jobs = buildJobs()
       const fileName = getFileName(jobs[idx], idx)
+      let savedPath: string
       if (destFolder) {
-        await saveToFolder({ source_path: path, dest_folder: destFolder, file_name: fileName })
+        savedPath = await saveToFolder({ source_path: path, dest_folder: destFolder, file_name: fileName })
       } else {
-        await saveOutput({ source_path: path, suggested_name: fileName })
+        savedPath = await saveOutput({ source_path: path, suggested_name: fileName })
       }
+      if (warpData) await writeMarkerSidecar(savedPath, warpData)
       setSavedCount(prev => prev + 1)
     } catch (e: any) {
       if (!String(e).includes('cancelled')) setError(e.message ?? String(e))
@@ -261,11 +277,13 @@ export default function ExportDialog({
       const jobs = buildJobs()
       for (let i = 0; i < outputPaths.length; i++) {
         const fileName = getFileName(jobs[i], i)
+        let savedPath: string
         if (destFolder) {
-          await saveToFolder({ source_path: outputPaths[i], dest_folder: destFolder, file_name: fileName })
+          savedPath = await saveToFolder({ source_path: outputPaths[i], dest_folder: destFolder, file_name: fileName })
         } else {
-          await saveOutput({ source_path: outputPaths[i], suggested_name: fileName })
+          savedPath = await saveOutput({ source_path: outputPaths[i], suggested_name: fileName })
         }
+        if (warpData) await writeMarkerSidecar(savedPath, warpData)
       }
       setSavedCount(outputPaths.length)
     } catch (e: any) {

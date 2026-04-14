@@ -356,7 +356,7 @@ pub struct SaveRequest {
 }
 
 #[tauri::command]
-pub async fn save_output(app: AppHandle, req: SaveRequest) -> Result<(), String> {
+pub async fn save_output(app: AppHandle, req: SaveRequest) -> Result<String, String> {
     use tauri_plugin_dialog::DialogExt;
 
     let dest = app
@@ -371,7 +371,7 @@ pub async fn save_output(app: AppHandle, req: SaveRequest) -> Result<(), String>
             let dest_path = path.into_path().map_err(|e| e.to_string())?;
             std::fs::copy(&req.source_path, &dest_path)
                 .map_err(|e| format!("Save failed: {e}"))?;
-            Ok(())
+            Ok(dest_path.to_string_lossy().to_string())
         }
         None => Err("cancelled".to_string()),
     }
@@ -408,4 +408,19 @@ pub async fn save_to_folder(req: SaveToFolderRequest) -> Result<String, String> 
     std::fs::copy(&req.source_path, &dest)
         .map_err(|e| format!("Save failed: {e}"))?;
     Ok(dest.to_string_lossy().to_string())
+}
+
+// ── Write Text File ───────────────────────────────────────────────────────────
+
+#[derive(serde::Deserialize)]
+pub struct WriteTextFileRequest {
+    pub path: String,
+    pub content: String,
+}
+
+/// Writes a text file (e.g. JSON metadata) to the given path.
+#[tauri::command]
+pub async fn write_text_file(req: WriteTextFileRequest) -> Result<(), String> {
+    std::fs::write(&req.path, &req.content)
+        .map_err(|e| format!("Write failed: {e}"))
 }
