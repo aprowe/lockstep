@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Anchor, Band, View } from '../types'
 import { stretchColor } from '../utils/quantize'
-import { clampView, MIN_VISIBLE } from '../utils/view'
+import { clampView, MIN_VISIBLE, beatGridOpacity } from '../utils/view'
+import { formatTime } from '../utils/time'
 import './Timeline.css'
 
 export interface TimelineProps {
@@ -52,21 +53,33 @@ export interface TimelineProps {
   loopEndAt?: number
   /** When set, draws a ghost/preview region (e.g. pre-beat section appended at end) */
   ghostRegion?: { start: number; end: number }
+  /** Beat grid subdivision divisor: 1=quarter, 2=8th, 3=triplet, 4=16th, etc. */
+  gridDiv?: number
   /** Flip layout: track on top, ruler below, label at bottom. No minimap. */
   flip?: boolean
+  /** Set of currently selected anchor IDs */
+  selectedIds?: Set<number>
+  /** Called when selection changes (click, shift-click, ctrl-click, lasso) */
+  onSelectionChange?: (ids: Set<number>) => void
+  /** Clip in point — shades the region before this time */
+  clipIn?: number
+  /** Clip out point — shades the region after this time */
+  clipOut?: number
+  /** Right-click on an anchor */
+  onAnchorContextMenu?: (id: number, x: number, y: number) => void
+  /** Right-click on empty track space */
+  onTrackContextMenu?: (time: number, x: number, y: number) => void
+  /** If a click lands within this many px of an existing anchor, update that anchor instead of adding a new one. Future: expose as user setting. Default: 10 */
+  mergeMarginPx?: number
 }
 
 type GestureState =
   | null
-  | { type: 'potential'; x: number; y: number; time: number }
+  | { type: 'potential'; x: number; y: number; time: number; anchorId?: number; ctrlKey?: boolean; shiftKey?: boolean }
   | { type: 'panning'; lastX: number }
   | { type: 'anchor-drag'; id: number }
-
-export function formatTime(s: number) {
-  const m = Math.floor(s / 60)
-  const sec = (s % 60).toFixed(2).padStart(5, '0')
-  return m > 0 ? `${m}:${sec}` : `${sec}s`
-}
+  | { type: 'group-drag'; ids: number[]; startTimes: Map<number, number>; lastX: number }
+  | { type: 'lasso'; startX: number; startTime: number; currentX: number; currentTime: number }
 
 function rulerTicks(viewStart: number, viewEnd: number) {
   const span = viewEnd - viewStart
@@ -114,7 +127,7 @@ function musicalTicks(
   return ticks
 }
 
-type BeatLine = { time: number; measure: boolean }
+type BeatLine = { time: number; measure: boolean; onBeat: boolean }
 
 let nextId = 1
 export function newAnchorId() { return nextId++ }
@@ -147,7 +160,15 @@ export default function Timeline({
   loopPreStart,
   loopEndAt,
   ghostRegion,
+  gridDiv = 1,
   flip = false,
+  selectedIds,
+  onSelectionChange,
+  clipIn,
+  clipOut,
+  onAnchorContextMenu,
+  onTrackContextMenu,
+  mergeMarginPx = 10,
 }: TimelineProps) {
   const [internalView, setInternalView] = useState<View>({ start: 0, end: duration })
   const isControlled = controlledView !== undefined
@@ -161,10 +182,16 @@ export default function Timeline({
     else setInternalView(clamped)
   }, [isControlled, onViewChange, clampMax])
 
+  const [rulerHover, setRulerHover] = useState<number | null>(null)
+  const [lassoRect, setLassoRect] = useState<{ left: number; width: number } | null>(null)
+
   const trackRef = useRef<HTMLDivElement>(null)
   const rulerRef = useRef<HTMLDivElement>(null)
   const gesture = useRef<GestureState>(null)
   const anchorClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const selectionRef = useRef(selectedIds); selectionRef.current = selectedIds
+  const minimapDrag = useRef<{ lastX: number; rect: DOMRect } | null>(null)
+  const viewRef = useRef(view); viewRef.current = view
 
   const visibleSpan = view.end - view.start
   const isZoomed = visibleSpan < clampMax - 1e-9 || view.start > 1e-9
@@ -238,17 +265,49 @@ export default function Timeline({
 
       if (g.type === 'potential') {
         const dx = Math.abs(e.clientX - g.x)
-        if (dx > 4 || (Math.abs(e.clientY - g.y) > 4 && e.shiftKey)) {
-          gesture.current = { type: 'panning', lastX: e.clientX }
+        const dy = Math.abs(e.clientY - g.y)
+        if (dx > 4 || dy > 4) {
+          if (g.anchorId != null) {
+            // Dragging an anchor — select it first if not selected, then drag
+            if (onSelectionChange && !(selectionRef.current?.has(g.anchorId))) {
+              onSelectionChange(new Set([g.anchorId]))
+            }
+            gesture.current = { type: 'anchor-drag', id: g.anchorId }
+          } else if (e.shiftKey) {
+            // Shift+drag = pan
+            gesture.current = { type: 'panning', lastX: e.clientX }
+          } else if (onSelectionChange) {
+            // Non-shift drag on empty area = lasso selection
+            onSelectionChange(new Set())
+            const time = xToTime(e.clientX)
+            gesture.current = { type: 'lasso', startX: g.x, startTime: g.time, currentX: e.clientX, currentTime: time }
+            const minT = Math.min(g.time, time)
+            const maxT = Math.max(g.time, time)
+            setLassoRect({ left: timeToPercent(minT), width: ((maxT - minT) / visibleSpan) * 100 })
+          } else {
+            gesture.current = { type: 'panning', lastX: e.clientX }
+          }
         }
         return
       }
 
-      if (g.type === 'panning' && e.shiftKey) {
+      if (g.type === 'panning') {
         const rect = trackRef.current!.getBoundingClientRect()
         const delta = ((g.lastX - e.clientX) / rect.width) * visibleSpan
         setView({ start: view.start + delta, end: view.end + delta })
         gesture.current = { ...g, lastX: e.clientX }
+        return
+      }
+
+      if (g.type === 'lasso') {
+        const time = xToTime(e.clientX)
+        gesture.current = { ...g, currentX: e.clientX, currentTime: time }
+        const minT = Math.min(g.startTime, time)
+        const maxT = Math.max(g.startTime, time)
+        setLassoRect({ left: timeToPercent(minT), width: ((maxT - minT) / visibleSpan) * 100 })
+        // Live-update selection to anchors within lasso range
+        const ids = new Set(anchors.filter(a => a.time >= minT && a.time <= maxT).map(a => a.id))
+        onSelectionChange?.(ids)
         return
       }
 
@@ -266,21 +325,126 @@ export default function Timeline({
         const clamped = Math.max(minTime, Math.min(maxTime, xToTime(e.clientX)))
         const time = Math.max(minTime, Math.min(maxTime, trySnap(clamped)))
         onAnchorsChange?.(anchors.map(a => a.id === g.id ? { ...a, time } : a))
+        return
+      }
+
+      if (g.type === 'group-drag') {
+        const rect = trackRef.current!.getBoundingClientRect()
+        const deltaTime = ((e.clientX - g.lastX) / rect.width) * visibleSpan
+        if (Math.abs(deltaTime) < 0.0001) return
+        // Move all selected anchors by the same time delta
+        const sorted = [...anchors].sort((a, b) => a.time - b.time)
+        const dragIds = new Set(g.ids)
+        // Check bounds: no selected anchor should cross a non-selected neighbor
+        let clampedDelta = deltaTime
+        for (const id of g.ids) {
+          const idx = sorted.findIndex(a => a.id === id)
+          const startTime = g.startTimes.get(id)!
+          const newTime = startTime + (deltaTime)
+          // Clamp against previous non-selected
+          for (let j = idx - 1; j >= 0; j--) {
+            if (!dragIds.has(sorted[j].id)) {
+              const minT = sorted[j].time + 0.001
+              if (newTime < minT) clampedDelta = Math.max(clampedDelta, minT - startTime)
+              break
+            }
+          }
+          // Clamp against next non-selected
+          for (let j = idx + 1; j < sorted.length; j++) {
+            if (!dragIds.has(sorted[j].id)) {
+              const maxT = sorted[j].time - 0.001
+              if (newTime > maxT) clampedDelta = Math.min(clampedDelta, maxT - startTime)
+              break
+            }
+          }
+        }
+        // Also clamp to [0, duration]
+        for (const id of g.ids) {
+          const startTime = g.startTimes.get(id)!
+          clampedDelta = Math.max(clampedDelta, -startTime)
+          clampedDelta = Math.min(clampedDelta, duration - startTime)
+        }
+        const updated = anchors.map(a => {
+          if (!dragIds.has(a.id)) return a
+          return { ...a, time: g.startTimes.get(a.id)! + clampedDelta }
+        })
+        onAnchorsChange?.(updated)
       }
     },
-    [view, visibleSpan, duration, xToTime, trySnap, setView, anchors, onAnchorsChange, getBounds],
+    [view, visibleSpan, duration, xToTime, trySnap, setView, anchors, onAnchorsChange, getBounds, onSelectionChange, timeToPercent],
   )
 
   const handleTrackPointerUp = useCallback(
-    (_e: React.PointerEvent) => {
+    (e: React.PointerEvent) => {
       const g = gesture.current
       gesture.current = null
-      if (g?.type === 'potential' && !noAdd) {
-        const time = Math.max(0, Math.min(duration, g.time))
-        onAnchorsChange?.([...anchors, { id: newAnchorId(), time }])
+      setLassoRect(null)
+
+      if (g?.type === 'potential') {
+        if (g.anchorId != null) {
+          // Anchor click — handle selection
+          const sel = selectionRef.current ?? new Set<number>()
+          if (g.ctrlKey) {
+            // Ctrl+click: toggle
+            const next = new Set(sel)
+            if (next.has(g.anchorId)) next.delete(g.anchorId)
+            else next.add(g.anchorId)
+            onSelectionChange?.(next)
+          } else if (g.shiftKey) {
+            // Shift+click: range select from last to this
+            const sorted = [...anchors].sort((a, b) => a.time - b.time)
+            const clickedIdx = sorted.findIndex(a => a.id === g.anchorId)
+            // Find the index of the first currently selected anchor for range
+            let startIdx = clickedIdx
+            for (let i = 0; i < sorted.length; i++) {
+              if (sel.has(sorted[i].id)) { startIdx = i; break }
+            }
+            const lo = Math.min(startIdx, clickedIdx)
+            const hi = Math.max(startIdx, clickedIdx)
+            const next = new Set(sel)
+            for (let i = lo; i <= hi; i++) next.add(sorted[i].id)
+            onSelectionChange?.(next)
+          } else {
+            // Plain click: select only this anchor
+            onSelectionChange?.(new Set([g.anchorId]))
+          }
+        } else {
+          // Click on empty area
+          const sel = selectionRef.current
+          if (sel && sel.size > 0) {
+            // Has selection — just deselect, don't place marker
+            onSelectionChange?.(new Set())
+          } else if (!noAdd) {
+            // No selection — place or update a marker
+            const time = Math.max(0, Math.min(duration, g.time))
+            const rect = trackRef.current?.getBoundingClientRect()
+            const marginSec = rect ? (mergeMarginPx / rect.width) * visibleSpan : 0
+            const nearby = anchors.reduce<{ anchor: Anchor; dist: number } | null>((best, a) => {
+              const dist = Math.abs(a.time - time)
+              if (dist <= marginSec && (!best || dist < best.dist)) return { anchor: a, dist }
+              return best
+            }, null)
+            if (nearby) {
+              onAnchorsChange?.(anchors.map(a => a.id === nearby.anchor.id ? { ...a, time } : a))
+            } else {
+              onAnchorsChange?.([...anchors, { id: newAnchorId(), time }])
+            }
+          }
+        }
+        return
+      }
+
+      if (g?.type === 'lasso') {
+        // Selection was already updated during move; just clear the visual
+        return
+      }
+
+      if (g?.type === 'group-drag') {
+        // Commit the drag — anchors are already updated during move
+        return
       }
     },
-    [noAdd, duration, anchors, onAnchorsChange],
+    [noAdd, duration, anchors, onAnchorsChange, onSelectionChange, mergeMarginPx, visibleSpan],
   )
 
   const handleAnchorPointerDown = useCallback(
@@ -288,9 +452,23 @@ export default function Timeline({
       if (!canInteract) return
       e.stopPropagation()
       e.currentTarget.setPointerCapture(e.pointerId)
-      gesture.current = { type: 'anchor-drag', id: anchor.id }
+
+      const sel = selectionRef.current ?? new Set<number>()
+
+      // If this anchor is part of a multi-selection, prepare for group drag
+      if (sel.has(anchor.id) && sel.size > 1) {
+        const ids = [...sel]
+        const startTimes = new Map(ids.map(id => {
+          const a = anchors.find(a => a.id === id)
+          return [id, a?.time ?? 0]
+        }))
+        gesture.current = { type: 'group-drag', ids, startTimes, lastX: e.clientX }
+      } else {
+        // Single anchor drag — record click details for potential selection handling on up
+        gesture.current = { type: 'potential', x: e.clientX, y: e.clientY, time: anchor.time, anchorId: anchor.id, ctrlKey: e.ctrlKey || e.metaKey, shiftKey: e.shiftKey }
+      }
     },
-    [canInteract],
+    [canInteract, anchors],
   )
 
   const handleAnchorDblClick = useCallback(
@@ -334,15 +512,19 @@ export default function Timeline({
     ? musicalTicks(view.start, view.end, beat, snapOffset)
     : rulerTicks(view.start, view.end)
 
+  const beatOpacity = beatGridOpacity(view, bpm ?? 0)
+
   const beatLines: BeatLine[] = []
-  if (beat > 0) {
+  if (beat > 0 && beatOpacity > 0) {
     const BPM = 4
-    const first = snapOffset + Math.ceil((view.start - snapOffset) / beat) * beat
-    for (let t = first; t <= view.end + 1e-9; t += beat) {
+    const gridInterval = beat / gridDiv
+    const first = snapOffset + Math.ceil((view.start - snapOffset) / gridInterval) * gridInterval
+    for (let t = first; t <= view.end + 1e-9; t += gridInterval) {
       const rawBeat = (t - snapOffset) / beat
-      const beatIdx = Math.round(rawBeat)
-      const beatInMeasure = ((beatIdx % BPM) + BPM) % BPM
-      beatLines.push({ time: t, measure: beatInMeasure === 0 })
+      const beatIdx = Math.round(rawBeat * gridDiv)
+      const onBeat = beatIdx % gridDiv === 0
+      const beatInMeasure = ((Math.round(rawBeat) % BPM) + BPM) % BPM
+      beatLines.push({ time: t, measure: onBeat && beatInMeasure === 0, onBeat })
     }
   }
 
@@ -359,13 +541,21 @@ export default function Timeline({
         ref={rulerRef}
         className={`ruler${onRulerClick ? ' ruler--clickable' : ''}`}
         onPointerDown={handleRulerPointerDown}
-        onPointerMove={handleRulerPointerMove}
+        onPointerMove={e => {
+          handleRulerPointerMove(e)
+          if (onRulerClick && rulerRef.current) {
+            const rect = rulerRef.current.getBoundingClientRect()
+            const t = view.start + ((e.clientX - rect.left) / rect.width) * visibleSpan
+            setRulerHover(Math.max(0, Math.min(duration, t)))
+          }
+        }}
+        onMouseLeave={() => setRulerHover(null)}
       >
         {ticks.map((tick) => {
           const major = 'major' in tick ? tick.major : tick.type === 'measure'
           return (
             <div
-              key={tick.time}
+              key={`t-${tick.time}`}
               className={`tick ${major ? 'tick--major' : 'tick--minor'}`}
               style={{ left: `${timeToPercent(tick.time)}%` }}
             >
@@ -373,6 +563,9 @@ export default function Timeline({
             </div>
           )
         })}
+        {rulerHover !== null && (
+          <div className="playhead-ghost" style={{ left: `${timeToPercent(rulerHover)}%` }} />
+        )}
       </div>
   )
 
@@ -380,11 +573,46 @@ export default function Timeline({
       <div
         ref={trackRef}
         className={`track${isZoomed ? ' track--zoomed' : ''}${!canInteract ? ' track--readonly' : ''}`}
+        style={{ '--beat-opacity': beatOpacity } as React.CSSProperties}
         onPointerDown={handleTrackPointerDown}
         onPointerMove={handleTrackPointerMove}
         onPointerUp={handleTrackPointerUp}
         onPointerLeave={handleTrackPointerUp}
+        onContextMenu={e => {
+          if ((e.target as HTMLElement).closest('.anchor')) return
+          e.preventDefault()
+          if (!onTrackContextMenu) return
+          const rect = trackRef.current!.getBoundingClientRect()
+          const time = view.start + ((e.clientX - rect.left) / rect.width) * visibleSpan
+          onTrackContextMenu(Math.max(0, Math.min(duration, time)), e.clientX, e.clientY)
+        }}
       >
+        {/* Clip out-of-range overlays */}
+        {clipIn !== undefined && clipIn > view.start && (
+          <>
+            <div
+              className="clip-out-of-range"
+              style={{ left: 0, width: `${timeToPercent(clipIn)}%` }}
+            />
+            <div
+              className="clip-boundary"
+              style={{ left: `${timeToPercent(clipIn)}%` }}
+            />
+          </>
+        )}
+        {clipOut !== undefined && clipOut < duration && (
+          <>
+            <div
+              className="clip-out-of-range"
+              style={{ left: `${timeToPercent(clipOut)}%`, right: 0 }}
+            />
+            <div
+              className="clip-boundary"
+              style={{ left: `${timeToPercent(clipOut)}%` }}
+            />
+          </>
+        )}
+
         {visibleBands?.map((b, i) => (
           <div
             key={i}
@@ -407,30 +635,23 @@ export default function Timeline({
           />
         )}
 
-        {beatLines.map(({ time, measure }) => (
+        {beatLines.map(({ time, measure, onBeat }) => (
           <div
-            key={time}
-            className={measure ? 'measure-line' : 'beat-line'}
+            key={`bl-${time}`}
+            className={measure ? 'measure-line' : onBeat ? 'beat-line' : 'sub-beat-line'}
             style={{ left: `${timeToPercent(time)}%` }}
           />
         ))}
 
         {playhead !== undefined && (
           <div
-            className={`playhead${onRulerClick ? ' playhead--draggable' : ''}`}
+            className="playhead"
             style={{ left: `${timeToPercent(playhead)}%` }}
-            onPointerDown={e => {
-              if (!onRulerClick) return
-              e.stopPropagation()
-              e.currentTarget.setPointerCapture(e.pointerId)
-            }}
-            onPointerMove={e => {
-              if (!onRulerClick || !e.buttons) return
-              const rect = trackRef.current!.getBoundingClientRect()
-              const t = view.start + ((e.clientX - rect.left) / rect.width) * visibleSpan
-              onRulerClick(Math.max(0, Math.min(duration, t)))
-            }}
           />
+        )}
+
+        {rulerHover !== null && onRulerClick && (
+          <div className="playhead-ghost" style={{ left: `${timeToPercent(rulerHover)}%` }} />
         )}
 
         {loopStartAt !== undefined && loopStartAt > 0 && (() => {
@@ -476,13 +697,20 @@ export default function Timeline({
           />
         )}
 
-        {anchors.map(anchor => (
+        {anchors.map(anchor => {
+          const isSelected = selectedIds?.has(anchor.id) ?? false
+          return (
           <div
-            key={anchor.id}
-            className={`anchor${anchorZeroId === anchor.id ? ' anchor--zero' : ''}`}
+            key={`a-${anchor.id}`}
+            className={`anchor${anchorZeroId === anchor.id ? ' anchor--zero' : ''}${isSelected ? ' anchor--selected' : ''}`}
             style={{ left: `${timeToPercent(anchor.time)}%` }}
             onPointerDown={e => handleAnchorPointerDown(e, anchor)}
             onDoubleClick={e => handleAnchorDblClick(e, anchor.id)}
+            onContextMenu={e => {
+              e.preventDefault()
+              e.stopPropagation()
+              onAnchorContextMenu?.(anchor.id, e.clientX, e.clientY)
+            }}
             onClick={e => {
               e.stopPropagation()
               if (!onAnchorClick) return
@@ -509,7 +737,15 @@ export default function Timeline({
             <div className="anchor-line" />
             <div className="anchor-time">{formatTime(anchor.time)}</div>
           </div>
-        ))}
+          )
+        })}
+
+        {lassoRect && (
+          <div
+            className="lasso-rect"
+            style={{ left: `${lassoRect.left}%`, width: `${lassoRect.width}%` }}
+          />
+        )}
 
         {!noAdd && canInteract && anchors.length === 0 && (
           <div className="track-hint">Click to place anchors · shift+scroll to zoom · shift+drag to pan</div>
@@ -521,7 +757,31 @@ export default function Timeline({
   )
 
   const minimapEl = (
-      <div className="minimap">
+      <div
+        className="minimap"
+        style={{ cursor: 'ew-resize' }}
+        onPointerDown={e => {
+          e.stopPropagation()
+          const rect = e.currentTarget.getBoundingClientRect()
+          e.currentTarget.setPointerCapture(e.pointerId)
+          // Jump to clicked position (center view on it) then drag from there
+          const t = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * duration
+          const half = visibleSpan / 2
+          setView({ start: t - half, end: t + half })
+          minimapDrag.current = { lastX: e.clientX, rect }
+        }}
+        onPointerMove={e => {
+          const g = minimapDrag.current
+          if (!g || !e.buttons) return
+          const v = viewRef.current
+          // drag right → viewport moves right (positive delta)
+          const delta = ((e.clientX - g.lastX) / g.rect.width) * duration
+          setView({ start: v.start + delta, end: v.end + delta })
+          minimapDrag.current = { ...g, lastX: e.clientX }
+        }}
+        onPointerUp={() => { minimapDrag.current = null }}
+        onPointerLeave={() => { minimapDrag.current = null }}
+      >
         {anchors.map(anchor => (
           <div
             key={anchor.id}

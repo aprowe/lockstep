@@ -1,10 +1,15 @@
 * { box-sizing: border-box; }
 
+*:not(input):not(textarea) {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 body {
   margin: 0;
   font-family: ui-monospace, Consolas, monospace;
-  background: #0d0e12;
-  color: #e5e7eb;
+  background: #100e0c;
+  color: #e2dbd2;
   overflow: hidden;
   height: 100vh;
 }

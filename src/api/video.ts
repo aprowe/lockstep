@@ -60,3 +60,10 @@ export async function loadVideoFromPath(path: string): Promise<VideoInfo> {
   const raw = await invoke<RawVideoInfo>('load_video', { path })
   return rawToVideoInfo(raw)
 }
+
+/**
+ * Lists video files in a folder by path (no dialog).
+ */
+export async function listFolderVideos(path: string): Promise<VideoEntry[]> {
+  return invoke<VideoEntry[]>('list_folder_videos', { path })
+}

@@ -1,4 +1,4 @@
-import type { Anchor, Segment, Band } from '../types'
+import type { Anchor, WarpSegment, Band } from '../types'
 
 /** Snap a time value to the nearest beat */
 export function snapToBeat(time: number, bpm: number): number {
@@ -88,10 +88,10 @@ export function buildSegments(
   beatAnchors: Anchor[],  // sorted by time, 1:1 with origAnchors
   origDuration: number,
   outputDuration: number,
-): Segment[] {
+): WarpSegment[] {
   const origBounds = [0, ...origAnchors.map(a => a.time), origDuration]
   const beatBounds = [0, ...beatAnchors.map(a => a.time), outputDuration]
-  const segs: Segment[] = []
+  const segs: WarpSegment[] = []
 
   for (let i = 0; i < origBounds.length - 1; i++) {
     const origSpan = origBounds[i + 1] - origBounds[i]
@@ -118,11 +118,11 @@ export function computeOutputDuration(
   return lastBeat + (origDuration - lastOrig)
 }
 
-export function origBands(segments: Segment[]): Band[] {
+export function origBands(segments: WarpSegment[]): Band[] {
   return segments.map(s => ({ left: s.origLeft, right: s.origRight, stretchRatio: s.stretchRatio }))
 }
 
-export function quantBands(segments: Segment[]): Band[] {
+export function quantBands(segments: WarpSegment[]): Band[] {
   return segments.map(s => ({ left: s.quantLeft, right: s.quantRight, stretchRatio: s.stretchRatio }))
 }
 

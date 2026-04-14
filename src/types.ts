@@ -21,7 +21,7 @@ export interface QuantizedAnchor {
   quantTime: number
 }
 
-export interface Segment {
+export interface WarpSegment {
   origLeft: number  // % of original duration (0-100)
   origRight: number
   quantLeft: number // % of output duration (0-100)
@@ -52,12 +52,42 @@ export interface WarpData {
   addToEnd: boolean
 }
 
-export interface Clip {
+/** A user-defined sub-region of a video with independent warp state */
+export interface Region {
   id: string
   name: string
-  inPoint: number   // seconds in original video
-  outPoint: number  // seconds in original video
+  inPoint: number              // seconds in original video
+  outPoint: number             // seconds in original video
+  origAnchors: Anchor[]
+  beatAnchors: Anchor[]
+  bpm: number
+  minStretch: number
+  maxStretch: number
+  beatZeroAnchorTime: number | null
   trimToLoop: boolean
   loopBeats: number | null
   addToEnd: boolean
+}
+
+/** Multi-selection state for markers */
+export interface SelectionState {
+  selectedIds: Set<number>
+  lastClickedId: number | null
+}
+
+/** Persisted per-video state */
+export interface SavedVideoState {
+  version: 2
+  defaultRegion: {
+    origAnchors: Anchor[]
+    beatAnchors: Anchor[]
+    bpm: number
+    minStretch: number
+    maxStretch: number
+    beatZeroAnchorTime: number | null
+    loopBeats?: number | null
+    trimToLoop?: boolean
+    addToEnd?: boolean
+  }
+  regions: Region[]
 }

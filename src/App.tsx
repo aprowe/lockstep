@@ -1,329 +1,478 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import VideoPlayer from './components/VideoPlayer'
 import type { VideoPlayerHandle } from './components/VideoPlayer'
 import WarpView from './components/WarpView'
 import type { WarpViewHandle } from './components/WarpView'
-import WarpPanel from './components/WarpPanel'
-import ClipSidebar from './components/ClipSidebar'
+import MarkerList from './components/MarkerList'
+import ExportDialog from './components/ExportDialog'
+import Toolbar from './components/Toolbar'
+import MenuBar from './components/MenuBar'
+import type { MenuDef } from './components/MenuBar'
 import VideoFolderSidebar from './components/VideoFolderSidebar'
-import { openFolder, loadVideoFromPath } from './api/video'
-import type { VideoEntry } from './api/video'
-import type { WarpData, Anchor, VideoInfo, Clip } from './types'
+import RegionSidebar from './components/RegionSidebar'
+import RegionStrip from './components/RegionStrip'
+import { useProject } from './context/ProjectContext'
 import './App.css'
 
-// ── Marker persistence ───────────────────────────────────────────────────────
-
-interface SavedMarkers {
-  origAnchors: Anchor[]
-  beatAnchors: Anchor[]
-  bpm: number
-  minStretch?: number
-  maxStretch?: number
-  addToEnd?: boolean
-  beatZeroAnchorTime?: number
-  trimToLoop?: boolean
-  loopBeats?: number | null
-}
-
-function markerKey(fileHash: string, clipId?: string) {
-  return clipId ? `vjt_markers_${fileHash}_${clipId}` : `vjt_markers_${fileHash}`
-}
-function clipsKey(fileHash: string) { return `vjt_clips_${fileHash}` }
-
-function loadMarkers(fileHash: string, clipId?: string): SavedMarkers | null {
-  try { const raw = localStorage.getItem(markerKey(fileHash, clipId)); return raw ? JSON.parse(raw) : null }
-  catch { return null }
-}
-
-function saveMarkersToStorage(
-  fileHash: string,
-  data: WarpData,
-  opts: { trimToLoop: boolean; loopBeats: number | null; addToEnd: boolean },
-  clipId?: string,
-) {
-  try {
-    localStorage.setItem(markerKey(fileHash, clipId), JSON.stringify({
-      origAnchors: data.origAnchors, beatAnchors: data.beatAnchors, bpm: data.bpm,
-      minStretch: data.minStretch, maxStretch: data.maxStretch, addToEnd: opts.addToEnd,
-      beatZeroAnchorTime: data.beatZeroTime, trimToLoop: opts.trimToLoop, loopBeats: opts.loopBeats,
-    }))
-  } catch { /* storage full */ }
-}
-
-function loadClips(fileHash: string): Clip[] {
-  try { const raw = localStorage.getItem(clipsKey(fileHash)); return raw ? JSON.parse(raw) : [] }
-  catch { return [] }
-}
-
-function saveClips(fileHash: string, clips: Clip[]) {
-  try { localStorage.setItem(clipsKey(fileHash), JSON.stringify(clips)) }
-  catch { /* storage full */ }
+const VIDEO_EXTS = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v']
+function hasVideoExt(p: string) {
+  return VIDEO_EXTS.includes(p.split('.').pop()?.toLowerCase() ?? '')
 }
 
 // ── Layout constants ─────────────────────────────────────────────────────────
 
-const MIN_PLAYER = 120
-const MAX_PLAYER = 700
-const DEFAULT_PLAYER = 380
+const MIN_TIMELINE = 100
+const MAX_TIMELINE = 500
+const DEFAULT_TIMELINE = 280
 
 // ── App ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [folderVideos, setFolderVideos] = useState<VideoEntry[]>([])
-  const [video, setVideo] = useState<VideoInfo | null>(null)
-  const [warpData, setWarpData] = useState<WarpData | null>(null)
-  const [playhead, setPlayhead] = useState(0)
-  const [playerHeight, setPlayerHeight] = useState(DEFAULT_PLAYER)
+  const {
+    folderVideos,
+    video,
+    warpData,
+    regions,
+    activeRegionId,
+    activeRegion,
+    playhead,
+    detectingBpm,
+    markersLoaded,
+    initialMarkers,
+    loopBeats,
+    trimToLoop,
+    addToEnd,
+    openFile,
+    openFolder,
+    loadFolderFromPath,
+    selectVideo,
+    closeVideo,
+    setPlayhead,
+    setWarpData,
+    setDetectingBpm,
+    setLoopBeats,
+    setTrimToLoop,
+    setAddToEnd,
+    addRegion,
+    addRegionWithMarkers,
+    deleteRegion,
+    setActiveRegionId,
+    updateRegionInOut,
+    renameRegion,
+    markerCountByPath,
+  } = useProject()
 
-  const [trimToLoop, setTrimToLoop] = useState(false)
-  const [loopBeats, setLoopBeats] = useState<number | null>(null)
-  const [addToEnd, setAddToEnd] = useState(false)
-
-  const [clips, setClips] = useState<Clip[]>([])
-  const [activeClipId, setActiveClipId] = useState<string | null>(null)
+  const [timelineHeight, setTimelineHeight] = useState(DEFAULT_TIMELINE)
+  const [sidebarWidth, setSidebarWidth] = useState(170)
+  const [clipSidebarWidth, setClipSidebarWidth] = useState(170)
+  const [rightWidth, setRightWidth] = useState(280)
+  const [gridDiv, setGridDiv] = useState(1)
+  const [playing, setPlaying] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [isDragOver, setIsDragOver] = useState(false)
 
   const playerRef = useRef<VideoPlayerHandle>(null)
   const warpRef = useRef<WarpViewHandle>(null)
-  const dragStart = useRef<{ y: number; h: number } | null>(null)
-  const videoRef = useRef<VideoInfo | null>(null)
-  videoRef.current = video
-  const playheadRef = useRef(playhead)
-  playheadRef.current = playhead
+  const vDragStart = useRef<{ y: number; h: number } | null>(null)
+  const lDragStart = useRef<{ x: number; w: number } | null>(null)
+  const rDragStart = useRef<{ x: number; w: number } | null>(null)
+  const cDragStart = useRef<{ x: number; w: number } | null>(null)
 
-  const trimToLoopRef = useRef(trimToLoop); trimToLoopRef.current = trimToLoop
-  const loopBeatsRef = useRef(loopBeats); loopBeatsRef.current = loopBeats
-  const addToEndRef = useRef(addToEnd); addToEndRef.current = addToEnd
-  const activeClipIdRef = useRef(activeClipId); activeClipIdRef.current = activeClipId
-  const clipsRef = useRef(clips); clipsRef.current = clips
+  // ── Drag and drop ─────────────────────────────────────────────────────────
 
-  // ── Resizer ────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    let unlisten: (() => void) | null = null
+
+    import('@tauri-apps/api/webview').then(({ getCurrentWebview }) => {
+      getCurrentWebview().onDragDropEvent(async (event) => {
+        const e = event.payload
+        if (e.type === 'enter' || e.type === 'over') {
+          setIsDragOver(true)
+          return
+        }
+        if (e.type === 'leave') {
+          setIsDragOver(false)
+          return
+        }
+        if (e.type === 'drop') {
+          setIsDragOver(false)
+          const paths = e.paths
+          if (!paths || paths.length === 0) return
+
+          // If any dropped path is a video file, load the first one
+          const firstVideo = paths.find(hasVideoExt)
+          if (firstVideo) {
+            await selectVideo(firstVideo)
+          } else {
+            // Otherwise treat the first dropped path as a folder
+            await loadFolderFromPath(paths[0])
+          }
+        }
+      }).then(fn => { unlisten = fn })
+    })
+
+    return () => { unlisten?.() }
+  }, [selectVideo, loadFolderFromPath])
+
+  // ── Seek to region start when active region changes ──────────────────────
+
+  useEffect(() => {
+    if (activeRegion) {
+      playerRef.current?.seek(activeRegion.inPoint)
+    }
+  }, [activeRegionId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Vertical resizer (timeline height) ────────────────────────────────────
 
   const handleResizerPointerDown = (e: React.PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId)
-    dragStart.current = { y: e.clientY, h: playerHeight }
+    vDragStart.current = { y: e.clientY, h: timelineHeight }
   }
   const handleResizerPointerMove = (e: React.PointerEvent) => {
-    if (!dragStart.current || !e.buttons) return
-    setPlayerHeight(Math.max(MIN_PLAYER, Math.min(MAX_PLAYER,
-      dragStart.current.h + (e.clientY - dragStart.current.y)
+    if (!vDragStart.current || !e.buttons) return
+    setTimelineHeight(Math.max(MIN_TIMELINE, Math.min(MAX_TIMELINE,
+      vDragStart.current.h - (e.clientY - vDragStart.current.y)
     )))
   }
-  const handleResizerPointerUp = () => { dragStart.current = null }
+  const handleResizerPointerUp = () => { vDragStart.current = null }
 
-  // ── Video / folder loading ─────────────────────────────────────────────────
+  // ── Left sidebar resizer ───────────────────────────────────────────────────
 
-  const loadVideo = useCallback((info: VideoInfo) => {
-    const fullMarkers = loadMarkers(info.fileHash)
-    const savedClips = loadClips(info.fileHash)
-    setVideo(info)
-    setWarpData(null)
-    setPlayhead(0)
-    setActiveClipId(null)
-    setClips(savedClips)
-    if (fullMarkers?.trimToLoop !== undefined) setTrimToLoop(fullMarkers.trimToLoop)
-    if (fullMarkers?.loopBeats !== undefined) setLoopBeats(fullMarkers.loopBeats ?? null)
-    if (fullMarkers?.addToEnd !== undefined) setAddToEnd(fullMarkers.addToEnd)
-  }, [])
-
-  const handleOpenFolder = useCallback(async () => {
-    const entries = await openFolder()
-    if (entries !== null) {
-      setFolderVideos(entries)
-      setVideo(null)
-      setWarpData(null)
-      setPlayhead(0)
-    }
-  }, [])
-
-  const handleSelectVideo = useCallback(async (path: string) => {
-    try { loadVideo(await loadVideoFromPath(path)) }
-    catch (e: any) { console.error('Failed to load video:', e) }
-  }, [loadVideo])
-
-  const handleCloseVideo = useCallback(() => {
-    setVideo(null); setWarpData(null); setPlayhead(0)
-    setActiveClipId(null); setClips([])
-  }, [])
-
-  // ── Warp data change ───────────────────────────────────────────────────────
-
-  const handleDataChange = useCallback((data: WarpData) => {
-    setWarpData(data)
-    const vid = videoRef.current
-    const clipId = activeClipIdRef.current ?? undefined
-    const activeClip = clipId ? clipsRef.current.find(c => c.id === clipId) : null
-    if (vid) saveMarkersToStorage(vid.fileHash, data, {
-      trimToLoop: activeClip ? activeClip.trimToLoop : trimToLoopRef.current,
-      loopBeats: activeClip ? activeClip.loopBeats : loopBeatsRef.current,
-      addToEnd: activeClip ? activeClip.addToEnd : addToEndRef.current,
-    }, clipId)
-  }, [])
-
-  // ── Clip management ────────────────────────────────────────────────────────
-
-  const updateClips = (next: Clip[]) => { setClips(next); if (video) saveClips(video.fileHash, next) }
-
-  const handleAddClip = () => {
-    if (!video) return
-    const id = crypto.randomUUID()
-    const n = clips.length + 1
-    const newClip: Clip = {
-      id, name: `clip_${String(n).padStart(3, '0')}`,
-      inPoint: playheadRef.current, outPoint: video.duration,
-      trimToLoop: false, loopBeats: null, addToEnd: false,
-    }
-    updateClips([...clips, newClip]); setActiveClipId(id); setWarpData(null)
+  const handleLeftResizerDown = (e: React.PointerEvent) => {
+    e.currentTarget.setPointerCapture(e.pointerId)
+    lDragStart.current = { x: e.clientX, w: sidebarWidth }
   }
-  const handleDeleteClip = (id: string) => {
-    updateClips(clips.filter(c => c.id !== id))
-    if (activeClipId === id) { setActiveClipId(null); setWarpData(null) }
+  const handleLeftResizerMove = (e: React.PointerEvent) => {
+    if (!lDragStart.current || !e.buttons) return
+    setSidebarWidth(Math.max(120, Math.min(320, lDragStart.current.w + (e.clientX - lDragStart.current.x))))
   }
-  const handleSetIn = (id: string) =>
-    updateClips(clips.map(c => c.id === id ? { ...c, inPoint: Math.min(playheadRef.current, c.outPoint - 0.1) } : c))
-  const handleSetOut = (id: string) =>
-    updateClips(clips.map(c => c.id === id ? { ...c, outPoint: Math.max(playheadRef.current, c.inPoint + 0.1) } : c))
-  const handleRenameClip = (id: string, name: string) =>
-    updateClips(clips.map(c => c.id === id ? { ...c, name } : c))
-  const handleSelectClip = (id: string) => {
-    if (id === activeClipId) return
-    setActiveClipId(id); setWarpData(null)
-    const clip = clips.find(c => c.id === id)
-    if (clip) playerRef.current?.seek(clip.inPoint)
+  const handleLeftResizerUp = () => { lDragStart.current = null }
+
+  // ── Clip sidebar resizer ───────────────────────────────────────────────────
+
+  const handleClipResizerDown = (e: React.PointerEvent) => {
+    e.currentTarget.setPointerCapture(e.pointerId)
+    cDragStart.current = { x: e.clientX, w: clipSidebarWidth }
   }
-  const handleSelectFull = () => { if (activeClipId !== null) { setActiveClipId(null); setWarpData(null) } }
+  const handleClipResizerMove = (e: React.PointerEvent) => {
+    if (!cDragStart.current || !e.buttons) return
+    setClipSidebarWidth(Math.max(120, Math.min(280, cDragStart.current.w + (e.clientX - cDragStart.current.x))))
+  }
+  const handleClipResizerUp = () => { cDragStart.current = null }
 
-  // ── Active clip helpers ────────────────────────────────────────────────────
+  // ── Right panel resizer ────────────────────────────────────────────────────
 
-  const activeClip = activeClipId ? clips.find(c => c.id === activeClipId) ?? null : null
-  const clipIn = activeClip?.inPoint ?? null
-  const clipOut = activeClip?.outPoint ?? null
-  const clipOffset = clipIn ?? 0
-  const warpDuration = activeClip ? activeClip.outPoint - activeClip.inPoint : (video?.duration ?? 0)
+  const handleRightResizerDown = (e: React.PointerEvent) => {
+    e.currentTarget.setPointerCapture(e.pointerId)
+    rDragStart.current = { x: e.clientX, w: rightWidth }
+  }
+  const handleRightResizerMove = (e: React.PointerEvent) => {
+    if (!rDragStart.current || !e.buttons) return
+    setRightWidth(Math.max(200, Math.min(480, rDragStart.current.w - (e.clientX - rDragStart.current.x))))
+  }
+  const handleRightResizerUp = () => { rDragStart.current = null }
 
-  const activeTrimToLoop = activeClip ? activeClip.trimToLoop : trimToLoop
-  const activeLoopBeats = activeClip ? activeClip.loopBeats : loopBeats
-  const activeAddToEnd = activeClip ? activeClip.addToEnd : addToEnd
+  // ── BPM handlers ──────────────────────────────────────────────────────────
 
-  const setActiveTrimToLoop = (v: boolean) => activeClip
-    ? updateClips(clips.map(c => c.id === activeClip.id ? { ...c, trimToLoop: v } : c))
-    : setTrimToLoop(v)
-  const setActiveLoopBeats = (v: number | null) => activeClip
-    ? updateClips(clips.map(c => c.id === activeClip.id ? { ...c, loopBeats: v } : c))
-    : setLoopBeats(v)
-  const setActiveAddToEnd = (v: boolean) => activeClip
-    ? updateClips(clips.map(c => c.id === activeClip.id ? { ...c, addToEnd: v } : c))
-    : setAddToEnd(v)
+  const handleBpmChange = useCallback((bpm: number) => {
+    warpRef.current?.setBpm(bpm)
+  }, [])
 
-  const warpInitMarkers = video ? loadMarkers(video.fileHash, activeClipId ?? undefined) : null
+  const handleBpmDetect = useCallback(async () => {
+    setDetectingBpm(true)
+    await warpRef.current?.detectBpm()
+    setDetectingBpm(false)
+  }, [setDetectingBpm])
+
+  // ── Menus ──────────────────────────────────────────────────────────────────
+
+  const anchorCount = warpData?.origAnchors.length ?? 0
+
+  const fileMenu: MenuDef = useMemo(() => ({
+    label: 'File',
+    items: [
+      { label: 'Open File', shortcut: 'Ctrl+O', action: openFile },
+      { label: 'Open Folder', shortcut: 'Ctrl+Shift+O', action: openFolder },
+      { separator: true },
+      { label: 'Import Markers', shortcut: 'Ctrl+I', action: () => warpRef.current?.triggerImport(), disabled: !video },
+      { label: 'Export Markers', shortcut: 'Ctrl+E', action: () => warpRef.current?.exportMarkers(), disabled: !video || anchorCount === 0 },
+      { separator: true },
+      { label: 'Close Video', action: closeVideo, disabled: !video },
+    ],
+  }), [openFile, openFolder, closeVideo, video, anchorCount])
+
+  const editMenu: MenuDef = useMemo(() => ({
+    label: 'Edit',
+    items: [
+      { label: 'Undo', shortcut: 'Ctrl+Z', action: () => warpRef.current?.undo(), disabled: !video },
+      { label: 'Redo', shortcut: 'Ctrl+Shift+Z', action: () => warpRef.current?.redo(), disabled: !video },
+      { separator: true },
+      { label: 'Select All', shortcut: 'Ctrl+A', action: () => warpRef.current?.selectAll(), disabled: !video || anchorCount === 0 },
+      { label: 'Deselect', shortcut: 'Escape', action: () => warpRef.current?.deselect(), disabled: !video },
+    ],
+  }), [video, anchorCount])
+
+  const viewMenu: MenuDef = useMemo(() => ({
+    label: 'View',
+    items: [
+      { label: 'Zoom In', shortcut: 'Ctrl+=', action: () => warpRef.current?.zoomIn(), disabled: !video },
+      { label: 'Zoom Out', shortcut: 'Ctrl+-', action: () => warpRef.current?.zoomOut(), disabled: !video },
+      { label: 'Zoom to Fit', shortcut: 'Ctrl+0', action: () => warpRef.current?.zoomToFit(), disabled: !video },
+    ],
+  }), [video])
+
+  const canExport = !!warpData && anchorCount >= 1
+
+  const clipIn = activeRegion?.inPoint ?? undefined
+  const clipOut = activeRegion?.outPoint ?? undefined
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="app">
 
-      {/* Left: file browser */}
-      <VideoFolderSidebar
-        videos={folderVideos}
-        selectedPath={video?.path ?? null}
-        onOpenFolder={handleOpenFolder}
-        onSelectVideo={handleSelectVideo}
+      {/* Menu bar */}
+      <MenuBar
+        menus={[fileMenu, editMenu, viewMenu]}
+        rightContent={
+          <button
+            className="menubar__export-btn"
+            onClick={() => setExportOpen(true)}
+            disabled={!canExport}
+          >
+            Export
+          </button>
+        }
       />
 
-      {!video ? (
-        /* Empty state: prompt to open folder / select video */
-        <div className="app-empty">
-          {folderVideos.length === 0
-            ? <p className="app-empty__hint">Open a folder to browse video files</p>
-            : <p className="app-empty__hint">Select a video from the sidebar</p>}
-        </div>
-      ) : (
-        <>
-          {/* Center: video player + dual timeline */}
-          <div className="vj-center">
+      {/* Body */}
+      <div className="vj-body">
+        {folderVideos.length > 0 && (
+          <>
+            <VideoFolderSidebar
+              videos={folderVideos}
+              selectedPath={video?.path ?? null}
+              onOpenFolder={openFolder}
+              onSelectVideo={selectVideo}
+              width={sidebarWidth}
+              markerCountByPath={markerCountByPath}
+            />
+            <div
+              className="vj-panel-resizer"
+              onPointerDown={handleLeftResizerDown}
+              onPointerMove={handleLeftResizerMove}
+              onPointerUp={handleLeftResizerUp}
+            />
+          </>
+        )}
 
-            <div className="vj-player" style={{ height: playerHeight }}>
-              <VideoPlayer
-                ref={playerRef}
-                src={video.videoUrl}
+        {!video ? (
+          <div className="app-empty">
+            {folderVideos.length === 0
+              ? <p className="app-empty__hint">Open a file or folder to get started</p>
+              : <p className="app-empty__hint">Select a video from the sidebar</p>}
+          </div>
+        ) : !markersLoaded ? (
+          <div className="app-empty">
+            <p className="app-empty__hint">Loading...</p>
+          </div>
+        ) : (
+          <>
+            {/* Region sidebar */}
+            <div style={{ width: clipSidebarWidth, flexShrink: 0, height: '100%' }}>
+              <RegionSidebar
+                duration={video.duration}
+                regions={regions}
+                activeRegionId={activeRegionId}
+                onSelectRegion={setActiveRegionId}
+                onAddRegion={addRegion}
+                onDeleteRegion={deleteRegion}
+                onRename={renameRegion}
+                onUpdateInOut={updateRegionInOut}
+              />
+            </div>
+            <div
+              className="vj-panel-resizer"
+              onPointerDown={handleClipResizerDown}
+              onPointerMove={handleClipResizerMove}
+              onPointerUp={handleClipResizerUp}
+            />
+
+            <div className="vj-center">
+              <div className="vj-breadcrumb">
+                <span className="vj-breadcrumb__name">{video.originalName}</span>
+                {activeRegion && (
+                  <span className="vj-breadcrumb__region"> › {activeRegion.name}</span>
+                )}
+              </div>
+              <div className="vj-player">
+                <VideoPlayer
+                  ref={playerRef}
+                  src={video.videoUrl}
+                  duration={video.duration}
+                  onTimeUpdate={setPlayhead}
+                  onPlayStateChange={setPlaying}
+                />
+              </div>
+
+              <Toolbar
+                playerRef={playerRef}
                 duration={video.duration}
                 fps={video.fps}
-                onTimeUpdate={setPlayhead}
-                onMark={t => warpRef.current?.addAnchor(Math.max(0, t - clipOffset))}
+                playing={playing}
+                currentTime={playhead}
+                onMark={t => warpRef.current?.addAnchor(Math.max(0, t))}
+                onJumpPrev={() => {
+                  const sorted = [...(warpData?.origAnchors ?? [])].sort((a, b) => a.time - b.time)
+                  const prev = sorted.filter(a => a.time < playhead - 0.05).pop()
+                  if (prev) playerRef.current?.seek(prev.time)
+                }}
+                onJumpNext={() => {
+                  const sorted = [...(warpData?.origAnchors ?? [])].sort((a, b) => a.time - b.time)
+                  const next = sorted.find(a => a.time > playhead + 0.05)
+                  if (next) playerRef.current?.seek(next.time)
+                }}
+                onZoomToRegion={() => {
+                  const from = activeRegion?.inPoint ?? 0
+                  const to = activeRegion?.outPoint ?? video.duration
+                  warpRef.current?.zoomToRegion(from, to)
+                }}
+                onSetIn={activeRegion ? () => {
+                  updateRegionInOut(activeRegion.id, Math.min(playhead, activeRegion.outPoint - 0.1), activeRegion.outPoint)
+                } : undefined}
+                onSetOut={activeRegion ? () => {
+                  updateRegionInOut(activeRegion.id, activeRegion.inPoint, Math.max(playhead, activeRegion.inPoint + 0.1))
+                } : undefined}
+                bpm={warpData?.bpm}
+                onBpmChange={handleBpmChange}
+                onBpmDetect={handleBpmDetect}
+                detectingBpm={detectingBpm}
+                anchorCount={anchorCount}
+                gridDiv={gridDiv}
+                onGridDivChange={setGridDiv}
               />
+
+              <RegionStrip
+                duration={video.duration}
+                regions={regions}
+                activeRegionId={activeRegionId}
+                playhead={playhead}
+                onSelectRegion={setActiveRegionId}
+                onAddRegion={addRegion}
+                onUpdateInOut={updateRegionInOut}
+                onDeleteRegion={deleteRegion}
+                onZoomToRegion={id => {
+                  const r = regions.find(r => r.id === id)
+                  if (r) warpRef.current?.zoomToRegion(r.inPoint, r.outPoint)
+                }}
+                onShiftScroll={delta => {
+                  if (delta > 0) warpRef.current?.zoomOut()
+                  else warpRef.current?.zoomIn()
+                }}
+              />
+
+              <div
+                className="vj-resizer"
+                onPointerDown={handleResizerPointerDown}
+                onPointerMove={handleResizerPointerMove}
+                onPointerUp={handleResizerPointerUp}
+              />
+
+              <div className="vj-timeline" style={{ height: timelineHeight }}>
+                <WarpView
+                  key={`${activeRegionId ?? 'default'}_${video.path}`}
+                  ref={warpRef}
+                  duration={video.duration}
+                  initialBpm={initialMarkers?.bpm ?? 120}
+                  initialMinStretch={initialMarkers?.minStretch}
+                  initialMaxStretch={initialMarkers?.maxStretch}
+                  addToEnd={addToEnd}
+                  initialBeatZeroAnchorTime={initialMarkers?.beatZeroAnchorTime ?? undefined}
+                  initialOrigAnchors={initialMarkers?.origAnchors}
+                  initialBeatAnchors={initialMarkers?.beatAnchors}
+                  playhead={playhead}
+                  onSeek={t => playerRef.current?.seek(t)}
+                  onDataChange={setWarpData}
+                  videoPath={video.path}
+                  trimToLoop={trimToLoop}
+                  loopBeats={loopBeats}
+                  gridDiv={gridDiv}
+                  selectedIds={selectedIds}
+                  onSelectionChange={setSelectedIds}
+                  clipIn={clipIn}
+                  clipOut={clipOut}
+                  onSendToNewRegion={(inPoint, outPoint, markers) =>
+                    addRegionWithMarkers(inPoint, outPoint, markers)
+                  }
+                />
+              </div>
             </div>
 
             <div
-              className="vj-resizer"
-              onPointerDown={handleResizerPointerDown}
-              onPointerMove={handleResizerPointerMove}
-              onPointerUp={handleResizerPointerUp}
+              className="vj-panel-resizer"
+              onPointerDown={handleRightResizerDown}
+              onPointerMove={handleRightResizerMove}
+              onPointerUp={handleRightResizerUp}
             />
-
-            <div className="vj-timeline">
-              {activeClip && (
-                <div className="vj-clip-bar">
-                  <button className="vj-clip-back" onClick={handleSelectFull}>← Full Video</button>
-                  <span className="vj-clip-name">{activeClip.name}</span>
-                  <span className="vj-clip-range">
-                    {(clipIn ?? 0).toFixed(2)}s – {(clipOut ?? video.duration).toFixed(2)}s
-                  </span>
-                </div>
-              )}
-
-              <WarpView
-                key={activeClipId ?? `full_${video.path}`}
-                ref={warpRef}
-                duration={warpDuration}
-                initialBpm={warpInitMarkers?.bpm ?? 120}
-                initialMinStretch={warpInitMarkers?.minStretch}
-                initialMaxStretch={warpInitMarkers?.maxStretch}
-                addToEnd={activeAddToEnd}
-                initialBeatZeroAnchorTime={warpInitMarkers?.beatZeroAnchorTime}
-                initialOrigAnchors={warpInitMarkers?.origAnchors}
-                initialBeatAnchors={warpInitMarkers?.beatAnchors}
-                playhead={Math.max(0, playhead - clipOffset)}
-                onSeek={t => playerRef.current?.seek(t + clipOffset)}
-                onDataChange={handleDataChange}
-                videoPath={video.path}
-                trimToLoop={activeTrimToLoop}
-                loopBeats={activeLoopBeats}
+            <div className="vj-right-panel" style={{ width: rightWidth }}>
+              <MarkerList
+                origAnchors={warpData?.origAnchors ?? []}
+                beatAnchors={warpData?.beatAnchors ?? []}
+                duration={video.duration}
+                fps={video.fps}
+                bpm={warpData?.bpm ?? 120}
+                beatZeroTime={warpData?.beatZeroTime ?? 0}
+                selectedIds={selectedIds}
+                onSelectionChange={setSelectedIds}
+                onSeek={t => playerRef.current?.seek(t)}
+                onClear={() => warpRef.current?.clearAnchors()}
+                onReset={() => warpRef.current?.resetAllLinks()}
+                onSnap={() => warpRef.current?.snapToBeat()}
+                onDeleteSelected={() => warpRef.current?.deleteSelected(selectedIds)}
+                onResetSelected={() => warpRef.current?.resetSelected(selectedIds)}
+                onSnapSelected={() => warpRef.current?.snapSelected(selectedIds)}
+                minStretch={warpData?.minStretch ?? 0.5}
+                maxStretch={warpData?.maxStretch ?? 2.0}
+                onMinStretchChange={v => warpRef.current?.setMinStretch(v)}
+                onMaxStretchChange={v => warpRef.current?.setMaxStretch(v)}
+                loopBeats={loopBeats}
+                onLoopBeatsChange={setLoopBeats}
+                addToEnd={addToEnd}
+                onAddToEndChange={setAddToEnd}
+                trimToLoop={trimToLoop}
+                onTrimToLoopChange={setTrimToLoop}
               />
             </div>
-          </div>
+          </>
+        )}
+      </div>
 
-          {/* Right: settings + clip list */}
-          <div className="vj-right-panel">
-            <WarpPanel
-              warpRef={warpRef}
-              warpData={warpData}
-              videoPath={video.path}
-              originalName={activeClip ? activeClip.name : video.originalName}
-              trimToLoop={activeTrimToLoop}
-              onTrimToLoopChange={setActiveTrimToLoop}
-              loopBeats={activeLoopBeats}
-              onLoopBeatsChange={setActiveLoopBeats}
-              addToEnd={activeAddToEnd}
-              onAddToEndChange={setActiveAddToEnd}
-              onNew={handleCloseVideo}
-              clipIn={clipIn}
-              clipOut={clipOut}
-            />
-            <ClipSidebar
-              clips={clips}
-              activeClipId={activeClipId}
-              videoDuration={video.duration}
-              playhead={playhead}
-              onSelectFull={handleSelectFull}
-              onSelectClip={handleSelectClip}
-              onAddClip={handleAddClip}
-              onDeleteClip={handleDeleteClip}
-              onSetIn={handleSetIn}
-              onSetOut={handleSetOut}
-              onRenameClip={handleRenameClip}
-            />
+      {/* Drag-over overlay */}
+      {isDragOver && (
+        <div className="app-drop-overlay">
+          <div className="app-drop-overlay__inner">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+            </svg>
+            <span>Drop video or folder</span>
           </div>
-        </>
+        </div>
       )}
+
+      {/* Export dialog */}
+      <ExportDialog
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        warpData={warpData}
+        videoPath={video?.path ?? ''}
+        originalName={video?.originalName ?? ''}
+        loopBeats={loopBeats}
+        addToEnd={addToEnd}
+        trimToLoop={trimToLoop}
+        clipIn={activeRegion?.inPoint ?? null}
+        clipOut={activeRegion?.outPoint ?? null}
+      />
     </div>
   )
 }

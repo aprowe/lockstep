@@ -1,13 +1,22 @@
 .app {
   height: 100vh;
   display: flex;
-  flex-direction: row;
-  background: #0d0e12;
-  color: #e5e7eb;
+  flex-direction: column;
+  background: #100e0c;
+  color: #e2dbd2;
   overflow: hidden;
 }
 
-/* ── Empty / no-video state ────────────────────────────── */
+/* ── Body (below toolbar) ───────────────────────────────── */
+.vj-body {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Empty / no-video state ─────────────────────────────── */
 .app-empty {
   flex: 1;
   display: flex;
@@ -17,8 +26,8 @@
 
 .app-empty__hint {
   font-family: ui-monospace, Consolas, monospace;
-  font-size: 12px;
-  color: #374151;
+  font-size: 16px;
+  color: #7a6e62;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   margin: 0;
@@ -33,15 +42,43 @@
   overflow: hidden;
 }
 
-.vj-player {
+/* ── Video breadcrumb ───────────────────────────────────── */
+.vj-breadcrumb {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 6px 14px;
+  background: #201d18;
+  border-bottom: 1px solid #2c2720;
+}
+
+.vj-breadcrumb__name {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  color: #c2b8ae;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vj-breadcrumb__region {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  color: #e07540;
+  white-space: nowrap;
+  margin-left: 4px;
+}
+
+.vj-player {
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
 .vj-resizer {
   height: 5px;
   flex-shrink: 0;
-  background: #1a1c22;
+  background: #1b1814;
   cursor: ns-resize;
   transition: background 0.15s;
 }
@@ -52,57 +89,60 @@
 }
 
 .vj-timeline {
-  flex: 1;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  min-height: 0;
   overflow: hidden;
+  padding: 8px 12px 12px;
 }
 
-/* ── Clip breadcrumb bar ──────────────────────────────── */
-.vj-clip-bar {
+/* ── Horizontal panel resizer ───────────────────────────── */
+.vj-panel-resizer {
+  width: 5px;
+  flex-shrink: 0;
+  background: #1b1814;
+  cursor: ew-resize;
+  transition: background 0.15s;
+}
+
+.vj-panel-resizer:hover,
+.vj-panel-resizer:active {
+  background: #f59e0b;
+}
+
+/* ── Drag-and-drop overlay ──────────────────────────────── */
+.app-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(16, 14, 12, 0.82);
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 5px 12px;
-  border-bottom: 1px solid #1e2028;
-  flex-shrink: 0;
-  background: #0d0e12;
+  justify-content: center;
+  pointer-events: none;
 }
 
-.vj-clip-back {
-  background: none;
-  border: none;
-  color: #6b7280;
+.app-drop-overlay__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: #e07540;
+  border: 2px dashed #e07540;
+  border-radius: 12px;
+  padding: 48px 72px;
   font-family: ui-monospace, Consolas, monospace;
-  font-size: 11px;
-  cursor: pointer;
-  padding: 0;
-  transition: color 0.15s;
-}
-.vj-clip-back:hover { color: #f59e0b; }
-
-.vj-clip-name {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 12px;
-  font-weight: 700;
-  color: #e5e7eb;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.vj-clip-range {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 10px;
-  color: #4b5563;
-  margin-left: auto;
-}
-
-/* ── Right panel: settings + clip list ─────────────────── */
+/* ── Right panel ────────────────────────────────────────── */
 .vj-right-panel {
-  width: 280px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid #1e2028;
+  border-left: 1px solid #2c2720;
   overflow: hidden;
-  background: #0d0f14;
+  background: #171410;
 }

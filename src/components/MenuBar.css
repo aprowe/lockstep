@@ -1,0 +1,152 @@
+/* ── Menu bar ──────────────────────────────────────────── */
+.menubar {
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  background: #171410;
+  border-bottom: 1px solid #2c2720;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 14px;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.menubar__menus {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+/* ── Top-level menu trigger ─────────────────────────────── */
+.menubar__trigger {
+  background: none;
+  border: none;
+  color: #c2b8ae;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 0 12px;
+  height: 100%;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+
+.menubar__trigger:hover,
+.menubar__trigger--open {
+  background: #1c1915;
+  color: #e2dbd2;
+}
+
+/* ── Dropdown panel ─────────────────────────────────────── */
+.menubar__dropdown {
+  position: absolute;
+  top: 32px;
+  left: 0;
+  min-width: 220px;
+  background: #1b1814;
+  border: 1px solid #38312a;
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  z-index: 300;
+  padding: 4px 0;
+  overflow: hidden;
+}
+
+/* ── Menu item ──────────────────────────────────────────── */
+.menubar__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 7px 14px;
+  background: none;
+  border: none;
+  color: #c2b8ae;
+  font-family: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.08s, color 0.08s;
+  gap: 8px;
+}
+
+.menubar__item:hover:not(:disabled) {
+  background: #231f18;
+  color: #e2dbd2;
+}
+
+.menubar__item:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.menubar__item-label {
+  flex: 1;
+}
+
+.menubar__item-shortcut {
+  color: #a09488;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+/* ── Separator ──────────────────────────────────────────── */
+.menubar__sep {
+  height: 1px;
+  background: #1c1915;
+  margin: 4px 8px;
+}
+
+/* ── Right side: filename + close ───────────────────────── */
+.menubar__spacer {
+  flex: 1;
+}
+
+.menubar__filename {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 14px;
+  color: #a09488;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  max-width: 300px;
+  padding-right: 4px;
+  -webkit-app-region: no-drag;
+}
+
+.menubar__close {
+  background: none;
+  border: none;
+  color: #38312a;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 6px;
+  margin-right: 8px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  transition: color 0.1s;
+  -webkit-app-region: no-drag;
+}
+.menubar__close:hover { color: #b5a898; }
+
+/* ── Export button (right side of menu bar) ──────────────── */
+.menubar__export-btn {
+  background: #f59e0b;
+  border: none;
+  border-radius: 4px;
+  color: #000;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 14px;
+  cursor: pointer;
+  transition: background 0.1s;
+  margin-right: 8px;
+  -webkit-app-region: no-drag;
+}
+.menubar__export-btn:hover:not(:disabled) { background: #fbbf24; }
+.menubar__export-btn:disabled { opacity: 0.35; cursor: default; }

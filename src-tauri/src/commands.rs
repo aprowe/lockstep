@@ -53,6 +53,42 @@ pub async fn open_folder(app: AppHandle) -> Result<Vec<VideoEntry>, String> {
     Ok(entries)
 }
 
+// ── List Folder Videos by Path (no dialog) ───────────────────────────────────
+
+#[tauri::command]
+pub async fn list_folder_videos(path: String) -> Result<Vec<VideoEntry>, String> {
+    let folder_path = std::path::Path::new(&path);
+    let video_exts = ["mp4", "mov", "avi", "mkv", "webm", "m4v"];
+    let mut entries = Vec::new();
+
+    let dir = std::fs::read_dir(folder_path).map_err(|e| e.to_string())?;
+    for entry in dir.flatten() {
+        let p = entry.path();
+        if !p.is_file() {
+            continue;
+        }
+        let ext = p
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .unwrap_or_default();
+        if video_exts.contains(&ext.as_str()) {
+            let name = p
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            entries.push(VideoEntry {
+                path: p.to_string_lossy().to_string(),
+                name,
+            });
+        }
+    }
+
+    entries.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(entries)
+}
+
 // ── Load Video by Path ────────────────────────────────────────────────────────
 
 #[tauri::command]
