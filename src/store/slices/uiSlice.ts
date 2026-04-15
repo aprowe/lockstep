@@ -20,7 +20,7 @@ interface UiState {
 const initialState: UiState = {
   timelineHeight: 280,
   sidebarWidth: 170,
-  clipSidebarWidth: 170,
+  clipSidebarWidth: 210,
   rightWidth: 280,
   sidebarCollapsed: false,
   gridDiv: 1,

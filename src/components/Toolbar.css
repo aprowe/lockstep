@@ -10,21 +10,17 @@
   gap: 6px;
 }
 
-.tb-side {
-  flex: 1;
+.tb-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
-.tb-side--right {
-  justify-content: flex-end;
-}
-
-.tb-center {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.tb-sep {
+  width: 1px;
+  height: 20px;
+  background: #2c2720;
+  flex-shrink: 0;
 }
 
 /* ── Buttons ─────────────────────────────────────────────── */

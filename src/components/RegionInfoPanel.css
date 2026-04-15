@@ -48,13 +48,29 @@
   gap: 6px;
 }
 
+/* ── Grid layout for BPM/Beats ───────────────────────── */
+.rip__grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 8px;
+  align-items: center;
+}
+
+.rip__field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
 .rip__label {
   font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #7a6e62;
   flex-shrink: 0;
-  min-width: 50px;
+  min-width: 40px;
+  text-align: right;
 }
 
 .rip__value {
@@ -86,9 +102,6 @@
 .rip__input::-webkit-inner-spin-button { -webkit-appearance: none; }
 .rip__input:focus { border-color: #a09488; }
 
-.rip__input--wide {
-  width: 64px;
-}
 
 /* ── Lock button ───────────────────────────────────────── */
 
@@ -143,32 +156,34 @@
   background: rgba(224, 117, 64, 0.14);
 }
 
-/* ── Beat adjustment buttons ───────────────────────────── */
+/* ── Beat adjustment button group ─────────────────────── */
 
-.rip__btn-row {
+.rip__btn-group {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-left: 50px; /* align with inputs (match .rip__label min-width) */
-  padding-left: 6px;
+  border: 1px solid #38312a;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-left: 2px;
 }
 
 .rip__adj {
   background: #231f18;
-  border: 1px solid #38312a;
-  border-radius: 4px;
+  border: none;
+  border-right: 1px solid #38312a;
   color: #a09488;
   font-family: ui-monospace, Consolas, monospace;
-  font-size: 11px;
-  padding: 1px 6px;
+  font-size: 10px;
+  padding: 2px 5px;
   cursor: pointer;
-  line-height: 1.4;
-  transition: color 0.1s, border-color 0.1s, background 0.1s;
+  line-height: 1.2;
+  transition: color 0.1s, background 0.1s;
 }
+
+.rip__adj:last-child { border-right: none; }
 
 .rip__adj:hover {
   color: #e2dbd2;
-  border-color: #a09488;
   background: #2a2418;
 }
 

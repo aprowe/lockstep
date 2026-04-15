@@ -570,11 +570,6 @@ export default function App() {
                   const id = addRegion(0, Math.max(playhead, 0.1))
                   if (id) setActiveRegionId(id)
                 }}
-                bpm={warpData?.bpm}
-                onBpmChange={handleBpmChange}
-                onBpmDetect={handleBpmDetect}
-                detectingBpm={detectingBpm}
-                anchorCount={anchorCount}
                 gridDiv={gridDiv}
                 onGridDivChange={setGridDiv}
                 onNewRegion={() => {

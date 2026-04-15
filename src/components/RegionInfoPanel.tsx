@@ -168,83 +168,80 @@ export default function RegionInfoPanel({
         <span className="rip__title">{title}</span>
       </div>
       <div className="rip__body">
-        {/* BPM */}
-        <div className="rip__row">
+        {/* BPM + Beats grid */}
+        <div className="rip__grid">
           <span className="rip__label">BPM</span>
-          <input
-            className="rip__input"
-            type="number" min={1} max={999}
-            value={bpmInput}
-            onChange={e => setBpmInput(e.target.value)}
-            onBlur={commitBpm}
-            onKeyDown={e => { if (e.key === 'Enter') commitBpm(); e.stopPropagation() }}
-          />
-          {onBpmDetect && (
-            <button
-              className="rip__detect"
-              onClick={onBpmDetect}
-              disabled={detectingBpm}
-              title="Detect BPM from markers"
-            >
-              {detectingBpm ? '…' : '?'}
-            </button>
-          )}
-          {activeRegion && (
-            <button
-              className={`rip__lock${lock === 'bpm' ? ' rip__lock--active' : ''}`}
-              onClick={handleLockToggle}
-              title={lock === 'bpm' ? 'BPM locked — resize changes beats' : 'Click to lock BPM'}
-            >
-              {lock === 'bpm' ? (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM12 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM15.1 8H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg>
-              ) : (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2z"/></svg>
-              )}
-            </button>
-          )}
-        </div>
-
-        {/* Beats */}
-        <div className="rip__row">
-          <span className="rip__label">Beats</span>
-          {activeRegion ? (
-            <>
-              <input
-                className="rip__input rip__input--wide"
-                type="number" min={0.5} max={99999} step={1}
-                value={beatsInput}
-                onChange={e => setBeatsInput(e.target.value)}
-                onBlur={commitBeats}
-                onKeyDown={e => { if (e.key === 'Enter') commitBeats(); e.stopPropagation() }}
-              />
+          <div className="rip__field">
+            <input
+              className="rip__input"
+              type="number" min={1} max={999}
+              value={bpmInput}
+              onChange={e => setBpmInput(e.target.value)}
+              onBlur={commitBpm}
+              onKeyDown={e => { if (e.key === 'Enter') commitBpm(); e.stopPropagation() }}
+            />
+            {onBpmDetect && (
               <button
-                className={`rip__lock${lock === 'beats' ? ' rip__lock--active' : ''}`}
-                onClick={handleLockToggle}
-                title={lock === 'beats' ? 'Beats locked — resize changes BPM' : 'Click to lock beats'}
+                className="rip__detect"
+                onClick={onBpmDetect}
+                disabled={detectingBpm}
+                title="Detect BPM from markers"
               >
-                {lock === 'beats' ? (
+                {detectingBpm ? '…' : '?'}
+              </button>
+            )}
+            {activeRegion && (
+              <button
+                className={`rip__lock${lock === 'bpm' ? ' rip__lock--active' : ''}`}
+                onClick={handleLockToggle}
+                title={lock === 'bpm' ? 'BPM locked — resize changes beats' : 'Click to lock BPM'}
+              >
+                {lock === 'bpm' ? (
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM12 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM15.1 8H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg>
                 ) : (
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2z"/></svg>
                 )}
               </button>
-            </>
-          ) : (
-            <span className="rip__value rip__value--computed">
-              {totalBeats > 0 ? totalBeats.toFixed(1) : '—'}
-            </span>
-          )}
-        </div>
-
-        {/* Beat adjustment buttons */}
-        {activeRegion && (
-          <div className="rip__btn-row">
-            <button className="rip__adj" onClick={() => adjustBeats(totalBeats * 2)} title="Double beats">×2</button>
-            <button className="rip__adj" onClick={() => adjustBeats(totalBeats / 2)} title="Halve beats">÷2</button>
-            <button className="rip__adj" onClick={() => adjustBeats(Math.round(totalBeats) + 1)} title="Add 1 beat">+1</button>
-            <button className="rip__adj" onClick={() => adjustBeats(Math.round(totalBeats) - 1)} title="Remove 1 beat">−1</button>
+            )}
           </div>
-        )}
+
+          <span className="rip__label">Beats</span>
+          <div className="rip__field">
+            {activeRegion ? (
+              <>
+                <input
+                  className="rip__input"
+                  type="number" min={0.5} max={99999} step={1}
+                  value={beatsInput}
+                  onChange={e => setBeatsInput(e.target.value)}
+                  onBlur={commitBeats}
+                  onKeyDown={e => { if (e.key === 'Enter') commitBeats(); e.stopPropagation() }}
+                />
+                <button
+                  className={`rip__lock${lock === 'beats' ? ' rip__lock--active' : ''}`}
+                  onClick={handleLockToggle}
+                  title={lock === 'beats' ? 'Beats locked — resize changes BPM' : 'Click to lock beats'}
+                >
+                  {lock === 'beats' ? (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM12 17c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM15.1 8H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/></svg>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2z"/></svg>
+                  )}
+                </button>
+                <div className="rip__btn-group">
+                  <button className="rip__adj" onClick={() => adjustBeats(totalBeats / 2)} title="Halve beats">÷2</button>
+                  <button className="rip__adj" onClick={() => adjustBeats(Math.round(totalBeats) - 1)} title="Remove 1 beat">−1</button>
+                  <button className="rip__adj" onClick={() => adjustBeats(Math.round(totalBeats) + 1)} title="Add 1 beat">+1</button>
+                  <button className="rip__adj" onClick={() => adjustBeats(totalBeats * 2)} title="Double beats">×2</button>
+                </div>
+              </>
+            ) : (
+              <span className="rip__value rip__value--computed">
+                {totalBeats > 0 ? totalBeats.toFixed(1) : '—'}
+              </span>
+            )}
+          </div>
+        </div>
 
         {/* Markers */}
         <div className="rip__row">

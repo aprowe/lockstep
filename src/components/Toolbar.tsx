@@ -33,11 +33,6 @@ interface ToolbarProps {
   onZoomToRegion?: () => void
   onSetIn?: () => void
   onSetOut?: () => void
-  bpm?: number
-  onBpmChange?: (bpm: number) => void
-  onBpmDetect?: () => Promise<void>
-  detectingBpm?: boolean
-  anchorCount?: number
   gridDiv?: number
   onGridDivChange?: (div: number) => void
   onNewRegion?: () => void
@@ -48,20 +43,12 @@ interface ToolbarProps {
 export default function Toolbar({
   playerRef, duration, fps, playing, currentTime,
   onMark, onJumpPrev, onJumpNext, onZoomToRegion, onSetIn, onSetOut,
-  bpm, onBpmChange, onBpmDetect, detectingBpm, anchorCount = 0,
   gridDiv, onGridDivChange, onNewRegion, onJumpRegionStart, onJumpRegionEnd,
 }: ToolbarProps) {
-  const [bpmInput, setBpmInput] = useState(String(bpm ?? 120))
   const [speed, setSpeed] = useState(1)
   const onMarkRef = useRef(onMark); onMarkRef.current = onMark
   const onSetInRef = useRef(onSetIn); onSetInRef.current = onSetIn
   const onSetOutRef = useRef(onSetOut); onSetOutRef.current = onSetOut
-
-  // Tap tempo state
-  const tapTimesRef = useRef<number[]>([])
-  const tapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => { if (bpm != null) setBpmInput(String(bpm)) }, [bpm])
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -69,19 +56,10 @@ export default function Toolbar({
       const active = document.activeElement
       const inInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')
       if (inInput) return
-      if (e.key === ' ') {
-        e.preventDefault()
-        playerRef.current?.toggle()
-      }
-      if (e.key === 'm' || e.key === 'M') {
-        onMarkRef.current?.(playerRef.current?.currentTime ?? 0)
-      }
-      if (e.key === 'i' || e.key === 'I') {
-        onSetInRef.current?.()
-      }
-      if (e.key === 'o' || e.key === 'O') {
-        onSetOutRef.current?.()
-      }
+      if (e.key === ' ') { e.preventDefault(); playerRef.current?.toggle() }
+      if (e.key === 'm' || e.key === 'M') onMarkRef.current?.(playerRef.current?.currentTime ?? 0)
+      if (e.key === 'i' || e.key === 'I') onSetInRef.current?.()
+      if (e.key === 'o' || e.key === 'O') onSetOutRef.current?.()
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -95,80 +73,28 @@ export default function Toolbar({
     p.seek(p.currentTime + frames / fps)
   }
   const rewind = () => playerRef.current?.seek(0)
-
-  const changeSpeed = (rate: number) => {
-    setSpeed(rate)
-    playerRef.current?.setPlaybackRate(rate)
-  }
-
-  const commitBpm = () => {
-    const n = parseFloat(bpmInput)
-    if (n > 0 && n <= 999) onBpmChange?.(n)
-    else setBpmInput(String(bpm ?? 120))
-  }
-
-  const handleTap = () => {
-    const now = performance.now()
-    const taps = tapTimesRef.current
-    if (taps.length > 0 && now - taps[taps.length - 1] > 2000) tapTimesRef.current = []
-    tapTimesRef.current.push(now)
-    if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current)
-    tapTimeoutRef.current = setTimeout(() => { tapTimesRef.current = [] }, 2000)
-    if (tapTimesRef.current.length >= 2) {
-      const intervals = tapTimesRef.current.slice(1).map((t, i) => t - tapTimesRef.current[i])
-      const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length
-      const bpmValue = Math.round(60000 / avg)
-      if (bpmValue > 0 && bpmValue <= 999) { setBpmInput(String(bpmValue)); onBpmChange?.(bpmValue) }
-    }
-  }
+  const changeSpeed = (rate: number) => { setSpeed(rate); playerRef.current?.setPlaybackRate(rate) }
 
   return (
     <div className="toolbar">
 
-      {/* Left: marker button + in/out + jump */}
-      <div className="tb-side tb-side--left">
+      {/* Markers */}
+      <div className="tb-group">
         {onMark && (
-          <button className="tb-btn tb-btn--mark" onClick={() => onMark(playerRef.current?.currentTime ?? 0)} title="Place marker at playhead (M)">M</button>
+          <button className="tb-btn tb-btn--mark" onClick={() => onMark(playerRef.current?.currentTime ?? 0)} title="Place marker (M)">M</button>
         )}
-        {onJumpRegionStart && (
-          <button className="tb-btn" onClick={onJumpRegionStart} title="Jump to region start">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm12 0-8.5 6 8.5 6z"/></svg>
-          </button>
-        )}
-        {onSetIn && (
-          <button className="tb-btn tb-btn--inout" onClick={onSetIn} title="Set region In point at playhead (I)">I</button>
-        )}
-        {onSetOut && (
-          <button className="tb-btn tb-btn--inout" onClick={onSetOut} title="Set region Out point at playhead (O)">O</button>
-        )}
-        {onJumpRegionEnd && (
-          <button className="tb-btn" onClick={onJumpRegionEnd} title="Jump to region end">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
-          </button>
-        )}
-        {onNewRegion && (
-          <button className="tb-btn tb-btn--region" onClick={onNewRegion} title="New region at playhead">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="4" x2="12" y2="20"/><line x1="4" y1="12" x2="20" y2="12"/></svg>
-          </button>
-        )}
-        <button className="tb-btn" onClick={onJumpPrev} disabled={!onJumpPrev} title="Jump to previous marker">
+        <button className="tb-btn" onClick={onJumpPrev} disabled={!onJumpPrev} title="Previous marker">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm12 0-8.5 6 8.5 6z"/></svg>
         </button>
-        <button className="tb-btn" onClick={onJumpNext} disabled={!onJumpNext} title="Jump to next marker">
+        <button className="tb-btn" onClick={onJumpNext} disabled={!onJumpNext} title="Next marker">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>
         </button>
-        {onZoomToRegion && (
-          <button className="tb-btn" onClick={onZoomToRegion} title="Reset view to current region">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M4 5v14M20 5v14" stroke="currentColor" strokeWidth="2" fill="none"/>
-              <path d="M7 12h10M7 12l3-3M7 12l3 3M17 12l-3-3M17 12l-3 3"/>
-            </svg>
-          </button>
-        )}
       </div>
 
-      {/* Center: transport */}
-      <div className="tb-center">
+      <div className="tb-sep" />
+
+      {/* Transport */}
+      <div className="tb-group">
         <button className="tb-btn" onClick={rewind} title="Rewind">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
         </button>
@@ -190,47 +116,55 @@ export default function Toolbar({
         </div>
       </div>
 
-      {/* Right: speed + grid + BPM controls */}
-      <div className="tb-side tb-side--right">
+      <div className="tb-sep" />
+
+      {/* Region */}
+      <div className="tb-group">
+        {onJumpRegionStart && (
+          <button className="tb-btn" onClick={onJumpRegionStart} title="Jump to region start">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm12 0-8.5 6 8.5 6z"/></svg>
+          </button>
+        )}
+        {onSetIn && (
+          <button className="tb-btn tb-btn--inout" onClick={onSetIn} title="Set In (I)">I</button>
+        )}
+        {onSetOut && (
+          <button className="tb-btn tb-btn--inout" onClick={onSetOut} title="Set Out (O)">O</button>
+        )}
+        {onJumpRegionEnd && (
+          <button className="tb-btn" onClick={onJumpRegionEnd} title="Jump to region end">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
+          </button>
+        )}
+        {onNewRegion && (
+          <button className="tb-btn tb-btn--region" onClick={onNewRegion} title="New region">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="4" x2="12" y2="20"/><line x1="4" y1="12" x2="20" y2="12"/></svg>
+          </button>
+        )}
+        {onZoomToRegion && (
+          <button className="tb-btn" onClick={onZoomToRegion} title="Zoom to region">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M4 5v14M20 5v14" stroke="currentColor" strokeWidth="2" fill="none"/>
+              <path d="M7 12h10M7 12l3-3M7 12l3 3M17 12l-3-3M17 12l-3 3"/>
+            </svg>
+          </button>
+        )}
+      </div>
+
+      <div style={{ flex: 1 }} />
+
+      {/* Settings */}
+      <div className="tb-group">
         <span className="tb-label">Speed</span>
-        <select
-          className="tb-select"
-          value={speed}
-          onChange={e => changeSpeed(parseFloat(e.target.value))}
-          title="Playback speed"
-        >
+        <select className="tb-select" value={speed} onChange={e => changeSpeed(parseFloat(e.target.value))} title="Playback speed">
           {SPEEDS.map(s => <option key={s} value={s}>{s === 1 ? '1×' : `${s}×`}</option>)}
         </select>
         {onGridDivChange && (
           <>
             <span className="tb-label">Grid</span>
-            <select
-              className="tb-select"
-              value={gridDiv ?? 1}
-              onChange={e => onGridDivChange(parseInt(e.target.value))}
-              title="Beat grid subdivision"
-            >
+            <select className="tb-select" value={gridDiv ?? 1} onChange={e => onGridDivChange(parseInt(e.target.value))} title="Beat grid subdivision">
               {GRID_DIVS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
             </select>
-          </>
-        )}
-        {onBpmChange && (
-          <>
-            <span className="tb-bpm-label">BPM</span>
-            <input
-              className="tb-bpm-input"
-              type="number" min={1} max={999}
-              value={bpmInput}
-              onChange={e => setBpmInput(e.target.value)}
-              onBlur={commitBpm}
-              onKeyDown={e => e.key === 'Enter' && commitBpm()}
-            />
-            <button className="tb-btn tb-btn--tap" onClick={handleTap} title="Tap tempo">Tap</button>
-            {onBpmDetect && (
-              <button className="tb-btn" onClick={onBpmDetect} disabled={detectingBpm || anchorCount < 2} title="Detect BPM from anchors">
-                {detectingBpm ? '...' : '\u27F3'}
-              </button>
-            )}
           </>
         )}
       </div>
