@@ -143,7 +143,7 @@ function runParse() {
   }
 
   mkdirSync(GENERATED, { recursive: true })
-  writeFileSync(REGISTRY, JSON.stringify({ generated: new Date().toISOString(), behaviors: all }, null, 2) + '\n')
+  writeFileSync(REGISTRY, JSON.stringify({ behaviors: all }, null, 2) + '\n')
 
   const count  = Object.keys(all).length
   const outRel = relative(ROOT, REGISTRY).replace(/\\/g, '/')
