@@ -14,6 +14,17 @@ import RegionInfoPanel from './components/RegionInfoPanel'
 import ContextMenu from './components/ContextMenu'
 import type { ContextMenuState } from './components/ContextMenu'
 import { useProject } from './context/ProjectContext'
+import { useAppDispatch, useAppSelector } from './store/hooks'
+import {
+  setTimelineHeight as setTimelineHeightAction,
+  setSidebarWidth as setSidebarWidthAction,
+  setClipSidebarWidth as setClipSidebarWidthAction,
+  setRightWidth as setRightWidthAction,
+  setSidebarCollapsed as setSidebarCollapsedAction,
+  setGridDiv as setGridDivAction,
+  setPlaying as setPlayingAction,
+  setExportOpen as setExportOpenAction,
+} from './store/slices/uiSlice'
 import './App.css'
 
 const VIDEO_EXTS = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v']
@@ -71,14 +82,23 @@ export default function App() {
     resetVideoData,
   } = useProject()
 
-  const [timelineHeight, setTimelineHeight] = useState(DEFAULT_TIMELINE)
-  const [sidebarWidth, setSidebarWidth] = useState(170)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [clipSidebarWidth, setClipSidebarWidth] = useState(170)
-  const [rightWidth, setRightWidth] = useState(280)
-  const [gridDiv, setGridDiv] = useState(1)
-  const [playing, setPlaying] = useState(false)
-  const [exportOpen, setExportOpen] = useState(false)
+  const dispatch = useAppDispatch()
+  const timelineHeight = useAppSelector(s => s.ui.timelineHeight)
+  const sidebarWidth = useAppSelector(s => s.ui.sidebarWidth)
+  const sidebarCollapsed = useAppSelector(s => s.ui.sidebarCollapsed)
+  const clipSidebarWidth = useAppSelector(s => s.ui.clipSidebarWidth)
+  const rightWidth = useAppSelector(s => s.ui.rightWidth)
+  const gridDiv = useAppSelector(s => s.ui.gridDiv)
+  const playing = useAppSelector(s => s.ui.playing)
+  const exportOpen = useAppSelector(s => s.ui.exportOpen)
+  const setTimelineHeight = (v: number) => dispatch(setTimelineHeightAction(v))
+  const setSidebarWidth = (v: number) => dispatch(setSidebarWidthAction(v))
+  const setSidebarCollapsed = (v: boolean) => dispatch(setSidebarCollapsedAction(v))
+  const setClipSidebarWidth = (v: number) => dispatch(setClipSidebarWidthAction(v))
+  const setRightWidth = (v: number) => dispatch(setRightWidthAction(v))
+  const setGridDiv = (v: number) => dispatch(setGridDivAction(v))
+  const setPlaying = (v: boolean) => dispatch(setPlayingAction(v))
+  const setExportOpen = (v: boolean) => dispatch(setExportOpenAction(v))
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [clipContextMenu, setClipContextMenu] = useState<ContextMenuState | null>(null)
   const [pendingRenameId, setPendingRenameId] = useState<string | null>(null)
