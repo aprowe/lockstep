@@ -98,16 +98,10 @@ export default function Toolbar({
         <button className="tb-btn" onClick={rewind} title="Rewind">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
         </button>
-        <button className="tb-btn" onClick={() => step(-1)} title="Step back">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm12 0-8.5 6 8.5 6z"/></svg>
-        </button>
         <button className="tb-btn tb-btn--play" onClick={toggle} title={playing ? 'Pause' : 'Play'}>
           {playing
             ? <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>
             : <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>}
-        </button>
-        <button className="tb-btn" onClick={() => step(1)} title="Step forward">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>
         </button>
         <div className="tb-time">
           <span className="tb-time__current">{fmt(currentTime)}</span>
@@ -118,19 +112,25 @@ export default function Toolbar({
 
       <div className="tb-sep" />
 
-      {/* Region */}
+      {/* Region: |◀  ◁step  I  O  step▷  ▶| */}
       <div className="tb-group">
         {onJumpRegionStart && (
           <button className="tb-btn" onClick={onJumpRegionStart} title="Jump to region start">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm12 0-8.5 6 8.5 6z"/></svg>
           </button>
         )}
+        <button className="tb-btn" onClick={() => step(-1)} title="Step back 1 frame">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm12 0-8.5 6 8.5 6z"/></svg>
+        </button>
         {onSetIn && (
           <button className="tb-btn tb-btn--inout" onClick={onSetIn} title="Set In (I)">I</button>
         )}
         {onSetOut && (
           <button className="tb-btn tb-btn--inout" onClick={onSetOut} title="Set Out (O)">O</button>
         )}
+        <button className="tb-btn" onClick={() => step(1)} title="Step forward 1 frame">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>
+        </button>
         {onJumpRegionEnd && (
           <button className="tb-btn" onClick={onJumpRegionEnd} title="Jump to region end">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>

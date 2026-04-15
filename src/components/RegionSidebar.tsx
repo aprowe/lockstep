@@ -138,6 +138,7 @@ export default function RegionSidebar({
   const [renameValue, setRenameValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const startRename = (region: Region, e?: React.MouseEvent) => {
     e?.stopPropagation()
@@ -217,8 +218,14 @@ export default function RegionSidebar({
             <div
               key={region.id}
               className={`rsi-item${active ? ' rsi-item--active' : ''}`}
-              onClick={() => onSelectRegion(region.id)}
-              onDoubleClick={e => startRename(region, e)}
+              onClick={() => {
+                if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null; return }
+                clickTimer.current = setTimeout(() => { clickTimer.current = null; onSelectRegion(region.id) }, 250)
+              }}
+              onDoubleClick={e => {
+                if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null }
+                startRename(region, e)
+              }}
               onContextMenu={e => openContextMenu(e, region)}
             >
               <div className="rsi-item__row">

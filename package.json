@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "tauri": "tauri",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "behavior:coverage": "node scripts/behavior-coverage.mjs"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.11.2",

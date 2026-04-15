@@ -32,7 +32,7 @@ export const selectSortedBeat = createSelector(
   selectSortedOrig,
   (s: RootState) => s.warp.beatAnchors,
   (sortedOrig, beatAnchors) =>
-    sortedOrig.map(oa => beatAnchors.find(ba => ba.id === oa.id)!).filter(Boolean),
+    sortedOrig.map(oa => beatAnchors.find(ba => ba.id === oa.id) ?? { id: oa.id, time: oa.time }),
 )
 
 export const selectSelectedIdsSet = createSelector(

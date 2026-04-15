@@ -8,6 +8,7 @@ import { setVideo, clearVideo, setFolderVideos, setMarkerCount, setMarkersLoaded
 import { loadAnchors, clearAnchors, setBpm, setMinStretch, setMaxStretch, setLoopBeats, setTrimToLoop, setAddToEnd, setGlobalMarkers, setPlayhead, bumpAnchorIdCounter } from '../slices/warpSlice'
 import { setRegions, setActiveRegionId } from '../slices/regionSlice'
 import { resetHistory } from '../slices/historySlice'
+import { setView } from '../slices/uiSlice'
 
 /** Load markers from sidecar or internal storage for a video */
 async function loadMarkersForVideo(videoPath: string, fileHash: string) {
@@ -36,6 +37,7 @@ export const openFileThunk = createAsyncThunk(
       if (!info) return
       dispatch(setFolderVideos([]))
       dispatch(setVideo(info))
+      dispatch(setView({ start: 0, end: info.duration }))
       dispatch(clearAnchors())
       dispatch(setPlayhead(0))
       dispatch(setActiveRegionId(null))
@@ -109,6 +111,7 @@ export const selectVideoThunk = createAsyncThunk(
     try {
       const info = await loadVideoFromPath(path)
       dispatch(setVideo(info))
+      dispatch(setView({ start: 0, end: info.duration }))
       dispatch(clearAnchors())
       dispatch(setPlayhead(0))
       dispatch(setActiveRegionId(null))
@@ -170,6 +173,7 @@ export const openJsonFileThunk = createAsyncThunk(
       // Load the video first
       const info = await loadVideoFromPath(video_path)
       dispatch(setVideo(info))
+      dispatch(setView({ start: 0, end: info.duration }))
       dispatch(clearAnchors())
       dispatch(setPlayhead(0))
       dispatch(setActiveRegionId(null))

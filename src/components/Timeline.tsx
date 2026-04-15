@@ -317,7 +317,6 @@ export default function Timeline({
     const el = trackRef.current
     if (!el) return
     const handler = (e: WheelEvent) => {
-      if (!e.shiftKey) return
       e.preventDefault()
       const { viewStart, visibleSpan: span, setView: sv } = zoomRef.current
       const rect = el.getBoundingClientRect()
@@ -336,6 +335,13 @@ export default function Timeline({
     (e: React.PointerEvent) => {
       const target = e.target as HTMLElement
       if (target.closest('.anchor')) return
+      // Middle mouse button → pan
+      if (e.button === 1) {
+        e.preventDefault()
+        e.currentTarget.setPointerCapture(e.pointerId)
+        gesture.current = { type: 'panning', lastX: e.clientX }
+        return
+      }
       if (e.button !== 0) return
       // Clip overlay bar interaction — resize handles or move
       const barEl = target.closest<HTMLElement>('.clip-overlay__bar')
@@ -956,7 +962,7 @@ export default function Timeline({
         )}
 
         {!noAdd && canInteract && anchors.length === 0 && (
-          <div className="track-hint">Click to place anchors · shift+scroll to zoom · shift+drag to pan</div>
+          <div className="track-hint">Click to place anchors · scroll to zoom · middle-click to pan</div>
         )}
         {noAdd && anchors.length === 0 && (
           <div className="track-hint">Drag anchors to assign beats</div>

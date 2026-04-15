@@ -35,3 +35,27 @@ export function initialView(duration: number, bpm?: number): View {
   // Long clips: show first ~24 beats
   return { start: 0, end: Math.min(duration, 24 * beat) }
 }
+
+/**
+ * Compute the span for a newly created region.
+ * Spec (BEHAVIORS.md §3): the smaller of 10% of the current viewport or 5 seconds.
+ */
+export function calcNewRegionSpan(viewSpan: number): number {
+  return Math.min(viewSpan * 0.1, 5)
+}
+
+/**
+ * Compute inPoint/outPoint for a newly created region centered on `center`.
+ * Clamps to [0, videoDuration].
+ */
+export function calcNewRegionBounds(
+  center: number,
+  viewSpan: number,
+  videoDuration: number,
+): { inPoint: number; outPoint: number } {
+  const half = calcNewRegionSpan(viewSpan) / 2
+  return {
+    inPoint: Math.max(0, center - half),
+    outPoint: Math.min(videoDuration, center + half),
+  }
+}

@@ -174,7 +174,7 @@ export default function WarpView({
     const cIn = clipIn ?? 0
     const cOut = clipOut ?? duration
     const filteredOrig = sortedOrig.filter(a => a.time >= cIn - EPS && a.time <= cOut + EPS)
-    const filteredBeat = filteredOrig.map(oa => sortedBeat.find(ba => ba.id === oa.id)!).filter(Boolean)
+    const filteredBeat = filteredOrig.map(oa => sortedBeat.find(ba => ba.id === oa.id) ?? { id: oa.id, time: oa.time })
     const augO = [...filteredOrig]
     const augB = [...filteredBeat]
     if (clipIn !== undefined && (augO.length === 0 || augO[0].time - clipIn > EPS)) {
@@ -352,7 +352,6 @@ export default function WarpView({
     const el = connectorRef.current
     if (!el) return
     const handler = (e: WheelEvent) => {
-      if (!e.shiftKey) return
       e.preventDefault()
       const v = viewRef.current
       const span = v.end - v.start
@@ -368,7 +367,7 @@ export default function WarpView({
     return () => el.removeEventListener('wheel', handler)
   }, [])
 
-  // ── Shift+drag pan ────────────────────────────────────────────────────────
+  // ── Middle-mouse or shift+drag pan ────────────────────────────────────────
   useEffect(() => {
     const el = warpContainerRef.current
     if (!el) return
@@ -381,7 +380,8 @@ export default function WarpView({
     window.addEventListener('keyup', onKeyUp)
 
     const onDown = (e: PointerEvent) => {
-      if (!e.shiftKey || e.button !== 0) return
+      // Middle mouse button or shift+left click
+      if (e.button === 1 || (e.shiftKey && e.button === 0)) { /* pan */ } else return
       e.stopPropagation()
       const rect = el.getBoundingClientRect()
       el.setPointerCapture(e.pointerId)
@@ -549,6 +549,7 @@ export default function WarpView({
       style={warpCursor}
       onMouseEnter={() => setMouseOver(true)}
       onMouseLeave={() => setMouseOver(false)}
+      onMouseDown={e => { if (e.button === 1) e.preventDefault() }}
     >
       <Timeline
         duration={duration}
