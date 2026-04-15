@@ -39,6 +39,7 @@ import {
 } from '../store/slices/warpSlice'
 import { updateRegionBeatTimes } from '../store/slices/regionSlice'
 import { setView as setReduxView } from '../store/slices/uiSlice'
+import { undo as undoAction, redo as redoAction } from '../store/slices/historySlice'
 import './WarpView.css'
 
 interface WarpViewProps {
@@ -326,6 +327,9 @@ export default function WarpView({
         }
         return
       }
+      if (!e.ctrlKey && !e.metaKey) return
+      if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); dispatch(undoAction()) }
+      if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); dispatch(redoAction()) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

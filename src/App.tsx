@@ -13,6 +13,7 @@ import RegionInfoPanel from './components/RegionInfoPanel'
 import ContextMenu from './components/ContextMenu'
 import type { ContextMenuState } from './components/ContextMenu'
 import { snapAllToBeat } from './utils/quantize'
+import { undo as undoAction, redo as redoAction } from './store/slices/historySlice'
 import { useProject } from './context/ProjectContext'
 import { useAppDispatch, useAppSelector } from './store/hooks'
 import {
@@ -294,8 +295,8 @@ export default function App() {
   const editMenu: MenuDef = useMemo(() => ({
     label: 'Edit',
     items: [
-      { label: 'Undo', shortcut: 'Ctrl+Z', action: () => { /* TODO: undo via history slice */ }, disabled: !video },
-      { label: 'Redo', shortcut: 'Ctrl+Shift+Z', action: () => { /* TODO: redo via history slice */ }, disabled: !video },
+      { label: 'Undo', shortcut: 'Ctrl+Z', action: () => dispatch(undoAction()), disabled: !video },
+      { label: 'Redo', shortcut: 'Ctrl+Shift+Z', action: () => dispatch(redoAction()), disabled: !video },
       { separator: true },
       { label: 'Select All', shortcut: 'Ctrl+A', action: () => dispatch(selectAllWarp()), disabled: !video || anchorCount === 0 },
       { label: 'Deselect', shortcut: 'Escape', action: () => dispatch(deselectAllWarp()), disabled: !video },
