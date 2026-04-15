@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import VideoPlayer from './components/VideoPlayer'
 import type { VideoPlayerHandle } from './components/VideoPlayer'
 import WarpView from './components/WarpView'
-import type { WarpViewHandle } from './components/WarpView'
 import MarkerList from './components/MarkerList'
 import ExportDialog from './components/ExportDialog'
 import Toolbar from './components/Toolbar'
@@ -13,8 +12,32 @@ import RegionSidebar from './components/RegionSidebar'
 import RegionInfoPanel from './components/RegionInfoPanel'
 import ContextMenu from './components/ContextMenu'
 import type { ContextMenuState } from './components/ContextMenu'
+import { snapAllToBeat } from './utils/quantize'
 import { useProject } from './context/ProjectContext'
 import { useAppDispatch, useAppSelector } from './store/hooks'
+import {
+  setOrigAnchorsFromTimeline,
+  removeAnchors,
+  resetBeatLinks,
+  clearAnchors,
+  loadAnchors,
+  setBpm as setBpmAction,
+  setMinStretch as setMinStretchWarp,
+  setMaxStretch as setMaxStretchWarp,
+  setBeatZeroId,
+  setSelectedIds as setSelectedIdsWarp,
+  selectAll as selectAllWarp,
+  deselectAll as deselectAllWarp,
+  setPlayhead as setPlayheadAction,
+  newAnchorId,
+  setBeatAnchorsFromTimeline,
+} from './store/slices/warpSlice'
+import {
+  selectSelectedIdsSet,
+  selectWarpData,
+  selectActiveRegion as selectActiveRegionRedux,
+} from './store/selectors'
+import { store } from './store/store'
 import {
   setTimelineHeight as setTimelineHeightAction,
   setSidebarWidth as setSidebarWidthAction,
@@ -24,6 +47,7 @@ import {
   setGridDiv as setGridDivAction,
   setPlaying as setPlayingAction,
   setExportOpen as setExportOpenAction,
+  setView as setViewAction,
 } from './store/slices/uiSlice'
 import './App.css'
 
@@ -47,11 +71,9 @@ export default function App() {
   const {
     folderVideos,
     video,
-    warpData,
     regions,
     activeRegionId,
     activeRegion,
-    playhead,
     detectingBpm,
     markersLoaded,
     initialMarkers,
@@ -99,14 +121,17 @@ export default function App() {
   const setGridDiv = (v: number) => dispatch(setGridDivAction(v))
   const setPlaying = (v: boolean) => dispatch(setPlayingAction(v))
   const setExportOpen = (v: boolean) => dispatch(setExportOpenAction(v))
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const selectedIds = useAppSelector(selectSelectedIdsSet)
+  const setSelectedIds = useCallback(
+    (ids: Set<number>) => dispatch(setSelectedIdsWarp([...ids])),
+    [dispatch],
+  )
   const [clipContextMenu, setClipContextMenu] = useState<ContextMenuState | null>(null)
   const [pendingRenameId, setPendingRenameId] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [pendingZoom, setPendingZoom] = useState<{ start: number; end: number } | null>(null)
 
   const playerRef = useRef<VideoPlayerHandle>(null)
-  const warpRef = useRef<WarpViewHandle>(null)
   const vDragStart = useRef<{ y: number; h: number } | null>(null)
   const lDragStart = useRef<{ x: number; w: number } | null>(null)
   const rDragStart = useRef<{ x: number; w: number } | null>(null)
@@ -225,15 +250,26 @@ export default function App() {
 
   // ── BPM handlers ──────────────────────────────────────────────────────────
 
+  const playhead = useAppSelector(s => s.warp.playhead)
+  const warpData = useAppSelector(selectWarpData)
+  const origAnchors = useAppSelector(s => s.warp.origAnchors)
+  const beatAnchorsForSnap = useAppSelector(s => s.warp.beatAnchors)
+  const warpBpm = useAppSelector(s => s.warp.bpm)
+
   const handleBpmChange = useCallback((bpm: number) => {
-    warpRef.current?.setBpm(bpm)
+    dispatch(setBpmAction(bpm))
   }, [])
 
   const handleBpmDetect = useCallback(async () => {
+    if (origAnchors.length < 2) return
     setDetectingBpm(true)
-    await warpRef.current?.detectBpm()
+    try {
+      const { analyzeAnchors } = await import('./api/warp')
+      const data = await analyzeAnchors(origAnchors.map(a => a.time))
+      if (data.bpm && data.bpm > 0) dispatch(setBpmAction(data.bpm))
+    } catch {}
     setDetectingBpm(false)
-  }, [setDetectingBpm])
+  }, [setDetectingBpm, origAnchors, dispatch])
 
   // ── Menus ──────────────────────────────────────────────────────────────────
 
@@ -246,8 +282,8 @@ export default function App() {
       { label: 'Open Folder', shortcut: 'Ctrl+Shift+O', action: openFolder },
       { label: 'Open Markers…', action: openJsonFile },
       { separator: true },
-      { label: 'Import Markers', shortcut: 'Ctrl+I', action: () => warpRef.current?.triggerImport(), disabled: !video },
-      { label: 'Export Markers', shortcut: 'Ctrl+E', action: () => warpRef.current?.exportMarkers(), disabled: !video || anchorCount === 0 },
+      { label: 'Import Markers', shortcut: 'Ctrl+I', action: () => document.getElementById('marker-import')?.click(), disabled: !video },
+      { label: 'Export Markers', shortcut: 'Ctrl+E', action: () => { /* TODO: export via thunk */ }, disabled: !video || anchorCount === 0 },
       { separator: true },
       { label: 'Reset Video Data', action: resetVideoData, disabled: !video },
       { separator: true },
@@ -258,20 +294,32 @@ export default function App() {
   const editMenu: MenuDef = useMemo(() => ({
     label: 'Edit',
     items: [
-      { label: 'Undo', shortcut: 'Ctrl+Z', action: () => warpRef.current?.undo(), disabled: !video },
-      { label: 'Redo', shortcut: 'Ctrl+Shift+Z', action: () => warpRef.current?.redo(), disabled: !video },
+      { label: 'Undo', shortcut: 'Ctrl+Z', action: () => { /* TODO: undo via history slice */ }, disabled: !video },
+      { label: 'Redo', shortcut: 'Ctrl+Shift+Z', action: () => { /* TODO: redo via history slice */ }, disabled: !video },
       { separator: true },
-      { label: 'Select All', shortcut: 'Ctrl+A', action: () => warpRef.current?.selectAll(), disabled: !video || anchorCount === 0 },
-      { label: 'Deselect', shortcut: 'Escape', action: () => warpRef.current?.deselect(), disabled: !video },
+      { label: 'Select All', shortcut: 'Ctrl+A', action: () => dispatch(selectAllWarp()), disabled: !video || anchorCount === 0 },
+      { label: 'Deselect', shortcut: 'Escape', action: () => dispatch(deselectAllWarp()), disabled: !video },
     ],
   }), [video, anchorCount])
 
   const viewMenu: MenuDef = useMemo(() => ({
     label: 'View',
     items: [
-      { label: 'Zoom In', shortcut: 'Ctrl+=', action: () => warpRef.current?.zoomIn(), disabled: !video },
-      { label: 'Zoom Out', shortcut: 'Ctrl+-', action: () => warpRef.current?.zoomOut(), disabled: !video },
-      { label: 'Zoom to Fit', shortcut: 'Ctrl+0', action: () => warpRef.current?.zoomToFit(), disabled: !video },
+      { label: 'Zoom In', shortcut: 'Ctrl+=', action: () => {
+        const v = store.getState().ui.view
+        const mid = (v.start + v.end) / 2
+        const span = (v.end - v.start) / 1.5
+        dispatch(setViewAction({ start: mid - span / 2, end: mid + span / 2 }))
+      }, disabled: !video },
+      { label: 'Zoom Out', shortcut: 'Ctrl+-', action: () => {
+        const v = store.getState().ui.view
+        const mid = (v.start + v.end) / 2
+        const span = (v.end - v.start) * 1.5
+        dispatch(setViewAction({ start: mid - span / 2, end: mid + span / 2 }))
+      }, disabled: !video },
+      { label: 'Zoom to Fit', shortcut: 'Ctrl+0', action: () => {
+        dispatch(setViewAction({ start: 0, end: video?.duration ?? 60 }))
+      }, disabled: !video },
     ],
   }), [video])
 
@@ -392,8 +440,8 @@ export default function App() {
                   duration={video.duration}
                   addToEnd={addToEnd}
                   onBpmChange={handleBpmChange}
-                  onMinStretchChange={v => warpRef.current?.setMinStretch(v)}
-                  onMaxStretchChange={v => warpRef.current?.setMaxStretch(v)}
+                  onMinStretchChange={v => dispatch(setMinStretchWarp(v))}
+                  onMaxStretchChange={v => dispatch(setMaxStretchWarp(v))}
                   onAddToEndChange={setAddToEnd}
                   onUpdateRegionInOut={updateRegionInOut}
                   beatZeroOrigTime={(() => {
@@ -402,7 +450,11 @@ export default function App() {
                     if (!zeroBA) return null
                     return warpData.origAnchors.find(oa => oa.id === zeroBA.id)?.time ?? null
                   })()}
-                  onStartAtChange={origTime => warpRef.current?.setBeatZeroByOrigTime(origTime)}
+                  onStartAtChange={origTime => {
+                    if (origTime === null) { dispatch(setBeatZeroId(null)); return }
+                    const anchor = origAnchors.find(a => Math.abs(a.time - origTime) < 0.001)
+                    if (anchor) dispatch(setBeatZeroId(anchor.id))
+                  }}
                   onLockChange={(lock, lockedBeats) => {
                     if (activeRegionId) updateRegionLock(activeRegionId, lock, lockedBeats)
                   }}
@@ -428,7 +480,7 @@ export default function App() {
                   ref={playerRef}
                   src={video.videoUrl}
                   duration={video.duration}
-                  onTimeUpdate={setPlayhead}
+                  onTimeUpdate={t => dispatch(setPlayheadAction(t))}
                   onPlayStateChange={setPlaying}
                 />
               </div>
@@ -439,7 +491,7 @@ export default function App() {
                 fps={video.fps}
                 playing={playing}
                 currentTime={playhead}
-                onMark={t => warpRef.current?.addAnchor(Math.max(0, t))}
+                onMark={t => dispatch(setOrigAnchorsFromTimeline([...origAnchors, { id: newAnchorId(), time: Math.max(0, t) }]))}
                 onJumpPrev={() => {
                   const sorted = [...(warpData?.origAnchors ?? [])].sort((a, b) => a.time - b.time)
                   const prev = sorted.filter(a => a.time < playhead - 0.05).pop()
@@ -453,7 +505,7 @@ export default function App() {
                 onZoomToRegion={() => {
                   const from = activeRegion?.inPoint ?? 0
                   const to = activeRegion?.outPoint ?? video.duration
-                  warpRef.current?.zoomToRegion(from, to)
+                  dispatch(setViewAction({ start: from, end: to }))
                 }}
                 onJumpRegionStart={activeRegion ? () => {
                   playerRef.current?.seek(activeRegion.inPoint)
@@ -500,34 +552,7 @@ export default function App() {
 
               <div className="vj-timeline" style={{ height: timelineHeight }}>
                 <WarpView
-                  key={`${activeRegionId ?? 'default'}_${video.path}`}
-                  ref={warpRef}
-                  duration={video.duration}
-                  initialBpm={initialMarkers?.bpm ?? 120}
-                  initialMinStretch={initialMarkers?.minStretch}
-                  initialMaxStretch={initialMarkers?.maxStretch}
-                  addToEnd={addToEnd}
-                  initialOrigAnchors={initialMarkers?.origAnchors}
-                  initialBeatAnchors={initialMarkers?.beatAnchors}
-                  playhead={playhead}
                   onSeek={t => playerRef.current?.seek(t)}
-                  onDataChange={setWarpData}
-                  videoPath={video.path}
-                  trimToLoop={trimToLoop}
-                  loopBeats={loopBeats}
-                  gridDiv={gridDiv}
-                  selectedIds={selectedIds}
-                  onSelectionChange={setSelectedIds}
-                  clipIn={clipIn}
-                  clipOut={clipOut}
-                  clipInBeatTime={clipInBeatTime}
-                  clipOutBeatTime={clipOutBeatTime}
-                  activeRegionId={activeRegionId}
-                  regionLock={activeRegion?.lock}
-                  onBoundaryBeatChange={(inBT, outBT) => {
-                    if (activeRegionId) updateRegionBeatTimes(activeRegionId, inBT, outBT)
-                  }}
-                  initialViewOverride={pendingZoom ?? undefined}
                   onSendToNewRegion={(inPoint, outPoint) =>
                     addRegion(inPoint, outPoint)
                   }
@@ -580,23 +605,37 @@ export default function App() {
               <div style={{ height: 5, flexShrink: 0, background: '#1b1814' }} />
               <div style={{ height: timelineHeight, flexShrink: 0, overflow: 'hidden' }}>
                 <MarkerList
-                  origAnchors={(warpData?.origAnchors ?? []).filter(a =>
+                  origAnchors={origAnchors.filter(a =>
                     activeRegion ? a.time >= activeRegion.inPoint - 0.001 && a.time <= activeRegion.outPoint + 0.001 : true
                   )}
-                  beatAnchors={warpData?.beatAnchors ?? []}
+                  beatAnchors={beatAnchorsForSnap}
                   duration={video.duration}
                   fps={video.fps}
-                  bpm={warpData?.bpm ?? 120}
+                  bpm={warpBpm}
                   beatZeroTime={warpData?.beatZeroTime ?? 0}
                   selectedIds={selectedIds}
                   onSelectionChange={setSelectedIds}
                   onSeek={t => playerRef.current?.seek(t)}
-                  onClear={() => warpRef.current?.clearAnchors()}
-                  onReset={() => warpRef.current?.resetAllLinks()}
-                  onSnap={() => warpRef.current?.snapToBeat()}
-                  onDeleteSelected={() => warpRef.current?.deleteSelected(selectedIds)}
-                  onResetSelected={() => warpRef.current?.resetSelected(selectedIds)}
-                  onSnapSelected={() => warpRef.current?.snapSelected(selectedIds)}
+                  onClear={() => dispatch(clearAnchors())}
+                  onReset={() => dispatch(resetBeatLinks(origAnchors.map(a => a.id)))}
+                  onSnap={() => {
+                    const b = warpBpm > 0 ? 60 / warpBpm / gridDiv : 0
+                    if (b <= 0) return
+                    const snapped = snapAllToBeat(beatAnchorsForSnap, b, warpData?.beatZeroTime ?? 0)
+                    dispatch(setBeatAnchorsFromTimeline(snapped))
+                  }}
+                  onDeleteSelected={() => dispatch(removeAnchors([...selectedIds]))}
+                  onResetSelected={() => dispatch(resetBeatLinks([...selectedIds]))}
+                  onSnapSelected={() => {
+                    const b = warpBpm > 0 ? 60 / warpBpm / gridDiv : 0
+                    if (b <= 0) return
+                    const toSnap = beatAnchorsForSnap.filter(a => selectedIds.has(a.id))
+                    const snapped = snapAllToBeat(toSnap, b, warpData?.beatZeroTime ?? 0)
+                    const snapMap = new Map(snapped.map(a => [a.id, a.time]))
+                    dispatch(setBeatAnchorsFromTimeline(
+                      beatAnchorsForSnap.map(a => snapMap.has(a.id) ? { ...a, time: snapMap.get(a.id)! } : a)
+                    ))
+                  }}
                 />
               </div>
             </div>

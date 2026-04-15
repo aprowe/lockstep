@@ -1,288 +1,142 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { analyzeAnchors } from '../api/warp'
-import Timeline, { newAnchorId, bumpAnchorIdCounter } from './Timeline'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Timeline, { newAnchorId as timelineNewAnchorId } from './Timeline'
 import WarpConnector from './WarpConnector'
 import ContextMenu from './ContextMenu'
 import type { ContextMenuState } from './ContextMenu'
 import {
   buildSegments,
-  computeOutputDuration,
   snapAllToBeat,
 } from '../utils/quantize'
 import { clampView, initialView } from '../utils/view'
-import type { Anchor, View, WarpData } from '../types'
+import type { Anchor, View } from '../types'
 import type { ClipOverlay } from './Timeline'
+import { useAppDispatch, useAppSelector } from '../store/hooks'
+import {
+  selectSortedOrig,
+  selectSortedBeat,
+  selectOutputDuration,
+  selectLinkedAnchorIds,
+  selectSelectedIdsSet,
+  selectActiveRegion,
+  selectClipIn,
+  selectClipOut,
+  selectDimmedAnchorIds,
+} from '../store/selectors'
+import {
+  setOrigAnchorsFromTimeline,
+  setBeatAnchorsFromTimeline,
+  removeAnchors,
+  resetBeatLinks,
+  clearAnchors,
+  loadAnchors,
+  setBpm,
+  setMinStretch as setMinStretchAction,
+  setMaxStretch as setMaxStretchAction,
+  setBeatZeroId,
+  setSelectedIds as setSelectedIdsAction,
+  deselectAll,
+  newAnchorId,
+} from '../store/slices/warpSlice'
+import { updateRegionBeatTimes } from '../store/slices/regionSlice'
+import { setView as setReduxView } from '../store/slices/uiSlice'
 import './WarpView.css'
 
-interface HistoryEntry {
-  origAnchors: Anchor[]
-  beatAnchors: Anchor[]
-  linkedBeat: number[]
-  beatZeroId: number | null
-}
-
 interface WarpViewProps {
-  duration?: number
-  initialBpm?: number
-  initialMinStretch?: number
-  initialMaxStretch?: number
-  addToEnd?: boolean
-  initialBeatZeroAnchorTime?: number
-  initialOrigAnchors?: Anchor[]
-  initialBeatAnchors?: Anchor[]
-  playhead?: number
   onSeek?: (time: number) => void
-  onDataChange?: (data: WarpData) => void
-  videoPath?: string
-  trimToLoop?: boolean
-  loopBeats?: number | null
-  gridDiv?: number
-  selectedIds?: Set<number>
-  onSelectionChange?: (ids: Set<number>) => void
-  clipIn?: number
-  clipOut?: number
   onSendToNewRegion?: (inPoint: number, outPoint: number) => void
-  /** Clip blocks to overlay on the orig timeline */
-  /** If set, overrides the default initial view on mount */
-  initialViewOverride?: View
   clipOverlays?: ClipOverlay[]
   onClipOverlaySelect?: (id: string) => void
   onClipOverlayCreate?: (inPoint: number, outPoint: number) => void
   onClipOverlayResize?: (id: string, inPoint: number, outPoint: number) => void
   onClipOverlayMove?: (id: string, inPoint: number, outPoint: number) => void
   onClipOverlayContextMenu?: (id: string, x: number, y: number) => void
-  /** Per-region beat-space boundary times (undefined = identity/linked) */
-  clipInBeatTime?: number
-  clipOutBeatTime?: number
-  /** ID of the active region (for boundary marker management) */
-  activeRegionId?: string | null
-  /** Called when boundary beat times change via drag on beat timeline */
-  onBoundaryBeatChange?: (inBeatTime?: number, outBeatTime?: number) => void
-  /** Region lock: 'beats' = smooth resize (no grid snap), 'bpm' = snap to beat grid */
-  regionLock?: 'bpm' | 'beats'
 }
 
-export interface WarpViewHandle {
-  addAnchor(time: number): void
-  clearAnchors(): void
-  resetAllLinks(): void
-  setBpm(b: number): void
-  setMinStretch(v: number): void
-  setMaxStretch(v: number): void
-  exportMarkers(): void
-  triggerImport(): void
-  detectBpm(): Promise<number | null>
-  snapToBeat(): void
-  deleteSelected(ids: Set<number>): void
-  resetSelected(ids: Set<number>): void
-  snapSelected(ids: Set<number>): void
-  undo(): void
-  redo(): void
-  selectAll(): void
-  deselect(): void
-  zoomIn(): void
-  zoomOut(): void
-  zoomToFit(): void
-  zoomToRegion(from: number, to: number): void
-  /** Set beat zero by orig-space anchor time (null = clear beat zero) */
-  setBeatZeroByOrigTime(origTime: number | null): void
-}
-
-const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
-  duration = 60,
-  initialBpm = 120,
-  initialMinStretch,
-  initialMaxStretch,
-  addToEnd = false,
-  initialBeatZeroAnchorTime,
-  initialOrigAnchors,
-  initialBeatAnchors,
-  playhead,
+export default function WarpView({
   onSeek,
-  onDataChange,
-  videoPath,
-  trimToLoop = false,
-  loopBeats,
-  gridDiv = 1,
-  selectedIds: selectedIdsProp,
-  onSelectionChange: onSelectionChangeProp,
-  clipIn,
-  clipOut,
   onSendToNewRegion,
-  initialViewOverride,
   clipOverlays,
   onClipOverlaySelect,
   onClipOverlayCreate,
   onClipOverlayResize,
   onClipOverlayMove,
   onClipOverlayContextMenu,
-  clipInBeatTime,
-  clipOutBeatTime,
-  activeRegionId,
-  onBoundaryBeatChange,
-  regionLock,
-}, ref) {
-  // Selection: use props if provided, else internal state
-  const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set())
-  const selectedIds = selectedIdsProp ?? internalSelectedIds
-  const setSelectedIds = onSelectionChangeProp ?? setInternalSelectedIds
-  const [origAnchors, setOrigAnchors] = useState<Anchor[]>(() => {
-    const anchors = initialOrigAnchors ?? []
-    bumpAnchorIdCounter(anchors)
-    return anchors
-  })
-  const [beatAnchors, setBeatAnchors] = useState<Anchor[]>(() => {
-    const anchors = initialBeatAnchors ?? []
-    bumpAnchorIdCounter(anchors)
-    return anchors
-  })
-  const linkedBeat = useRef<Set<number>>(new Set())
+}: WarpViewProps) {
+  const dispatch = useAppDispatch()
 
+  // ── Redux state ─────────────────────────────────────────────────────────────
+  const origAnchors = useAppSelector(s => s.warp.origAnchors)
+  const beatAnchors = useAppSelector(s => s.warp.beatAnchors)
+  const bpm = useAppSelector(s => s.warp.bpm)
+  const minStretch = useAppSelector(s => s.warp.minStretch)
+  const maxStretch = useAppSelector(s => s.warp.maxStretch)
+  const beatZeroId = useAppSelector(s => s.warp.beatZeroId)
+  const trimToLoop = useAppSelector(s => s.warp.trimToLoop)
+  const addToEnd = useAppSelector(s => s.warp.addToEnd)
+  const playhead = useAppSelector(s => s.warp.playhead)
+  const gridDiv = useAppSelector(s => s.ui.gridDiv)
+  const duration = useAppSelector(s => s.video.video?.duration ?? 60)
 
-  const historyStack = useRef<HistoryEntry[]>([{
-    origAnchors: initialOrigAnchors ?? [],
-    beatAnchors: initialBeatAnchors ?? [],
-    linkedBeat: [],
-    beatZeroId: null,
-  }])
-  const historyIdx = useRef(0)
-  const isApplyingHistory = useRef(false)
-  const [view, setView] = useState<View>(() => initialViewOverride ?? initialView(duration, initialBpm))
-  const [bpm, setBpm] = useState(initialBpm)
-  const [minStretch, setMinStretch] = useState(initialMinStretch ?? 0.5)
-  const [maxStretch, setMaxStretch] = useState(initialMaxStretch ?? 2.0)
-  const [beatZeroId, setBeatZeroId] = useState<number | null>(() => {
-    if (initialBeatZeroAnchorTime == null || !initialBeatAnchors) return null
-    const match = initialBeatAnchors.find(a => Math.abs(a.time - initialBeatZeroAnchorTime) < 0.001)
-    return match?.id ?? null
-  })
+  const activeRegion = useAppSelector(selectActiveRegion)
+  const clipIn = useAppSelector(selectClipIn)
+  const clipOut = useAppSelector(selectClipOut)
+  const clipInBeatTime = activeRegion?.inBeatTime
+  const clipOutBeatTime = activeRegion?.outBeatTime
+  const regionLock = activeRegion?.lock
 
+  const sortedOrig = useAppSelector(selectSortedOrig)
+  const sortedBeat = useAppSelector(selectSortedBeat)
+  const outputDuration = useAppSelector(selectOutputDuration)
+  const linkedAnchorIds = useAppSelector(selectLinkedAnchorIds)
+  const selectedIds = useAppSelector(selectSelectedIdsSet)
+  const dimmedAnchorIds = useAppSelector(selectDimmedAnchorIds)
 
+  // ── Local state (gestures, view, menus) ─────────────────────────────────────
+  const reduxView = useAppSelector(s => s.ui.view)
+  const [view, setView] = useState<View>(reduxView)
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  const [shiftHeld, setShiftHeld] = useState(false)
+  const [panning, setPanning] = useState(false)
+  const [mouseOver, setMouseOver] = useState(false)
+
+  const warpContainerRef = useRef<HTMLDivElement>(null)
+  const connectorRef = useRef<HTMLDivElement>(null)
+  const panGesture = useRef<{ lastX: number; width: number } | null>(null)
+  const importRef = useRef<HTMLInputElement>(null)
+
+  // Sync local view to Redux (debounced on idle)
+  const viewSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const viewRef = useRef(view); viewRef.current = view
+
+  const syncViewToRedux = useCallback(() => {
+    if (viewSyncTimer.current) clearTimeout(viewSyncTimer.current)
+    viewSyncTimer.current = setTimeout(() => {
+      dispatch(setReduxView(viewRef.current))
+    }, 100)
+  }, [dispatch])
+
+  // When Redux view changes externally (e.g. region switch), update local
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (isApplyingHistory.current) { isApplyingHistory.current = false; return }
-      const entry: HistoryEntry = {
-        origAnchors: [...origAnchors],
-        beatAnchors: [...beatAnchors],
-        linkedBeat: [...linkedBeat.current],
-        beatZeroId,
-      }
-      const cur = historyStack.current[historyIdx.current]
-      if (cur &&
-          cur.origAnchors.length === entry.origAnchors.length &&
-          cur.beatAnchors.length === entry.beatAnchors.length &&
-          cur.beatZeroId === entry.beatZeroId &&
-          cur.origAnchors.every((a, i) => a.id === entry.origAnchors[i].id && Math.abs(a.time - entry.origAnchors[i].time) < 0.0001) &&
-          cur.beatAnchors.every((a, i) => a.id === entry.beatAnchors[i].id && Math.abs(a.time - entry.beatAnchors[i].time) < 0.0001)) return
-      historyStack.current = historyStack.current.slice(0, historyIdx.current + 1)
-      historyStack.current.push(entry)
-      if (historyStack.current.length > 100) historyStack.current.shift()
-      historyIdx.current = historyStack.current.length - 1
-    }, 400)
-    return () => clearTimeout(timer)
-  }, [origAnchors, beatAnchors, beatZeroId]) // eslint-disable-line react-hooks/exhaustive-deps
+    setView(reduxView)
+  }, [reduxView])
 
-  const undo = useCallback(() => {
-    if (historyIdx.current <= 0) return
-    historyIdx.current--
-    const entry = historyStack.current[historyIdx.current]
-    isApplyingHistory.current = true
-    setOrigAnchors(entry.origAnchors)
-    setBeatAnchors(entry.beatAnchors)
-    linkedBeat.current = new Set(entry.linkedBeat)
-    setBeatZeroId(entry.beatZeroId)
-  }, [])
-
-  const redo = useCallback(() => {
-    if (historyIdx.current >= historyStack.current.length - 1) return
-    historyIdx.current++
-    const entry = historyStack.current[historyIdx.current]
-    isApplyingHistory.current = true
-    setOrigAnchors(entry.origAnchors)
-    setBeatAnchors(entry.beatAnchors)
-    linkedBeat.current = new Set(entry.linkedBeat)
-    setBeatZeroId(entry.beatZeroId)
-  }, [])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const active = document.activeElement
-      const inInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')
-      if (!inInput && (e.key === 'Delete' || e.key === 'Backspace')) {
-        const ids = selectedIdsRef.current
-        if (ids.size > 0) {
-          e.preventDefault()
-          ids.forEach(id => linkedBeat.current.delete(id))
-          setOrigAnchors(prev => prev.filter(a => !ids.has(a.id)))
-          setBeatAnchors(prev => prev.filter(a => !ids.has(a.id)))
-          setSelectedIds(new Set())
-        }
-        return
-      }
-      if (!e.ctrlKey && !e.metaKey) return
-      if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo() }
-      if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); redo() }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [undo, redo, setSelectedIds])
-
+  // ── Derived values ──────────────────────────────────────────────────────────
   const beat = 60 / bpm
-
-  const sortedOrig = useMemo(
-    () => [...origAnchors].sort((a, b) => a.time - b.time),
-    [origAnchors],
-  )
-  const sortedBeat = useMemo(
-    () => sortedOrig.map(oa => beatAnchors.find(ba => ba.id === oa.id)!).filter(Boolean),
-    [sortedOrig, beatAnchors],
-  )
-
-  const outputDuration = useMemo(
-    () => computeOutputDuration(sortedOrig, sortedBeat, duration),
-    [sortedOrig, sortedBeat, duration],
-  )
 
   const effectiveBeatZeroId = useMemo(() => {
     if (beatZeroId !== null && sortedBeat.some(a => a.id === beatZeroId)) return beatZeroId
-    // In clip mode, no default zero — clip inPoint is implicitly beat zero
     if (clipIn !== undefined) return null
     return sortedBeat[0]?.id ?? null
   }, [beatZeroId, sortedBeat, clipIn])
 
-  const beatOffset = useMemo(
-    () => {
-      // Full video: no beat-zero concept, just start from first anchor
-      if (clipIn === undefined) return sortedBeat[0]?.time ?? 0
-      // Clip mode: if a marker is designated as beat-zero, use it; otherwise the beat-space clip start
-      if (beatZeroId !== null) {
-        const z = sortedBeat.find(a => a.id === beatZeroId)
-        if (z) return z.time
-      }
-      return clipInBeatTime ?? clipIn
-    },
-    [clipIn, clipInBeatTime, sortedBeat, beatZeroId],
-  )
-
-  const firstBeatTime = sortedBeat[0]?.time ?? 0
-  const preBeatDur = beatOffset - firstBeatTime
-
-
-  useEffect(() => {
-    const firstOrig = [...origAnchors].sort((a, b) => a.time - b.time)[0]
-    const offset = firstOrig ? beatAnchors.find(b => b.id === firstOrig.id)?.time ?? 0 : 0
-    setBeatAnchors(prev =>
-      prev.map(ba => {
-        if (linkedBeat.current.has(ba.id)) return ba
-        const snapped = offset + Math.round((ba.time - offset) / beat) * beat
-        return { ...ba, time: snapped }
-      }),
-    )
-  }, [bpm]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    onDataChange?.({ origAnchors, beatAnchors, bpm, minStretch, maxStretch, beatZeroTime: beatOffset, addToEnd })
-  }, [origAnchors, beatAnchors, bpm, minStretch, maxStretch, beatOffset, addToEnd]) // eslint-disable-line react-hooks/exhaustive-deps
+  const beatOffset = useMemo(() => {
+    if (clipIn === undefined) return sortedBeat[0]?.time ?? 0
+    if (beatZeroId !== null) {
+      const z = sortedBeat.find(a => a.id === beatZeroId)
+      if (z) return z.time
+    }
+    return clipInBeatTime ?? clipIn
+  }, [clipIn, clipInBeatTime, sortedBeat, beatZeroId])
 
   const effectiveOutputDuration = trimToLoop && beat > 0
     ? Math.floor(outputDuration / beat) * beat
@@ -290,9 +144,8 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
 
   const maxDuration = Math.max(duration, outputDuration)
 
+  // ── Segments (with synthetic clip boundary anchors) ────────────────────────
   const { segments, segmentAnchors } = useMemo(() => {
-    // When a clip is active, inject its boundaries as synthetic linked anchors
-    // so the connector draws vertical edges at clipIn/clipOut
     if (clipIn === undefined && clipOut === undefined) {
       return { segments: buildSegments(sortedOrig, sortedBeat, duration, outputDuration), segmentAnchors: sortedOrig }
     }
@@ -310,12 +163,7 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     return { segments: buildSegments(augOrig, augBeat, duration, outputDuration), segmentAnchors: augOrig }
   }, [sortedOrig, sortedBeat, duration, outputDuration, clipIn, clipOut, clipInBeatTime, clipOutBeatTime])
 
-  // ── Region-scoped mapping ──────────────────────────────────────────────────
-  // Outside any active clip → identity (playheads aligned).
-  // Inside the active clip → piecewise-linear warp using only in-clip markers.
-  // After the clip → identity again (no cascading).
-
-  // Clip-scoped anchors: only markers within [clipIn, clipOut] + synthetic edges
+  // ── Region-scoped mapping ─────────────────────────────────────────────────
   const { scopedOrig, scopedBeat } = useMemo(() => {
     if (clipIn === undefined && clipOut === undefined) {
       return { scopedOrig: sortedOrig, scopedBeat: sortedBeat }
@@ -327,7 +175,6 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     const filteredBeat = filteredOrig.map(oa => sortedBeat.find(ba => ba.id === oa.id)!).filter(Boolean)
     const augO = [...filteredOrig]
     const augB = [...filteredBeat]
-    // Boundary markers: use per-region beat times if set, otherwise identity (linked)
     if (clipIn !== undefined && (augO.length === 0 || augO[0].time - clipIn > EPS)) {
       augO.unshift({ id: -9998, time: clipIn })
       augB.unshift({ id: -9998, time: clipInBeatTime ?? clipIn })
@@ -339,9 +186,7 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     return { scopedOrig: augO, scopedBeat: augB }
   }, [sortedOrig, sortedBeat, clipIn, clipOut, clipInBeatTime, clipOutBeatTime, duration])
 
-  // Piecewise-linear mapping using scoped anchors
   const origToBeat = useCallback((t: number): number => {
-    // Outside active clip → identity
     if (clipIn !== undefined && t < clipIn) return t
     if (clipOut !== undefined && t > clipOut) return t
     if (scopedOrig.length === 0) return t
@@ -353,12 +198,10 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         return b0 + frac * (b1 - b0)
       }
     }
-    // Fallback: identity
     return t
   }, [scopedOrig, scopedBeat, clipIn, clipOut])
 
   const beatToOrig = useCallback((t: number): number => {
-    // Outside active clip → identity
     if (clipIn !== undefined && t < clipIn) return t
     if (clipOut !== undefined && t > clipOut) return t
     if (scopedBeat.length === 0) return t
@@ -370,7 +213,6 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         return o0 + frac * (o1 - o0)
       }
     }
-    // Fallback: identity
     return t
   }, [scopedOrig, scopedBeat, clipIn, clipOut])
 
@@ -379,8 +221,6 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     [playhead, origToBeat],
   )
 
-  // Beat-space clip boundaries — when a real marker is at the edge, origToBeat
-  // returns that marker's beat time (non-vertical edge); otherwise it matches clipIn/clipOut
   const beatClipIn = useMemo(
     () => clipIn !== undefined ? origToBeat(clipIn) : undefined,
     [clipIn, origToBeat],
@@ -390,8 +230,6 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     [clipOut, origToBeat],
   )
 
-  // Clip overlays mapped to beat space — origToBeat returns identity for
-  // positions outside the active clip, so non-active overlays stay aligned.
   const beatClipOverlays = useMemo(
     () => clipOverlays?.map(c => ({
       ...c,
@@ -407,25 +245,96 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
   )
 
   const handleViewChange = useCallback(
-    (v: View) => setView(clampView(v.start, v.end, maxDuration)),
-    [maxDuration],
+    (v: View) => {
+      const clamped = clampView(v.start, v.end, maxDuration)
+      setView(clamped)
+      syncViewToRedux()
+    },
+    [maxDuration, syncViewToRedux],
   )
 
-  // ── Shift+drag-to-pan anywhere in the WarpView ─────────────────────────────
+  const quantAnchors: Anchor[] = useMemo(
+    () => sortedBeat.map(a => ({ id: a.id, time: a.time })),
+    [sortedBeat],
+  )
 
-  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
-  const warpContainerRef = useRef<HTMLDivElement>(null)
-  const connectorRef = useRef<HTMLDivElement>(null)
-  const [shiftHeld, setShiftHeld] = useState(false)
-  const [panning, setPanning] = useState(false)
-  const [mouseOver, setMouseOver] = useState(false)
-  const panGesture = useRef<{ lastX: number; width: number } | null>(null)
-  // Stable refs so capture-phase handlers never go stale
-  const viewRef = useRef(view); viewRef.current = view
+  const linkedBoundaries = useMemo(
+    () => segmentAnchors.map(a => a.id < 0 || linkedAnchorIds.has(a.id)),
+    [segmentAnchors, linkedAnchorIds],
+  )
+
+  const getBeatAnchorBounds = useCallback(
+    (id: number): { min: number; max: number } => {
+      const beatIdx = sortedBeat.findIndex(a => a.id === id)
+      const origIdx = sortedOrig.findIndex(a => a.id === id)
+      if (beatIdx === -1 || origIdx === -1) return { min: 0, max: outputDuration }
+      let min = 0, max = outputDuration
+      if (origIdx > 0) {
+        const origSpan = sortedOrig[origIdx].time - sortedOrig[origIdx - 1].time
+        const prevBeat = sortedBeat[beatIdx - 1]?.time ?? 0
+        min = Math.max(min, prevBeat + minStretch * origSpan)
+        max = Math.min(max, prevBeat + maxStretch * origSpan)
+      }
+      if (origIdx < sortedOrig.length - 1) {
+        const origSpan = sortedOrig[origIdx + 1].time - sortedOrig[origIdx].time
+        const nextBeat = sortedBeat[beatIdx + 1]?.time ?? outputDuration
+        min = Math.max(min, nextBeat - maxStretch * origSpan)
+        max = Math.min(max, nextBeat - minStretch * origSpan)
+      }
+      return { min, max }
+    },
+    [sortedBeat, sortedOrig, minStretch, maxStretch, outputDuration],
+  )
+
+  // ── Selection helpers ─────────────────────────────────────────────────────
+  const setSelectedIds = useCallback(
+    (ids: Set<number>) => dispatch(setSelectedIdsAction([...ids])),
+    [dispatch],
+  )
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  const handleOrigChange = useCallback(
+    (next: Anchor[]) => dispatch(setOrigAnchorsFromTimeline(next)),
+    [dispatch],
+  )
+
+  const handleBeatChange = useCallback(
+    (next: Anchor[]) => dispatch(setBeatAnchorsFromTimeline(next)),
+    [dispatch],
+  )
+
+  const handleBeatAnchorReset = useCallback(
+    (id: number) => dispatch(resetBeatLinks([id])),
+    [dispatch],
+  )
+
+  const handleSetBeatZero = useCallback(
+    (id: number) => dispatch(setBeatZeroId(beatZeroId === id ? null : id)),
+    [dispatch, beatZeroId],
+  )
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const active = document.activeElement
+      const inInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')
+      if (!inInput && (e.key === 'Delete' || e.key === 'Backspace')) {
+        const ids = [...selectedIds]
+        if (ids.length > 0) {
+          e.preventDefault()
+          dispatch(removeAnchors(ids))
+        }
+        return
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selectedIds, dispatch])
+
+  // ── Scroll-zoom on connector ──────────────────────────────────────────────
   const maxDurationRef = useRef(maxDuration); maxDurationRef.current = maxDuration
   const handleViewChangeRef = useRef(handleViewChange); handleViewChangeRef.current = handleViewChange
 
-  // Scroll-zoom on the warp connector (mirrors Timeline's wheel handler)
   useEffect(() => {
     const el = connectorRef.current
     if (!el) return
@@ -446,6 +355,7 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     return () => el.removeEventListener('wheel', handler)
   }, [])
 
+  // ── Shift+drag pan ────────────────────────────────────────────────────────
   useEffect(() => {
     const el = warpContainerRef.current
     if (!el) return
@@ -488,69 +398,9 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
       el.removeEventListener('pointerup', onUp, { capture: true })
       el.removeEventListener('pointercancel', onUp, { capture: true })
     }
-  }, []) // stable via refs
+  }, [])
 
-  const handleOrigChange = (next: Anchor[]) => {
-    const prevIds = new Set(origAnchors.map(a => a.id))
-    const nextIds = new Set(next.map(a => a.id))
-    const added = next.filter(a => !prevIds.has(a.id))
-    const removedIds = [...prevIds].filter(id => !nextIds.has(id))
-    const moved = next.filter(a => {
-      const prev = origAnchors.find(p => p.id === a.id)
-      return prev && prev.time !== a.time
-    })
-
-    for (const a of added) linkedBeat.current.add(a.id)
-    for (const id of removedIds) {
-      linkedBeat.current.delete(id)
-      if (id === beatZeroId) setBeatZeroId(null)
-    }
-
-    setBeatAnchors(prev => {
-      const addedIds = new Set(added.map(a => a.id))
-      // Remove deleted anchors AND any stale entries matching new anchor IDs
-      let updated = prev.filter(a => !removedIds.includes(a.id) && !addedIds.has(a.id))
-      for (const a of added) {
-        updated = [...updated, { id: a.id, time: a.time }]
-      }
-      for (const m of moved) {
-        if (linkedBeat.current.has(m.id)) {
-          updated = updated.map(ba => ba.id === m.id ? { ...ba, time: m.time } : ba)
-        }
-      }
-      return updated
-    })
-    setOrigAnchors(next)
-  }
-
-  // Stable refs so imperative handle methods always see current values
-  const beatRef = useRef(beat)
-  beatRef.current = beat
-  const gridDivRef = useRef(gridDiv)
-  gridDivRef.current = gridDiv
-  const beatOffsetRef = useRef(beatOffset)
-  beatOffsetRef.current = beatOffset
-  const origAnchorsRef = useRef(origAnchors); origAnchorsRef.current = origAnchors
-  const beatAnchorsRef = useRef(beatAnchors); beatAnchorsRef.current = beatAnchors
-  const selectedIdsRef = useRef(selectedIds); selectedIdsRef.current = selectedIds
-
-  const importRef = useRef<HTMLInputElement>(null)
-
-  const exportMarkers = useCallback(() => {
-    const beatZeroAnchorTime = beatAnchors.find(a => a.id === effectiveBeatZeroId)?.time
-    const payload = {
-      origAnchors, beatAnchors, bpm, minStretch, maxStretch, addToEnd,
-      ...(beatZeroAnchorTime != null ? { beatZeroAnchorTime } : {}),
-    }
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `markers_${Math.round(bpm)}bpm.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }, [origAnchors, beatAnchors, bpm, minStretch, maxStretch, addToEnd, effectiveBeatZeroId])
-
+  // ── Import handler ────────────────────────────────────────────────────────
   const importMarkers = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -569,220 +419,27 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
           id: idMap.get(a.id) ?? newAnchorId(),
           time: a.time,
         }))
-        linkedBeat.current.clear()
-        setOrigAnchors(newOrig)
-        setBeatAnchors(newBeat)
-        if (data.bpm > 0) setBpm(data.bpm)
-        if (data.minStretch > 0) setMinStretch(data.minStretch)
-        if (data.maxStretch > 0) setMaxStretch(data.maxStretch)
+        dispatch(loadAnchors({ origAnchors: newOrig, beatAnchors: newBeat, linkedBeatIds: [] }))
+        if (data.bpm > 0) dispatch(setBpm(data.bpm))
+        if (data.minStretch > 0) dispatch(setMinStretchAction(data.minStretch))
+        if (data.maxStretch > 0) dispatch(setMaxStretchAction(data.maxStretch))
         if (data.beatZeroAnchorTime != null) {
           const match = newBeat.find(a => Math.abs(a.time - data.beatZeroAnchorTime) < 0.001)
-          setBeatZeroId(match?.id ?? null)
+          dispatch(setBeatZeroId(match?.id ?? null))
         } else {
-          setBeatZeroId(null)
+          dispatch(setBeatZeroId(null))
         }
       } catch { /* invalid JSON */ }
     }
     reader.readAsText(file)
     e.target.value = ''
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleBeatChange = useCallback((next: Anchor[]) => {
-    for (const a of next) {
-      const prev = beatAnchors.find(b => b.id === a.id)
-      if (prev && prev.time !== a.time) linkedBeat.current.delete(a.id)
-    }
-    setBeatAnchors(next)
-  }, [beatAnchors])
-
-  const handleBeatAnchorReset = useCallback(
-    (id: number) => {
-      const orig = origAnchors.find(a => a.id === id)
-      if (!orig) return
-      linkedBeat.current.add(id)
-      setBeatAnchors(prev => prev.map(a => a.id === id ? { ...a, time: orig.time } : a))
-    },
-    [origAnchors],
-  )
-
-  const handleSetBeatZero = useCallback(
-    (id: number) => {
-      // Toggle off if already the zero marker
-      setBeatZeroId(prev => prev === id ? null : id)
-    },
-    [],
-  )
-
-  const getBeatAnchorBounds = useCallback(
-    (id: number): { min: number; max: number } => {
-      const beatIdx = sortedBeat.findIndex(a => a.id === id)
-      const origIdx = sortedOrig.findIndex(a => a.id === id)
-      if (beatIdx === -1 || origIdx === -1) return { min: 0, max: outputDuration }
-      let min = 0, max = outputDuration
-      if (origIdx > 0) {
-        const origSpan = sortedOrig[origIdx].time - sortedOrig[origIdx - 1].time
-        const prevBeat = sortedBeat[beatIdx - 1]?.time ?? 0
-        min = Math.max(min, prevBeat + minStretch * origSpan)
-        max = Math.min(max, prevBeat + maxStretch * origSpan)
-      }
-      if (origIdx < sortedOrig.length - 1) {
-        const origSpan = sortedOrig[origIdx + 1].time - sortedOrig[origIdx].time
-        const nextBeat = sortedBeat[beatIdx + 1]?.time ?? outputDuration
-        min = Math.max(min, nextBeat - maxStretch * origSpan)
-        max = Math.min(max, nextBeat - minStretch * origSpan)
-      }
-      return { min, max }
-    },
-    [sortedBeat, sortedOrig, minStretch, maxStretch, outputDuration, effectiveBeatZeroId],
-  )
-
-  const quantAnchors: Anchor[] = useMemo(
-    () => sortedBeat.map(a => ({ id: a.id, time: a.time })),
-    [sortedBeat],
-  )
-
-  // Anchors whose beat position equals their orig position (unmanually-adjusted)
-  const linkedAnchorIds = useMemo(() => {
-    const ids = new Set<number>()
-    for (const origA of origAnchors) {
-      const beatA = beatAnchors.find(b => b.id === origA.id)
-      if (beatA && Math.abs(beatA.time - origA.time) < 0.001) {
-        ids.add(origA.id)
-      }
-    }
-    return ids
-  }, [origAnchors, beatAnchors])
-
-  // Anchors outside the active clip range — dimmed on the orig timeline
-  const dimmedAnchorIds = useMemo(() => {
-    if (clipIn === undefined && clipOut === undefined) return undefined
-    const ids = new Set<number>()
-    for (const a of origAnchors) {
-      if ((clipIn !== undefined && a.time < clipIn - 0.001) ||
-          (clipOut !== undefined && a.time > clipOut + 0.001)) {
-        ids.add(a.id)
-      }
-    }
-    return ids.size > 0 ? ids : undefined
-  }, [origAnchors, clipIn, clipOut])
-
-  // For each segment boundary (index maps to segmentAnchors[i]), is the anchor linked?
-  // Synthetic clip boundary anchors (id < 0) are always treated as linked.
-  const linkedBoundaries = useMemo(
-    () => segmentAnchors.map(a => a.id < 0 || linkedAnchorIds.has(a.id)),
-    [segmentAnchors, linkedAnchorIds],
-  )
-
-  useImperativeHandle(ref, () => ({
-    addAnchor(time: number) {
-      const clamped = Math.max(0, Math.min(duration, time))
-      handleOrigChange([...origAnchors, { id: newAnchorId(), time: clamped }])
-    },
-    clearAnchors() {
-      linkedBeat.current.clear()
-      setOrigAnchors([])
-      setBeatAnchors([])
-    },
-    resetAllLinks() {
-      setOrigAnchors(prev => {
-        setBeatAnchors(prev.map(a => ({ ...a })))
-        prev.forEach(a => linkedBeat.current.add(a.id))
-        return prev
-      })
-    },
-    deleteSelected(ids: Set<number>) {
-      if (ids.size === 0) return
-      ids.forEach(id => linkedBeat.current.delete(id))
-      setOrigAnchors(prev => prev.filter(a => !ids.has(a.id)))
-      setBeatAnchors(prev => prev.filter(a => !ids.has(a.id)))
-      setSelectedIds(new Set())
-    },
-    resetSelected(ids: Set<number>) {
-      if (ids.size === 0) return
-      const origMap = new Map(origAnchors.map(a => [a.id, a.time]))
-      setBeatAnchors(prev => prev.map(a => {
-        if (!ids.has(a.id)) return a
-        linkedBeat.current.add(a.id)
-        return { ...a, time: origMap.get(a.id) ?? a.time }
-      }))
-    },
-    snapSelected(ids: Set<number>) {
-      if (ids.size === 0) return
-      const b = beatRef.current / gridDivRef.current
-      const offset = beatOffsetRef.current
-      if (!b || b <= 0) return
-      setBeatAnchors(prev => {
-        const toSnap = prev.filter(a => ids.has(a.id))
-        const snapped = snapAllToBeat(toSnap, b, offset)
-        const snapMap = new Map(snapped.map(a => [a.id, a.time]))
-        return prev.map(a => {
-          if (!snapMap.has(a.id)) return a
-          linkedBeat.current.delete(a.id)
-          return { ...a, time: snapMap.get(a.id)! }
-        })
-      })
-    },
-    setBpm(b: number) { setBpm(b) },
-    setMinStretch(v: number) { setMinStretch(v) },
-    setMaxStretch(v: number) { setMaxStretch(v) },
-    exportMarkers,
-    triggerImport() { importRef.current?.click() },
-    async detectBpm(): Promise<number | null> {
-      if (origAnchors.length < 2) return null
-      try {
-        const data = await analyzeAnchors(origAnchors.map(a => a.time))
-        if (data.bpm && data.bpm > 0) { setBpm(data.bpm); return data.bpm }
-      } catch {}
-      return null
-    },
-    snapToBeat() {
-      const b = beatRef.current / gridDivRef.current
-      const offset = beatOffsetRef.current
-      if (!b || b <= 0) return
-      setBeatAnchors(prev => {
-        const snapped = snapAllToBeat(prev, b, offset)
-        snapped.forEach(a => linkedBeat.current.delete(a.id))
-        return snapped
-      })
-    },
-    undo,
-    redo,
-    selectAll() { setSelectedIds(new Set(origAnchors.map(a => a.id))) },
-    deselect() { setSelectedIds(new Set()) },
-    zoomIn() {
-      const v = viewRef.current
-      const mid = (v.start + v.end) / 2
-      const span = (v.end - v.start) / 1.5
-      handleViewChangeRef.current({ start: mid - span / 2, end: mid + span / 2 })
-    },
-    zoomOut() {
-      const v = viewRef.current
-      const mid = (v.start + v.end) / 2
-      const span = (v.end - v.start) * 1.5
-      handleViewChangeRef.current({ start: mid - span / 2, end: mid + span / 2 })
-    },
-    zoomToFit() {
-      handleViewChangeRef.current({ start: 0, end: maxDurationRef.current })
-    },
-    zoomToRegion(from: number, to: number) {
-      handleViewChangeRef.current({ start: from, end: to })
-    },
-    setBeatZeroByOrigTime(origTime: number | null) {
-      if (origTime === null) {
-        setBeatZeroId(null)
-        return
-      }
-      const anchor = origAnchorsRef.current.find(a => Math.abs(a.time - origTime) < 0.001)
-      if (anchor) setBeatZeroId(anchor.id)
-    },
-  }), [origAnchors, duration, exportMarkers, undo, redo]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dispatch])
 
   // ── Context menu builders ─────────────────────────────────────────────────
-
   const handleAnchorContextMenu = useCallback((id: number, x: number, y: number) => {
-    const curSel = selectedIdsRef.current
+    const curSel = selectedIds
     const targetIds = curSel.has(id) ? curSel : new Set([id])
-    if (!curSel.has(id)) setSelectedIds(new Set([id]))
+    if (!curSel.has(id)) dispatch(setSelectedIdsAction([id]))
 
     setContextMenu({
       x, y,
@@ -791,42 +448,27 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
           label: targetIds.size > 1 ? `Delete ${targetIds.size} markers` : 'Delete marker',
           danger: true,
           action: () => {
-            const ids = targetIds
-            ids.forEach(i => linkedBeat.current.delete(i))
-            setOrigAnchors(prev => prev.filter(a => !ids.has(a.id)))
-            setBeatAnchors(prev => prev.filter(a => !ids.has(a.id)))
-            setSelectedIds(new Set())
+            dispatch(removeAnchors([...targetIds]))
           },
         },
         {
           label: targetIds.size > 1 ? 'Reset links' : 'Reset link',
-          action: () => {
-            const ids = targetIds
-            const origMap = new Map(origAnchorsRef.current.map(a => [a.id, a.time]))
-            setBeatAnchors(prev => prev.map(a => {
-              if (!ids.has(a.id)) return a
-              linkedBeat.current.add(a.id)
-              return { ...a, time: origMap.get(a.id) ?? a.time }
-            }))
-          },
+          action: () => dispatch(resetBeatLinks([...targetIds])),
         },
         {
           label: 'Snap to beat',
           action: () => {
-            const ids = targetIds
-            const b = beatRef.current / gridDivRef.current
-            const offset = beatOffsetRef.current
+            const b = beat / gridDiv
+            const offset = beatOffset
             if (!b || b <= 0) return
-            setBeatAnchors(prev => {
-              const toSnap = prev.filter(a => ids.has(a.id))
-              const snapped = snapAllToBeat(toSnap, b, offset)
-              const snapMap = new Map(snapped.map(a => [a.id, a.time]))
-              return prev.map(a => {
-                if (!snapMap.has(a.id)) return a
-                linkedBeat.current.delete(a.id)
-                return { ...a, time: snapMap.get(a.id)! }
-              })
-            })
+            const toSnap = beatAnchors.filter(a => targetIds.has(a.id))
+            const snapped = snapAllToBeat(toSnap, b, offset)
+            dispatch(setBeatAnchorsFromTimeline(
+              beatAnchors.map(a => {
+                const s = snapped.find(sa => sa.id === a.id)
+                return s ? { ...a, time: s.time } : a
+              }),
+            ))
           },
         },
         ...(onSendToNewRegion ? [
@@ -834,19 +476,16 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
           {
             label: 'Send to new region',
             action: () => {
-              const ids = targetIds
-              const selOrig = origAnchorsRef.current.filter(a => ids.has(a.id))
+              const selOrig = origAnchors.filter(a => targetIds.has(a.id))
               if (selOrig.length === 0) return
               const times = selOrig.map(a => a.time)
-              const inPoint = Math.min(...times)
-              const outPoint = Math.max(...times)
-              onSendToNewRegion(inPoint, outPoint)
+              onSendToNewRegion(Math.min(...times), Math.max(...times))
             },
           },
         ] : []),
       ],
     })
-  }, [setSelectedIds, onSendToNewRegion])
+  }, [selectedIds, dispatch, beat, gridDiv, beatOffset, beatAnchors, origAnchors, onSendToNewRegion])
 
   const handleTrackContextMenu = useCallback((time: number, x: number, y: number) => {
     setContextMenu({
@@ -856,7 +495,7 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
           label: 'Add marker here',
           action: () => {
             const clamped = Math.max(0, Math.min(duration, time))
-            handleOrigChange([...origAnchorsRef.current, { id: newAnchorId(), time: clamped }])
+            dispatch(setOrigAnchorsFromTimeline([...origAnchors, { id: newAnchorId(), time: clamped }]))
           },
         },
         { separator: true },
@@ -874,7 +513,6 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
           {
             label: 'New region here',
             action: () => {
-              // Create a small region: 4 beats wide centered on click, clamped to video
               const halfSpan = Math.max(beat * 4, 2) / 2
               const inPoint = Math.max(0, time - halfSpan)
               const outPoint = Math.min(duration, time + halfSpan)
@@ -884,8 +522,9 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         ] : []),
       ],
     })
-  }, [duration, clipIn, clipOut, handleOrigChange, onClipOverlayCreate, beat])
+  }, [duration, clipIn, clipOut, origAnchors, onClipOverlayCreate, beat, dispatch])
 
+  // ── Render ────────────────────────────────────────────────────────────────
   const warpCursor = panning
     ? { cursor: 'grabbing' }
     : (shiftHeld && mouseOver) ? { cursor: 'grab' } : {}
@@ -980,9 +619,9 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         onClipOverlaySelect={onClipOverlaySelect}
         onClipOverlayContextMenu={onClipOverlayContextMenu}
         onClipOverlayResize={(id, inP, outP) => {
-          // Beat timeline resize → update beat boundary times
-          // BPM/beats adjustment is handled by RegionInfoPanel's lock effect
-          if (clipOverlays?.find(c => c.id === id)) onBoundaryBeatChange?.(inP, outP)
+          if (activeRegion && clipOverlays?.find(c => c.id === id)) {
+            dispatch(updateRegionBeatTimes({ id: activeRegion.id, inBeatTime: inP, outBeatTime: outP }))
+          }
         }}
         beatRangeStart={beatClipIn}
         beatRangeEnd={beatClipOut}
@@ -1002,6 +641,4 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
       )}
     </div>
   )
-})
-
-export default WarpView
+}
