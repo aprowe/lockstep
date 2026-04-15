@@ -13,6 +13,8 @@ interface UiState {
   /** Source-of-truth view. WarpView keeps a local copy for high-frequency
    *  gesture updates and syncs back on gesture end. */
   view: View
+  /** Last-used export folder (persists across dialog open/close) */
+  lastExportFolder: string | null
 }
 
 const initialState: UiState = {
@@ -25,6 +27,7 @@ const initialState: UiState = {
   playing: false,
   exportOpen: false,
   view: { start: 0, end: 60 },
+  lastExportFolder: null,
 }
 
 const uiSlice = createSlice({
@@ -58,6 +61,9 @@ const uiSlice = createSlice({
     setView(state, action: PayloadAction<View>) {
       state.view = action.payload
     },
+    setLastExportFolder(state, action: PayloadAction<string | null>) {
+      state.lastExportFolder = action.payload
+    },
   },
 })
 
@@ -71,6 +77,7 @@ export const {
   setPlaying,
   setExportOpen,
   setView,
+  setLastExportFolder,
 } = uiSlice.actions
 
 export default uiSlice.reducer

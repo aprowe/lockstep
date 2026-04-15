@@ -32,7 +32,11 @@ function makeState(overrides: {
         ? { path: '', originalName: '', videoUrl: '', duration: overrides.duration, fps: 30, fileHash: '' }
         : null,
     },
-    ui: { sidebarOpen: false, activePanel: null } as RootState['ui'],
+    ui: {
+      timelineHeight: 280, sidebarWidth: 170, clipSidebarWidth: 170, rightWidth: 280,
+      sidebarCollapsed: false, gridDiv: 1, playing: false, exportOpen: false,
+      view: { start: 0, end: 60 }, lastExportFolder: null,
+    } as RootState['ui'],
     warp: {
       origAnchors: overrides.origAnchors ?? [],
       beatAnchors: overrides.beatAnchors ?? [],

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { WarpData, Region } from '../types'
 import { startWarp, listenWarpProgress, saveOutput, pickExportFolder, saveToFolder, writeTextFile, revealInFolder } from '../api/warp'
 import type { UnlistenFn } from '@tauri-apps/api/event'
+import { useAppDispatch, useAppSelector } from '../store/hooks'
+import { setLastExportFolder } from '../store/slices/uiSlice'
 import './ExportDialog.css'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -113,10 +115,12 @@ export default function ExportDialog({
   const [mode, setMode] = useState<ExportMode>('current')
   const [selectedRegionIds, setSelectedRegionIds] = useState<Set<string>>(new Set())
 
-  // Output settings — default folder is the video's parent folder
+  const reduxDispatch = useAppDispatch()
+  const lastExportFolder = useAppSelector(s => s.ui.lastExportFolder)
+
+  // Output settings — default folder is last-used export folder, then video's parent folder
   const videoFolder = useMemo(() => videoPath ? parentFolder(videoPath) : null, [videoPath])
-  const [customFolder, setCustomFolder] = useState<string | null>(null)
-  const destFolder = customFolder ?? videoFolder
+  const destFolder = lastExportFolder ?? videoFolder
   const [namePattern, setNamePattern] = useState('{name}_{bpm}bpm')
   const baseName = originalName.replace(/\.[^.]+$/, '')  // stem of source video
 
@@ -329,7 +333,7 @@ export default function ExportDialog({
   const handlePickFolder = async () => {
     try {
       const folder = await pickExportFolder()
-      setCustomFolder(folder)
+      reduxDispatch(setLastExportFolder(folder))
     } catch {
       // cancelled
     }
@@ -425,8 +429,8 @@ export default function ExportDialog({
                 >
                   <span className="export-dialog__folder-path">{destFolder ?? 'Choose…'}</span>
                 </button>
-                {customFolder && (
-                  <button className="export-dialog__folder-clear" onClick={() => setCustomFolder(null)} title="Reset to video folder">✕</button>
+                {lastExportFolder && (
+                  <button className="export-dialog__folder-clear" onClick={() => reduxDispatch(setLastExportFolder(null))} title="Reset to video folder">✕</button>
                 )}
               </div>
               <div className="export-dialog__row">
@@ -492,8 +496,8 @@ export default function ExportDialog({
             <div className="export-dialog__results">
               {outputPaths.length === 1 ? (
                 <div className="export-dialog__results-row">
-                  <button className="export-dialog__save" onClick={() => handleSaveOne(0)} disabled={saving}>
-                    {saving ? '…' : savedCount > 0 ? '✓ Saved' : destFolder ? '✓ Saved' : 'Save MP4'}
+                  <button className="export-dialog__save" onClick={() => handleSaveOne(0)} disabled={saving || savedCount > 0}>
+                    {saving ? '…' : savedCount > 0 ? '✓ Saved' : destFolder ? 'Save' : 'Save As…'}
                   </button>
                   {savedFolder && (
                     <button

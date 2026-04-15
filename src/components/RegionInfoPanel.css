@@ -92,6 +92,24 @@
 
 /* ── Lock button ───────────────────────────────────────── */
 
+.rip__detect {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: none;
+  border: 1px solid #38312a;
+  border-radius: 4px;
+  color: #b5a898;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+.rip__detect:hover { border-color: #f59e0b; color: #f59e0b; }
+.rip__detect:disabled { opacity: 0.4; cursor: default; }
+
 .rip__lock {
   display: flex;
   align-items: center;

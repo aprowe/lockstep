@@ -57,7 +57,9 @@ export default function MarkerList({
       {/* Header + actions */}
       <div className="ml-section__header">
         <span>Markers</span>
-        <span className="ml-section__header-count">{origAnchors.length}</span>
+        <span className="ml-section__header-count">
+          {selectedIds.size > 0 ? `${selectedIds.size}/${origAnchors.length}` : origAnchors.length}
+        </span>
       </div>
       <div className="ml-actions">
         {hasSelection ? (

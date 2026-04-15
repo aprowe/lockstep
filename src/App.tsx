@@ -447,12 +447,7 @@ export default function App() {
                   setActiveRegionId(id)
                   if (id) {
                     const region = regions.find(r => r.id === id)
-                    if (region) {
-                      playerRef.current?.seek(region.inPoint)
-                      setPendingZoom({ start: region.inPoint, end: region.outPoint })
-                    }
-                  } else {
-                    setPendingZoom(null)
+                    if (region) playerRef.current?.seek(region.inPoint)
                   }
                 }}
                 onAddRegion={() => {
@@ -504,6 +499,8 @@ export default function App() {
                   onLockChange={(lock, lockedBeats) => {
                     if (activeRegionId) updateRegionLock(activeRegionId, lock, lockedBeats)
                   }}
+                  onBpmDetect={handleBpmDetect}
+                  detectingBpm={detectingBpm}
                 />
               </div>
             </div>

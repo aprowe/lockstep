@@ -20,6 +20,9 @@ interface RegionInfoPanelProps {
   onStartAtChange?: (origTime: number | null) => void
   /** Called when lock state changes */
   onLockChange?: (lock: 'bpm' | 'beats', lockedBeats?: number) => void
+  /** Called when user clicks Detect BPM */
+  onBpmDetect?: () => void
+  detectingBpm?: boolean
 }
 
 function formatTimecode(s: number): string {
@@ -41,6 +44,8 @@ export default function RegionInfoPanel({
   beatZeroOrigTime,
   onStartAtChange,
   onLockChange,
+  onBpmDetect,
+  detectingBpm,
 }: RegionInfoPanelProps) {
   const bpm = warpData?.bpm ?? 120
   const minStretch = warpData?.minStretch ?? 0.5
@@ -174,6 +179,16 @@ export default function RegionInfoPanel({
             onBlur={commitBpm}
             onKeyDown={e => { if (e.key === 'Enter') commitBpm(); e.stopPropagation() }}
           />
+          {onBpmDetect && (
+            <button
+              className="rip__detect"
+              onClick={onBpmDetect}
+              disabled={detectingBpm}
+              title="Detect BPM from markers"
+            >
+              {detectingBpm ? '…' : '?'}
+            </button>
+          )}
           {activeRegion && (
             <button
               className={`rip__lock${lock === 'bpm' ? ' rip__lock--active' : ''}`}
