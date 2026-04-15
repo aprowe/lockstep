@@ -14,8 +14,27 @@ import ContextMenu from './components/ContextMenu'
 import type { ContextMenuState } from './components/ContextMenu'
 import { snapAllToBeat } from './utils/quantize'
 import { undo as undoAction, redo as redoAction } from './store/slices/historySlice'
-import { useProject } from './context/ProjectContext'
+import {
+  setRegions as setRegionsAction,
+  addRegion as addRegionAction,
+  deleteRegion as deleteRegionAction,
+  setActiveRegionId as setActiveRegionIdAction,
+  updateRegionInOut as updateRegionInOutAction,
+  updateRegionBeatTimes as updateRegionBeatTimesAction,
+  updateRegionLock as updateRegionLockAction,
+  renameRegion as renameRegionAction,
+} from './store/slices/regionSlice'
+import {
+  openFileThunk,
+  openFolderThunk,
+  loadFolderFromPathThunk,
+  selectVideoThunk,
+  closeVideoThunk,
+  resetVideoDataThunk,
+  openJsonFileThunk,
+} from './store/thunks/videoThunks'
 import { useAppDispatch, useAppSelector } from './store/hooks'
+import { setDetectingBpm as setDetectingBpmAction } from './store/slices/videoSlice'
 import {
   setOrigAnchorsFromTimeline,
   removeAnchors,
@@ -30,6 +49,9 @@ import {
   selectAll as selectAllWarp,
   deselectAll as deselectAllWarp,
   setPlayhead as setPlayheadAction,
+  setLoopBeats as setLoopBeatsAction,
+  setTrimToLoop as setTrimToLoopAction,
+  setAddToEnd as setAddToEndAction,
   newAnchorId,
   setBeatAnchorsFromTimeline,
 } from './store/slices/warpSlice'
@@ -69,43 +91,66 @@ const DEFAULT_TIMELINE = 280
 // ── App ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const {
-    folderVideos,
-    video,
-    regions,
-    activeRegionId,
-    activeRegion,
-    detectingBpm,
-    markersLoaded,
-    initialMarkers,
-    loopBeats,
-    trimToLoop,
-    addToEnd,
-    openFile,
-    openFolder,
-    loadFolderFromPath,
-    selectVideo,
-    closeVideo,
-    setPlayhead,
-    setWarpData,
-    setDetectingBpm,
-    setLoopBeats,
-    setTrimToLoop,
-    setAddToEnd,
-    addRegion,
-    duplicateRegion,
-    deleteRegion,
-    setActiveRegionId,
-    updateRegionInOut,
-    updateRegionBeatTimes,
-    updateRegionLock,
-    renameRegion,
-    markerCountByPath,
-    openJsonFile,
-    resetVideoData,
-  } = useProject()
-
   const dispatch = useAppDispatch()
+
+  // ── Redux state ─────────────────────────────────────────────────────────
+  const video = useAppSelector(s => s.video.video)
+  const folderVideos = useAppSelector(s => s.video.folderVideos)
+  const markerCountByPath = useAppSelector(s => s.video.markerCountByPath)
+  const detectingBpm = useAppSelector(s => s.video.detectingBpm)
+  const markersLoaded = useAppSelector(s => s.video.markersLoaded)
+  const regions = useAppSelector(s => s.region.regions)
+  const activeRegionId = useAppSelector(s => s.region.activeRegionId)
+  const activeRegion = useAppSelector(selectActiveRegionRedux)
+  const loopBeats = useAppSelector(s => s.warp.loopBeats)
+  const trimToLoop = useAppSelector(s => s.warp.trimToLoop)
+  const addToEnd = useAppSelector(s => s.warp.addToEnd)
+
+  // ── Dispatch helpers ────────────────────────────────────────────────────
+  const openFile = () => dispatch(openFileThunk())
+  const openFolder = () => dispatch(openFolderThunk())
+  const loadFolderFromPath = (p: string) => dispatch(loadFolderFromPathThunk(p))
+  const selectVideo = (p: string) => dispatch(selectVideoThunk(p))
+  const closeVideo = () => dispatch(closeVideoThunk())
+  const resetVideoData = () => dispatch(resetVideoDataThunk())
+  const openJsonFile = () => dispatch(openJsonFileThunk())
+  const setDetectingBpm = (v: boolean) => dispatch(setDetectingBpmAction(v))
+  const setLoopBeats = (v: number | null) => dispatch(setLoopBeatsAction(v))
+  const setTrimToLoop = (v: boolean) => dispatch(setTrimToLoopAction(v))
+  const setAddToEnd = (v: boolean) => dispatch(setAddToEndAction(v))
+  const addRegion = (inPoint: number, outPoint: number) => {
+    const id = `region_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+    const name = `Clip ${regions.length + 1}`
+    dispatch(addRegionAction({
+      id, name, inPoint, outPoint,
+      bpm: warpBpm, minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+    }))
+    return id
+  }
+  const duplicateRegion = (srcId: string) => {
+    const src = regions.find(r => r.id === srcId)
+    if (!src) return null
+    const span = src.outPoint - src.inPoint
+    const maxTime = video?.duration ?? Infinity
+    const inPoint = Math.min(src.outPoint, maxTime - span)
+    const outPoint = Math.min(inPoint + span, maxTime)
+    const id = `region_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+    dispatch(addRegionAction({
+      ...src, id, name: `Clip ${regions.length + 1}`, inPoint, outPoint,
+      inBeatTime: undefined, outBeatTime: undefined,
+    }))
+    return id
+  }
+  const deleteRegion = (id: string) => dispatch(deleteRegionAction(id))
+  const setActiveRegionId = (id: string | null) => dispatch(setActiveRegionIdAction(id))
+  const updateRegionInOut = (id: string, inP: number, outP: number) =>
+    dispatch(updateRegionInOutAction({ id, inPoint: inP, outPoint: outP }))
+  const updateRegionBeatTimes = (id: string, inBT?: number, outBT?: number) =>
+    dispatch(updateRegionBeatTimesAction({ id, inBeatTime: inBT, outBeatTime: outBT }))
+  const renameRegion = (id: string, name: string) =>
+    dispatch(renameRegionAction({ id, name }))
+  const updateRegionLock = (id: string, lock: 'bpm' | 'beats', lockedBeats?: number) =>
+    dispatch(updateRegionLockAction({ id, lock, lockedBeats }))
   const timelineHeight = useAppSelector(s => s.ui.timelineHeight)
   const sidebarWidth = useAppSelector(s => s.ui.sidebarWidth)
   const sidebarCollapsed = useAppSelector(s => s.ui.sidebarCollapsed)
