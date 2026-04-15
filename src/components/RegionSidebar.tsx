@@ -50,11 +50,13 @@ interface RegionSidebarProps {
   regions: Region[]
   activeRegionId: string | null
   onSelectRegion: (id: string | null) => void
-  onAddRegion: (inPoint: number, outPoint: number) => void
+  onAddRegion: () => void
   onDeleteRegion: (id: string) => void
   onRename: (id: string, name: string) => void
   onUpdateInOut: (id: string, inPoint: number, outPoint: number) => void
   onExportRegion?: (id: string) => void
+  onDuplicateRegion?: (id: string) => void
+  onResetBoundaries?: (id: string) => void
   /** When set, immediately starts inline rename for this region id */
   pendingRenameId?: string | null
   onPendingRenameConsumed?: () => void
@@ -127,6 +129,8 @@ export default function RegionSidebar({
   onRename,
   onUpdateInOut,
   onExportRegion,
+  onDuplicateRegion,
+  onResetBoundaries,
   pendingRenameId,
   onPendingRenameConsumed,
 }: RegionSidebarProps) {
@@ -166,8 +170,13 @@ export default function RegionSidebar({
       title: region.name,
       items: [
         { label: 'Rename', action: () => startRename(region) },
+        ...(onDuplicateRegion ? [{ label: 'Duplicate', action: () => onDuplicateRegion(region.id) }] : []),
         ...(onExportRegion ? [{ label: 'Export', action: () => onExportRegion(region.id) }] : []),
         { separator: true as const },
+        ...(onResetBoundaries ? [{
+          label: 'Reset boundaries', action: () => onResetBoundaries(region.id),
+          disabled: region.inBeatTime === undefined && region.outBeatTime === undefined,
+        }] : []),
         { label: 'Delete', action: () => onDeleteRegion(region.id), danger: true },
       ],
     })
@@ -181,8 +190,8 @@ export default function RegionSidebar({
         <span className="rsi-header__label">Regions</span>
         <button
           className="rsi-header__add"
-          onClick={() => onAddRegion(0, duration)}
-          title="New region — or drag on the strip below to define bounds"
+          onClick={onAddRegion}
+          title="New region at playhead"
         >
           +
         </button>
@@ -234,6 +243,13 @@ export default function RegionSidebar({
                 ) : (
                   <div className="rsi-item__name">{region.name}</div>
                 )}
+                <button
+                  className="rsi-item__del"
+                  onClick={e => { e.stopPropagation(); onDeleteRegion(region.id) }}
+                  title="Delete region"
+                >
+                  ✕
+                </button>
               </div>
 
               {/* In/out row — editable when active */}

@@ -380,6 +380,11 @@
   background: rgba(255, 255, 255, 0.35);
 }
 
+.anchor--dimmed {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
 /* ── Clip in/out overlays ───────────────────────────────── */
 .clip-out-of-range {
   position: absolute;
@@ -483,6 +488,16 @@
   background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.60);
 }
 
+/* Flipped bar: at bottom of clip overlay instead of top */
+.clip-overlay__bar--flip {
+  top: auto;
+  bottom: 0;
+  height: 10px;
+  border-bottom: none;
+  border-top: 1px solid hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.30);
+  border-radius: 0 0 2px 2px;
+}
+
 .clip-overlay__label {
   flex: 1;
   min-width: 0;
@@ -513,4 +528,13 @@
 
 .clip-overlay__handle:hover {
   background: rgba(224, 117, 64, 0.3);
+}
+
+/* Flipped bar: wider handles with visible grip lines */
+.clip-overlay__bar--flip .clip-overlay__handle {
+  width: 8px;
+  background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.25);
+}
+.clip-overlay__bar--flip .clip-overlay__handle:hover {
+  background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.55);
 }

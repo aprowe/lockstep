@@ -18,6 +18,8 @@ interface RegionInfoPanelProps {
   beatZeroOrigTime?: number | null
   /** Called when user picks "Start at" marker (null = clip start) */
   onStartAtChange?: (origTime: number | null) => void
+  /** Called when lock state changes */
+  onLockChange?: (lock: 'bpm' | 'beats', lockedBeats?: number) => void
 }
 
 function formatTimecode(s: number): string {
@@ -38,16 +40,22 @@ export default function RegionInfoPanel({
   onUpdateRegionInOut,
   beatZeroOrigTime,
   onStartAtChange,
+  onLockChange,
 }: RegionInfoPanelProps) {
   const bpm = warpData?.bpm ?? 120
   const minStretch = warpData?.minStretch ?? 0.5
   const maxStretch = warpData?.maxStretch ?? 2.0
 
   const beat = bpm > 0 ? 60 / bpm : 0
-  const regionSpan = activeRegion
+  const origSpan = activeRegion
     ? activeRegion.outPoint - activeRegion.inPoint
     : duration
-  const totalBeats = beat > 0 ? regionSpan / beat : 0
+  // Beat-space span defines the actual timing — bottom handle controls this
+  const beatSpan = activeRegion
+    ? (activeRegion.outBeatTime ?? activeRegion.outPoint) - (activeRegion.inBeatTime ?? activeRegion.inPoint)
+    : duration
+  const regionSpan = beatSpan  // use beat-space span for all calculations
+  const totalBeats = beat > 0 ? beatSpan / beat : 0
   const markerCount = warpData?.origAnchors.length ?? 0
 
   // Anchors within the active clip for "Start at" selector
@@ -60,9 +68,9 @@ export default function RegionInfoPanel({
       .sort((a, b) => a.time - b.time)
   })()
 
-  // Lock: which value stays fixed when the region is resized
-  const [lock, setLock] = useState<LockTarget>('bpm')
-  const lockedBeatsRef = useRef<number>(totalBeats)
+  // Lock: use region's persisted lock state, default to 'bpm'
+  const lock = activeRegion?.lock ?? 'bpm'
+  const lockedBeats = activeRegion?.lockedBeats ?? totalBeats
 
   // Track previous span to detect external resizes (drag, etc.)
   const prevSpanRef = useRef(regionSpan)
@@ -86,8 +94,8 @@ export default function RegionInfoPanel({
     prevSpanRef.current = regionSpan
     if (!spanChanged) return
 
-    if (lock === 'beats' && lockedBeatsRef.current > 0 && regionSpan > 0.01) {
-      const newBpm = Math.round((lockedBeatsRef.current * 60) / regionSpan * 100) / 100
+    if (lock === 'beats' && lockedBeats > 0 && regionSpan > 0.01) {
+      const newBpm = Math.round((lockedBeats * 60) / regionSpan * 100) / 100
       if (newBpm > 0 && newBpm <= 999 && Math.abs(newBpm - bpm) > 0.01) {
         onBpmChange(newBpm)
       }
@@ -97,10 +105,9 @@ export default function RegionInfoPanel({
   // When user switches to 'beats' lock, snapshot current beats
   const handleLockToggle = () => {
     if (lock === 'bpm') {
-      lockedBeatsRef.current = totalBeats
-      setLock('beats')
+      onLockChange?.('beats', totalBeats)
     } else {
-      setLock('bpm')
+      onLockChange?.('bpm')
     }
   }
 
@@ -119,7 +126,7 @@ export default function RegionInfoPanel({
     }
     const n = parseFloat(beatsInput)
     if (n > 0 && n <= 99999) {
-      lockedBeatsRef.current = n
+      onLockChange?.(lock, n)
       const newOut = Math.min(duration, activeRegion.inPoint + n * beat)
       onUpdateRegionInOut(activeRegion.id, activeRegion.inPoint, newOut)
     } else {
@@ -143,7 +150,7 @@ export default function RegionInfoPanel({
 
   const adjustBeats = (newBeats: number) => {
     if (!activeRegion || !onUpdateRegionInOut || beat <= 0 || newBeats < 0.5) return
-    lockedBeatsRef.current = newBeats
+    onLockChange?.(lock, newBeats)
     const newOut = Math.min(duration, activeRegion.inPoint + newBeats * beat)
     onUpdateRegionInOut(activeRegion.id, activeRegion.inPoint, newOut)
   }

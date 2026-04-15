@@ -7,8 +7,6 @@ import type { ContextMenuState } from './ContextMenu'
 import {
   buildSegments,
   computeOutputDuration,
-  origBands,
-  quantBands,
   snapAllToBeat,
 } from '../utils/quantize'
 import { clampView, initialView } from '../utils/view'
@@ -53,6 +51,15 @@ interface WarpViewProps {
   onClipOverlayResize?: (id: string, inPoint: number, outPoint: number) => void
   onClipOverlayMove?: (id: string, inPoint: number, outPoint: number) => void
   onClipOverlayContextMenu?: (id: string, x: number, y: number) => void
+  /** Per-region beat-space boundary times (undefined = identity/linked) */
+  clipInBeatTime?: number
+  clipOutBeatTime?: number
+  /** ID of the active region (for boundary marker management) */
+  activeRegionId?: string | null
+  /** Called when boundary beat times change via drag on beat timeline */
+  onBoundaryBeatChange?: (inBeatTime?: number, outBeatTime?: number) => void
+  /** Region lock: 'beats' = smooth resize (no grid snap), 'bpm' = snap to beat grid */
+  regionLock?: 'bpm' | 'beats'
 }
 
 export interface WarpViewHandle {
@@ -109,6 +116,11 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
   onClipOverlayResize,
   onClipOverlayMove,
   onClipOverlayContextMenu,
+  clipInBeatTime,
+  clipOutBeatTime,
+  activeRegionId,
+  onBoundaryBeatChange,
+  regionLock,
 }, ref) {
   // Selection: use props if provided, else internal state
   const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set())
@@ -242,14 +254,14 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     () => {
       // Full video: no beat-zero concept, just start from first anchor
       if (clipIn === undefined) return sortedBeat[0]?.time ?? 0
-      // Clip mode: if a marker is designated as beat-zero, use it; otherwise clipIn
+      // Clip mode: if a marker is designated as beat-zero, use it; otherwise the beat-space clip start
       if (beatZeroId !== null) {
         const z = sortedBeat.find(a => a.id === beatZeroId)
         if (z) return z.time
       }
-      return clipIn
+      return clipInBeatTime ?? clipIn
     },
-    [clipIn, sortedBeat, beatZeroId],
+    [clipIn, clipInBeatTime, sortedBeat, beatZeroId],
   )
 
   const firstBeatTime = sortedBeat[0]?.time ?? 0
@@ -278,107 +290,115 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
 
   const maxDuration = Math.max(duration, outputDuration)
 
-  const segments = useMemo(() => {
-    // When a clip is active, inject its boundaries as synthetic anchors
-    // so the connector draws trapezoids from clipIn→firstMarker and lastMarker→clipOut
+  const { segments, segmentAnchors } = useMemo(() => {
+    // When a clip is active, inject its boundaries as synthetic linked anchors
+    // so the connector draws vertical edges at clipIn/clipOut
     if (clipIn === undefined && clipOut === undefined) {
-      return buildSegments(sortedOrig, sortedBeat, duration, outputDuration)
-    }
-    // Piecewise-linear interpolation helper (inline to avoid circular deps)
-    const interpOrigToBeat = (t: number): number => {
-      if (sortedOrig.length === 0) return t
-      if (t <= sortedOrig[0].time) {
-        if (sortedOrig.length < 2) return sortedBeat[0]?.time ?? t
-        const o0 = sortedOrig[0].time, o1 = sortedOrig[1].time
-        const b0 = sortedBeat[0].time, b1 = sortedBeat[1].time
-        const rate = o1 > o0 ? (b1 - b0) / (o1 - o0) : 1
-        return b0 + (t - o0) * rate
-      }
-      for (let i = 0; i < sortedOrig.length - 1; i++) {
-        const o0 = sortedOrig[i].time, o1 = sortedOrig[i + 1].time
-        const b0 = sortedBeat[i].time, b1 = sortedBeat[i + 1].time
-        if (t >= o0 && t <= o1) {
-          const frac = o1 > o0 ? (t - o0) / (o1 - o0) : 0
-          return b0 + frac * (b1 - b0)
-        }
-      }
-      const last = sortedOrig.length - 1
-      const o0 = sortedOrig[last - 1]?.time ?? 0, o1 = sortedOrig[last].time
-      const b0 = sortedBeat[last - 1]?.time ?? 0, b1 = sortedBeat[last].time
-      const rate = o1 > o0 ? (b1 - b0) / (o1 - o0) : 1
-      return b1 + (t - o1) * rate
+      return { segments: buildSegments(sortedOrig, sortedBeat, duration, outputDuration), segmentAnchors: sortedOrig }
     }
     const augOrig = [...sortedOrig]
     const augBeat = [...sortedBeat]
-    const EPS = 1e-6
+    const EPS = 0.01
     if (clipIn !== undefined && (augOrig.length === 0 || augOrig[0].time - clipIn > EPS)) {
       augOrig.unshift({ id: -9998, time: clipIn })
-      augBeat.unshift({ id: -9998, time: clipIn })
+      augBeat.unshift({ id: -9998, time: clipInBeatTime ?? clipIn })
     }
     if (clipOut !== undefined && (augOrig.length === 0 || clipOut - augOrig[augOrig.length - 1].time > EPS)) {
       augOrig.push({ id: -9999, time: clipOut })
-      augBeat.push({ id: -9999, time: clipOut })
+      augBeat.push({ id: -9999, time: clipOutBeatTime ?? clipOut })
     }
-    return buildSegments(augOrig, augBeat, duration, outputDuration)
-  }, [sortedOrig, sortedBeat, duration, outputDuration, clipIn, clipOut])
+    return { segments: buildSegments(augOrig, augBeat, duration, outputDuration), segmentAnchors: augOrig }
+  }, [sortedOrig, sortedBeat, duration, outputDuration, clipIn, clipOut, clipInBeatTime, clipOutBeatTime])
 
-  // Piecewise-linear mapping: source time → beat time and vice versa
+  // ── Region-scoped mapping ──────────────────────────────────────────────────
+  // Outside any active clip → identity (playheads aligned).
+  // Inside the active clip → piecewise-linear warp using only in-clip markers.
+  // After the clip → identity again (no cascading).
+
+  // Clip-scoped anchors: only markers within [clipIn, clipOut] + synthetic edges
+  const { scopedOrig, scopedBeat } = useMemo(() => {
+    if (clipIn === undefined && clipOut === undefined) {
+      return { scopedOrig: sortedOrig, scopedBeat: sortedBeat }
+    }
+    const EPS = 0.01
+    const cIn = clipIn ?? 0
+    const cOut = clipOut ?? duration
+    const filteredOrig = sortedOrig.filter(a => a.time >= cIn - EPS && a.time <= cOut + EPS)
+    const filteredBeat = filteredOrig.map(oa => sortedBeat.find(ba => ba.id === oa.id)!).filter(Boolean)
+    const augO = [...filteredOrig]
+    const augB = [...filteredBeat]
+    // Boundary markers: use per-region beat times if set, otherwise identity (linked)
+    if (clipIn !== undefined && (augO.length === 0 || augO[0].time - clipIn > EPS)) {
+      augO.unshift({ id: -9998, time: clipIn })
+      augB.unshift({ id: -9998, time: clipInBeatTime ?? clipIn })
+    }
+    if (clipOut !== undefined && (augO.length === 0 || clipOut - augO[augO.length - 1].time > EPS)) {
+      augO.push({ id: -9999, time: clipOut })
+      augB.push({ id: -9999, time: clipOutBeatTime ?? clipOut })
+    }
+    return { scopedOrig: augO, scopedBeat: augB }
+  }, [sortedOrig, sortedBeat, clipIn, clipOut, clipInBeatTime, clipOutBeatTime, duration])
+
+  // Piecewise-linear mapping using scoped anchors
   const origToBeat = useCallback((t: number): number => {
-    if (sortedOrig.length === 0) return t
-    for (let i = 0; i < sortedOrig.length - 1; i++) {
-      const o0 = sortedOrig[i].time, o1 = sortedOrig[i + 1].time
-      const b0 = sortedBeat[i].time, b1 = sortedBeat[i + 1].time
+    // Outside active clip → identity
+    if (clipIn !== undefined && t < clipIn) return t
+    if (clipOut !== undefined && t > clipOut) return t
+    if (scopedOrig.length === 0) return t
+    for (let i = 0; i < scopedOrig.length - 1; i++) {
+      const o0 = scopedOrig[i].time, o1 = scopedOrig[i + 1].time
+      const b0 = scopedBeat[i].time, b1 = scopedBeat[i + 1].time
       if (t >= o0 && t <= o1) {
         const frac = o1 > o0 ? (t - o0) / (o1 - o0) : 0
         return b0 + frac * (b1 - b0)
       }
     }
-    // Before first or after last anchor — linear extrapolation from nearest segment
-    if (t < sortedOrig[0].time && sortedOrig.length >= 2) {
-      const o0 = sortedOrig[0].time, o1 = sortedOrig[1].time
-      const b0 = sortedBeat[0].time, b1 = sortedBeat[1].time
-      const rate = o1 > o0 ? (b1 - b0) / (o1 - o0) : 1
-      return b0 + (t - o0) * rate
-    }
-    const last = sortedOrig.length - 1
-    if (t > sortedOrig[last].time && last >= 1) {
-      const o0 = sortedOrig[last - 1].time, o1 = sortedOrig[last].time
-      const b0 = sortedBeat[last - 1].time, b1 = sortedBeat[last].time
-      const rate = o1 > o0 ? (b1 - b0) / (o1 - o0) : 1
-      return b1 + (t - o1) * rate
-    }
-    return sortedBeat[0]?.time ?? t
-  }, [sortedOrig, sortedBeat])
+    // Fallback: identity
+    return t
+  }, [scopedOrig, scopedBeat, clipIn, clipOut])
 
   const beatToOrig = useCallback((t: number): number => {
-    if (sortedBeat.length === 0) return t
-    for (let i = 0; i < sortedBeat.length - 1; i++) {
-      const b0 = sortedBeat[i].time, b1 = sortedBeat[i + 1].time
-      const o0 = sortedOrig[i].time, o1 = sortedOrig[i + 1].time
+    // Outside active clip → identity
+    if (clipIn !== undefined && t < clipIn) return t
+    if (clipOut !== undefined && t > clipOut) return t
+    if (scopedBeat.length === 0) return t
+    for (let i = 0; i < scopedBeat.length - 1; i++) {
+      const b0 = scopedBeat[i].time, b1 = scopedBeat[i + 1].time
+      const o0 = scopedOrig[i].time, o1 = scopedOrig[i + 1].time
       if (t >= b0 && t <= b1) {
         const frac = b1 > b0 ? (t - b0) / (b1 - b0) : 0
         return o0 + frac * (o1 - o0)
       }
     }
-    if (t < sortedBeat[0].time && sortedBeat.length >= 2) {
-      const b0 = sortedBeat[0].time, b1 = sortedBeat[1].time
-      const o0 = sortedOrig[0].time, o1 = sortedOrig[1].time
-      const rate = b1 > b0 ? (o1 - o0) / (b1 - b0) : 1
-      return o0 + (t - b0) * rate
-    }
-    const last = sortedBeat.length - 1
-    if (t > sortedBeat[last].time && last >= 1) {
-      const b0 = sortedBeat[last - 1].time, b1 = sortedBeat[last].time
-      const o0 = sortedOrig[last - 1].time, o1 = sortedOrig[last].time
-      const rate = b1 > b0 ? (o1 - o0) / (b1 - b0) : 1
-      return o1 + (t - b1) * rate
-    }
-    return sortedOrig[0]?.time ?? t
-  }, [sortedOrig, sortedBeat])
+    // Fallback: identity
+    return t
+  }, [scopedOrig, scopedBeat, clipIn, clipOut])
 
   const beatPlayhead = useMemo(
     () => playhead !== undefined ? origToBeat(playhead) : undefined,
     [playhead, origToBeat],
+  )
+
+  // Beat-space clip boundaries — when a real marker is at the edge, origToBeat
+  // returns that marker's beat time (non-vertical edge); otherwise it matches clipIn/clipOut
+  const beatClipIn = useMemo(
+    () => clipIn !== undefined ? origToBeat(clipIn) : undefined,
+    [clipIn, origToBeat],
+  )
+  const beatClipOut = useMemo(
+    () => clipOut !== undefined ? origToBeat(clipOut) : undefined,
+    [clipOut, origToBeat],
+  )
+
+  // Clip overlays mapped to beat space — origToBeat returns identity for
+  // positions outside the active clip, so non-active overlays stay aligned.
+  const beatClipOverlays = useMemo(
+    () => clipOverlays?.map(c => ({
+      ...c,
+      inPoint: origToBeat(c.inPoint),
+      outPoint: origToBeat(c.outPoint),
+    })),
+    [clipOverlays, origToBeat],
   )
 
   const seekFromBeat = useCallback(
@@ -633,10 +653,24 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
     return ids
   }, [origAnchors, beatAnchors])
 
-  // For each segment boundary (index maps to sortedOrig[i]), is the anchor linked?
+  // Anchors outside the active clip range — dimmed on the orig timeline
+  const dimmedAnchorIds = useMemo(() => {
+    if (clipIn === undefined && clipOut === undefined) return undefined
+    const ids = new Set<number>()
+    for (const a of origAnchors) {
+      if ((clipIn !== undefined && a.time < clipIn - 0.001) ||
+          (clipOut !== undefined && a.time > clipOut + 0.001)) {
+        ids.add(a.id)
+      }
+    }
+    return ids.size > 0 ? ids : undefined
+  }, [origAnchors, clipIn, clipOut])
+
+  // For each segment boundary (index maps to segmentAnchors[i]), is the anchor linked?
+  // Synthetic clip boundary anchors (id < 0) are always treated as linked.
   const linkedBoundaries = useMemo(
-    () => sortedOrig.map(a => linkedAnchorIds.has(a.id)),
-    [sortedOrig, linkedAnchorIds],
+    () => segmentAnchors.map(a => a.id < 0 || linkedAnchorIds.has(a.id)),
+    [segmentAnchors, linkedAnchorIds],
   )
 
   useImperativeHandle(ref, () => ({
@@ -870,7 +904,6 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         gridDiv={gridDiv}
         anchors={origAnchors}
         onAnchorsChange={handleOrigChange}
-        bands={origBands(segments)}
         view={view}
         onViewChange={handleViewChange}
         maxDuration={maxDuration}
@@ -893,6 +926,7 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         beatRangeEnd={clipOut}
         onTrackScrub={onSeek}
         linkedAnchorIds={linkedAnchorIds}
+        dimmedAnchorIds={dimmedAnchorIds}
       />
       <WarpConnector
         ref={connectorRef}
@@ -902,6 +936,15 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         outputDuration={outputDuration}
         clipIn={clipIn}
         clipOut={clipOut}
+        beatClipIn={beatClipIn}
+        beatClipOut={beatClipOut}
+        clipColor={(() => {
+          const active = clipOverlays?.find(c => c.active)
+          if (!active) return undefined
+          const PALETTE = [[0,75,55],[30,80,52],[58,80,48],[115,65,45],[183,65,42],[213,70,55],[270,60,55],[305,65,52]]
+          const [h,s,l] = PALETTE[(active.colorIndex ?? 0) % 8]
+          return `hsla(${h},${s}%,${l}%,0.4)`
+        })()}
         linkedBoundaries={linkedBoundaries}
       />
       <Timeline
@@ -919,7 +962,6 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         noRemove
         onAnchorDblClick={handleBeatAnchorReset}
         getBounds={getBeatAnchorBounds}
-        bands={quantBands(segments)}
         view={view}
         onViewChange={handleViewChange}
         maxDuration={maxDuration}
@@ -932,11 +974,21 @@ const WarpView = forwardRef<WarpViewHandle, WarpViewProps>(function WarpView({
         onRulerClick={seekFromBeat}
         onAnchorClick={seekFromBeat}
         onTrackScrub={seekFromBeat}
-        clipOverlays={clipOverlays}
+        clipIn={beatClipIn}
+        clipOut={beatClipOut}
+        clipOverlays={beatClipOverlays}
         onClipOverlaySelect={onClipOverlaySelect}
-        beatRangeStart={clipIn}
-        beatRangeEnd={clipOut}
+        onClipOverlayContextMenu={onClipOverlayContextMenu}
+        onClipOverlayResize={(id, inP, outP) => {
+          // Beat timeline resize → update beat boundary times
+          // BPM/beats adjustment is handled by RegionInfoPanel's lock effect
+          if (clipOverlays?.find(c => c.id === id)) onBoundaryBeatChange?.(inP, outP)
+        }}
+        beatRangeStart={beatClipIn}
+        beatRangeEnd={beatClipOut}
         linkedAnchorIds={linkedAnchorIds}
+        clipResizeSnapTargets={clipIn !== undefined ? [clipIn, clipOut ?? duration] : undefined}
+        clipResizeNoGridSnap={regionLock === 'beats'}
       />
       <input
         ref={importRef}

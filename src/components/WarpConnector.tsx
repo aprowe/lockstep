@@ -9,9 +9,14 @@ interface WarpConnectorProps {
   view: View
   origDuration: number
   outputDuration: number
-  /** Clip in/out — draws shaded overlays and boundary lines when set */
+  /** Clip in/out in orig space — draws shaded overlays */
   clipIn?: number
   clipOut?: number
+  /** Clip in/out in beat space (for slanted boundary lines) — defaults to clipIn/clipOut */
+  beatClipIn?: number
+  beatClipOut?: number
+  /** HSL color string for clip boundary lines (e.g. "hsl(30,80%,52%)") */
+  clipColor?: string
   /** For each segment boundary (length = segments.length - 1): true = anchor is unmanually-adjusted */
   linkedBoundaries?: boolean[]
 }
@@ -22,7 +27,7 @@ function toView(pct: number, totalDuration: number, view: View): number {
 }
 
 const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
-  function WarpConnector({ segments, view, origDuration, outputDuration, clipIn, clipOut, linkedBoundaries }, ref) {
+  function WarpConnector({ segments, view, origDuration, outputDuration, clipIn, clipOut, beatClipIn, beatClipOut, clipColor, linkedBoundaries }, ref) {
     if (segments.length === 0) {
       return <div ref={ref} className="warp-connector warp-connector--empty" />
     }
@@ -66,20 +71,22 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
             )
           })}
 
-          {/* Vertical lines at clip in/out boundaries */}
+          {/* Clip boundary lines — slanted when beat boundary differs from orig */}
           {clipIn !== undefined && (() => {
-            const x = timeToViewPct(clipIn, view)
-            return x >= 0 && x <= 100 ? (
-              <line x1={x} y1={0} x2={x} y2={1}
-                stroke="rgba(255,255,255,0.45)" strokeWidth="1"
+            const origX = timeToViewPct(clipIn, view)
+            const beatX = timeToViewPct(beatClipIn ?? clipIn, view)
+            return (origX >= -5 && origX <= 105) || (beatX >= -5 && beatX <= 105) ? (
+              <line x1={origX} y1={0} x2={beatX} y2={1}
+                stroke={clipColor ?? 'rgba(255,255,255,0.18)'} strokeWidth="1"
                 vectorEffect="non-scaling-stroke" />
             ) : null
           })()}
           {clipOut !== undefined && clipOut < origDuration && (() => {
-            const x = timeToViewPct(clipOut, view)
-            return x >= 0 && x <= 100 ? (
-              <line x1={x} y1={0} x2={x} y2={1}
-                stroke="rgba(255,255,255,0.45)" strokeWidth="1"
+            const origX = timeToViewPct(clipOut, view)
+            const beatX = timeToViewPct(beatClipOut ?? clipOut, view)
+            return (origX >= -5 && origX <= 105) || (beatX >= -5 && beatX <= 105) ? (
+              <line x1={origX} y1={0} x2={beatX} y2={1}
+                stroke={clipColor ?? 'rgba(255,255,255,0.18)'} strokeWidth="1"
                 vectorEffect="non-scaling-stroke" />
             ) : null
           })()}

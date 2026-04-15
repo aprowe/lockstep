@@ -44,10 +44,13 @@ interface ProjectActions {
   setLoopBeats: (v: number | null) => void
   setTrimToLoop: (v: boolean) => void
   setAddToEnd: (v: boolean) => void
-  addRegion: (inPoint: number, outPoint: number) => void
+  addRegion: (inPoint: number, outPoint: number) => string
+  duplicateRegion: (id: string) => string | null
   deleteRegion: (id: string) => void
   setActiveRegionId: (id: string | null) => void
   updateRegionInOut: (id: string, inPoint: number, outPoint: number) => void
+  updateRegionBeatTimes: (id: string, inBeatTime?: number, outBeatTime?: number) => void
+  updateRegionLock: (id: string, lock: 'bpm' | 'beats', lockedBeats?: number) => void
   renameRegion: (id: string, name: string) => void
   openJsonFile: () => Promise<void>
   resetVideoData: () => Promise<void>
@@ -387,6 +390,30 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       addToEnd: false,
     }
     setRegions(prev => [...prev, newRegion])
+    return id
+  }, [])
+
+  const duplicateRegion = useCallback((id: string): string | null => {
+    const source = regionsRef.current.find(r => r.id === id)
+    if (!source) return null
+    const span = source.outPoint - source.inPoint
+    const vid = videoRef.current
+    const maxTime = vid ? vid.duration : Infinity
+    const inPoint = Math.min(source.outPoint, maxTime - span)
+    const outPoint = Math.min(inPoint + span, maxTime)
+    const newId = `region_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+    const newRegion: Region = {
+      id: newId,
+      name: `Clip ${regionsRef.current.length + 1}`,
+      inPoint,
+      outPoint,
+      bpm: source.bpm,
+      minStretch: source.minStretch,
+      maxStretch: source.maxStretch,
+      addToEnd: source.addToEnd,
+    }
+    setRegions(prev => [...prev, newRegion])
+    return newId
   }, [])
 
   const deleteRegion = useCallback((id: string) => {
@@ -402,7 +429,16 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const updateRegionInOut = useCallback((id: string, inPoint: number, outPoint: number) => {
-    setRegions(prev => prev.map(r => r.id === id ? { ...r, inPoint, outPoint } : r))
+    // Reset beat boundary times when the orig boundaries change
+    setRegions(prev => prev.map(r => r.id === id ? { ...r, inPoint, outPoint, inBeatTime: undefined, outBeatTime: undefined } : r))
+  }, [])
+
+  const updateRegionBeatTimes = useCallback((id: string, inBeatTime?: number, outBeatTime?: number) => {
+    setRegions(prev => prev.map(r => r.id === id ? { ...r, inBeatTime, outBeatTime } : r))
+  }, [])
+
+  const updateRegionLock = useCallback((id: string, lock: 'bpm' | 'beats', lockedBeats?: number) => {
+    setRegions(prev => prev.map(r => r.id === id ? { ...r, lock, lockedBeats } : r))
   }, [])
 
   const renameRegion = useCallback((id: string, name: string) => {
@@ -486,9 +522,12 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     setTrimToLoop,
     setAddToEnd,
     addRegion,
+    duplicateRegion,
     deleteRegion,
     setActiveRegionId,
     updateRegionInOut,
+    updateRegionBeatTimes,
+    updateRegionLock,
     renameRegion,
     openJsonFile: openJsonFileAction,
     resetVideoData: resetVideoDataAction,

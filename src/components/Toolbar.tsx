@@ -41,13 +41,15 @@ interface ToolbarProps {
   gridDiv?: number
   onGridDivChange?: (div: number) => void
   onNewRegion?: () => void
+  onJumpRegionStart?: () => void
+  onJumpRegionEnd?: () => void
 }
 
 export default function Toolbar({
   playerRef, duration, fps, playing, currentTime,
   onMark, onJumpPrev, onJumpNext, onZoomToRegion, onSetIn, onSetOut,
   bpm, onBpmChange, onBpmDetect, detectingBpm, anchorCount = 0,
-  gridDiv, onGridDivChange, onNewRegion,
+  gridDiv, onGridDivChange, onNewRegion, onJumpRegionStart, onJumpRegionEnd,
 }: ToolbarProps) {
   const [bpmInput, setBpmInput] = useState(String(bpm ?? 120))
   const [speed, setSpeed] = useState(1)
@@ -128,11 +130,21 @@ export default function Toolbar({
         {onMark && (
           <button className="tb-btn tb-btn--mark" onClick={() => onMark(playerRef.current?.currentTime ?? 0)} title="Place marker at playhead (M)">M</button>
         )}
+        {onJumpRegionStart && (
+          <button className="tb-btn" onClick={onJumpRegionStart} title="Jump to region start">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm12 0-8.5 6 8.5 6z"/></svg>
+          </button>
+        )}
         {onSetIn && (
           <button className="tb-btn tb-btn--inout" onClick={onSetIn} title="Set region In point at playhead (I)">I</button>
         )}
         {onSetOut && (
           <button className="tb-btn tb-btn--inout" onClick={onSetOut} title="Set region Out point at playhead (O)">O</button>
+        )}
+        {onJumpRegionEnd && (
+          <button className="tb-btn" onClick={onJumpRegionEnd} title="Jump to region end">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>
+          </button>
         )}
         {onNewRegion && (
           <button className="tb-btn tb-btn--region" onClick={onNewRegion} title="New region at playhead">

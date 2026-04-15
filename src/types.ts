@@ -64,6 +64,14 @@ export interface Region {
   minStretch: number
   maxStretch: number
   addToEnd: boolean
+  /** Beat-space time for the in boundary (defaults to inPoint = linked/identity) */
+  inBeatTime?: number
+  /** Beat-space time for the out boundary (defaults to outPoint = linked/identity) */
+  outBeatTime?: number
+  /** Which value stays fixed when region is resized: 'bpm' (default) or 'beats' */
+  lock?: 'bpm' | 'beats'
+  /** Snapshot of beat count when lock='beats' (used to derive BPM on resize) */
+  lockedBeats?: number
 }
 
 /** Multi-selection state for markers */

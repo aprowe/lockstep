@@ -59,9 +59,12 @@ export default function App() {
     setTrimToLoop,
     setAddToEnd,
     addRegion,
+    duplicateRegion,
     deleteRegion,
     setActiveRegionId,
     updateRegionInOut,
+    updateRegionBeatTimes,
+    updateRegionLock,
     renameRegion,
     markerCountByPath,
     openJsonFile,
@@ -256,6 +259,8 @@ export default function App() {
 
   const clipIn = activeRegion?.inPoint ?? undefined
   const clipOut = activeRegion?.outPoint ?? undefined
+  const clipInBeatTime = activeRegion?.inBeatTime
+  const clipOutBeatTime = activeRegion?.outBeatTime
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -336,7 +341,13 @@ export default function App() {
                     setPendingZoom(null)
                   }
                 }}
-                onAddRegion={addRegion}
+                onAddRegion={() => {
+                  const beat = (warpData?.bpm ?? 120) > 0 ? 60 / (warpData?.bpm ?? 120) : 0.5
+                  const halfSpan = Math.max(beat * 4, 2) / 2
+                  const inPoint = Math.max(0, playhead - halfSpan)
+                  const outPoint = Math.min(video.duration, playhead + halfSpan)
+                  addRegion(inPoint, outPoint)
+                }}
                 onDeleteRegion={deleteRegion}
                 onRename={renameRegion}
                 onUpdateInOut={updateRegionInOut}
@@ -344,6 +355,11 @@ export default function App() {
                   setActiveRegionId(id)
                   setExportOpen(true)
                 }}
+                onDuplicateRegion={(id) => {
+                  const newId = duplicateRegion(id)
+                  if (newId) setActiveRegionId(newId)
+                }}
+                onResetBoundaries={(id) => updateRegionBeatTimes(id, undefined, undefined)}
                 pendingRenameId={pendingRenameId}
                 onPendingRenameConsumed={() => setPendingRenameId(null)}
               />
@@ -367,6 +383,9 @@ export default function App() {
                     return warpData.origAnchors.find(oa => oa.id === zeroBA.id)?.time ?? null
                   })()}
                   onStartAtChange={origTime => warpRef.current?.setBeatZeroByOrigTime(origTime)}
+                  onLockChange={(lock, lockedBeats) => {
+                    if (activeRegionId) updateRegionLock(activeRegionId, lock, lockedBeats)
+                  }}
                 />
               </div>
             </div>
@@ -416,12 +435,26 @@ export default function App() {
                   const to = activeRegion?.outPoint ?? video.duration
                   warpRef.current?.zoomToRegion(from, to)
                 }}
+                onJumpRegionStart={activeRegion ? () => {
+                  playerRef.current?.seek(activeRegion.inPoint)
+                } : undefined}
+                onJumpRegionEnd={activeRegion ? () => {
+                  playerRef.current?.seek(activeRegion.outPoint)
+                } : undefined}
                 onSetIn={activeRegion ? () => {
                   updateRegionInOut(activeRegion.id, Math.min(playhead, activeRegion.outPoint - 0.1), activeRegion.outPoint)
-                } : undefined}
+                } : () => {
+                  // Full Video: create a new region from playhead to end
+                  const id = addRegion(playhead, video.duration)
+                  if (id) setActiveRegionId(id)
+                }}
                 onSetOut={activeRegion ? () => {
                   updateRegionInOut(activeRegion.id, activeRegion.inPoint, Math.max(playhead, activeRegion.inPoint + 0.1))
-                } : undefined}
+                } : () => {
+                  // Full Video: create a new region from start to playhead
+                  const id = addRegion(0, Math.max(playhead, 0.1))
+                  if (id) setActiveRegionId(id)
+                }}
                 bpm={warpData?.bpm}
                 onBpmChange={handleBpmChange}
                 onBpmDetect={handleBpmDetect}
@@ -467,6 +500,13 @@ export default function App() {
                   onSelectionChange={setSelectedIds}
                   clipIn={clipIn}
                   clipOut={clipOut}
+                  clipInBeatTime={clipInBeatTime}
+                  clipOutBeatTime={clipOutBeatTime}
+                  activeRegionId={activeRegionId}
+                  regionLock={activeRegion?.lock}
+                  onBoundaryBeatChange={(inBT, outBT) => {
+                    if (activeRegionId) updateRegionBeatTimes(activeRegionId, inBT, outBT)
+                  }}
                   initialViewOverride={pendingZoom ?? undefined}
                   onSendToNewRegion={(inPoint, outPoint) =>
                     addRegion(inPoint, outPoint)
@@ -491,8 +531,14 @@ export default function App() {
                       title: region.name,
                       items: [
                         { label: 'Rename', action: () => { setActiveRegionId(id); setPendingRenameId(id) } },
+                        { label: 'Duplicate', action: () => {
+                          const newId = duplicateRegion(id)
+                          if (newId) setActiveRegionId(newId)
+                        }},
                         { label: 'Export', action: () => { setActiveRegionId(id); setExportOpen(true) } },
                         { separator: true as const },
+                        { label: 'Reset boundaries', action: () => updateRegionBeatTimes(id, undefined, undefined),
+                          disabled: region.inBeatTime === undefined && region.outBeatTime === undefined },
                         { label: 'Delete', action: () => deleteRegion(id), danger: true },
                       ],
                     })
