@@ -1,4 +1,4 @@
-import { forwardRef } from 'react'
+import { forwardRef, useCallback, useRef, useState } from 'react'
 import type { WarpSegment, View } from '../types'
 import { stretchColor } from '../utils/quantize'
 import { timeToViewPct } from '../utils/view'
@@ -19,6 +19,10 @@ interface WarpConnectorProps {
   clipColor?: string
   /** For each segment boundary (length = segments.length - 1): true = anchor is unmanually-adjusted */
   linkedBoundaries?: boolean[]
+  /** Anchors for lasso selection in the connector area */
+  anchors?: { id: number; time: number }[]
+  /** Called when lasso selection changes */
+  onSelectionChange?: (ids: Set<number>) => void
 }
 
 /** Convert a full-duration percentage to view-space percentage */
@@ -27,13 +31,62 @@ function toView(pct: number, totalDuration: number, view: View): number {
 }
 
 const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
-  function WarpConnector({ segments, view, origDuration, outputDuration, clipIn, clipOut, beatClipIn, beatClipOut, clipColor, linkedBoundaries }, ref) {
+  function WarpConnector({ segments, view, origDuration, outputDuration, clipIn, clipOut, beatClipIn, beatClipOut, clipColor, linkedBoundaries, anchors, onSelectionChange }, ref) {
+    const lassoRef = useRef<{ startX: number } | null>(null)
+    const [lassoRect, setLassoRect] = useState<{ left: number; width: number } | null>(null)
+    const containerRef = useRef<HTMLDivElement>(null)
+
+    const handlePointerDown = useCallback((e: React.PointerEvent) => {
+      if (e.button !== 0 || e.shiftKey) return // let shift-drag pan through
+      if (!onSelectionChange || !anchors) return
+      e.currentTarget.setPointerCapture(e.pointerId)
+      lassoRef.current = { startX: e.clientX }
+      onSelectionChange(new Set())
+    }, [onSelectionChange, anchors])
+
+    const handlePointerMove = useCallback((e: React.PointerEvent) => {
+      const g = lassoRef.current
+      if (!g || !containerRef.current || !anchors) return
+      const rect = containerRef.current.getBoundingClientRect()
+      const startPct = Math.max(0, Math.min(100, ((g.startX - rect.left) / rect.width) * 100))
+      const currPct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100))
+      const left = Math.min(startPct, currPct)
+      const width = Math.abs(currPct - startPct)
+      setLassoRect({ left, width })
+
+      // Convert % to time and select anchors in range
+      const visibleSpan = view.end - view.start
+      const startTime = view.start + (left / 100) * visibleSpan
+      const endTime = view.start + ((left + width) / 100) * visibleSpan
+      const ids = new Set(anchors.filter(a => a.time >= startTime && a.time <= endTime).map(a => a.id))
+      onSelectionChange?.(ids)
+    }, [anchors, view, onSelectionChange])
+
+    const handlePointerUp = useCallback(() => {
+      lassoRef.current = null
+      setLassoRect(null)
+    }, [])
+
     if (segments.length === 0) {
       return <div ref={ref} className="warp-connector warp-connector--empty" />
     }
 
+    // Merge refs
+    const setRefs = (el: HTMLDivElement | null) => {
+      (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el
+      if (typeof ref === 'function') ref(el)
+      else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = el
+    }
+
     return (
-      <div ref={ref} className="warp-connector">
+      <div
+        ref={setRefs}
+        className="warp-connector"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+      >
         <svg
           width="100%"
           height="100%"
@@ -120,6 +173,12 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
           <div
             className="warp-connector__out-of-range"
             style={{ left: `${timeToViewPct(clipOut, view)}%`, right: 0 }}
+          />
+        )}
+        {lassoRect && (
+          <div
+            className="warp-connector__lasso"
+            style={{ left: `${lassoRect.left}%`, width: `${lassoRect.width}%` }}
           />
         )}
       </div>

@@ -99,6 +99,7 @@ export default function WarpView({
   const [shiftHeld, setShiftHeld] = useState(false)
   const [panning, setPanning] = useState(false)
   const [mouseOver, setMouseOver] = useState(false)
+  const [selectionOrigin, setSelectionOrigin] = useState<'orig' | 'beat'>('orig')
 
   const warpContainerRef = useRef<HTMLDivElement>(null)
   const connectorRef = useRef<HTMLDivElement>(null)
@@ -290,6 +291,14 @@ export default function WarpView({
   // ── Selection helpers ─────────────────────────────────────────────────────
   const setSelectedIds = useCallback(
     (ids: Set<number>) => dispatch(setSelectedIdsAction([...ids])),
+    [dispatch],
+  )
+  const setSelectedIdsOrig = useCallback(
+    (ids: Set<number>) => { setSelectionOrigin('orig'); dispatch(setSelectedIdsAction([...ids])) },
+    [dispatch],
+  )
+  const setSelectedIdsBeat = useCallback(
+    (ids: Set<number>) => { setSelectionOrigin('beat'); dispatch(setSelectedIdsAction([...ids])) },
     [dispatch],
   )
 
@@ -554,7 +563,8 @@ export default function WarpView({
         onRulerClick={onSeek}
         onAnchorClick={onSeek}
         selectedIds={selectedIds}
-        onSelectionChange={setSelectedIds}
+        onSelectionChange={setSelectedIdsOrig}
+        primarySelection={selectionOrigin === 'orig'}
         clipIn={clipIn}
         clipOut={clipOut}
         onAnchorContextMenu={handleAnchorContextMenu}
@@ -589,6 +599,8 @@ export default function WarpView({
           return `hsla(${h},${s}%,${l}%,0.4)`
         })()}
         linkedBoundaries={linkedBoundaries}
+        anchors={origAnchors}
+        onSelectionChange={setSelectedIds}
       />
       <Timeline
         flip
@@ -611,7 +623,8 @@ export default function WarpView({
         anchorZeroId={clipIn !== undefined ? (effectiveBeatZeroId ?? undefined) : undefined}
         onAnchorSetZero={clipIn !== undefined ? handleSetBeatZero : undefined}
         selectedIds={selectedIds}
-        onSelectionChange={setSelectedIds}
+        onSelectionChange={setSelectedIdsBeat}
+        primarySelection={selectionOrigin === 'beat'}
         onAnchorContextMenu={handleAnchorContextMenu}
         playhead={beatPlayhead}
         onRulerClick={seekFromBeat}

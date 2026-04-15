@@ -156,7 +156,7 @@
   flex-shrink: 0;
 }
 
-.export-dialog__folder-btn {
+.export-dialog__folder-input {
   flex: 1;
   min-width: 0;
   padding: 5px 8px;
@@ -164,24 +164,26 @@
   border: 1px solid #2c2720;
   border-radius: 4px;
   color: #b5a898;
-  font-family: inherit;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  direction: rtl;
+  unicode-bidi: plaintext;
+  text-align: left;
+  outline: none;
+}
+.export-dialog__folder-input:focus { border-color: #f59e0b; }
+
+.export-dialog__folder-browse {
+  padding: 4px 8px;
+  background: #1c1915;
+  border: 1px solid #2c2720;
+  border-radius: 4px;
+  color: #b5a898;
   font-size: 12px;
   cursor: pointer;
-  text-align: left;
-  overflow: hidden;
-  transition: border-color 0.1s;
+  flex-shrink: 0;
 }
-.export-dialog__folder-btn:hover { border-color: #5a4e42; color: #c2b8ae; }
-/* Show path right-to-left so the relevant end is visible */
-.export-dialog__folder-path {
-  display: block;
-  direction: rtl;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  unicode-bidi: plaintext;
-}
+.export-dialog__folder-browse:hover { border-color: #5a4e42; color: #c2b8ae; }
 
 .export-dialog__folder-clear {
   background: none;
@@ -262,6 +264,31 @@
   width: 13px;
   height: 13px;
   cursor: pointer;
+}
+
+.export-dialog__norm-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.export-dialog__norm-bpm {
+  width: 50px;
+  padding: 2px 4px;
+  background: #131110;
+  border: 1px solid #2c2720;
+  border-radius: 3px;
+  color: #e2dbd2;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  text-align: center;
+  outline: none;
+}
+.export-dialog__norm-bpm:focus { border-color: #f59e0b; }
+
+.export-dialog__norm-label {
+  font-size: 11px;
+  color: #7a6e62;
 }
 
 .export-dialog__job-info {

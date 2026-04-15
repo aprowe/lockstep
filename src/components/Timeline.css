@@ -291,6 +291,22 @@
   opacity: 0.8;
 }
 
+/* ── Secondary selected (selected from the other timeline) ── */
+.anchor--selected-secondary .anchor-handle {
+  background: #a09080;
+  box-shadow: 0 0 6px rgba(160, 144, 128, 0.4);
+}
+.anchor--selected-secondary .anchor-line {
+  background: linear-gradient(to bottom, #a09080, rgba(160, 144, 128, 0.05));
+}
+.timeline--flip .anchor--selected-secondary .anchor-line {
+  background: linear-gradient(to top, #a09080, rgba(160, 144, 128, 0.05));
+}
+.anchor--selected-secondary .anchor-time {
+  color: #a09080;
+  opacity: 0.6;
+}
+
 /* ── Lasso selection rectangle ─────────────────────── */
 .lasso-rect {
   position: absolute;

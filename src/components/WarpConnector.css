@@ -35,3 +35,13 @@
   pointer-events: none;
   z-index: 1;
 }
+
+.warp-connector__lasso {
+  position: absolute;
+  top: 0; bottom: 0;
+  background: rgba(226, 219, 210, 0.08);
+  border-left: 1px solid rgba(226, 219, 210, 0.25);
+  border-right: 1px solid rgba(226, 219, 210, 0.25);
+  pointer-events: none;
+  z-index: 2;
+}

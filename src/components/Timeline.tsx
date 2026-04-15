@@ -88,6 +88,8 @@ export interface TimelineProps {
   linkedAnchorIds?: Set<number>
   /** IDs of anchors to dim (outside active region) */
   dimmedAnchorIds?: Set<number>
+  /** When false, selection uses a dimmer highlight (selected from the other timeline) */
+  primarySelection?: boolean
   /** Extra snap targets for clip resize (e.g. identity boundary positions) */
   clipResizeSnapTargets?: number[]
   /** When true, clip resize skips beat-grid snapping (smooth drag) */
@@ -229,6 +231,7 @@ export default function Timeline({
   boundaryAnchorIds,
   linkedAnchorIds,
   dimmedAnchorIds,
+  primarySelection = true,
   clipResizeSnapTargets,
   clipResizeNoGridSnap,
 }: TimelineProps) {
@@ -907,7 +910,7 @@ export default function Timeline({
           return (
           <div
             key={`a-${anchor.id}`}
-            className={`anchor${anchorZeroId === anchor.id ? ' anchor--zero' : ''}${isSelected ? ' anchor--selected' : ''}${isBoundary ? ' anchor--boundary' : ''}${isLinked ? ' anchor--linked' : ''}${isDimmed ? ' anchor--dimmed' : ''}`}
+            className={`anchor${anchorZeroId === anchor.id ? ' anchor--zero' : ''}${isSelected ? (primarySelection ? ' anchor--selected' : ' anchor--selected-secondary') : ''}${isBoundary ? ' anchor--boundary' : ''}${isLinked ? ' anchor--linked' : ''}${isDimmed ? ' anchor--dimmed' : ''}`}
             style={{ left: `${timeToPercent(anchor.time)}%` }}
             onPointerDown={e => handleAnchorPointerDown(e, anchor)}
             onDoubleClick={e => handleAnchorDblClick(e, anchor.id)}

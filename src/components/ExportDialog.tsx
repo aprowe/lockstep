@@ -99,6 +99,7 @@ export default function ExportDialog({
 }: ExportDialogProps) {
   const [fadeAtLoop, setFadeAtLoop] = useState(false)
   const [normalizeBpm, setNormalizeBpm] = useState(false)
+  const [normBpmTarget, setNormBpmTarget] = useState(120)
   const [status, setStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle')
   const [progress, setProgress] = useState(0)
   const [currentJobLabel, setCurrentJobLabel] = useState('')
@@ -422,13 +423,18 @@ export default function ExportDialog({
             <div className="export-dialog__output">
               <div className="export-dialog__row">
                 <span className="export-dialog__row-label">Folder</span>
+                <input
+                  className="export-dialog__folder-input"
+                  value={destFolder ?? ''}
+                  onChange={e => reduxDispatch(setLastExportFolder(e.target.value || null))}
+                  placeholder="Choose folder…"
+                  spellCheck={false}
+                />
                 <button
-                  className="export-dialog__folder-btn"
+                  className="export-dialog__folder-browse"
                   onClick={handlePickFolder}
-                  title={destFolder ?? ''}
-                >
-                  <span className="export-dialog__folder-path">{destFolder ?? 'Choose…'}</span>
-                </button>
+                  title="Browse…"
+                >…</button>
                 {lastExportFolder && (
                   <button className="export-dialog__folder-clear" onClick={() => reduxDispatch(setLastExportFolder(null))} title="Reset to video folder">✕</button>
                 )}
@@ -464,10 +470,21 @@ export default function ExportDialog({
                   Fade at loop
                 </label>
               )}
-              <label className="export-dialog__check">
-                <input type="checkbox" checked={normalizeBpm} onChange={e => setNormalizeBpm(e.target.checked)} />
-                Normalize BPM
-              </label>
+              <div className="export-dialog__norm-row">
+                <label className="export-dialog__check">
+                  <input type="checkbox" checked={normalizeBpm} onChange={e => setNormalizeBpm(e.target.checked)} />
+                  Normalize to
+                </label>
+                {normalizeBpm && (
+                  <input
+                    className="export-dialog__norm-bpm"
+                    type="number" min={1} max={999} step={1}
+                    value={normBpmTarget}
+                    onChange={e => setNormBpmTarget(Number(e.target.value))}
+                  />
+                )}
+                {normalizeBpm && <span className="export-dialog__norm-label">BPM</span>}
+              </div>
             </div>
           )}
 
