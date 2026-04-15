@@ -7,7 +7,8 @@ import { checkVideoSidecar, deleteVideoSidecar, openJsonFile as openJsonFileApi,
 import { setVideo, clearVideo, setFolderVideos, setMarkerCount, setMarkersLoaded, setDetectingBpm } from '../slices/videoSlice'
 import { loadAnchors, clearAnchors, setBpm, setMinStretch, setMaxStretch, setLoopBeats, setTrimToLoop, setAddToEnd, setGlobalMarkers, setPlayhead, bumpAnchorIdCounter } from '../slices/warpSlice'
 import { setRegions, setActiveRegionId } from '../slices/regionSlice'
-import { resetHistory } from '../slices/historySlice'
+import { resetHistory, pushSnapshot } from '../slices/historySlice'
+import type { HistoryEntry } from '../slices/historySlice'
 import { setView } from '../slices/uiSlice'
 
 /** Load markers from sidecar or internal storage for a video */
@@ -31,10 +32,17 @@ async function loadMarkersForVideo(videoPath: string, fileHash: string) {
 
 export const openFileThunk = createAsyncThunk(
   'video/openFile',
-  async (_, { dispatch }) => {
+  async (_, { dispatch, getState }) => {
     try {
       const info = await openVideo()
       if (!info) return
+      const { warp } = (getState() as RootState)
+      const preLoadEntry: HistoryEntry = {
+        origAnchors: warp.origAnchors,
+        beatAnchors: warp.beatAnchors,
+        linkedBeatIds: warp.linkedBeatIds,
+        beatZeroId: warp.beatZeroId,
+      }
       dispatch(setFolderVideos([]))
       dispatch(setVideo(info))
       dispatch(setView({ start: 0, end: info.duration }))
@@ -44,7 +52,7 @@ export const openFileThunk = createAsyncThunk(
       dispatch(setMarkersLoaded(false))
 
       const state = await loadMarkersForVideo(info.path, info.fileHash)
-      applyLoadedState(dispatch, state, info.path)
+      applyLoadedState(dispatch, state, info.path, preLoadEntry)
     } catch (e: any) {
       console.error('Failed to open file:', e)
     }
@@ -107,8 +115,15 @@ export const loadFolderFromPathThunk = createAsyncThunk(
 
 export const selectVideoThunk = createAsyncThunk(
   'video/selectVideo',
-  async (path: string, { dispatch }) => {
+  async (path: string, { dispatch, getState }) => {
     try {
+      const { warp } = (getState() as RootState)
+      const preLoadEntry: HistoryEntry = {
+        origAnchors: warp.origAnchors,
+        beatAnchors: warp.beatAnchors,
+        linkedBeatIds: warp.linkedBeatIds,
+        beatZeroId: warp.beatZeroId,
+      }
       const info = await loadVideoFromPath(path)
       dispatch(setVideo(info))
       dispatch(setView({ start: 0, end: info.duration }))
@@ -118,7 +133,7 @@ export const selectVideoThunk = createAsyncThunk(
       dispatch(setMarkersLoaded(false))
 
       const state = await loadMarkersForVideo(info.path, info.fileHash)
-      applyLoadedState(dispatch, state, info.path)
+      applyLoadedState(dispatch, state, info.path, preLoadEntry)
     } catch (e: any) {
       console.error('Failed to select video:', e)
     }
@@ -167,8 +182,15 @@ export const resetVideoDataThunk = createAsyncThunk(
 
 export const openJsonFileThunk = createAsyncThunk(
   'video/openJsonFile',
-  async (_, { dispatch }) => {
+  async (_, { dispatch, getState }) => {
     try {
+      const { warp } = (getState() as RootState)
+      const preLoadEntry: HistoryEntry = {
+        origAnchors: warp.origAnchors,
+        beatAnchors: warp.beatAnchors,
+        linkedBeatIds: warp.linkedBeatIds,
+        beatZeroId: warp.beatZeroId,
+      }
       const { jsonContent, videoPath: video_path } = await openJsonFileApi()
       // Load the video first
       const info = await loadVideoFromPath(video_path)
@@ -181,7 +203,7 @@ export const openJsonFileThunk = createAsyncThunk(
 
       // The sidecar will be auto-detected by loadMarkersForVideo
       const state = await loadMarkersForVideo(info.path, info.fileHash)
-      applyLoadedState(dispatch, state, info.path)
+      applyLoadedState(dispatch, state, info.path, preLoadEntry)
     } catch (e: any) {
       console.error('Failed to open JSON file:', e)
     }
@@ -189,7 +211,7 @@ export const openJsonFileThunk = createAsyncThunk(
 )
 
 /** Apply loaded SavedVideoState to Redux */
-function applyLoadedState(dispatch: any, state: SavedVideoState | null, videoPath: string) {
+function applyLoadedState(dispatch: any, state: SavedVideoState | null, videoPath: string, preLoadEntry: HistoryEntry) {
   const dr = state?.defaultRegion ?? null
   dispatch(setGlobalMarkers(dr))
 
@@ -222,10 +244,12 @@ function applyLoadedState(dispatch: any, state: SavedVideoState | null, videoPat
   dispatch(setActiveRegionId(null))
   dispatch(setMarkersLoaded(true))
 
-  // Reset history for the new video
+  // Set history: pre-load state as base so undo can revert the load,
+  // then push the loaded state on top as the current entry
   const orig = dr?.origAnchors ?? []
   const beat = dr?.beatAnchors ?? []
-  dispatch(resetHistory({
+  dispatch(resetHistory(preLoadEntry))
+  dispatch(pushSnapshot({
     origAnchors: orig,
     beatAnchors: beat,
     linkedBeatIds: [],

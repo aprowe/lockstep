@@ -5,7 +5,7 @@ import historyReducer, {
   redo,
   resetHistory,
   type HistoryEntry,
-} from '../../store/slices/historySlice'
+} from '../../../src/store/slices/historySlice'
 
 function entry(origTimes: number[], beatTimes?: number[]): HistoryEntry {
   const bt = beatTimes ?? origTimes
@@ -17,30 +17,25 @@ function entry(origTimes: number[], beatTimes?: number[]): HistoryEntry {
   }
 }
 
-const empty = entry([])
-
-// ── pushSnapshot ──────────────────────────────────────────────────────────────
-
 describe('pushSnapshot', () => {
   it('appends a new entry beyond the initial snapshot', () => {
     let state = historyReducer(undefined, pushSnapshot(entry([5])))
-    expect(state.stack).toHaveLength(2) // initial + new
+    expect(state.stack).toHaveLength(2)
     expect(state.index).toBe(1)
   })
 
   it('skips identical consecutive snapshots', () => {
     let state = historyReducer(undefined, pushSnapshot(entry([5])))
     state = historyReducer(state, pushSnapshot(entry([5])))
-    expect(state.stack).toHaveLength(2) // not 3
+    expect(state.stack).toHaveLength(2)
   })
 
   it('truncates future entries when a new snapshot is pushed after undo', () => {
     let state = historyReducer(undefined, { type: '@@INIT' })
     state = historyReducer(state, pushSnapshot(entry([5])))
     state = historyReducer(state, pushSnapshot(entry([10])))
-    state = historyReducer(state, undo())    // go back to [5]
-    state = historyReducer(state, pushSnapshot(entry([7])))  // branch off
-    // stack should be: initial, [5], [7] — not [10]
+    state = historyReducer(state, undo())
+    state = historyReducer(state, pushSnapshot(entry([7])))
     expect(state.stack).toHaveLength(3)
     expect(state.stack[2].origAnchors[0].time).toBe(7)
   })
@@ -53,8 +48,6 @@ describe('pushSnapshot', () => {
     expect(state.stack.length).toBeLessThanOrEqual(100)
   })
 })
-
-// ── undo / redo ───────────────────────────────────────────────────────────────
 
 describe('undo', () => {
   it('decrements index', () => {
@@ -85,8 +78,6 @@ describe('redo', () => {
     expect(state.index).toBe(1)
   })
 })
-
-// ── resetHistory ──────────────────────────────────────────────────────────────
 
 describe('resetHistory', () => {
   it('replaces the stack with a single entry at index 0', () => {

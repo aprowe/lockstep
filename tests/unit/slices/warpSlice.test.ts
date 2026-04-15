@@ -15,10 +15,9 @@ import warpReducer, {
   setBeatZeroId,
   newAnchorId,
   bumpAnchorIdCounter,
-} from '../../store/slices/warpSlice'
-import type { Anchor } from '../../types'
+} from '../../../src/store/slices/warpSlice'
+import type { Anchor } from '../../../src/types'
 
-// Helper: build initial warp state with anchors already present
 function stateWithAnchors(pairs: { id: number; origTime: number; beatTime?: number }[]) {
   let state = warpReducer(undefined, { type: '@@INIT' })
   for (const { id, origTime, beatTime } of pairs) {
@@ -29,8 +28,6 @@ function stateWithAnchors(pairs: { id: number; origTime: number; beatTime?: numb
   }
   return state
 }
-
-// ── addAnchor ─────────────────────────────────────────────────────────────────
 
 describe('addAnchor', () => {
   it('appends to both orig and beat arrays', () => {
@@ -51,8 +48,6 @@ describe('addAnchor', () => {
     expect(state.origAnchors[0].time).toBe(state.beatAnchors[0].time)
   })
 })
-
-// ── removeAnchors ─────────────────────────────────────────────────────────────
 
 describe('removeAnchors', () => {
   it('removes from both arrays and linkedBeatIds', () => {
@@ -80,8 +75,6 @@ describe('removeAnchors', () => {
   })
 })
 
-// ── moveOrigAnchor ────────────────────────────────────────────────────────────
-
 describe('moveOrigAnchor', () => {
   it('moves a linked beat anchor in sync with orig', () => {
     let state = warpReducer(undefined, addAnchor({ id: 1, time: 5 }))
@@ -93,16 +86,13 @@ describe('moveOrigAnchor', () => {
 
   it('does NOT move an unlinked beat anchor', () => {
     let state = warpReducer(undefined, addAnchor({ id: 1, time: 5 }))
-    // Unlink by moving the beat anchor separately
     state = warpReducer(state, moveBeatAnchor({ id: 1, time: 9 }))
     expect(state.linkedBeatIds).not.toContain(1)
     state = warpReducer(state, moveOrigAnchor({ id: 1, time: 12 }))
     expect(state.origAnchors[0].time).toBe(12)
-    expect(state.beatAnchors[0].time).toBe(9) // unchanged
+    expect(state.beatAnchors[0].time).toBe(9)
   })
 })
-
-// ── moveBeatAnchor ────────────────────────────────────────────────────────────
 
 describe('moveBeatAnchor', () => {
   it('unlinks the beat anchor when moved independently', () => {
@@ -125,15 +115,13 @@ describe('moveBeatAnchor', () => {
   })
 })
 
-// ── resetBeatLinks ────────────────────────────────────────────────────────────
-
 describe('resetBeatLinks', () => {
   it('restores beat anchor to orig position and re-links', () => {
     let state = warpReducer(undefined, addAnchor({ id: 1, time: 5 }))
     state = warpReducer(state, moveBeatAnchor({ id: 1, time: 9 }))
     expect(state.linkedBeatIds).not.toContain(1)
     state = warpReducer(state, resetBeatLinks([1]))
-    expect(state.beatAnchors[0].time).toBe(5) // restored to orig
+    expect(state.beatAnchors[0].time).toBe(5)
     expect(state.linkedBeatIds).toContain(1)
   })
 
@@ -144,8 +132,6 @@ describe('resetBeatLinks', () => {
     expect(state.linkedBeatIds).toContain(1)
   })
 })
-
-// ── clearAnchors ──────────────────────────────────────────────────────────────
 
 describe('clearAnchors', () => {
   it('empties all anchor arrays and selection', () => {
@@ -160,8 +146,6 @@ describe('clearAnchors', () => {
     expect(state.beatZeroId).toBeNull()
   })
 })
-
-// ── setOrigAnchorsFromTimeline ─────────────────────────────────────────────────
 
 describe('setOrigAnchorsFromTimeline', () => {
   it('adds a new anchor as linked', () => {
@@ -197,11 +181,9 @@ describe('setOrigAnchorsFromTimeline', () => {
     let state = stateWithAnchors([{ id: 1, origTime: 5, beatTime: 9 }])
     expect(state.linkedBeatIds).not.toContain(1)
     state = warpReducer(state, setOrigAnchorsFromTimeline([{ id: 1, time: 12 }]))
-    expect(state.beatAnchors[0].time).toBe(9) // unchanged
+    expect(state.beatAnchors[0].time).toBe(9)
   })
 })
-
-// ── setBeatAnchorsFromTimeline ─────────────────────────────────────────────────
 
 describe('setBeatAnchorsFromTimeline', () => {
   it('unlinks anchors whose beat time changes', () => {
@@ -217,8 +199,6 @@ describe('setBeatAnchorsFromTimeline', () => {
     expect(state.linkedBeatIds).toContain(1)
   })
 })
-
-// ── loadAnchors ──────────────────────────────────────────────────────────────
 
 describe('loadAnchors', () => {
   it('replaces all anchors and metadata', () => {
@@ -236,8 +216,6 @@ describe('loadAnchors', () => {
     expect(state.beatZeroId).toBe(7)
   })
 })
-
-// ── selection ────────────────────────────────────────────────────────────────
 
 describe('selection', () => {
   it('selectAll selects all orig anchor IDs', () => {
@@ -260,8 +238,6 @@ describe('selection', () => {
     expect(state.selectedIds).toEqual([2])
   })
 })
-
-// ── newAnchorId / bumpAnchorIdCounter ─────────────────────────────────────────
 
 describe('newAnchorId', () => {
   it('returns a positive integer and increments on each call', () => {

@@ -9,8 +9,8 @@ import regionReducer, {
   renameRegion,
   updateRegionBpm,
   updateRegionStretch,
-} from '../../store/slices/regionSlice'
-import type { Region } from '../../types'
+} from '../../../src/store/slices/regionSlice'
+import type { Region } from '../../../src/types'
 
 function makeRegion(overrides: Partial<Region> = {}): Region {
   return {
@@ -26,8 +26,6 @@ function makeRegion(overrides: Partial<Region> = {}): Region {
   }
 }
 
-// ── addRegion ─────────────────────────────────────────────────────────────────
-
 describe('addRegion', () => {
   it('appends a region', () => {
     const state = regionReducer(undefined, addRegion(makeRegion()))
@@ -35,8 +33,6 @@ describe('addRegion', () => {
     expect(state.regions[0].id).toBe('r1')
   })
 })
-
-// ── deleteRegion ──────────────────────────────────────────────────────────────
 
 describe('deleteRegion', () => {
   it('removes the region by id', () => {
@@ -63,8 +59,6 @@ describe('deleteRegion', () => {
   })
 })
 
-// ── setActiveRegionId ─────────────────────────────────────────────────────────
-
 describe('setActiveRegionId', () => {
   it('sets the active region', () => {
     let state = regionReducer(undefined, addRegion(makeRegion()))
@@ -79,8 +73,6 @@ describe('setActiveRegionId', () => {
     expect(state.activeRegionId).toBeNull()
   })
 })
-
-// ── updateRegionInOut ─────────────────────────────────────────────────────────
 
 describe('updateRegionInOut', () => {
   it('updates in/out points', () => {
@@ -101,8 +93,6 @@ describe('updateRegionInOut', () => {
   })
 })
 
-// ── updateRegionBeatTimes ─────────────────────────────────────────────────────
-
 describe('updateRegionBeatTimes', () => {
   it('sets beat boundary times', () => {
     let state = regionReducer(undefined, addRegion(makeRegion()))
@@ -111,8 +101,6 @@ describe('updateRegionBeatTimes', () => {
     expect(state.regions[0].outBeatTime).toBe(28)
   })
 })
-
-// ── updateRegionLock ──────────────────────────────────────────────────────────
 
 describe('updateRegionLock', () => {
   it('sets the lock mode and lockedBeats', () => {
@@ -123,8 +111,6 @@ describe('updateRegionLock', () => {
   })
 })
 
-// ── renameRegion ──────────────────────────────────────────────────────────────
-
 describe('renameRegion', () => {
   it('updates the region name', () => {
     let state = regionReducer(undefined, addRegion(makeRegion()))
@@ -133,8 +119,6 @@ describe('renameRegion', () => {
   })
 })
 
-// ── updateRegionBpm ───────────────────────────────────────────────────────────
-
 describe('updateRegionBpm', () => {
   it('updates the bpm', () => {
     let state = regionReducer(undefined, addRegion(makeRegion()))
@@ -142,8 +126,6 @@ describe('updateRegionBpm', () => {
     expect(state.regions[0].bpm).toBe(140)
   })
 })
-
-// ── updateRegionStretch ───────────────────────────────────────────────────────
 
 describe('updateRegionStretch', () => {
   it('updates minStretch and maxStretch', () => {
@@ -157,6 +139,6 @@ describe('updateRegionStretch', () => {
     let state = regionReducer(undefined, addRegion(makeRegion()))
     state = regionReducer(state, updateRegionStretch({ id: 'r1', minStretch: 0.6 }))
     expect(state.regions[0].minStretch).toBe(0.6)
-    expect(state.regions[0].maxStretch).toBe(2.0) // unchanged
+    expect(state.regions[0].maxStretch).toBe(2.0)
   })
 })

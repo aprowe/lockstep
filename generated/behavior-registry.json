@@ -1,0 +1,144 @@
+{
+  "generated": "2026-04-15T20:48:05.671Z",
+  "behaviors": {
+    "drop-a-matching-marker-file-onto-a-loaded-clip::e0671657": {
+      "feature": "Drop a matching marker file onto a loaded clip",
+      "scenario": "Markers are replaced when a matching sidecar is dropped",
+      "isOutline": false,
+      "steps": [
+        "Given a video is loaded with in-progress marker state",
+        "And a sidecar file exists in the same folder with saved markers",
+        "When the user drops the JSON file onto the app window",
+        "Then the video does not change",
+        "And all current in-memory markers are replaced with those from the sidecar"
+      ],
+      "file": "features/drop-marker-file.feature",
+      "line": 3
+    },
+    "drop-a-matching-marker-file-onto-a-loaded-clip::a757305b": {
+      "feature": "Drop a matching marker file onto a loaded clip",
+      "scenario": "Undo reverts the sidecar load",
+      "isOutline": false,
+      "steps": [
+        "Given a sidecar file is loaded over in-progress markers",
+        "When the user dispatches undo",
+        "Then the markers revert to the state directly before loading"
+      ],
+      "file": "features/drop-marker-file.feature",
+      "line": 10
+    },
+    "drop-a-matching-marker-file-onto-a-loaded-clip::b07f7e75": {
+      "feature": "Drop a matching marker file onto a loaded clip",
+      "scenario": "No sibling video found results in silent error",
+      "isOutline": false,
+      "steps": [
+        "Given a JSON file is dropped with no sibling video next to it",
+        "When the app tries to resolve the sibling",
+        "Then the error is logged silently",
+        "And the current state is unchanged"
+      ],
+      "file": "features/drop-marker-file.feature",
+      "line": 15
+    },
+    "drop-a-matching-marker-file-onto-a-loaded-clip::7bf91849": {
+      "feature": "Drop a matching marker file onto a loaded clip",
+      "scenario": "A different sibling video loads with its markers",
+      "isOutline": false,
+      "steps": [
+        "Given a JSON file is dropped whose sibling video differs from the currently loaded one",
+        "When the sidecar is resolved",
+        "Then the sibling video loads replacing the current video",
+        "And the sibling's markers are applied"
+      ],
+      "file": "features/drop-marker-file.feature",
+      "line": 21
+    },
+    "region-creation::3855ff5e": {
+      "feature": "Region Creation",
+      "scenario": "New region size is the smaller of 10% of view or 5 seconds",
+      "isOutline": true,
+      "steps": [
+        "Given the current viewport span is <viewSpan> seconds",
+        "When a new region is created",
+        "Then the region span is <expectedSpan> seconds"
+      ],
+      "file": "features/region-creation.feature",
+      "line": 3
+    },
+    "region-creation::2ca1d550": {
+      "feature": "Region Creation",
+      "scenario": "New region from the timeline is centred on the cursor position",
+      "isOutline": false,
+      "steps": [
+        "Given the current viewport span is 40 seconds",
+        "And the video duration is 120 seconds",
+        "When a new region is created at cursor position 60 seconds",
+        "Then the region spans from 58 to 62 seconds"
+      ],
+      "file": "features/region-creation.feature",
+      "line": 15
+    },
+    "region-creation::fcb8e9c7": {
+      "feature": "Region Creation",
+      "scenario": "New region from the region list is centred on the playhead",
+      "isOutline": false,
+      "steps": [
+        "Given the current viewport span is 40 seconds",
+        "And the video duration is 120 seconds",
+        "When a new region is created at playhead position 60 seconds",
+        "Then the region spans from 58 to 62 seconds"
+      ],
+      "file": "features/region-creation.feature",
+      "line": 21
+    },
+    "region-creation::1cd7c8b4": {
+      "feature": "Region Creation",
+      "scenario": "Region is clamped to the start of the video",
+      "isOutline": false,
+      "steps": [
+        "Given the current viewport span is 40 seconds",
+        "And the video duration is 120 seconds",
+        "When a new region is created at cursor position 0.5 seconds",
+        "Then the region in-point is 0"
+      ],
+      "file": "features/region-creation.feature",
+      "line": 27
+    },
+    "region-creation::9e815d8d": {
+      "feature": "Region Creation",
+      "scenario": "Region is clamped to the end of the video",
+      "isOutline": false,
+      "steps": [
+        "Given the current viewport span is 40 seconds",
+        "And the video duration is 120 seconds",
+        "When a new region is created at cursor position 119.5 seconds",
+        "Then the region out-point is 120"
+      ],
+      "file": "features/region-creation.feature",
+      "line": 33
+    },
+    "video-loading::95a00249": {
+      "feature": "Video Loading",
+      "scenario": "Viewport is set to the video duration on load",
+      "isOutline": false,
+      "steps": [
+        "When a video is loaded",
+        "Then the viewport changes to the length of the video"
+      ],
+      "file": "features/video-loading.feature",
+      "line": 3
+    },
+    "video-loading::8d77b3e0": {
+      "feature": "Video Loading",
+      "scenario": "Viewport resets when a different video is loaded",
+      "isOutline": false,
+      "steps": [
+        "Given a first video with a long duration is already loaded",
+        "When a second video with a shorter duration is loaded",
+        "Then the viewport changes to the shorter video's duration"
+      ],
+      "file": "features/video-loading.feature",
+      "line": 7
+    }
+  }
+}

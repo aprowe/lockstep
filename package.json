@@ -9,7 +9,9 @@
     "tauri": "tauri",
     "test": "vitest run",
     "test:watch": "vitest",
-    "behavior:coverage": "node scripts/behavior-coverage.mjs"
+    "behaviors:parse": "tsx scripts/behavior.ts parse",
+    "behaviors:coverage": "tsx scripts/behavior.ts coverage",
+    "behaviors:check": "tsx scripts/behavior.ts check"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.11.2",
@@ -25,6 +27,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "esbuild": "^0.28.0",
+    "tsx": "^4.19.3",
     "typescript": "~5.9.3",
     "vite": "^8.0.5",
     "vitest": "^4.1.4"

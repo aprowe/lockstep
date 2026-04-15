@@ -6,30 +6,23 @@ import {
   computeOutputDuration,
   origBands,
   quantBands,
-} from '../../utils/quantize'
-import type { Anchor } from '../../types'
-
-// ── snapToBeat ──────────────────────────────────────────────────────────────
+} from '../../../src/utils/quantize'
+import type { Anchor } from '../../../src/types'
 
 describe('snapToBeat', () => {
   it('snaps a time exactly on a beat boundary unchanged', () => {
-    // 120 bpm → beat = 0.5s
     expect(snapToBeat(1.0, 120)).toBeCloseTo(1.0)
     expect(snapToBeat(2.5, 120)).toBeCloseTo(2.5)
   })
 
   it('rounds to the nearest beat', () => {
-    // beat = 0.5s; 0.3 is closer to 0.5 than to 0
     expect(snapToBeat(0.3, 120)).toBeCloseTo(0.5)
-    // 0.2 is closer to 0
     expect(snapToBeat(0.2, 120)).toBeCloseTo(0.0)
   })
 })
 
-// ── snapAllToBeat ────────────────────────────────────────────────────────────
-
 describe('snapAllToBeat', () => {
-  const beat = 0.5 // 120 bpm
+  const beat = 0.5
 
   it('returns anchors unchanged when beat is 0', () => {
     const anchors: Anchor[] = [{ id: 1, time: 0.3 }]
@@ -46,37 +39,24 @@ describe('snapAllToBeat', () => {
   })
 
   it('snaps with a non-zero beat offset (phase)', () => {
-    // beatOffset = 0.1, beat = 0.5 → grid at 0.1, 0.6, 1.1…
     const result = snapAllToBeat([{ id: 1, time: 0.65 }], beat, 0.1)
     expect(result[0].time).toBeCloseTo(0.6)
   })
 
   it('closest anchor wins a conflict — loser keeps original time', () => {
-    // beat = 1.0 for clarity; both want beat at t=1.0
-    // id:1 at 0.9 (dist 0.1) wins; id:2 at 1.2 (dist 0.2) loses → stays at 1.2
-    const anchors: Anchor[] = [
-      { id: 1, time: 0.9 },
-      { id: 2, time: 1.2 },
-    ]
+    const anchors: Anchor[] = [{ id: 1, time: 0.9 }, { id: 2, time: 1.2 }]
     const result = snapAllToBeat(anchors, 1.0, 0)
-    const r1 = result.find(a => a.id === 1)!
-    const r2 = result.find(a => a.id === 2)!
-    expect(r1.time).toBeCloseTo(1.0)
-    expect(r2.time).toBeCloseTo(1.2) // unsnapped — lost the conflict
+    expect(result.find(a => a.id === 1)!.time).toBeCloseTo(1.0)
+    expect(result.find(a => a.id === 2)!.time).toBeCloseTo(1.2)
   })
 
   it('both anchors snap to distinct beats when there is no conflict', () => {
-    const anchors: Anchor[] = [
-      { id: 1, time: 0.45 },
-      { id: 2, time: 1.45 },
-    ]
+    const anchors: Anchor[] = [{ id: 1, time: 0.45 }, { id: 2, time: 1.45 }]
     const result = snapAllToBeat(anchors, 1.0, 0)
     expect(result.find(a => a.id === 1)!.time).toBeCloseTo(0.0)
     expect(result.find(a => a.id === 2)!.time).toBeCloseTo(1.0)
   })
 })
-
-// ── computeOutputDuration ────────────────────────────────────────────────────
 
 describe('computeOutputDuration', () => {
   it('returns origDuration when there are no beat anchors', () => {
@@ -86,19 +66,15 @@ describe('computeOutputDuration', () => {
   it('computes duration: lastBeat + (origDuration - lastOrig)', () => {
     const orig: Anchor[] = [{ id: 1, time: 10 }]
     const beat: Anchor[] = [{ id: 1, time: 12 }]
-    // 12 + (60 - 10) = 62
     expect(computeOutputDuration(orig, beat, 60)).toBe(62)
   })
 
   it('handles stretching the tail (last beat > last orig)', () => {
     const orig: Anchor[] = [{ id: 1, time: 50 }]
     const beat: Anchor[] = [{ id: 1, time: 55 }]
-    // 55 + (60 - 50) = 65
     expect(computeOutputDuration(orig, beat, 60)).toBe(65)
   })
 })
-
-// ── buildSegments ────────────────────────────────────────────────────────────
 
 describe('buildSegments', () => {
   it('builds one segment when there are no anchors', () => {
@@ -117,7 +93,6 @@ describe('buildSegments', () => {
   })
 
   it('computes stretchRatio correctly for a stretched segment', () => {
-    // orig: 0–10s; beat: 0–20s → ratio 2.0
     const orig: Anchor[] = [{ id: 1, time: 10 }]
     const beat: Anchor[] = [{ id: 1, time: 20 }]
     const segs = buildSegments(orig, beat, 60, 70)
@@ -135,25 +110,15 @@ describe('buildSegments', () => {
   })
 })
 
-// ── origBands / quantBands ────────────────────────────────────────────────────
-
 describe('origBands / quantBands', () => {
   it('extracts orig bounds', () => {
-    const segs = buildSegments(
-      [{ id: 1, time: 30 }],
-      [{ id: 1, time: 30 }],
-      60, 60,
-    )
+    const segs = buildSegments([{ id: 1, time: 30 }], [{ id: 1, time: 30 }], 60, 60)
     const bands = origBands(segs)
     expect(bands[0]).toMatchObject({ left: segs[0].origLeft, right: segs[0].origRight })
   })
 
   it('extracts quant bounds', () => {
-    const segs = buildSegments(
-      [{ id: 1, time: 30 }],
-      [{ id: 1, time: 30 }],
-      60, 60,
-    )
+    const segs = buildSegments([{ id: 1, time: 30 }], [{ id: 1, time: 30 }], 60, 60)
     const bands = quantBands(segs)
     expect(bands[0]).toMatchObject({ left: segs[0].quantLeft, right: segs[0].quantRight })
   })

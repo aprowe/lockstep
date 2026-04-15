@@ -10,11 +10,9 @@ import {
   selectActiveRegion,
   selectClipIn,
   selectClipOut,
-} from '../store/selectors'
-import type { RootState } from '../store/store'
-import type { Anchor, Region } from '../types'
-
-// ── helpers ──────────────────────────────────────────────────────────────────
+} from '../../src/store/selectors'
+import type { RootState } from '../../src/store/store'
+import type { Anchor, Region } from '../../src/types'
 
 function makeState(overrides: {
   origAnchors?: Anchor[]
@@ -63,8 +61,6 @@ function makeState(overrides: {
   } as unknown as RootState
 }
 
-// ── selectSortedOrig ──────────────────────────────────────────────────────────
-
 describe('selectSortedOrig', () => {
   it('returns anchors sorted by time', () => {
     const state = makeState({
@@ -78,11 +74,9 @@ describe('selectSortedOrig', () => {
     const orig = [{ id: 2, time: 10 }, { id: 1, time: 5 }]
     const state = makeState({ origAnchors: orig })
     selectSortedOrig(state)
-    expect(orig[0].id).toBe(2) // order unchanged
+    expect(orig[0].id).toBe(2)
   })
 })
-
-// ── selectSortedBeat ──────────────────────────────────────────────────────────
 
 describe('selectSortedBeat', () => {
   it('returns beat anchors in the same order as sorted orig', () => {
@@ -91,13 +85,10 @@ describe('selectSortedBeat', () => {
       beatAnchors: [{ id: 1, time: 6 }, { id: 2, time: 11 }],
     })
     const result = selectSortedBeat(state)
-    // Sorted orig order: id:1, id:2 → beat order should be id:1(6), id:2(11)
     expect(result[0].id).toBe(1)
     expect(result[1].id).toBe(2)
   })
 })
-
-// ── selectOutputDuration ──────────────────────────────────────────────────────
 
 describe('selectOutputDuration', () => {
   it('returns video duration when there are no anchors', () => {
@@ -111,12 +102,9 @@ describe('selectOutputDuration', () => {
       beatAnchors: [{ id: 1, time: 12 }],
       duration: 60,
     })
-    // 12 + (60 - 10) = 62
     expect(selectOutputDuration(state)).toBe(62)
   })
 })
-
-// ── selectSelectedIdsSet ──────────────────────────────────────────────────────
 
 describe('selectSelectedIdsSet', () => {
   it('returns a Set of the selectedIds', () => {
@@ -129,8 +117,6 @@ describe('selectSelectedIdsSet', () => {
   })
 })
 
-// ── selectLinkedBeatSet ───────────────────────────────────────────────────────
-
 describe('selectLinkedBeatSet', () => {
   it('returns a Set of linkedBeatIds', () => {
     const state = makeState({ linkedBeatIds: [2, 4] })
@@ -141,13 +127,9 @@ describe('selectLinkedBeatSet', () => {
   })
 })
 
-// ── selectDimmedAnchorIds ─────────────────────────────────────────────────────
-
 describe('selectDimmedAnchorIds', () => {
   it('returns undefined when no active region', () => {
-    const state = makeState({
-      origAnchors: [{ id: 1, time: 5 }],
-    })
+    const state = makeState({ origAnchors: [{ id: 1, time: 5 }] })
     expect(selectDimmedAnchorIds(state)).toBeUndefined()
   })
 
@@ -158,9 +140,9 @@ describe('selectDimmedAnchorIds', () => {
     }
     const state = makeState({
       origAnchors: [
-        { id: 1, time: 5 },   // before inPoint → dimmed
-        { id: 2, time: 15 },  // inside → not dimmed
-        { id: 3, time: 25 },  // after outPoint → dimmed
+        { id: 1, time: 5 },
+        { id: 2, time: 15 },
+        { id: 3, time: 25 },
       ],
       regions: [region],
       activeRegionId: 'r1',
@@ -185,8 +167,6 @@ describe('selectDimmedAnchorIds', () => {
     expect(selectDimmedAnchorIds(state)).toBeUndefined()
   })
 })
-
-// ── selectActiveRegion / selectClipIn / selectClipOut ─────────────────────────
 
 describe('selectActiveRegion', () => {
   it('returns null when no active region', () => {
@@ -220,8 +200,6 @@ describe('selectClipIn / selectClipOut', () => {
   })
 })
 
-// ── selectWarpData ────────────────────────────────────────────────────────────
-
 describe('selectWarpData', () => {
   it('includes bpm and stretch limits', () => {
     const state = makeState()
@@ -236,7 +214,6 @@ describe('selectWarpData', () => {
       origAnchors: [{ id: 1, time: 5 }, { id: 2, time: 10 }],
       beatAnchors: [{ id: 1, time: 6 }, { id: 2, time: 11 }],
     })
-    // First beat anchor (sorted by orig) has id:1, time:6
     expect(selectWarpData(state).beatZeroTime).toBe(6)
   })
 
@@ -251,7 +228,7 @@ describe('selectWarpData', () => {
       regions: [region],
       activeRegionId: 'r1',
     })
-    expect(selectWarpData(state).beatZeroTime).toBe(10) // clipIn
+    expect(selectWarpData(state).beatZeroTime).toBe(10)
   })
 
   it('uses the designated beatZeroId anchor time when set', () => {
