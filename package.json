@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "behaviors:parse": "tsx scripts/behavior.ts parse",
     "behaviors:coverage": "tsx scripts/behavior.ts coverage",
-    "behaviors:check": "tsx scripts/behavior.ts check"
+    "behaviors:check": "tsx scripts/behavior.ts check",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.11.2",

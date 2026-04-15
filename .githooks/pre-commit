@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+
+echo "▶ tests"
+npm test --silent
+
+echo "▶ behavior coverage"
+npm run behaviors:check --silent
