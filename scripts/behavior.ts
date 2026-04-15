@@ -18,7 +18,7 @@
 
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
-import { resolve, join, relative, dirname } from 'node:path'
+import { resolve, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT         = resolve(fileURLToPath(import.meta.url), '..', '..')
@@ -28,10 +28,26 @@ const GENERATED    = join(ROOT, 'generated')
 const REGISTRY     = join(GENERATED, 'behavior-registry.json')
 const COVERAGE_OUT = join(GENERATED, 'coverage.json')
 
-const [,, cmd] = process.argv
+const args    = process.argv.slice(2)
+const cmd     = args.find(a => !a.startsWith('-'))
+const NO_COLOR = args.includes('--no-color') || !process.stdout.isTTY
+
 if (!cmd || !['parse', 'coverage', 'check'].includes(cmd)) {
-  console.error('Usage: tsx scripts/behavior.ts <parse|coverage|check>')
+  console.error('Usage: tsx scripts/behavior.ts <parse|coverage|check> [--no-color]')
   process.exit(1)
+}
+
+// ─── color helpers ────────────────────────────────────────────────────────────
+
+const c = {
+  reset:  (s: string) => NO_COLOR ? s : `\x1b[0m${s}\x1b[0m`,
+  bold:   (s: string) => NO_COLOR ? s : `\x1b[1m${s}\x1b[0m`,
+  dim:    (s: string) => NO_COLOR ? s : `\x1b[2m${s}\x1b[0m`,
+  green:  (s: string) => NO_COLOR ? s : `\x1b[32m${s}\x1b[0m`,
+  red:    (s: string) => NO_COLOR ? s : `\x1b[31m${s}\x1b[0m`,
+  yellow: (s: string) => NO_COLOR ? s : `\x1b[33m${s}\x1b[0m`,
+  cyan:   (s: string) => NO_COLOR ? s : `\x1b[36m${s}\x1b[0m`,
+  gray:   (s: string) => NO_COLOR ? s : `\x1b[90m${s}\x1b[0m`,
 }
 
 // ─── shared helpers ───────────────────────────────────────────────────────────
@@ -129,14 +145,17 @@ function runParse() {
   mkdirSync(GENERATED, { recursive: true })
   writeFileSync(REGISTRY, JSON.stringify({ generated: new Date().toISOString(), behaviors: all }, null, 2) + '\n')
 
-  const count = Object.keys(all).length
-  console.log(`\nWrote ${count} behavior${count !== 1 ? 's' : ''} → ${relative(ROOT, REGISTRY).replace(/\\/g, '/')}\n`)
+  const count  = Object.keys(all).length
+  const outRel = relative(ROOT, REGISTRY).replace(/\\/g, '/')
+  console.log(`\n${c.bold(`Wrote ${count} behavior${count !== 1 ? 's' : ''}`)}`
+    + ` ${c.gray('→')} ${c.cyan(outRel)}\n`)
   for (const [id, e] of Object.entries(all)) {
-    console.log(`  ${id}${e.isOutline ? ' [outline]' : ''}`)
-    console.log(`    ${e.scenario}`)
+    const tag = e.isOutline ? c.gray(' [outline]') : ''
+    console.log(`  ${c.cyan(id)}${tag}`)
+    console.log(`  ${c.gray(e.scenario)}`)
   }
 
-  if (collisions > 0) { console.error(`\n${collisions} ID collision(s).`); process.exit(1) }
+  if (collisions > 0) { console.error(c.red(`\n${collisions} ID collision(s).`)); process.exit(1) }
 }
 
 // ─── coverage ─────────────────────────────────────────────────────────────────
@@ -187,30 +206,42 @@ function runCoverage(print = true): boolean {
 
   if (!print) return missing.length === 0 && orphans.length === 0
 
-  const W = 72
-  console.log(`\n${'━'.repeat(W)}\n  BEHAVIOR COVERAGE\n${'━'.repeat(W)}\n`)
+  const W    = 72
+  const heavy = '━'.repeat(W)
+  const light = '─'.repeat(W)
+  console.log(`\n${c.bold(heavy)}\n  ${c.bold('BEHAVIOR COVERAGE')}\n${c.bold(heavy)}\n`)
 
-  console.log(`COVERED  (${covered.length}/${expectedIds.size})\n${'─'.repeat(W)}`)
+  console.log(`${c.bold(`COVERED  (${covered.length}/${expectedIds.size})`)}\n${c.gray(light)}`)
   for (const id of covered) {
-    console.log(`  ✓ ${id}\n    ${behaviors[id].scenario}`)
-    for (const ref of coverage.get(id)!) console.log(`    → ${ref.file}:${ref.line}`)
+    console.log(`  ${c.green('✓')} ${c.cyan(id)}`)
+    console.log(`    ${c.gray(behaviors[id].scenario)}`)
+    for (const ref of coverage.get(id)!) console.log(`    ${c.gray('→')} ${ref.file}:${ref.line}`)
   }
 
-  console.log(`\nMISSING  (${missing.length})\n${'─'.repeat(W)}`)
+  console.log(`\n${c.bold(`MISSING  (${missing.length})`)}\n${c.gray(light)}`)
   if (missing.length === 0) {
-    console.log('  (none)')
+    console.log(c.gray('  (none)'))
   } else {
-    for (const id of missing) console.log(`  ✗ ${id}\n    ${behaviors[id].scenario}\n    spec: ${behaviors[id].file}:${behaviors[id].line}`)
+    for (const id of missing) {
+      console.log(`  ${c.red('✗')} ${c.red(id)}`)
+      console.log(`    ${c.gray(behaviors[id].scenario)}`)
+      console.log(`    ${c.gray('spec:')} ${behaviors[id].file}:${behaviors[id].line}`)
+    }
   }
 
-  console.log(`\nORPHANED REFS  (${orphans.length})\n${'─'.repeat(W)}`)
+  console.log(`\n${c.bold(`ORPHANED REFS  (${orphans.length})`)}\n${c.gray(light)}`)
   if (orphans.length === 0) {
-    console.log('  (none)')
+    console.log(c.gray('  (none)'))
   } else {
-    for (const ref of orphans) console.log(`  ? ${ref.id}\n    ${ref.file}:${ref.line}`)
+    for (const ref of orphans) {
+      console.log(`  ${c.yellow('?')} ${c.yellow(ref.id)}`)
+      console.log(`    ${ref.file}:${ref.line}`)
+    }
   }
 
-  console.log(`\n${'━'.repeat(W)}\n  Coverage: ${covered.length}/${expectedIds.size} (${pct}%)  |  ${orphans.length} orphaned ref(s)\n${'━'.repeat(W)}\n`)
+  const pctColor = pct === 100 ? c.green : pct >= 80 ? c.yellow : c.red
+  const summary  = `Coverage: ${covered.length}/${expectedIds.size} (${pct}%)  |  ${orphans.length} orphaned ref(s)`
+  console.log(`\n${c.bold(heavy)}\n  ${pctColor(c.bold(summary))}\n${c.bold(heavy)}\n`)
 
   return missing.length === 0 && orphans.length === 0
 }
