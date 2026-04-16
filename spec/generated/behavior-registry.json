@@ -265,7 +265,13 @@
         "Then the regions start is 10"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 3
+      "line": 5,
+      "tests": [
+        "tests/bdd/regionEditing.test.ts"
+      ],
+      "hints": [
+        "dispatch updateRegionInOut, then undo, assert store state"
+      ]
     },
     "region-editing::9c0aa13b": {
       "feature": "Region Editing",
@@ -278,7 +284,13 @@
         "Then the regions start is 10"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 9
+      "line": 13,
+      "tests": [
+        "tests/bdd/regionEditing.test.ts"
+      ],
+      "hints": [
+        "dispatch updateRegionInOut, then undo, assert store state"
+      ]
     },
     "region-editing::40ad3af0": {
       "feature": "Region Editing",
@@ -290,7 +302,13 @@
         "Then The regions moved to (25,35) so its length is unchanged"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 15
+      "line": 21,
+      "tests": [
+        "tests/bdd/regionEditing.test.ts"
+      ],
+      "hints": [
+        "dispatch updateRegionInOut with inPoint > outPoint, assert region shifts to preserve length"
+      ]
     },
     "region-editing::1fe21e07": {
       "feature": "Region Editing",
@@ -302,7 +320,13 @@
         "Then The regions moved to (10,20) so its length is unchanged"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 20
+      "line": 28,
+      "tests": [
+        "tests/bdd/regionEditing.test.ts"
+      ],
+      "hints": [
+        "dispatch updateRegionInOut with outPoint < inPoint, assert region shifts"
+      ]
     },
     "region-editing::c8493472": {
       "feature": "Region Editing",
@@ -314,7 +338,13 @@
         "Then the region span is now <c> to <d> seconds"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 25
+      "line": 35,
+      "tests": [
+        "tests/bdd/regionEditing.test.ts"
+      ],
+      "hints": [
+        "use Scenario Outline examples as test.each; dispatch updateRegionInOut, assert clamped result"
+      ]
     },
     "region-editing::35ddd908": {
       "feature": "Region Editing",
@@ -326,7 +356,13 @@
         "Then The zoom action is called"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 36
+      "line": 49,
+      "tests": [
+        "tests/bdd/regionZoom.test.tsx"
+      ],
+      "hints": [
+        "render Timeline with clip overlay via tests/harnesses/timeline.tsx, fireEvent.doubleClick on .clip-overlay__bar, assert onClipOverlayZoom spy called with region id"
+      ]
     },
     "region-editing::7a5597d1": {
       "feature": "Region Editing",
@@ -338,7 +374,13 @@
         "Then the zoom and bounds are set so the region is 100% of the timeline"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 41
+      "line": 57,
+      "tests": [
+        "tests/bdd/regionZoom.test.tsx"
+      ],
+      "hints": [
+        "call calcZoomToRegion(currentView, regionIn, regionOut, null), assert nextView equals { start: regionIn, end: regionOut }"
+      ]
     },
     "region-editing::404dfafc": {
       "feature": "Region Editing",
@@ -351,7 +393,13 @@
         "Then the zoom and bounds are set to what it was when the user called the zoom action"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 46
+      "line": 65,
+      "tests": [
+        "tests/bdd/regionZoom.test.tsx"
+      ],
+      "hints": [
+        "call calcZoomToRegion with current view matching region (viewFitsRegion=true), pass savedView as restore param, assert nextView equals savedView and previousView is null"
+      ]
     },
     "video-loading::90289e16": {
       "feature": "Video Loading",

@@ -83,6 +83,10 @@ interface BehaviorEntry {
   steps: string[]
   file: string
   line: number
+  /** Optional test file hints (from `# @test <path>` comments before the scenario) */
+  tests?: string[]
+  /** Optional AI/human hints (from `# @hint <text>` comments before the scenario) */
+  hints?: string[]
 }
 
 const FEATURE_RE  = /^\s*Feature\s*:/i
@@ -100,6 +104,12 @@ function parseFeatureFile(content: string, relPath: string): Record<string, Beha
   let steps: string[] = []
   let inExamples    = false
   let exampleRows: string[] = []
+  // pendingTests/Hints: annotations collected BETWEEN scenarios (before the next Scenario: line)
+  let pendingTests: string[] = []
+  let pendingHints: string[] = []
+  // scenarioTests/Hints: annotations for the CURRENT scenario being built
+  let scenarioTests: string[] = []
+  let scenarioHints: string[] = []
 
   const flush = () => {
     if (!scenarioTitle || steps.length === 0) return
@@ -110,14 +120,36 @@ function parseFeatureFile(content: string, relPath: string): Record<string, Beha
     ].join('\n')
     const id = `${toSlug(featureTitle)}::${shortHash(hashInput)}`
     if (behaviors[id]) console.warn(`  WARN: ID collision in ${relPath}: ${id}`)
-    behaviors[id] = { feature: featureTitle, scenario: scenarioTitle, isOutline, steps: steps.map(s => s.trim()), file: relPath, line: scenarioLine }
+    const entry: BehaviorEntry = { feature: featureTitle, scenario: scenarioTitle, isOutline, steps: steps.map(s => s.trim()), file: relPath, line: scenarioLine }
+    if (scenarioTests.length > 0) entry.tests = scenarioTests
+    if (scenarioHints.length > 0) entry.hints = scenarioHints
+    behaviors[id] = entry
     steps = []; scenarioTitle = ''; isOutline = false; inExamples = false; exampleRows = []
+    scenarioTests = []; scenarioHints = []
   }
 
   for (const [i, raw] of lines.entries()) {
     const t = raw.trim()
     if (FEATURE_RE.test(t))  { featureTitle = t.replace(/^Feature\s*:\s*/i, '').trim(); continue }
-    if (SCENARIO_RE.test(t)) { flush(); isOutline = /Outline/i.test(t); scenarioTitle = t.replace(/^Scenario(\s+Outline)?\s*:\s*/i, '').trim(); scenarioLine = i + 1; inExamples = false; continue }
+    // Collect @test / @hint from comment lines (multi-line hints joined with space)
+    if (t.startsWith('#')) {
+      const testMatch = t.match(/^#\s*@test\s+(.+)/)
+      const hintMatch = t.match(/^#\s*@hint\s+(.+)/)
+      if (testMatch) pendingTests.push(testMatch[1].trim())
+      else if (hintMatch) pendingHints.push(hintMatch[1].trim())
+      // Continuation: `#       more hint text` (indented, no @tag) appends to last hint
+      else if (pendingHints.length > 0 && /^#\s{6,}/.test(t)) {
+        pendingHints[pendingHints.length - 1] += ' ' + t.replace(/^#\s+/, '').trim()
+      }
+      continue
+    }
+    if (SCENARIO_RE.test(t)) {
+      flush()
+      // Transfer pending annotations to the new scenario
+      scenarioTests = pendingTests; scenarioHints = pendingHints
+      pendingTests = []; pendingHints = []
+      isOutline = /Outline/i.test(t); scenarioTitle = t.replace(/^Scenario(\s+Outline)?\s*:\s*/i, '').trim(); scenarioLine = i + 1; inExamples = false; continue
+    }
     if (EXAMPLES_RE.test(t)) { inExamples = true; continue }
     if (inExamples)          { if (t.startsWith('|')) exampleRows.push(t.replace(/\s+/g, ' ')); continue }
     if (STEP_RE.test(t))       steps.push(t)

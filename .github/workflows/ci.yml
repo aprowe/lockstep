@@ -23,8 +23,8 @@ jobs:
       - run: npm test
         name: Vitest
 
-      - run: npm run behaviors:check
+      - run: npx tsx scripts/behavior.ts check
         name: Behavior coverage
 
-      - run: npm run layouts:check
+      - run: npx tsx scripts/layouts.ts check
         name: Layout coverage
