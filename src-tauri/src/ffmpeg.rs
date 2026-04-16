@@ -1,4 +1,10 @@
 use std::process::{Command, Stdio};
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+// Prevents ffmpeg/ffprobe from opening a console window on Windows.
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 /// Resolve an ffmpeg/ffprobe binary: prefer a Tauri sidecar bundled next to the
 /// executable (Tauri names sidecars `<name>-<target-triple>[.exe]`), then fall
@@ -35,8 +41,8 @@ fn find_bin(name: &str) -> String {
 }
 
 pub fn ffprobe_json(path: &str) -> Result<serde_json::Value, String> {
-    let output = Command::new(find_bin("ffprobe"))
-        .args([
+    let mut cmd = Command::new(find_bin("ffprobe"));
+    cmd.args([
             "-v", "quiet",
             "-print_format", "json",
             "-show_format",
@@ -44,8 +50,10 @@ pub fn ffprobe_json(path: &str) -> Result<serde_json::Value, String> {
             path,
         ])
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
+        .stderr(Stdio::piped());
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let output = cmd.output()
         .map_err(|e| format!("ffprobe not found: {e}"))?;
 
     if !output.status.success() {
@@ -77,11 +85,13 @@ pub fn atempo_chain(mut rate: f64) -> String {
 
 /// Run ffmpeg with the given args. Returns Ok(()) on success, Err with stderr on failure.
 pub fn run_ffmpeg(args: &[&str]) -> Result<(), String> {
-    let status = Command::new(find_bin("ffmpeg"))
-        .args(args)
+    let mut cmd = Command::new(find_bin("ffmpeg"));
+    cmd.args(args)
         .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .output()
+        .stderr(Stdio::piped());
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let status = cmd.output()
         .map_err(|e| format!("ffmpeg not found: {e}"))?;
 
     if status.status.success() {
