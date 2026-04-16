@@ -59,3 +59,34 @@ export function calcNewRegionBounds(
     outPoint: Math.min(videoDuration, cursor + span),
   }
 }
+
+const ZOOM_EPS = 0.001
+
+/** Return true when `view` is already fitted to `[regionIn, regionOut]`. */
+export function viewFitsRegion(view: View, regionIn: number, regionOut: number): boolean {
+  return Math.abs(view.start - regionIn) < ZOOM_EPS
+      && Math.abs(view.end - regionOut) < ZOOM_EPS
+}
+
+/**
+ * Compute the next view for a "zoom to region" action, toggling in/out.
+ *
+ * - When the current view is NOT already fit to [regionIn, regionOut], the
+ *   region fills the timeline. Returns { nextView: region, previousView: current }
+ *   so the caller can stash the previous view for later restoration.
+ * - When the current view IS already fit, returns the previously-stored view
+ *   (passed as `restore`), restoring the prior zoom. `previousView` is null.
+ */
+export function calcZoomToRegion(
+  currentView: View,
+  regionIn: number,
+  regionOut: number,
+  restore: View | null,
+): { nextView: View; previousView: View | null } {
+  const fits = viewFitsRegion(currentView, regionIn, regionOut)
+  if (!fits) {
+    return { nextView: { start: regionIn, end: regionOut }, previousView: currentView }
+  }
+  // Already zoomed to this region — restore previous view if available
+  return { nextView: restore ?? currentView, previousView: null }
+}

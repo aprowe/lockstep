@@ -8,6 +8,7 @@ import {
   IconGoToRegionStart, IconGoToRegionEnd,
   IconPrevRegion, IconNextRegion,
 } from './icons'
+import { formatFrames } from '../utils/time'
 import './Toolbar.css'
 
 function pad(n: number) { return String(Math.floor(n)).padStart(2, '0') }
@@ -56,6 +57,8 @@ export default function Toolbar({
   gridDiv, onGridDivChange, onNewRegion, onPrevRegion, onNextRegion, onJumpRegionStart, onJumpRegionEnd, onDeleteRegion,
 }: ToolbarProps) {
   const [speed, setSpeed] = useState(1)
+  const [editingFrame, setEditingFrame] = useState(false)
+  const [frameInput, setFrameInput] = useState('')
   const onMarkRef = useRef(onMark); onMarkRef.current = onMark
   const onSetInRef = useRef(onSetIn); onSetInRef.current = onSetIn
   const onSetOutRef = useRef(onSetOut); onSetOutRef.current = onSetOut
@@ -92,42 +95,42 @@ export default function Toolbar({
       {/* Left: markers + regions */}
       <div className="tb-side tb-side--left">
         <div className="tb-group">
-          <button className="tb-btn tb-btn--mark" onClick={() => onMark?.(playerRef.current?.currentTime ?? 0)} disabled={!onMark} title="Place marker (M)">
+          <button data-layout-id="new-marker" className="tb-btn tb-btn--mark" onClick={() => onMark?.(playerRef.current?.currentTime ?? 0)} disabled={!onMark} title="Place marker (M)">
             <IconCreateMarker size={20} />
           </button>
           <div className="tb-pair">
-            <button className="tb-btn" onClick={onJumpPrev} disabled={!onJumpPrev} title="Previous marker">
+            <button data-layout-id="prev-marker" className="tb-btn" onClick={onJumpPrev} disabled={!onJumpPrev} title="Previous marker">
               <IconPrevMarker size={20} />
             </button>
-            <button className="tb-btn" onClick={onJumpNext} disabled={!onJumpNext} title="Next marker">
+            <button data-layout-id="next-marker" className="tb-btn" onClick={onJumpNext} disabled={!onJumpNext} title="Next marker">
               <IconNextMarker size={20} />
             </button>
           </div>
         </div>
 
-        <div className="tb-sep" />
+        <div data-layout-sep className="tb-sep" />
 
         <div className="tb-group">
-          <button className="tb-btn tb-btn--region" onClick={onNewRegion} disabled={!onNewRegion} title="New region">
+          <button data-layout-id="new-region" className="tb-btn tb-btn--region" onClick={onNewRegion} disabled={!onNewRegion} title="New region">
             <IconCreateRegion size={16} />
           </button>
           <div className="tb-pair">
-            <button className="tb-btn tb-btn--inout" onClick={onSetIn} disabled={!onSetIn} title="Set In (I)">
+            <button data-layout-id="set-in-region" className="tb-btn tb-btn--inout" onClick={onSetIn} disabled={!onSetIn} title="Set In (I)">
               <IconSetRegionStart size={16} />
             </button>
-            <button className="tb-btn tb-btn--inout" onClick={onSetOut} disabled={!onSetOut} title="Set Out (O)">
+            <button data-layout-id="set-out-region" className="tb-btn tb-btn--inout" onClick={onSetOut} disabled={!onSetOut} title="Set Out (O)">
               <IconSetRegionEnd size={16} />
             </button>
           </div>
           <div className="tb-pair">
-            <button className="tb-btn" onClick={onJumpRegionStart} disabled={!onJumpRegionStart} title="Jump to region start">
+            <button data-layout-id="jump-to-region-start" className="tb-btn" onClick={onJumpRegionStart} disabled={!onJumpRegionStart} title="Jump to region start">
               <IconGoToRegionStart size={16} />
             </button>
-            <button className="tb-btn" onClick={onJumpRegionEnd} disabled={!onJumpRegionEnd} title="Jump to region end">
+            <button data-layout-id="jump-to-region-end" className="tb-btn" onClick={onJumpRegionEnd} disabled={!onJumpRegionEnd} title="Jump to region end">
               <IconGoToRegionEnd size={16} />
             </button>
           </div>
-          <button className="tb-btn" onClick={onZoomToRegion} disabled={!onZoomToRegion} title="Zoom to region">
+          <button data-layout-id="zoom-to-region" className="tb-btn" onClick={onZoomToRegion} disabled={!onZoomToRegion} title="Zoom to region">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
               <path d="M4 5v14M20 5v14" stroke="currentColor" strokeWidth="2" fill="none"/>
               <path d="M7 12h10M7 12l3-3M7 12l3 3M17 12l-3-3M17 12l-3 3"/>
@@ -136,38 +139,75 @@ export default function Toolbar({
         </div>
       </div>
 
+      <div data-layout-sep className="tb-sep-implicit" />
+
       {/* Center: play controls */}
       <div className="tb-group tb-group--center">
-        <button className="tb-btn tb-btn--play" onClick={toggle} title={playing ? 'Pause' : 'Play'}>
+        <button data-layout-id="play" className="tb-btn tb-btn--play" onClick={toggle} title={playing ? 'Pause' : 'Play'}>
           {playing
             ? <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>
             : <IconPlay size={16} />}
         </button>
         <div className="tb-pair">
-          <button className="tb-btn" onClick={() => step(-1)} title="Step back 1 frame">
+          <button data-layout-id="prev-frame" className="tb-btn" onClick={() => step(-1)} title="Step back 1 frame">
             <IconPrevFrame size={16} />
           </button>
-          <button className="tb-btn" onClick={() => step(1)} title="Step forward 1 frame">
+          <button data-layout-id="next-frame" className="tb-btn" onClick={() => step(1)} title="Step forward 1 frame">
             <IconNextFrame size={16} />
           </button>
         </div>
         <div className="tb-time">
-          <span className="tb-time__current">{fmt(currentTime)}</span>
+          <span data-layout-id="play-time" className="tb-time__current">{fmt(currentTime)}</span>
           <span className="tb-time__sep">/</span>
           <span className="tb-time__total">{fmt(duration)}</span>
+          {editingFrame ? (
+            <input
+              data-layout-id="frame-count"
+              className="tb-time__frames-input"
+              data-testid="frame-count-input"
+              type="number"
+              value={frameInput}
+              autoFocus
+              onChange={e => setFrameInput(e.target.value)}
+              onBlur={() => {
+                const n = parseInt(frameInput, 10)
+                if (fps > 0 && Number.isFinite(n) && n >= 0) {
+                  playerRef.current?.seek(n / fps)
+                }
+                setEditingFrame(false)
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                if (e.key === 'Escape') setEditingFrame(false)
+                e.stopPropagation()
+              }}
+            />
+          ) : (
+            <span
+              data-layout-id="frame-count"
+              className="tb-time__frames"
+              data-testid="frame-count"
+              onClick={() => { setFrameInput(String(Math.round(currentTime * fps))); setEditingFrame(true) }}
+              title="Click to edit frame"
+            >
+              {formatFrames(currentTime, fps)}
+            </span>
+          )}
         </div>
       </div>
+
+      <div data-layout-sep className="tb-sep-implicit" />
 
       {/* Right: settings */}
       <div className="tb-side tb-side--right">
         <div className="tb-group">
-          <span className="tb-label">Speed</span>
+          <span data-layout-id="speed" className="tb-label">Speed</span>
           <select className="tb-select" value={speed} onChange={e => changeSpeed(parseFloat(e.target.value))} title="Playback speed">
             {SPEEDS.map(s => <option key={s} value={s}>{s === 1 ? '1×' : `${s}×`}</option>)}
           </select>
           {onGridDivChange && (
             <>
-              <span className="tb-label">Grid</span>
+              <span data-layout-id="grid" className="tb-label">Grid</span>
               <select className="tb-select" value={gridDiv ?? 1} onChange={e => onGridDivChange(parseInt(e.target.value))} title="Beat grid subdivision">
                 {GRID_DIVS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
               </select>

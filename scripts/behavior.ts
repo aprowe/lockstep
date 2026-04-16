@@ -22,9 +22,9 @@ import { resolve, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT         = resolve(fileURLToPath(import.meta.url), '..', '..')
-const FEATURES_DIR = join(ROOT, 'features')
+const FEATURES_DIR = join(ROOT, 'spec', 'features')
 const TESTS_DIR    = join(ROOT, 'tests')
-const GENERATED    = join(ROOT, 'generated')
+const GENERATED    = join(ROOT, 'spec', 'generated')
 const REGISTRY     = join(GENERATED, 'behavior-registry.json')
 const COVERAGE_OUT = join(GENERATED, 'coverage.json')
 

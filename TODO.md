@@ -22,3 +22,26 @@ Timeline
 Regions
 - [x] Detect / Tap BPM should be on the region level, so in the left panel
 
+Features
+- Snap upper region to tick marks
+- Settings page
+    - Auto play Files
+    - new region
+- Marker Flash
+- Speed bar below
+
+UI
+- Unify Timelines
+- Brighter ticks
+- Play head on minimap
+- Nav buttons together
+- File bar compact button
+- frame count
+- Double click go back after region views
+
+
+Bugs
+- ctrl-a for select all in export panel
+- Cut out segments < 1 frame long
+- 0.5x -> 2.0x
+- Play / pause issue

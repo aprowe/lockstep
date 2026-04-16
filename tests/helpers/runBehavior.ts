@@ -13,7 +13,7 @@
  */
 
 import { describe, it } from 'vitest'
-import registryData from '../../generated/behavior-registry.json'
+import registryData from '../../spec/generated/behavior-registry.json'
 
 interface BehaviorEntry {
   feature: string

@@ -11,7 +11,7 @@
         "Then the video does not change",
         "And all current in-memory markers are replaced with those from the sidecar"
       ],
-      "file": "features/drop-marker-file.feature",
+      "file": "spec/features/drop-marker-file.feature",
       "line": 3
     },
     "drop-a-matching-marker-file-onto-a-loaded-clip::5a680ff1": {
@@ -23,7 +23,7 @@
         "When the user dispatches undo",
         "Then the markers revert to the state directly before loading"
       ],
-      "file": "features/drop-marker-file.feature",
+      "file": "spec/features/drop-marker-file.feature",
       "line": 10
     },
     "drop-a-matching-marker-file-onto-a-loaded-clip::b2dcfc34": {
@@ -36,7 +36,7 @@
         "Then the error is logged silently",
         "And the current state is unchanged"
       ],
-      "file": "features/drop-marker-file.feature",
+      "file": "spec/features/drop-marker-file.feature",
       "line": 15
     },
     "drop-a-matching-marker-file-onto-a-loaded-clip::dd2831c4": {
@@ -49,7 +49,7 @@
         "Then the sibling video loads replacing the current video",
         "And the sibling's markers are applied"
       ],
-      "file": "features/drop-marker-file.feature",
+      "file": "spec/features/drop-marker-file.feature",
       "line": 21
     },
     "file-menu::36132c0a": {
@@ -62,7 +62,7 @@
         "And File B is loaded",
         "Then File A and File B appear in recent files list"
       ],
-      "file": "features/file-menu.feature",
+      "file": "spec/features/file-menu.feature",
       "line": 3
     },
     "file-menu::96d4b613": {
@@ -74,7 +74,7 @@
         "When Recent files clear action is called",
         "Then Recent files is empty"
       ],
-      "file": "features/file-menu.feature",
+      "file": "spec/features/file-menu.feature",
       "line": 9
     },
     "file-menu::d1dd405b": {
@@ -86,7 +86,7 @@
         "When File 11 is loaded",
         "Then Recent files contains files 2-11"
       ],
-      "file": "features/file-menu.feature",
+      "file": "spec/features/file-menu.feature",
       "line": 14
     },
     "file-menu::ec817b27": {
@@ -98,8 +98,84 @@
         "When File 3 is loaded",
         "Then Recent files contains files in order 3, 1, 2, 4-10"
       ],
-      "file": "features/file-menu.feature",
+      "file": "spec/features/file-menu.feature",
       "line": 19
+    },
+    "frame-count-display::871cc353": {
+      "feature": "Frame count display",
+      "scenario": "Frame count shown next to timecode",
+      "isOutline": false,
+      "steps": [
+        "Given a 30fps video is loaded",
+        "When the playhead is at 2.5 seconds",
+        "Then the toolbar displays \"75f\" next to the timecode"
+      ],
+      "file": "spec/features/frame-count.feature",
+      "line": 6
+    },
+    "frame-count-display::3a49f366": {
+      "feature": "Frame count display",
+      "scenario": "Step forward increments the frame count",
+      "isOutline": false,
+      "steps": [
+        "Given a 30fps video is loaded",
+        "And the playhead is at frame 75",
+        "When the user presses step-forward",
+        "Then the toolbar displays \"76f\""
+      ],
+      "file": "spec/features/frame-count.feature",
+      "line": 11
+    },
+    "frame-count-display::607ab793": {
+      "feature": "Frame count display",
+      "scenario": "Step backward decrements the frame count",
+      "isOutline": false,
+      "steps": [
+        "Given a 30fps video is loaded",
+        "And the playhead is at frame 75",
+        "When the user presses step-back",
+        "Then the toolbar displays \"74f\""
+      ],
+      "file": "spec/features/frame-count.feature",
+      "line": 17
+    },
+    "frame-count-display::fc7df5e5": {
+      "feature": "Frame count display",
+      "scenario": "Frame count rounds to nearest integer",
+      "isOutline": false,
+      "steps": [
+        "Given a 30fps video is loaded",
+        "When the playhead is at 2.533 seconds",
+        "Then the toolbar displays \"76f\""
+      ],
+      "file": "spec/features/frame-count.feature",
+      "line": 23
+    },
+    "frame-count-display::bfa96c35": {
+      "feature": "Frame count display",
+      "scenario": "Frame count at time zero",
+      "isOutline": false,
+      "steps": [
+        "Given a 30fps video is loaded",
+        "When the playhead is at 0 seconds",
+        "Then the toolbar displays \"0f\""
+      ],
+      "file": "spec/features/frame-count.feature",
+      "line": 28
+    },
+    "frame-count-display::2ae2aa1e": {
+      "feature": "Frame count display",
+      "scenario": "Frame count can be edited",
+      "isOutline": false,
+      "steps": [
+        "Given a 30fps video is loaded",
+        "When the user clicks the frame count display",
+        "And enters \"100\"",
+        "Then the playhead moves to frame 100",
+        "And the toolbar displays \"100f\""
+      ],
+      "file": "spec/features/frame-count.feature",
+      "line": 33
     },
     "region-creation::30fd066b": {
       "feature": "Region Creation",
@@ -110,7 +186,7 @@
         "When a new region is created",
         "Then the region span is <expectedSpan> seconds"
       ],
-      "file": "features/region-creation.feature",
+      "file": "spec/features/region-creation.feature",
       "line": 3
     },
     "region-creation::089f7025": {
@@ -123,7 +199,7 @@
         "When a new region is created at cursor position 60 seconds",
         "Then the region spans from 60 to 65 seconds"
       ],
-      "file": "features/region-creation.feature",
+      "file": "spec/features/region-creation.feature",
       "line": 15
     },
     "region-creation::622d79ba": {
@@ -136,7 +212,7 @@
         "When a new region is created at playhead position 60 seconds",
         "Then the region spans from 60 to 65 seconds"
       ],
-      "file": "features/region-creation.feature",
+      "file": "spec/features/region-creation.feature",
       "line": 21
     },
     "region-creation::beaf3038": {
@@ -149,7 +225,7 @@
         "When a new region is created at cursor position -0.5 seconds",
         "Then the region in-point is 0"
       ],
-      "file": "features/region-creation.feature",
+      "file": "spec/features/region-creation.feature",
       "line": 27
     },
     "region-creation::220bf2e0": {
@@ -162,7 +238,7 @@
         "When a new region is created at cursor position 119.5 seconds",
         "Then the region out-point is 120"
       ],
-      "file": "features/region-creation.feature",
+      "file": "spec/features/region-creation.feature",
       "line": 33
     },
     "region-creation::95af3b45": {
@@ -175,7 +251,7 @@
         "Then Region B is selected",
         "And the viewport has not changed"
       ],
-      "file": "features/region-creation.feature",
+      "file": "spec/features/region-creation.feature",
       "line": 39
     },
     "region-editing::5b468a4b": {
@@ -188,7 +264,7 @@
         "And The change is undone",
         "Then the regions start is 10"
       ],
-      "file": "features/region-editing.feature",
+      "file": "spec/features/region-editing.feature",
       "line": 3
     },
     "region-editing::9c0aa13b": {
@@ -201,7 +277,7 @@
         "And The change is undone",
         "Then the regions start is 10"
       ],
-      "file": "features/region-editing.feature",
+      "file": "spec/features/region-editing.feature",
       "line": 9
     },
     "region-editing::40ad3af0": {
@@ -213,7 +289,7 @@
         "When The regions start is changed to 25",
         "Then The regions moved to (25,35) so its length is unchanged"
       ],
-      "file": "features/region-editing.feature",
+      "file": "spec/features/region-editing.feature",
       "line": 15
     },
     "region-editing::1fe21e07": {
@@ -225,7 +301,7 @@
         "When The regions end is changed to 20",
         "Then The regions moved to (10,20) so its length is unchanged"
       ],
-      "file": "features/region-editing.feature",
+      "file": "spec/features/region-editing.feature",
       "line": 20
     },
     "region-editing::c8493472": {
@@ -237,8 +313,33 @@
         "When the region is attempet to resize to <a> to <b>",
         "Then the region span is now <c> to <d> seconds"
       ],
-      "file": "features/region-editing.feature",
+      "file": "spec/features/region-editing.feature",
       "line": 25
+    },
+    "region-editing::7a5597d1": {
+      "feature": "Region Editing",
+      "scenario": "A region when zoom action is called fills up the time bar",
+      "isOutline": false,
+      "steps": [
+        "Given A region that is not perfectly fit to the timeline",
+        "When the user calls the zoom action into that region",
+        "Then the zoom and bounds are set so the region is 100% of the timeline"
+      ],
+      "file": "spec/features/region-editing.feature",
+      "line": 36
+    },
+    "region-editing::404dfafc": {
+      "feature": "Region Editing",
+      "scenario": "A region already zoomed when zoom action is called will zoom out",
+      "isOutline": false,
+      "steps": [
+        "Given A region had the zoom action called on",
+        "And zoom / pan is still centered on the region",
+        "When the user calls the zoom action again",
+        "Then the zoom and bounds are set to what it was when the user called the zoom action"
+      ],
+      "file": "spec/features/region-editing.feature",
+      "line": 41
     },
     "video-loading::90289e16": {
       "feature": "Video Loading",
@@ -248,7 +349,7 @@
         "When a video is loaded",
         "Then the viewport changes to the length of the video"
       ],
-      "file": "features/video-loading.feature",
+      "file": "spec/features/video-loading.feature",
       "line": 3
     },
     "video-loading::ea78fa82": {
@@ -260,7 +361,7 @@
         "When a second video with a shorter duration is loaded",
         "Then the viewport changes to the shorter video's duration"
       ],
-      "file": "features/video-loading.feature",
+      "file": "spec/features/video-loading.feature",
       "line": 7
     }
   }

@@ -1,0 +1,36 @@
+# Main video editing toolbar.
+#
+# Multiple layouts per file are separated by YAML document markers (---).
+# Each document needs its own `id`, `name`, and `groups`.
+#
+# Enforced by tests/bdd/toolbarLayout.test.ts
+# Run `npm run layouts:parse` after editing to regenerate the registry.
+#
+# Item forms:
+#   - "Label"                               → id auto-slugified from label
+#   - { id: explicit-id, label: "Label" }   → explicit id (stable across renames)
+#   - { id: foo, label: Foo, shortcut: M }  → additional fields reserved for future checks
+
+id: main-toolbar
+name: Main toolbar
+
+groups:
+  - - New Marker
+    - Prev Marker
+    - Next Marker
+
+  - - New Region
+    - Set In Region
+    - Set Out Region
+    - Jump to Region Start
+    - Jump to Region End
+    - Zoom to Region
+
+  - - Play
+    - Prev Frame
+    - Next Frame
+    - Play Time
+    - Frame Count
+
+  - - Speed
+    - Grid

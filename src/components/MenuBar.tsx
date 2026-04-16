@@ -27,6 +27,10 @@ interface MenuBarProps {
 
 export type { MenuDef, MenuEntry, MenuItem, MenuSeparator }
 
+function slugify(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+}
+
 export default function MenuBar({ menus, rightContent }: MenuBarProps) {
   const [openIdx, setOpenIdx] = useState<number | null>(null)
   const barRef = useRef<HTMLDivElement>(null)
@@ -76,6 +80,7 @@ export default function MenuBar({ menus, rightContent }: MenuBarProps) {
         {menus.map((menu, i) => (
           <div key={menu.label} style={{ position: 'relative' }}>
             <button
+              data-layout-id={slugify(menu.label)}
               className={`menubar__trigger${openIdx === i ? ' menubar__trigger--open' : ''}`}
               onClick={() => setOpenIdx(openIdx === i ? null : i)}
               onMouseEnter={() => { if (openIdx !== null) setOpenIdx(i) }}
@@ -87,12 +92,13 @@ export default function MenuBar({ menus, rightContent }: MenuBarProps) {
               <div className="menubar__dropdown">
                 {menu.items.map((item, j) => {
                   if ('separator' in item && item.separator) {
-                    return <div key={j} className="menubar__sep" />
+                    return <div key={j} data-layout-sep className="menubar__sep" />
                   }
                   const mi = item as MenuItem
                   return (
                     <button
                       key={j}
+                      data-layout-id={slugify(mi.label)}
                       className="menubar__item"
                       disabled={mi.disabled}
                       onClick={() => { mi.action?.(); setOpenIdx(null) }}

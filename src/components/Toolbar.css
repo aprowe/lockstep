@@ -128,6 +128,33 @@
 .tb-time__current { color: var(--fg-1); }
 .tb-time__sep     { color: var(--fg-4); }
 .tb-time__total   { color: #b5a898; }
+.tb-time__frames {
+  color: #7a6e62;
+  font-size: 10px;
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid #2c2720;
+  cursor: pointer;
+  transition: color 0.1s;
+}
+.tb-time__frames:hover { color: #b5a898; }
+
+.tb-time__frames-input {
+  width: 56px;
+  margin-left: 8px;
+  padding: 2px 4px;
+  background: #131110;
+  border: 1px solid #f59e0b;
+  border-radius: 3px;
+  color: #e2dbd2;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  text-align: right;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.tb-time__frames-input::-webkit-outer-spin-button,
+.tb-time__frames-input::-webkit-inner-spin-button { -webkit-appearance: none; }
 
 /* ── BPM controls ────────────────────────────────────────── */
 .tb-bpm-label {

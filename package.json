@@ -6,12 +6,13 @@
   "scripts": {
     "dev": "vite --port 5175",
     "build": "tsc -b && vite build",
+    "setup": "node scripts/setup-binaries.mjs",
     "tauri": "tauri",
+    "check": "npm run behaviors && npm run layouts && vitest run",
     "test": "vitest run",
     "test:watch": "vitest",
-    "behaviors:parse": "tsx scripts/behavior.ts parse",
-    "behaviors:coverage": "tsx scripts/behavior.ts coverage",
-    "behaviors:check": "tsx scripts/behavior.ts check",
+    "behaviors": "tsx scripts/behavior.ts check",
+    "layouts": "tsx scripts/layouts.ts check",
     "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
@@ -24,14 +25,17 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.10.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "esbuild": "^0.28.0",
+    "happy-dom": "^20.9.0",
     "tsx": "^4.19.3",
     "typescript": "~5.9.3",
     "vite": "^8.0.5",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.4",
+    "yaml": "^2.8.3"
   }
 }

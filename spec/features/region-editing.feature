@@ -32,3 +32,18 @@ Feature: Region Editing
             | 10 |10.5| 10 | 11 |
             | 20 | 20 | 19 | 20 |
             |19.5| 20 | 19 | 20 |
+
+    Scenario: A region when zoom action is called fills up the time bar
+        Given A region that is not perfectly fit to the timeline
+        When the user calls the zoom action into that region
+        Then the zoom and bounds are set so the region is 100% of the timeline
+
+    Scenario: A region already zoomed when zoom action is called will zoom out
+        Given A region had the zoom action called on
+        And zoom / pan is still centered on the region
+        When the user calls the zoom action again
+        Then the zoom and bounds are set to what it was when the user called the zoom action
+
+
+
+

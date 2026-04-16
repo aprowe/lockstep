@@ -7,6 +7,7 @@ import ExportDialog from './components/ExportDialog'
 import Toolbar from './components/Toolbar'
 import MenuBar from './components/MenuBar'
 import type { MenuDef } from './components/MenuBar'
+import { buildFileMenu, buildEditMenu, buildViewMenu } from './menus'
 import VideoFolderSidebar from './components/VideoFolderSidebar'
 import RegionSidebar from './components/RegionSidebar'
 import RegionInfoPanel from './components/RegionInfoPanel'
@@ -321,52 +322,37 @@ export default function App() {
 
   const anchorCount = warpData?.origAnchors.length ?? 0
 
-  const fileMenu: MenuDef = useMemo(() => ({
-    label: 'File',
-    items: [
-      { label: 'Open File', shortcut: 'Ctrl+O', action: openFile },
-      { label: 'Open Folder', shortcut: 'Ctrl+Shift+O', action: openFolder },
-      { label: 'Open Markers…', action: openJsonFile },
-      { separator: true },
-      { label: 'Import Markers', shortcut: 'Ctrl+I', action: () => document.getElementById('marker-import')?.click(), disabled: !video },
-      { label: 'Export Markers', shortcut: 'Ctrl+E', action: () => { /* TODO: export via thunk */ }, disabled: !video || anchorCount === 0 },
-      { separator: true },
-      { label: 'Reset Video Data', action: resetVideoData, disabled: !video },
-      { separator: true },
-      { label: 'Close Video', action: closeVideo, disabled: !video },
-    ],
+  const fileMenu: MenuDef = useMemo(() => buildFileMenu({
+    video, anchorCount, openFile, openFolder, openJsonFile, resetVideoData, closeVideo,
+    importMarkers: () => document.getElementById('marker-import')?.click(),
+    exportMarkers: () => { /* TODO: export via thunk */ },
   }), [openFile, openFolder, openJsonFile, resetVideoData, closeVideo, video, anchorCount])
 
-  const editMenu: MenuDef = useMemo(() => ({
-    label: 'Edit',
-    items: [
-      { label: 'Undo', shortcut: 'Ctrl+Z', action: () => dispatch(undoAction()), disabled: !video },
-      { label: 'Redo', shortcut: 'Ctrl+Shift+Z', action: () => dispatch(redoAction()), disabled: !video },
-      { separator: true },
-      { label: 'Select All', shortcut: 'Ctrl+A', action: () => dispatch(selectAllWarp()), disabled: !video || anchorCount === 0 },
-      { label: 'Deselect', shortcut: 'Escape', action: () => dispatch(deselectAllWarp()), disabled: !video },
-    ],
+  const editMenu: MenuDef = useMemo(() => buildEditMenu({
+    video, anchorCount,
+    undo: () => dispatch(undoAction()),
+    redo: () => dispatch(redoAction()),
+    selectAll: () => dispatch(selectAllWarp()),
+    deselect: () => dispatch(deselectAllWarp()),
   }), [video, anchorCount])
 
-  const viewMenu: MenuDef = useMemo(() => ({
-    label: 'View',
-    items: [
-      { label: 'Zoom In', shortcut: 'Ctrl+=', action: () => {
-        const v = store.getState().ui.view
-        const mid = (v.start + v.end) / 2
-        const span = (v.end - v.start) / 1.5
-        dispatch(setViewAction({ start: mid - span / 2, end: mid + span / 2 }))
-      }, disabled: !video },
-      { label: 'Zoom Out', shortcut: 'Ctrl+-', action: () => {
-        const v = store.getState().ui.view
-        const mid = (v.start + v.end) / 2
-        const span = (v.end - v.start) * 1.5
-        dispatch(setViewAction({ start: mid - span / 2, end: mid + span / 2 }))
-      }, disabled: !video },
-      { label: 'Zoom to Fit', shortcut: 'Ctrl+0', action: () => {
-        dispatch(setViewAction({ start: 0, end: video?.duration ?? 60 }))
-      }, disabled: !video },
-    ],
+  const viewMenu: MenuDef = useMemo(() => buildViewMenu({
+    video,
+    zoomIn: () => {
+      const v = store.getState().ui.view
+      const mid = (v.start + v.end) / 2
+      const span = (v.end - v.start) / 1.5
+      dispatch(setViewAction({ start: mid - span / 2, end: mid + span / 2 }))
+    },
+    zoomOut: () => {
+      const v = store.getState().ui.view
+      const mid = (v.start + v.end) / 2
+      const span = (v.end - v.start) * 1.5
+      dispatch(setViewAction({ start: mid - span / 2, end: mid + span / 2 }))
+    },
+    zoomToFit: () => {
+      dispatch(setViewAction({ start: 0, end: video?.duration ?? 60 }))
+    },
   }), [video])
 
   const canExport = !!video

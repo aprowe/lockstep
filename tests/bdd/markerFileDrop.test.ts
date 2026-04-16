@@ -143,6 +143,7 @@ behaviorTest('drop-a-matching-marker-file-onto-a-loaded-clip::b2dcfc34', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     store = makeStore()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
   })
 
   it('error is caught silently and state is unchanged', async () => {
