@@ -35,3 +35,9 @@ Feature: Region Creation
     And the video duration is 120 seconds
     When a new region is created at cursor position 119.5 seconds
     Then the region out-point is 120
+
+  Scenario: Region is selected when created
+    Given Region A is selected
+    When Region B is created
+    Then Region B is selected
+    And the viewport has not changed

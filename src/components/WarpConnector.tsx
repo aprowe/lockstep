@@ -124,25 +124,6 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
             )
           })}
 
-          {/* Clip boundary lines — slanted when beat boundary differs from orig */}
-          {clipIn !== undefined && (() => {
-            const origX = timeToViewPct(clipIn, view)
-            const beatX = timeToViewPct(beatClipIn ?? clipIn, view)
-            return (origX >= -5 && origX <= 105) || (beatX >= -5 && beatX <= 105) ? (
-              <line x1={origX} y1={0} x2={beatX} y2={1}
-                stroke={clipColor ?? 'rgba(255,255,255,0.18)'} strokeWidth="1"
-                vectorEffect="non-scaling-stroke" />
-            ) : null
-          })()}
-          {clipOut !== undefined && clipOut < origDuration && (() => {
-            const origX = timeToViewPct(clipOut, view)
-            const beatX = timeToViewPct(beatClipOut ?? clipOut, view)
-            return (origX >= -5 && origX <= 105) || (beatX >= -5 && beatX <= 105) ? (
-              <line x1={origX} y1={0} x2={beatX} y2={1}
-                stroke={clipColor ?? 'rgba(255,255,255,0.18)'} strokeWidth="1"
-                vectorEffect="non-scaling-stroke" />
-            ) : null
-          })()}
         </svg>
 
         {/* Ratio labels — positioned at midpoint of each segment in view space */}
@@ -175,6 +156,35 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
             style={{ left: `${timeToViewPct(clipOut, view)}%`, right: 0 }}
           />
         )}
+        {/* Clip boundary lines — rendered above the out-of-range overlays */}
+        {(clipIn !== undefined || (clipOut !== undefined && clipOut < origDuration)) && (
+          <svg
+            width="100%" height="100%"
+            viewBox="0 0 100 1"
+            preserveAspectRatio="none"
+            style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 2 }}
+          >
+            {clipIn !== undefined && (() => {
+              const origX = timeToViewPct(clipIn, view)
+              const beatX = timeToViewPct(beatClipIn ?? clipIn, view)
+              return (origX >= -5 && origX <= 105) || (beatX >= -5 && beatX <= 105) ? (
+                <line x1={origX} y1={0} x2={beatX} y2={1}
+                  stroke={clipColor ?? 'rgba(255,255,255,0.18)'} strokeWidth="1"
+                  vectorEffect="non-scaling-stroke" />
+              ) : null
+            })()}
+            {clipOut !== undefined && clipOut < origDuration && (() => {
+              const origX = timeToViewPct(clipOut, view)
+              const beatX = timeToViewPct(beatClipOut ?? clipOut, view)
+              return (origX >= -5 && origX <= 105) || (beatX >= -5 && beatX <= 105) ? (
+                <line x1={origX} y1={0} x2={beatX} y2={1}
+                  stroke={clipColor ?? 'rgba(255,255,255,0.18)'} strokeWidth="1"
+                  vectorEffect="non-scaling-stroke" />
+              ) : null
+            })()}
+          </svg>
+        )}
+
         {lassoRect && (
           <div
             className="warp-connector__lasso"

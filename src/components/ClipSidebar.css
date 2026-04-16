@@ -3,9 +3,9 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  font-family: ui-monospace, Consolas, monospace;
-  background: #1b1814;
-  border-right: 1px solid #2c2720;
+  font-family: var(--font-family);
+  background: var(--bg-3);
+  border-right: 1px solid var(--border);
   overflow: hidden;
 }
 
@@ -14,28 +14,28 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 10px;
-  background: #252018;
-  border-bottom: 1px solid #2c2720;
+  padding: 7px var(--sp-4);
+  background: var(--bg-7);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
 .cs-header__label {
-  font-size: 11px;
+  font-size: var(--t-sm);
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #c2b8ae;
+  color: var(--fg-2);
 }
 
 .cs-header__add {
-  width: 20px;
-  height: 20px;
+  width: var(--sz-btn-sm);
+  height: var(--sz-btn-sm);
   background: none;
-  border: 1px solid #38312a;
+  border: 1px solid var(--border-hi);
   border-radius: 4px;
   color: #b5a898;
-  font-size: 16px;
+  font-size: var(--t-xl);
   line-height: 1;
   display: flex;
   align-items: center;
@@ -46,8 +46,8 @@
 }
 
 .cs-header__add:hover {
-  color: #e2dbd2;
-  border-color: #a09488;
+  color: var(--fg-1);
+  border-color: var(--fg-3);
 }
 
 /* ── List ──────────────────────────────────────────────── */
@@ -61,21 +61,21 @@
 .cs-item {
   display: flex;
   align-items: flex-start;
-  gap: 4px;
-  padding: 7px 8px;
+  gap: var(--sp-1);
+  padding: 7px var(--sp-3);
   cursor: pointer;
-  border-bottom: 1px solid #231f18;
+  border-bottom: 1px solid var(--bg-6);
   transition: background 0.08s;
 }
 
 .cs-item:hover {
-  background: #201d18;
+  background: var(--bg-5);
 }
 
 .cs-item--active {
   background: #2a2018;
-  border-left: 2px solid #e07540;
-  padding-left: 6px;
+  border-left: 2px solid var(--accent-2);
+  padding-left: var(--sp-2);
 }
 
 .cs-item--active:hover {
@@ -83,8 +83,8 @@
 }
 
 .cs-item__arrow {
-  font-size: 8px;
-  color: #e07540;
+  font-size: var(--t-2xs);
+  color: var(--accent-2);
   margin-top: 3px;
   width: 10px;
   flex-shrink: 0;
@@ -96,20 +96,20 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sp-0);
 }
 
 .cs-item__name {
-  font-size: 13px;
-  color: #e2dbd2;
+  font-size: var(--t-md);
+  color: var(--fg-1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .cs-item__range {
-  font-size: 11px;
-  color: #a09488;
+  font-size: var(--t-sm);
+  color: var(--fg-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -118,38 +118,38 @@
 /* ── Rename input ──────────────────────────────────────── */
 .cs-rename-input {
   width: 100%;
-  background: #171410;
-  border: 1px solid #e07540;
+  background: var(--bg-2);
+  border: 1px solid var(--accent-2);
   border-radius: 3px;
-  color: #e2dbd2;
+  color: var(--fg-1);
   font-family: inherit;
-  font-size: 13px;
-  padding: 1px 4px;
+  font-size: var(--t-md);
+  padding: 1px var(--sp-1);
   outline: none;
 }
 
 /* ── In/Out editor ─────────────────────────────────────── */
 .cs-inout {
   flex-shrink: 0;
-  background: #1c1915;
+  background: var(--bg-4);
 }
 
 .cs-inout__divider {
   height: 1px;
-  background: #2c2720;
+  background: var(--border);
 }
 
 .cs-inout__row {
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 10px;
-  border-bottom: 1px solid #231f18;
+  padding: 5px var(--sp-4);
+  border-bottom: 1px solid var(--bg-6);
 }
 
 .cs-inout__label {
-  font-size: 11px;
-  color: #a09488;
+  font-size: var(--t-sm);
+  color: var(--fg-3);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   width: 22px;
@@ -157,8 +157,8 @@
 }
 
 .cs-inout__time {
-  font-size: 12px;
-  color: #c2b8ae;
+  font-size: var(--t-base);
+  color: var(--fg-2);
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -166,14 +166,36 @@
   white-space: nowrap;
 }
 
+.cs-inout__time--editable {
+  cursor: text;
+  border-radius: 3px;
+  padding: 1px var(--sp-1);
+  margin: -1px calc(-1 * var(--sp-1));
+  transition: background 0.1s;
+}
+.cs-inout__time--editable:hover { background: var(--bg-6); }
+
+.cs-inout__input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-2);
+  border: 1px solid var(--accent-2);
+  border-radius: 3px;
+  color: var(--fg-1);
+  font-family: inherit;
+  font-size: var(--t-base);
+  padding: 1px var(--sp-1);
+  outline: none;
+}
+
 .cs-inout__set {
   background: none;
-  border: 1px solid #38312a;
+  border: 1px solid var(--border-hi);
   border-radius: 3px;
   color: #b5a898;
   font-family: inherit;
-  font-size: 11px;
-  padding: 2px 6px;
+  font-size: var(--t-sm);
+  padding: 2px var(--sp-2);
   cursor: pointer;
   transition: color 0.1s, border-color 0.1s;
   flex-shrink: 0;
@@ -181,26 +203,26 @@
 }
 
 .cs-inout__set:hover {
-  color: #e2dbd2;
-  border-color: #a09488;
+  color: var(--fg-1);
+  border-color: var(--fg-3);
 }
 
 .cs-inout__actions {
   display: flex;
   gap: 5px;
-  padding: 7px 10px;
+  padding: 7px var(--sp-4);
 }
 
 .cs-inout__btn {
   flex: 1;
   background: none;
-  border: 1px solid #38312a;
+  border: 1px solid var(--border-hi);
   border-radius: 4px;
   color: #b5a898;
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--t-sm);
   letter-spacing: 0.04em;
-  padding: 4px 6px;
+  padding: var(--sp-1) var(--sp-2);
   cursor: pointer;
   transition: color 0.1s, border-color 0.1s;
   white-space: nowrap;
@@ -208,15 +230,15 @@
 }
 
 .cs-inout__btn:hover {
-  color: #e2dbd2;
-  border-color: #a09488;
+  color: var(--fg-1);
+  border-color: var(--fg-3);
 }
 
 .cs-inout__btn--danger {
-  color: #c2b8ae;
+  color: var(--fg-2);
 }
 
 .cs-inout__btn--danger:hover {
-  color: #e07540;
-  border-color: rgba(224, 117, 64, 0.5);
+  color: var(--accent-2);
+  border-color: rgba(var(--accent-2-rgb), 0.5);
 }

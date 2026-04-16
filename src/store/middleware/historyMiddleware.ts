@@ -15,6 +15,7 @@ import {
   clearAnchors,
   setBeatZeroId,
 } from '../slices/warpSlice'
+import { setRegions, updateRegionInOut } from '../slices/regionSlice'
 
 export const historyMiddleware = createListenerMiddleware()
 
@@ -45,7 +46,7 @@ historyMiddleware.startListening({
   },
 })
 
-// ── Undo: restore warp state from history stack ────────────────────────────
+// ── Undo: restore warp + region state from history stack ──────────────────
 
 historyMiddleware.startListening({
   actionCreator: undo,
@@ -59,10 +60,11 @@ historyMiddleware.startListening({
       linkedBeatIds: entry.linkedBeatIds,
       beatZeroId: entry.beatZeroId,
     }))
+    if (entry.regions) listenerApi.dispatch(setRegions(entry.regions))
   },
 })
 
-// ── Redo: restore warp state from history stack ────────────────────────────
+// ── Redo: restore warp + region state from history stack ──────────────────
 
 historyMiddleware.startListening({
   actionCreator: redo,
@@ -75,6 +77,26 @@ historyMiddleware.startListening({
       beatAnchors: entry.beatAnchors,
       linkedBeatIds: entry.linkedBeatIds,
       beatZeroId: entry.beatZeroId,
+    }))
+    if (entry.regions) listenerApi.dispatch(setRegions(entry.regions))
+  },
+})
+
+// ── Snapshot regions on region in/out edits (debounced 400ms) ─────────────
+
+historyMiddleware.startListening({
+  actionCreator: updateRegionInOut,
+  effect: async (_action, listenerApi) => {
+    listenerApi.cancelActiveListeners()
+    await listenerApi.delay(400)
+
+    const state = listenerApi.getState() as RootState
+    listenerApi.dispatch(pushSnapshot({
+      origAnchors: state.warp.origAnchors,
+      beatAnchors: state.warp.beatAnchors,
+      linkedBeatIds: state.warp.linkedBeatIds,
+      beatZeroId: state.warp.beatZeroId,
+      regions: state.region.regions,
     }))
   },
 })

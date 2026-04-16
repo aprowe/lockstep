@@ -52,6 +52,55 @@
       "file": "features/drop-marker-file.feature",
       "line": 21
     },
+    "file-menu::36132c0a": {
+      "feature": "File Menu",
+      "scenario": "A file opened shows up in recent files",
+      "isOutline": false,
+      "steps": [
+        "Given No files have been loaded",
+        "When File A is loaded",
+        "And File B is loaded",
+        "Then File A and File B appear in recent files list"
+      ],
+      "file": "features/file-menu.feature",
+      "line": 3
+    },
+    "file-menu::96d4b613": {
+      "feature": "File Menu",
+      "scenario": "Recent Files can be cleared",
+      "isOutline": false,
+      "steps": [
+        "Given File A and B are in recent files list",
+        "When Recent files clear action is called",
+        "Then Recent files is empty"
+      ],
+      "file": "features/file-menu.feature",
+      "line": 9
+    },
+    "file-menu::d1dd405b": {
+      "feature": "File Menu",
+      "scenario": "Recent Files keeps up to 10 entries",
+      "isOutline": false,
+      "steps": [
+        "Given File 1, 2, 3 to 10 are loaded in order",
+        "When File 11 is loaded",
+        "Then Recent files contains files 2-11"
+      ],
+      "file": "features/file-menu.feature",
+      "line": 14
+    },
+    "file-menu::ec817b27": {
+      "feature": "File Menu",
+      "scenario": "Recent Files lists files one",
+      "isOutline": false,
+      "steps": [
+        "Given File 1, 2, 3 to 10 are loaded in order",
+        "When File 3 is loaded",
+        "Then Recent files contains files in order 3, 1, 2, 4-10"
+      ],
+      "file": "features/file-menu.feature",
+      "line": 19
+    },
     "region-creation::30fd066b": {
       "feature": "Region Creation",
       "scenario": "New region size is the larger of 10% of view or 5 seconds",
@@ -115,6 +164,81 @@
       ],
       "file": "features/region-creation.feature",
       "line": 33
+    },
+    "region-creation::95af3b45": {
+      "feature": "Region Creation",
+      "scenario": "Region is selected when created",
+      "isOutline": false,
+      "steps": [
+        "Given Region A is selected",
+        "When Region B is created",
+        "Then Region B is selected",
+        "And the viewport has not changed"
+      ],
+      "file": "features/region-creation.feature",
+      "line": 39
+    },
+    "region-editing::5b468a4b": {
+      "feature": "Region Editing",
+      "scenario": "A regions start bounds can be undone",
+      "isOutline": false,
+      "steps": [
+        "Given A region with start 10 and end 20",
+        "When The regions start is changed to 15",
+        "And The change is undone",
+        "Then the regions start is 10"
+      ],
+      "file": "features/region-editing.feature",
+      "line": 3
+    },
+    "region-editing::9c0aa13b": {
+      "feature": "Region Editing",
+      "scenario": "A regions end bounds can be undone",
+      "isOutline": false,
+      "steps": [
+        "Given A region with start 10 and end 20",
+        "When The regions end is changed to 25",
+        "And The change is undone",
+        "Then the regions start is 10"
+      ],
+      "file": "features/region-editing.feature",
+      "line": 9
+    },
+    "region-editing::40ad3af0": {
+      "feature": "Region Editing",
+      "scenario": "A regions start bound being changed to after end moves region",
+      "isOutline": false,
+      "steps": [
+        "Given A region with start 10 and end 20",
+        "When The regions start is changed to 25",
+        "Then The regions moved to (25,35) so its length is unchanged"
+      ],
+      "file": "features/region-editing.feature",
+      "line": 15
+    },
+    "region-editing::1fe21e07": {
+      "feature": "Region Editing",
+      "scenario": "A regions end bound being changed to before start moves region",
+      "isOutline": false,
+      "steps": [
+        "Given A region with start 30 and end 40",
+        "When The regions end is changed to 20",
+        "Then The regions moved to (10,20) so its length is unchanged"
+      ],
+      "file": "features/region-editing.feature",
+      "line": 20
+    },
+    "region-editing::c8493472": {
+      "feature": "Region Editing",
+      "scenario": "A region is prevented from being too small",
+      "isOutline": true,
+      "steps": [
+        "Given the current region spans from 10 to 20 seconds and min length 1",
+        "When the region is attempet to resize to <a> to <b>",
+        "Then the region span is now <c> to <d> seconds"
+      ],
+      "file": "features/region-editing.feature",
+      "line": 25
     },
     "video-loading::90289e16": {
       "feature": "Video Loading",

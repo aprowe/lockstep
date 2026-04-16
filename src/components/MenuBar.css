@@ -1,13 +1,13 @@
-/* ── Menu bar ──────────────────────────────────────────── */
+/* ── Menu bar ──────────────────────────────────────────────── */
 .menubar {
-  height: 32px;
+  height: var(--sz-menubar);
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  background: #171410;
-  border-bottom: 1px solid #2c2720;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 14px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-family);
+  font-size: var(--t-lg);
   user-select: none;
   -webkit-app-region: drag;
 }
@@ -23,10 +23,10 @@
 .menubar__trigger {
   background: none;
   border: none;
-  color: #c2b8ae;
+  color: var(--fg-2);
   font-family: inherit;
-  font-size: 14px;
-  padding: 0 12px;
+  font-size: var(--t-lg);
+  padding: 0 var(--sp-5);
   height: 100%;
   cursor: pointer;
   transition: background 0.1s, color 0.1s;
@@ -35,22 +35,22 @@
 
 .menubar__trigger:hover,
 .menubar__trigger--open {
-  background: #1c1915;
-  color: #e2dbd2;
+  background: var(--bg-4);
+  color: var(--fg-1);
 }
 
 /* ── Dropdown panel ─────────────────────────────────────── */
 .menubar__dropdown {
   position: absolute;
-  top: 32px;
+  top: var(--sz-menubar);
   left: 0;
   min-width: 220px;
-  background: #1b1814;
-  border: 1px solid #38312a;
+  background: var(--bg-3);
+  border: 1px solid var(--border-hi);
   border-radius: 4px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
   z-index: 300;
-  padding: 4px 0;
+  padding: var(--sp-1) 0;
   overflow: hidden;
 }
 
@@ -59,21 +59,21 @@
   display: flex;
   align-items: center;
   width: 100%;
-  padding: 7px 14px;
+  padding: 7px var(--sp-6);
   background: none;
   border: none;
-  color: #c2b8ae;
+  color: var(--fg-2);
   font-family: inherit;
-  font-size: 14px;
+  font-size: var(--t-lg);
   text-align: left;
   cursor: pointer;
   transition: background 0.08s, color 0.08s;
-  gap: 8px;
+  gap: var(--sp-3);
 }
 
 .menubar__item:hover:not(:disabled) {
-  background: #231f18;
-  color: #e2dbd2;
+  background: var(--bg-6);
+  color: var(--fg-1);
 }
 
 .menubar__item:disabled {
@@ -86,16 +86,16 @@
 }
 
 .menubar__item-shortcut {
-  color: #a09488;
-  font-size: 13px;
+  color: var(--fg-3);
+  font-size: var(--t-md);
   flex-shrink: 0;
 }
 
 /* ── Separator ──────────────────────────────────────────── */
 .menubar__sep {
   height: 1px;
-  background: #1c1915;
-  margin: 4px 8px;
+  background: var(--bg-4);
+  margin: var(--sp-1) var(--sp-3);
 }
 
 /* ── Right side: filename + close ───────────────────────── */
@@ -104,26 +104,26 @@
 }
 
 .menubar__filename {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 14px;
-  color: #a09488;
+  font-family: var(--font-family);
+  font-size: var(--t-lg);
+  color: var(--fg-3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
   max-width: 300px;
-  padding-right: 4px;
+  padding-right: var(--sp-1);
   -webkit-app-region: no-drag;
 }
 
 .menubar__close {
   background: none;
   border: none;
-  color: #38312a;
-  font-size: 13px;
+  color: var(--border-hi);
+  font-size: var(--t-md);
   cursor: pointer;
-  padding: 2px 6px;
-  margin-right: 8px;
+  padding: 2px var(--sp-2);
+  margin-right: var(--sp-3);
   border-radius: 3px;
   flex-shrink: 0;
   transition: color 0.1s;
@@ -133,20 +133,20 @@
 
 /* ── Export button (right side of menu bar) ──────────────── */
 .menubar__export-btn {
-  background: #f59e0b;
+  background: var(--accent);
   border: none;
   border-radius: 4px;
   color: #000;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 13px;
+  font-family: var(--font-family);
+  font-size: var(--t-md);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 4px 14px;
+  padding: var(--sp-1) var(--sp-6);
   cursor: pointer;
   transition: background 0.1s;
-  margin-right: 8px;
+  margin-right: var(--sp-3);
   -webkit-app-region: no-drag;
 }
-.menubar__export-btn:hover:not(:disabled) { background: #fbbf24; }
+.menubar__export-btn:hover:not(:disabled) { background: var(--accent-hi); }
 .menubar__export-btn:disabled { opacity: 0.35; cursor: default; }

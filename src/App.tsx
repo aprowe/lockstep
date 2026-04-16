@@ -43,8 +43,6 @@ import {
   clearAnchors,
   loadAnchors,
   setBpm as setBpmAction,
-  setMinStretch as setMinStretchWarp,
-  setMaxStretch as setMaxStretchWarp,
   setBeatZeroId,
   setSelectedIds as setSelectedIdsWarp,
   selectAll as selectAllWarp,
@@ -480,8 +478,6 @@ export default function App() {
                   duration={video.duration}
                   addToEnd={addToEnd}
                   onBpmChange={handleBpmChange}
-                  onMinStretchChange={v => dispatch(setMinStretchWarp(v))}
-                  onMaxStretchChange={v => dispatch(setMaxStretchWarp(v))}
                   onAddToEndChange={setAddToEnd}
                   onUpdateRegionInOut={updateRegionInOut}
                   beatZeroOrigTime={(() => {
@@ -556,14 +552,14 @@ export default function App() {
                   playerRef.current?.seek(activeRegion.outPoint)
                 } : undefined}
                 onSetIn={activeRegion ? () => {
-                  updateRegionInOut(activeRegion.id, Math.min(playhead, activeRegion.outPoint - 0.1), activeRegion.outPoint)
+                  updateRegionInOut(activeRegion.id, playhead, activeRegion.outPoint)
                 } : () => {
                   // Full Video: create a new region from playhead to end
                   const id = addRegion(playhead, video.duration)
                   if (id) setActiveRegionId(id)
                 }}
                 onSetOut={activeRegion ? () => {
-                  updateRegionInOut(activeRegion.id, activeRegion.inPoint, Math.max(playhead, activeRegion.inPoint + 0.1))
+                  updateRegionInOut(activeRegion.id, activeRegion.inPoint, playhead)
                 } : () => {
                   // Full Video: create a new region from start to playhead
                   const id = addRegion(0, Math.max(playhead, 0.1))
@@ -575,6 +571,19 @@ export default function App() {
                   const { inPoint, outPoint } = calcNewRegionBounds(playhead, view.end - view.start, video.duration)
                   addRegion(inPoint, outPoint)
                 }}
+                onPrevRegion={regions.length > 1 ? () => {
+                  const sorted = [...regions].sort((a, b) => a.inPoint - b.inPoint)
+                  const idx = sorted.findIndex(r => r.id === activeRegionId)
+                  const prev = idx > 0 ? sorted[idx - 1] : null
+                  if (prev) setActiveRegionId(prev.id)
+                } : undefined}
+                onNextRegion={regions.length > 1 ? () => {
+                  const sorted = [...regions].sort((a, b) => a.inPoint - b.inPoint)
+                  const idx = sorted.findIndex(r => r.id === activeRegionId)
+                  const next = idx < sorted.length - 1 ? sorted[idx + 1] : null
+                  if (next) setActiveRegionId(next.id)
+                } : undefined}
+                onDeleteRegion={activeRegion ? () => deleteRegion(activeRegion.id) : undefined}
               />
 
               <div

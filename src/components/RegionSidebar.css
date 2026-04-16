@@ -5,8 +5,8 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #1b1814;
-  border-right: 1px solid #2c2720;
+  background: var(--bg-3);
+  border-right: 1px solid var(--border);
   overflow: hidden;
   min-width: 0;
 }
@@ -17,36 +17,36 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px;
+  padding: 0 var(--sp-4);
   height: 30px;
-  background: #252018;
-  border-bottom: 1px solid #2c2720;
+  background: var(--bg-7);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
 .rsi-header__label {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 11px;
+  font-family: var(--font-family);
+  font-size: var(--t-sm);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #a09488;
+  color: var(--fg-3);
 }
 
 .rsi-header__add {
   background: none;
-  border: 1px solid #38312a;
+  border: 1px solid var(--border-hi);
   border-radius: 4px;
-  color: #c2b8ae;
-  font-size: 16px;
+  color: var(--fg-2);
+  font-size: var(--t-xl);
   line-height: 1;
-  padding: 0 6px 1px;
+  padding: 0 var(--sp-2) 1px;
   cursor: pointer;
   transition: color 0.1s, border-color 0.1s;
 }
 .rsi-header__add:hover {
-  color: #e07540;
-  border-color: #e07540;
+  color: var(--accent-2);
+  border-color: var(--accent-2);
 }
 
 /* ── List ───────────────────────────────────────────────── */
@@ -58,23 +58,23 @@
 }
 
 .rsi-item {
-  padding: 7px 10px 6px;
-  border-bottom: 1px solid #2c2720;
+  padding: 7px var(--sp-4) var(--sp-2);
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
   transition: background 0.08s;
 }
-.rsi-item:hover:not(.rsi-item--active) { background: #201d18; }
+.rsi-item:hover:not(.rsi-item--active) { background: var(--bg-5); }
 
 .rsi-item--active {
-  background: #261f15;
-  border-left: 2px solid #e07540;
-  padding-left: 8px;
+  background: var(--bg-sel);
+  border-left: 2px solid var(--accent-2);
+  padding-left: var(--sp-3);
 }
 
 .rsi-item__row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--sp-1);
 }
 
 .rsi-item__swatch {
@@ -86,8 +86,8 @@
 }
 
 .rsi-item__name {
-  font-size: 13px;
-  color: #e2dbd2;
+  font-size: var(--t-md);
+  color: var(--fg-1);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -96,14 +96,14 @@
 }
 
 .rsi-item--active .rsi-item__name {
-  color: #e07540;
+  color: var(--accent-2);
 }
 
 .rsi-item__range {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 11px;
-  color: #7a6e62;
-  margin-top: 2px;
+  font-family: var(--font-family);
+  font-size: var(--t-sm);
+  color: var(--fg-4);
+  margin-top: var(--sp-0);
 }
 
 /* ── Delete button ──────────────────────────────────────── */
@@ -111,8 +111,8 @@
 .rsi-item__del {
   background: none;
   border: none;
-  color: #7a6e62;
-  font-size: 11px;
+  color: var(--fg-4);
+  font-size: var(--t-sm);
   cursor: pointer;
   padding: 1px 3px;
   flex-shrink: 0;
@@ -120,17 +120,17 @@
   border-radius: 3px;
   transition: color 0.1s;
 }
-.rsi-item__del:hover { color: #e07540; }
+.rsi-item__del:hover { color: var(--accent-2); }
 
 /* ── Inline rename ──────────────────────────────────────── */
 
 .rsi-rename {
   flex: 1;
-  background: #171410;
-  border: 1px solid #e07540;
+  background: var(--bg-2);
+  border: 1px solid var(--accent-2);
   border-radius: 3px;
-  color: #e2dbd2;
-  font-size: 13px;
+  color: var(--fg-1);
+  font-size: var(--t-md);
   padding: 1px 5px;
   outline: none;
   min-width: 0;
@@ -141,14 +141,14 @@
 .rsi-item__inout {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-top: 4px;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 11px;
+  gap: var(--sp-1);
+  margin-top: var(--sp-1);
+  font-family: var(--font-family);
+  font-size: var(--t-sm);
 }
 
 .rsi-item__inout-label {
-  color: #7ab8e0;
+  color: var(--blue-soft);
   opacity: 0.7;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -156,40 +156,40 @@
 }
 
 .rsi-item__inout-sep {
-  color: #7a6e62;
+  color: var(--fg-4);
   flex-shrink: 0;
 }
 
 .rsi-time-value {
-  color: #c2b8ae;
+  color: var(--fg-2);
   cursor: text;
   border-bottom: 1px dashed transparent;
   transition: border-color 0.1s, color 0.1s;
   padding: 0 1px;
 }
 .rsi-time-value:hover {
-  color: #e2dbd2;
-  border-bottom-color: #a09488;
+  color: var(--fg-1);
+  border-bottom-color: var(--fg-3);
 }
 
 .rsi-time-input {
   width: 72px;
-  background: #171410;
-  border: 1px solid #7ab8e0;
+  background: var(--bg-2);
+  border: 1px solid var(--blue-soft);
   border-radius: 3px;
-  color: #e2dbd2;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 11px;
-  padding: 1px 4px;
+  color: var(--fg-1);
+  font-family: var(--font-family);
+  font-size: var(--t-sm);
+  padding: 1px var(--sp-1);
   outline: none;
 }
 
 /* ── Empty hint ─────────────────────────────────────────── */
 
 .rsi-hint {
-  padding: 14px 10px;
-  font-size: 12px;
-  color: #7a6e62;
+  padding: var(--sp-6) var(--sp-4);
+  font-size: var(--t-base);
+  color: var(--fg-4);
   line-height: 1.5;
   font-style: italic;
 }

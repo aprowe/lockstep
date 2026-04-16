@@ -20,6 +20,7 @@ const regionSlice = createSlice({
     },
     addRegion(state, action: PayloadAction<Region>) {
       state.regions.push(action.payload)
+      state.activeRegionId = action.payload.id
     },
     deleteRegion(state, action: PayloadAction<string>) {
       state.regions = state.regions.filter(r => r.id !== action.payload)
@@ -32,13 +33,30 @@ const regionSlice = createSlice({
     },
     updateRegionInOut(state, action: PayloadAction<{ id: string; inPoint: number; outPoint: number }>) {
       const r = state.regions.find(r => r.id === action.payload.id)
-      if (r) {
-        r.inPoint = action.payload.inPoint
-        r.outPoint = action.payload.outPoint
-        // Reset beat boundary times when orig boundaries change
-        r.inBeatTime = undefined
-        r.outBeatTime = undefined
+      if (!r) return
+      let { inPoint: newIn, outPoint: newOut } = action.payload
+      const length = r.outPoint - r.inPoint
+      const MIN_LENGTH = 1
+
+      if (newIn > r.outPoint) {
+        // Start moved past the original end → shift end to preserve length
+        newOut = newIn + length
+      } else if (newOut < r.inPoint) {
+        // End moved before the original start → shift start to preserve length
+        newIn = newOut - length
+      } else if (newOut - newIn < MIN_LENGTH) {
+        // Span is below minimum: clamp whichever boundary moved
+        if (newIn !== r.inPoint) {
+          newIn = newOut - MIN_LENGTH  // start moved too close → pull start back
+        } else {
+          newOut = newIn + MIN_LENGTH  // end moved too close → push end forward
+        }
       }
+
+      r.inPoint = newIn
+      r.outPoint = newOut
+      r.inBeatTime = undefined
+      r.outBeatTime = undefined
     },
     updateRegionBeatTimes(state, action: PayloadAction<{ id: string; inBeatTime?: number; outBeatTime?: number }>) {
       const r = state.regions.find(r => r.id === action.payload.id)

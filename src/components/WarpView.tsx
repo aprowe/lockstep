@@ -30,8 +30,6 @@ import {
   clearAnchors,
   loadAnchors,
   setBpm,
-  setMinStretch as setMinStretchAction,
-  setMaxStretch as setMaxStretchAction,
   setBeatZeroId,
   setSelectedIds as setSelectedIdsAction,
   deselectAll,
@@ -69,8 +67,6 @@ export default function WarpView({
   const origAnchors = useAppSelector(s => s.warp.origAnchors)
   const beatAnchors = useAppSelector(s => s.warp.beatAnchors)
   const bpm = useAppSelector(s => s.warp.bpm)
-  const minStretch = useAppSelector(s => s.warp.minStretch)
-  const maxStretch = useAppSelector(s => s.warp.maxStretch)
   const beatZeroId = useAppSelector(s => s.warp.beatZeroId)
   const trimToLoop = useAppSelector(s => s.warp.trimToLoop)
   const addToEnd = useAppSelector(s => s.warp.addToEnd)
@@ -274,18 +270,18 @@ export default function WarpView({
       if (origIdx > 0) {
         const origSpan = sortedOrig[origIdx].time - sortedOrig[origIdx - 1].time
         const prevBeat = sortedBeat[beatIdx - 1]?.time ?? 0
-        min = Math.max(min, prevBeat + minStretch * origSpan)
-        max = Math.min(max, prevBeat + maxStretch * origSpan)
+        min = Math.max(min, prevBeat + 0 * origSpan)
+        max = Math.min(max, prevBeat + Infinity * origSpan)
       }
       if (origIdx < sortedOrig.length - 1) {
         const origSpan = sortedOrig[origIdx + 1].time - sortedOrig[origIdx].time
         const nextBeat = sortedBeat[beatIdx + 1]?.time ?? outputDuration
-        min = Math.max(min, nextBeat - maxStretch * origSpan)
-        max = Math.min(max, nextBeat - minStretch * origSpan)
+        min = Math.max(min, nextBeat - Infinity * origSpan)
+        max = Math.min(max, nextBeat - 0 * origSpan)
       }
       return { min, max }
     },
-    [sortedBeat, sortedOrig, minStretch, maxStretch, outputDuration],
+    [sortedBeat, sortedOrig, outputDuration],
   )
 
   // ── Selection helpers ─────────────────────────────────────────────────────
@@ -434,8 +430,6 @@ export default function WarpView({
         }))
         dispatch(loadAnchors({ origAnchors: newOrig, beatAnchors: newBeat, linkedBeatIds: [] }))
         if (data.bpm > 0) dispatch(setBpm(data.bpm))
-        if (data.minStretch > 0) dispatch(setMinStretchAction(data.minStretch))
-        if (data.maxStretch > 0) dispatch(setMaxStretchAction(data.maxStretch))
         if (data.beatZeroAnchorTime != null) {
           const match = newBeat.find(a => Math.abs(a.time - data.beatZeroAnchorTime) < 0.001)
           dispatch(setBeatZeroId(match?.id ?? null))
@@ -579,6 +573,7 @@ export default function WarpView({
         onTrackScrub={onSeek}
         linkedAnchorIds={linkedAnchorIds}
         dimmedAnchorIds={dimmedAnchorIds}
+        minimapRegions={clipOverlays}
       />
       <WarpConnector
         ref={connectorRef}

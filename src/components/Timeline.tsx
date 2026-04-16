@@ -94,6 +94,8 @@ export interface TimelineProps {
   clipResizeSnapTargets?: number[]
   /** When true, clip resize skips beat-grid snapping (smooth drag) */
   clipResizeNoGridSnap?: boolean
+  /** Regions to show as colored bars in the minimap */
+  minimapRegions?: ClipOverlay[]
 }
 
 /** A clip block overlaid on the timeline track at the same zoom level */
@@ -234,6 +236,7 @@ export default function Timeline({
   primarySelection = true,
   clipResizeSnapTargets,
   clipResizeNoGridSnap,
+  minimapRegions,
 }: TimelineProps) {
   const [internalView, setInternalView] = useState<View>({ start: 0, end: duration })
   const isControlled = controlledView !== undefined
@@ -256,6 +259,9 @@ export default function Timeline({
   const anchorClickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const selectionRef = useRef(selectedIds); selectionRef.current = selectedIds
   const minimapDrag = useRef<{ lastX: number; rect: DOMRect } | null>(null)
+  const minimapRef = useRef<HTMLDivElement>(null)
+  const minimapScrollTarget = useRef<number | null>(null)
+  const minimapRafRef = useRef<number | null>(null)
   const viewRef = useRef(view); viewRef.current = view
 
   const visibleSpan = view.end - view.start
@@ -330,6 +336,45 @@ export default function Timeline({
     el.addEventListener('wheel', handler, { passive: false })
     return () => el.removeEventListener('wheel', handler)
   }, []) // only on mount — state is accessed via zoomRef
+
+  useEffect(() => {
+    const el = minimapRef.current
+    if (!el) return
+    const handler = (e: WheelEvent) => {
+      e.preventDefault()
+      const { visibleSpan: span } = zoomRef.current
+      const raw = e.deltaX !== 0 ? e.deltaX : e.deltaY
+      const step = Math.sign(raw) * span * 0.15
+      minimapScrollTarget.current = (minimapScrollTarget.current ?? viewRef.current.start) + step
+
+      if (minimapRafRef.current === null) {
+        const animate = () => {
+          const target = minimapScrollTarget.current
+          if (target === null) return
+          const { viewStart, visibleSpan: sp, setView: sv } = zoomRef.current
+          const diff = target - viewStart
+          if (Math.abs(diff) < 0.001) {
+            sv({ start: target, end: target + sp })
+            minimapScrollTarget.current = null
+            minimapRafRef.current = null
+            return
+          }
+          const next = viewStart + diff * 0.2
+          sv({ start: next, end: next + sp })
+          minimapRafRef.current = requestAnimationFrame(animate)
+        }
+        minimapRafRef.current = requestAnimationFrame(animate)
+      }
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => {
+      el.removeEventListener('wheel', handler)
+      if (minimapRafRef.current !== null) {
+        cancelAnimationFrame(minimapRafRef.current)
+        minimapRafRef.current = null
+      }
+    }
+  }, [duration])
 
   const handleTrackPointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -994,8 +1039,26 @@ export default function Timeline({
           minimapDrag.current = { ...g, lastX: e.clientX }
         }}
         onPointerUp={() => { minimapDrag.current = null }}
-        onPointerLeave={() => { minimapDrag.current = null }}
+        onPointerLeave={() => {
+          minimapDrag.current = null
+          minimapScrollTarget.current = null
+          if (minimapRafRef.current !== null) {
+            cancelAnimationFrame(minimapRafRef.current)
+            minimapRafRef.current = null
+          }
+        }}
+        ref={minimapRef}
       >
+        {minimapRegions?.map(region => (
+          <div
+            key={region.id}
+            className={`minimap-region clip-overlay--color-${(region.colorIndex ?? 0) % 8}${region.active ? ' minimap-region--active' : ''}`}
+            style={{
+              left: `${(region.inPoint / duration) * 100}%`,
+              width: `${((region.outPoint - region.inPoint) / duration) * 100}%`,
+            }}
+          />
+        ))}
         {anchors.map(anchor => (
           <div
             key={anchor.id}

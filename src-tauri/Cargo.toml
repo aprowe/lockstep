@@ -1,5 +1,5 @@
 [package]
-name = "vj-toolkit"
+name = "lockstep"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,7 +8,7 @@ identifier = "com.vjtools.toolkit"
 icon = ["icons/icon.ico"]
 
 [lib]
-name = "vj_toolkit_lib"
+name = "lockstep_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

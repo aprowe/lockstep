@@ -10,8 +10,6 @@ interface RegionInfoPanelProps {
   duration: number
   addToEnd: boolean
   onBpmChange: (bpm: number) => void
-  onMinStretchChange: (v: number) => void
-  onMaxStretchChange: (v: number) => void
   onAddToEndChange: (v: boolean) => void
   onUpdateRegionInOut?: (id: string, inPoint: number, outPoint: number) => void
   /** Orig-space time of the current beat-zero anchor (null = clip start) */
@@ -31,14 +29,21 @@ function formatTimecode(s: number): string {
   return m > 0 ? `${m}:${sec}` : `${sec}s`
 }
 
+function parseTimecode(str: string): number | null {
+  const s = str.trim().replace(/s$/, '')
+  // m:ss or m:ss.xx
+  const colon = s.match(/^(\d+):(\d+(?:\.\d*)?)$/)
+  if (colon) return parseInt(colon[1]) * 60 + parseFloat(colon[2])
+  const n = parseFloat(s)
+  return isNaN(n) ? null : n
+}
+
 export default function RegionInfoPanel({
   activeRegion,
   warpData,
   duration,
   addToEnd,
   onBpmChange,
-  onMinStretchChange,
-  onMaxStretchChange,
   onAddToEndChange,
   onUpdateRegionInOut,
   beatZeroOrigTime,
@@ -48,8 +53,6 @@ export default function RegionInfoPanel({
   detectingBpm,
 }: RegionInfoPanelProps) {
   const bpm = warpData?.bpm ?? 120
-  const minStretch = warpData?.minStretch ?? 0.5
-  const maxStretch = warpData?.maxStretch ?? 2.0
 
   const beat = bpm > 0 ? 60 / bpm : 0
   const origSpan = activeRegion
@@ -82,12 +85,14 @@ export default function RegionInfoPanel({
 
   const [bpmInput, setBpmInput] = useState(String(bpm))
   const [beatsInput, setBeatsInput] = useState(totalBeats > 0 ? totalBeats.toFixed(1) : '')
-  const [minInput, setMinInput] = useState(String(minStretch))
-  const [maxInput, setMaxInput] = useState(String(maxStretch))
+  const [inInput, setInInput] = useState('')
+  const [outInput, setOutInput] = useState('')
+  const [durInput, setDurInput] = useState('')
+  const [editingIn, setEditingIn] = useState(false)
+  const [editingOut, setEditingOut] = useState(false)
+  const [editingDur, setEditingDur] = useState(false)
 
   useEffect(() => { setBpmInput(String(bpm)) }, [bpm])
-  useEffect(() => { setMinInput(String(minStretch)) }, [minStretch])
-  useEffect(() => { setMaxInput(String(maxStretch)) }, [maxStretch])
   useEffect(() => {
     setBeatsInput(totalBeats > 0 ? totalBeats.toFixed(1) : '')
   }, [totalBeats])
@@ -139,16 +144,31 @@ export default function RegionInfoPanel({
     }
   }
 
-  const commitMin = () => {
-    const n = parseFloat(minInput)
-    if (n > 0 && n < 10) onMinStretchChange(n)
-    else setMinInput(String(minStretch))
+  const commitIn = () => {
+    if (!activeRegion || !onUpdateRegionInOut) { setEditingIn(false); return }
+    const n = parseTimecode(inInput)
+    if (n !== null && n >= 0 && n < activeRegion.outPoint) {
+      onUpdateRegionInOut(activeRegion.id, n, activeRegion.outPoint)
+    }
+    setEditingIn(false)
   }
 
-  const commitMax = () => {
-    const n = parseFloat(maxInput)
-    if (n > 0 && n < 10) onMaxStretchChange(n)
-    else setMaxInput(String(maxStretch))
+  const commitOut = () => {
+    if (!activeRegion || !onUpdateRegionInOut) { setEditingOut(false); return }
+    const n = parseTimecode(outInput)
+    if (n !== null && n > activeRegion.inPoint) {
+      onUpdateRegionInOut(activeRegion.id, activeRegion.inPoint, n)
+    }
+    setEditingOut(false)
+  }
+
+  const commitDur = () => {
+    if (!activeRegion || !onUpdateRegionInOut) { setEditingDur(false); return }
+    const n = parseTimecode(durInput)
+    if (n !== null && n > 0) {
+      onUpdateRegionInOut(activeRegion.id, activeRegion.inPoint, activeRegion.inPoint + n)
+    }
+    setEditingDur(false)
   }
 
   // ── Beat adjustment helpers ─────────────────────────────
@@ -180,16 +200,6 @@ export default function RegionInfoPanel({
               onBlur={commitBpm}
               onKeyDown={e => { if (e.key === 'Enter') commitBpm(); e.stopPropagation() }}
             />
-            {onBpmDetect && (
-              <button
-                className="rip__detect"
-                onClick={onBpmDetect}
-                disabled={detectingBpm}
-                title="Detect BPM from markers"
-              >
-                {detectingBpm ? '…' : '?'}
-              </button>
-            )}
             {activeRegion && (
               <button
                 className={`rip__lock${lock === 'bpm' ? ' rip__lock--active' : ''}`}
@@ -201,6 +211,16 @@ export default function RegionInfoPanel({
                 ) : (
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2z"/></svg>
                 )}
+              </button>
+            )}
+            {onBpmDetect && (
+              <button
+                className="rip__detect"
+                onClick={onBpmDetect}
+                disabled={detectingBpm}
+                title="Detect BPM from markers"
+              >
+                {detectingBpm ? '…' : '?'}
               </button>
             )}
           </div>
@@ -228,12 +248,6 @@ export default function RegionInfoPanel({
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h1.9c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2z"/></svg>
                   )}
                 </button>
-                <div className="rip__btn-group">
-                  <button className="rip__adj" onClick={() => adjustBeats(totalBeats / 2)} title="Halve beats">÷2</button>
-                  <button className="rip__adj" onClick={() => adjustBeats(Math.round(totalBeats) - 1)} title="Remove 1 beat">−1</button>
-                  <button className="rip__adj" onClick={() => adjustBeats(Math.round(totalBeats) + 1)} title="Add 1 beat">+1</button>
-                  <button className="rip__adj" onClick={() => adjustBeats(totalBeats * 2)} title="Double beats">×2</button>
-                </div>
               </>
             ) : (
               <span className="rip__value rip__value--computed">
@@ -241,6 +255,16 @@ export default function RegionInfoPanel({
               </span>
             )}
           </div>
+
+          {/* Beat adj buttons span full grid width, below Beats row */}
+          {/* {activeRegion && (
+            <div className="rip__btn-group rip__btn-group--full">
+              <button className="rip__adj" onClick={() => adjustBeats(totalBeats / 2)} title="Halve beats">÷2</button>
+              <button className="rip__adj" onClick={() => adjustBeats(Math.round(totalBeats) - 1)} title="Remove 1 beat">−1</button>
+              <button className="rip__adj" onClick={() => adjustBeats(Math.round(totalBeats) + 1)} title="Add 1 beat">+1</button>
+              <button className="rip__adj" onClick={() => adjustBeats(totalBeats * 2)} title="Double beats">×2</button>
+            </div>
+          )} */}
         </div>
 
         {/* Markers */}
@@ -251,31 +275,77 @@ export default function RegionInfoPanel({
 
         <div className="rip__divider" />
 
-        {/* Stretch limits */}
-        <div className="rip__row">
-          <span className="rip__label">Min %</span>
-          <input
-            className="rip__input"
-            type="number" min={0.1} max={10} step={0.05}
-            value={minInput}
-            onChange={e => setMinInput(e.target.value)}
-            onBlur={commitMin}
-            onKeyDown={e => { if (e.key === 'Enter') commitMin(); e.stopPropagation() }}
-          />
-        </div>
-        <div className="rip__row">
-          <span className="rip__label">Max %</span>
-          <input
-            className="rip__input"
-            type="number" min={0.1} max={10} step={0.05}
-            value={maxInput}
-            onChange={e => setMaxInput(e.target.value)}
-            onBlur={commitMax}
-            onKeyDown={e => { if (e.key === 'Enter') commitMax(); e.stopPropagation() }}
-          />
-        </div>
-
-        <div className="rip__divider" />
+        {/* In / Out — only for actual clips */}
+        {activeRegion && (
+          <>
+            <div className="rip__row">
+              <span className="rip__label">In</span>
+              {editingIn ? (
+                <input
+                  className="rip__input rip__input--time"
+                  type="text"
+                  value={inInput}
+                  onChange={e => setInInput(e.target.value)}
+                  onBlur={commitIn}
+                  onKeyDown={e => { if (e.key === 'Enter') commitIn(); if (e.key === 'Escape') setEditingIn(false); e.stopPropagation() }}
+                  autoFocus
+                />
+              ) : (
+                <span
+                  className="rip__value rip__value--editable"
+                  onClick={() => { setInInput(formatTimecode(activeRegion.inPoint)); setEditingIn(true) }}
+                  title="Click to edit"
+                >
+                  {formatTimecode(activeRegion.inPoint)}
+                </span>
+              )}
+            </div>
+            <div className="rip__row">
+              <span className="rip__label">Out</span>
+              {editingOut ? (
+                <input
+                  className="rip__input rip__input--time"
+                  type="text"
+                  value={outInput}
+                  onChange={e => setOutInput(e.target.value)}
+                  onBlur={commitOut}
+                  onKeyDown={e => { if (e.key === 'Enter') commitOut(); if (e.key === 'Escape') setEditingOut(false); e.stopPropagation() }}
+                  autoFocus
+                />
+              ) : (
+                <span
+                  className="rip__value rip__value--editable"
+                  onClick={() => { setOutInput(formatTimecode(activeRegion.outPoint)); setEditingOut(true) }}
+                  title="Click to edit"
+                >
+                  {formatTimecode(activeRegion.outPoint)}
+                </span>
+              )}
+            </div>
+            <div className="rip__row">
+              <span className="rip__label">Dur</span>
+              {editingDur ? (
+                <input
+                  className="rip__input rip__input--time"
+                  type="text"
+                  value={durInput}
+                  onChange={e => setDurInput(e.target.value)}
+                  onBlur={commitDur}
+                  onKeyDown={e => { if (e.key === 'Enter') commitDur(); if (e.key === 'Escape') setEditingDur(false); e.stopPropagation() }}
+                  autoFocus
+                />
+              ) : (
+                <span
+                  className="rip__value rip__value--editable"
+                  onClick={() => { setDurInput(formatTimecode(activeRegion.outPoint - activeRegion.inPoint)); setEditingDur(true) }}
+                  title="Click to edit"
+                >
+                  {formatTimecode(activeRegion.outPoint - activeRegion.inPoint)}
+                </span>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Start at — only for actual clips, not Full Video */}
         {activeRegion && (
@@ -307,7 +377,7 @@ export default function RegionInfoPanel({
                 ))}
               </select>
             ) : (
-              <span className="rip__value" style={{ color: '#5a4e42', fontSize: '12px' }}>Clip start</span>
+              <span className="rip__value rip__value--computed">Clip start</span>
             )}
           </div>
         )}

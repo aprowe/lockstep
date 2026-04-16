@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    vj_toolkit_lib::run();
+    lockstep_lib::run();
 }

@@ -1,6 +1,8 @@
 import { it, expect } from 'vitest'
 import { calcNewRegionSpan, calcNewRegionBounds } from '../../src/utils/view'
+import { addRegion, setActiveRegionId } from '../../src/store/slices/regionSlice'
 import { behaviorTest } from '../helpers/runBehavior'
+import { makeStore } from '../helpers/setup'
 
 // region-creation::30fd066b
 // Scenario Outline: New region size is the larger of 10% of view or 5 seconds
@@ -88,5 +90,32 @@ behaviorTest('region-creation::220bf2e0', () => {
   it('outPoint is clamped to duration when center equals duration', () => {
     const { outPoint } = calcNewRegionBounds(120, 40, 120)
     expect(outPoint).toBe(120)
+  })
+})
+
+// region-creation::95af3b45
+// Region is selected when created
+
+behaviorTest('region-creation::95af3b45', () => {
+  const makeRegion = (id: string, inPoint: number, outPoint: number) => ({
+    id, name: id, inPoint, outPoint, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
+  })
+
+  it('newly created region becomes the active region', () => {
+    const store = makeStore()
+    store.dispatch(addRegion(makeRegion('a', 0, 10)))
+    store.dispatch(setActiveRegionId('a'))
+    store.dispatch(addRegion(makeRegion('b', 10, 20)))
+
+    expect(store.getState().region.activeRegionId).toBe('b')
+  })
+
+  it('viewport is unchanged after creating a region', () => {
+    const store = makeStore()
+    const viewBefore = store.getState().ui.view
+
+    store.dispatch(addRegion(makeRegion('r', 0, 10)))
+
+    expect(store.getState().ui.view).toEqual(viewBefore)
   })
 })

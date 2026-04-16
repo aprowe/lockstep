@@ -61,7 +61,7 @@ function toSlug(title: string): string {
 
 function normalizeSteps(lines: string[]): string {
   return lines
-    .map(l => l.replace(/^\s*(Given|When|Then|And|But)\s+/i, '').trim())
+    .map(l => l.replace(/^\s*(Given|When|Then|And|But)\s*:?\s+/i, '').trim())
     .filter(Boolean)
     .join(' ')
     .toLowerCase()
@@ -87,7 +87,7 @@ interface BehaviorEntry {
 
 const FEATURE_RE  = /^\s*Feature\s*:/i
 const SCENARIO_RE = /^\s*Scenario(\s+Outline)?\s*:/i
-const STEP_RE     = /^\s*(Given|When|Then|And|But)\s+/i
+const STEP_RE     = /^\s*(Given|When|Then|And|But)\s*:?\s+/i
 const EXAMPLES_RE = /^\s*Examples\s*:/i
 
 function parseFeatureFile(content: string, relPath: string): Record<string, BehaviorEntry> {

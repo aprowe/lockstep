@@ -3,10 +3,10 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  font-family: ui-monospace, Consolas, monospace;
-  background: #171410;
-  border-left: 1px solid #2c2720;
-  border-top: 1px solid #2c2720;
+  font-family: var(--font-family);
+  background: var(--bg-2);
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
 }
 
 /* ── Section header ────────────────────────────────────── */
@@ -14,20 +14,20 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 7px 14px;
-  background: #252018;
-  border-bottom: 1px solid #2c2720;
-  font-size: 11px;
+  padding: 7px var(--sp-6);
+  background: var(--bg-7);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--t-sm);
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #c2b8ae;
+  color: var(--fg-2);
   flex-shrink: 0;
 }
 
 .ml-section__header-count {
   font-weight: 400;
-  color: #7a6e62;
+  color: var(--fg-4);
   letter-spacing: 0;
 }
 
@@ -39,9 +39,9 @@
 }
 
 .ml-empty {
-  padding: 24px 14px;
-  font-size: 13px;
-  color: #7a6e62;
+  padding: var(--sp-8) var(--sp-6);
+  font-size: var(--t-md);
+  color: var(--fg-4);
   text-align: center;
   letter-spacing: 0.06em;
 }
@@ -50,52 +50,52 @@
 .ml-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-6);
   cursor: pointer;
   transition: background 0.08s;
-  border-bottom: 1px solid #1b1814;
+  border-bottom: 1px solid var(--bg-3);
 }
 
-.ml-row:hover { background: #1b1814; }
+.ml-row:hover { background: var(--bg-3); }
 .ml-row--selected { background: #251e12; }
 .ml-row--selected:hover { background: #2c2418; }
 
 .ml-row__idx {
-  font-size: 12px;
-  color: #7a6e62;
+  font-size: var(--t-base);
+  color: var(--fg-4);
   width: 18px;
   text-align: right;
   flex-shrink: 0;
 }
 
 .ml-row__time {
-  font-size: 14px;
-  color: #c2b8ae;
+  font-size: var(--t-lg);
+  color: var(--fg-2);
   flex-shrink: 0;
   min-width: 52px;
 }
 
 .ml-row__frame {
-  font-size: 12px;
-  color: #a09488;
+  font-size: var(--t-base);
+  color: var(--fg-3);
   flex-shrink: 0;
   min-width: 36px;
 }
 
 .ml-row__beat {
-  font-size: 13px;
+  font-size: var(--t-md);
   color: #b5a898;
   flex-shrink: 0;
   min-width: 36px;
 }
 
 .ml-row__beat0 {
-  font-size: 12px;
+  font-size: var(--t-base);
   font-weight: 700;
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.12);
+  border: 1px solid rgba(var(--accent-rgb), 0.3);
   border-radius: 3px;
   padding: 1px 5px;
   flex-shrink: 0;
@@ -103,14 +103,14 @@
 }
 
 .ml-row__stretch {
-  font-size: 12px;
-  color: #a09488;
+  font-size: var(--t-base);
+  color: var(--fg-3);
   margin-left: auto;
   flex-shrink: 0;
 }
 
-.ml-row__stretch--high { color: #f59e0b; }
-.ml-row__stretch--low  { color: #e07540; }
+.ml-row__stretch--high { color: var(--accent); }
+.ml-row__stretch--low  { color: var(--accent-2); }
 
 /* ── Action bar ────────────────────────────────────────── */
 .ml-actions {
@@ -118,24 +118,24 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  padding: 8px 14px;
-  border-bottom: 1px solid #2c2720;
+  padding: var(--sp-3) var(--sp-6);
+  border-bottom: 1px solid var(--border);
 }
 
 .ml-actions__btn {
   background: none;
-  border: 1px solid #38312a;
+  border: 1px solid var(--border-hi);
   border-radius: 4px;
   color: #b5a898;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--t-base);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  padding: 4px 9px;
+  padding: var(--sp-1) 9px;
   cursor: pointer;
   transition: color 0.1s, border-color 0.1s;
   white-space: nowrap;
 }
-.ml-actions__btn:hover:not(:disabled) { color: #e2dbd2; border-color: #a09488; }
+.ml-actions__btn:hover:not(:disabled) { color: var(--fg-1); border-color: var(--fg-3); }
 .ml-actions__btn:disabled { opacity: 0.3; cursor: default; }
 .ml-actions__btn--deselect { margin-left: auto; }

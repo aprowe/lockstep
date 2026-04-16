@@ -1,3 +1,57 @@
+/* ── Themes ─────────────────────────────────────────────────
+   To switch theme, set data-theme on <html>:
+     <html data-theme="neon-rhythm">
+   Default (no attribute) = warm-dark.
+   ─────────────────────────────────────────────────────────── */
+@import './themes/warm-dark.css';
+@import './themes/neon-rhythm.css';
+@import './themes/violet-dusk.css';
+
+/* ═══════════════════════════════════════════════════════════
+   Scale & structural tokens — theme-independent.
+   Colors and fonts live in themes/*.css.
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  /* ── Scale ────────────────────────────────────────────────
+     Multiplies all font-size, spacing, and component-size
+     tokens.  Set to 1.2 to zoom the whole UI by 20 %.      */
+  --ui-scale: 1;
+
+  /* ── Typography ─────────────────────────────────────────── */
+  --t-2xs:  calc(9px  * var(--ui-scale));
+  --t-xs:   calc(10px * var(--ui-scale));
+  --t-sm:   calc(11px * var(--ui-scale));
+  --t-base: calc(12px * var(--ui-scale));
+  --t-md:   calc(13px * var(--ui-scale));
+  --t-lg:   calc(14px * var(--ui-scale));
+  --t-xl:   calc(16px * var(--ui-scale));
+  --t-2xl:  calc(18px * var(--ui-scale));
+
+  /* ── Spacing ────────────────────────────────────────────── */
+  --sp-0: calc(2px  * var(--ui-scale));
+  --sp-1: calc(4px  * var(--ui-scale));
+  --sp-2: calc(6px  * var(--ui-scale));
+  --sp-3: calc(8px  * var(--ui-scale));
+  --sp-4: calc(10px * var(--ui-scale));
+  --sp-5: calc(12px * var(--ui-scale));
+  --sp-6: calc(14px * var(--ui-scale));
+  --sp-7: calc(16px * var(--ui-scale));
+  --sp-8: calc(24px * var(--ui-scale));
+  --sp-9: calc(48px * var(--ui-scale));
+
+  /* ── Component sizes ────────────────────────────────────── */
+  --sz-btn-sm:    calc(20px * var(--ui-scale));
+  --sz-btn:       calc(32px * var(--ui-scale));
+  --sz-btn-play:  calc(36px * var(--ui-scale));
+  --sz-menubar:   calc(32px * var(--ui-scale));
+  --sz-rail:      calc(18px * var(--ui-scale));
+  --sz-resizer:   calc(5px  * var(--ui-scale));
+  --sz-track:     calc(50px * var(--ui-scale));
+  --sz-ruler:     calc(28px * var(--ui-scale));
+  --sz-minimap:   calc(18px * var(--ui-scale));
+  --sz-connector: calc(52px * var(--ui-scale));
+}
+
 * { box-sizing: border-box; }
 
 *:not(input):not(textarea) {
@@ -7,9 +61,9 @@
 
 body {
   margin: 0;
-  font-family: ui-monospace, Consolas, monospace;
-  background: #100e0c;
-  color: #e2dbd2;
+  font-family: var(--font-family);
+  background: var(--bg-1);
+  color: var(--fg-1);
   overflow: hidden;
   height: 100vh;
 }
@@ -20,3 +74,10 @@ body {
 }
 
 p { margin: 0; }
+
+/* ── Scrollbars ─────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-2); }
+::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--fg-5); }
+::-webkit-scrollbar-corner { background: var(--bg-2); }

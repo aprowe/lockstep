@@ -12,6 +12,15 @@ function fmtTime(s: number): string {
     : `${Math.floor(sec)}.${String(Math.floor((sec % 1) * 100)).padStart(2, '0')}s`
 }
 
+function parseTime(s: string): number | null {
+  const trimmed = s.trim().replace(/s$/, '')
+  // m:ss.xx or m:ss
+  const colonMatch = trimmed.match(/^(\d+):(\d+(?:\.\d*)?)$/)
+  if (colonMatch) return parseInt(colonMatch[1]) * 60 + parseFloat(colonMatch[2])
+  const n = parseFloat(trimmed)
+  return isNaN(n) ? null : n
+}
+
 // ── Props ────────────────────────────────────────────────────────────────────
 
 interface ClipSidebarProps {
@@ -43,6 +52,38 @@ export default function ClipSidebar({
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const renameInputRef = useRef<HTMLInputElement>(null)
+
+  const [editingIn, setEditingIn] = useState(false)
+  const [editingOut, setEditingOut] = useState(false)
+  const [inValue, setInValue] = useState('')
+  const [outValue, setOutValue] = useState('')
+
+  const startEditIn = (region: Region) => {
+    setInValue(fmtTime(region.inPoint))
+    setEditingIn(true)
+  }
+  const startEditOut = (region: Region) => {
+    setOutValue(fmtTime(region.outPoint))
+    setEditingOut(true)
+  }
+  const commitIn = (region: Region) => {
+    const n = parseTime(inValue)
+    if (n !== null && n >= 0 && n < region.outPoint) {
+      onUpdateInOut(region.id, n, region.outPoint)
+    } else {
+      setInValue(fmtTime(region.inPoint))
+    }
+    setEditingIn(false)
+  }
+  const commitOut = (region: Region) => {
+    const n = parseTime(outValue)
+    if (n !== null && n > region.inPoint) {
+      onUpdateInOut(region.id, region.inPoint, n)
+    } else {
+      setOutValue(fmtTime(region.outPoint))
+    }
+    setEditingOut(false)
+  }
 
   const activeRegion = activeRegionId !== null
     ? regions.find(r => r.id === activeRegionId) ?? null
@@ -135,7 +176,29 @@ export default function ClipSidebar({
 
           <div className="cs-inout__row">
             <span className="cs-inout__label">In:</span>
-            <span className="cs-inout__time">{fmtTime(activeRegion.inPoint)}</span>
+            {editingIn ? (
+              <input
+                className="cs-inout__input"
+                type="text"
+                value={inValue}
+                onChange={e => setInValue(e.target.value)}
+                onBlur={() => commitIn(activeRegion)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') commitIn(activeRegion)
+                  if (e.key === 'Escape') setEditingIn(false)
+                  e.stopPropagation()
+                }}
+                autoFocus
+              />
+            ) : (
+              <span
+                className="cs-inout__time cs-inout__time--editable"
+                onClick={() => startEditIn(activeRegion)}
+                title="Click to edit"
+              >
+                {fmtTime(activeRegion.inPoint)}
+              </span>
+            )}
             <button
               className="cs-inout__set"
               onClick={() => onUpdateInOut(activeRegion.id, playhead, activeRegion.outPoint)}
@@ -147,7 +210,29 @@ export default function ClipSidebar({
 
           <div className="cs-inout__row">
             <span className="cs-inout__label">Out:</span>
-            <span className="cs-inout__time">{fmtTime(activeRegion.outPoint)}</span>
+            {editingOut ? (
+              <input
+                className="cs-inout__input"
+                type="text"
+                value={outValue}
+                onChange={e => setOutValue(e.target.value)}
+                onBlur={() => commitOut(activeRegion)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') commitOut(activeRegion)
+                  if (e.key === 'Escape') setEditingOut(false)
+                  e.stopPropagation()
+                }}
+                autoFocus
+              />
+            ) : (
+              <span
+                className="cs-inout__time cs-inout__time--editable"
+                onClick={() => startEditOut(activeRegion)}
+                title="Click to edit"
+              >
+                {fmtTime(activeRegion.outPoint)}
+              </span>
+            )}
             <button
               className="cs-inout__set"
               onClick={() => onUpdateInOut(activeRegion.id, activeRegion.inPoint, playhead)}

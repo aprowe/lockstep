@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema/desktop-schema.json",
   "identifier": "default",
-  "description": "Default permissions for VJ Toolkit",
+  "description": "Default permissions for Lockstep",
   "windows": ["main"],
   "permissions": [
     "core:default",

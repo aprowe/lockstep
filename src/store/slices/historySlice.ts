@@ -1,11 +1,12 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import type { Anchor } from '../../types'
+import type { Anchor, Region } from '../../types'
 
 export interface HistoryEntry {
   origAnchors: Anchor[]
   beatAnchors: Anchor[]
   linkedBeatIds: number[]
   beatZeroId: number | null
+  regions?: Region[]
 }
 
 interface HistoryState {
@@ -31,12 +32,15 @@ const historySlice = createSlice({
       const entry = action.payload
       const cur = state.stack[state.index]
       // Skip if identical to current
+      const regionsIdentical = (cur.regions?.length ?? 0) === (entry.regions?.length ?? 0) &&
+        (entry.regions?.every((r, i) => r.id === cur.regions?.[i]?.id && r.inPoint === cur.regions?.[i]?.inPoint && r.outPoint === cur.regions?.[i]?.outPoint) ?? true)
       if (cur &&
           cur.origAnchors.length === entry.origAnchors.length &&
           cur.beatAnchors.length === entry.beatAnchors.length &&
           cur.beatZeroId === entry.beatZeroId &&
           cur.origAnchors.every((a, i) => a.id === entry.origAnchors[i]?.id && Math.abs(a.time - entry.origAnchors[i]?.time) < 0.0001) &&
-          cur.beatAnchors.every((a, i) => a.id === entry.beatAnchors[i]?.id && Math.abs(a.time - entry.beatAnchors[i]?.time) < 0.0001)) {
+          cur.beatAnchors.every((a, i) => a.id === entry.beatAnchors[i]?.id && Math.abs(a.time - entry.beatAnchors[i]?.time) < 0.0001) &&
+          regionsIdentical) {
         return
       }
       // Truncate future entries

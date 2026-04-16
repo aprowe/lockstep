@@ -8,6 +8,7 @@ interface VideoState {
   markerCountByPath: Record<string, number>
   markersLoaded: boolean
   detectingBpm: boolean
+  recentFiles: string[]
 }
 
 const initialState: VideoState = {
@@ -16,6 +17,7 @@ const initialState: VideoState = {
   markerCountByPath: {},
   markersLoaded: false,
   detectingBpm: false,
+  recentFiles: [],
 }
 
 const videoSlice = createSlice({
@@ -44,6 +46,13 @@ const videoSlice = createSlice({
     setDetectingBpm(state, action: PayloadAction<boolean>) {
       state.detectingBpm = action.payload
     },
+    addRecentFile(state, action: PayloadAction<string>) {
+      const path = action.payload
+      state.recentFiles = [path, ...state.recentFiles.filter(p => p !== path)].slice(0, 10)
+    },
+    clearRecentFiles(state) {
+      state.recentFiles = []
+    },
   },
 })
 
@@ -55,6 +64,8 @@ export const {
   updateMarkerCount,
   setMarkersLoaded,
   setDetectingBpm,
+  addRecentFile,
+  clearRecentFiles,
 } = videoSlice.actions
 
 export default videoSlice.reducer

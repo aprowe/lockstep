@@ -1,0 +1,68 @@
+/* ═══════════════════════════════════════════════════════════
+   Neon Rhythm — per VISUAL_SPEC.md
+   Deep blue-black base with neon cyan primary accent,
+   electric violet secondary, precision-instrument feel.
+   ═══════════════════════════════════════════════════════════ */
+:root[data-theme="neon-rhythm"] {
+  /* ── Backgrounds ────────────────────────────────────────── */
+  --bg-0:     #080c10;   /* deepest (file sidebar) */
+  --bg-1:     #0b0f14;   /* app / body — BG-0 from spec */
+  --bg-2:     #0e141b;   /* panels, tracks — BG-1 from spec */
+  --bg-3:     #121a24;   /* sidebars — BG-2 from spec */
+  --bg-4:     #152030;   /* ruler, in/out editor */
+  --bg-5:     #182433;   /* headers, breadcrumb — BG-3 from spec */
+  --bg-6:     #1d2a3c;   /* inputs, buttons */
+  --bg-7:     #1f2e40;   /* section headers */
+  --bg-hover: #243548;   /* hover */
+  --bg-sel:   #1a3050;   /* active / selected item */
+
+  /* ── Foreground (text) ──────────────────────────────────── */
+  --fg-1: #eaf2ff;   /* primary — spec primary text */
+  --fg-2: #9aa7b5;   /* secondary — spec secondary text */
+  --fg-3: #6a7a88;   /* muted */
+  --fg-4: #5a6a7a;   /* dim — spec disabled text */
+  --fg-5: #3d4d5a;   /* faint */
+
+  /* ── Accent ─────────────────────────────────────────────── */
+  --accent:     #00e5ff;   /* neon cyan — spec primary */
+  --accent-hi:  #40eeff;   /* cyan hover */
+  --accent-2:   #8a5cff;   /* electric violet — spec secondary */
+  --accent-2hi: #a07fff;   /* violet hover */
+
+  /* ── Borders ────────────────────────────────────────────── */
+  --border:    rgba(0, 229, 255, 0.10);   /* subtle cyan glow border */
+  --border-hi: rgba(0, 229, 255, 0.22);
+
+  /* ── Special ────────────────────────────────────────────── */
+  --blue:       #00e5ff;   /* neon cyan doubles as blue */
+  --blue-light: #80f0ff;
+  --blue-soft:  #40d8ff;
+  --tan:        #ffb020;   /* amber beat — spec rare accent */
+  --tan-hi:     #ffc940;
+  --error:      #ff4d4d;
+
+  /* ── RGB channels for rgba() transparency ───────────────── */
+  --accent-rgb:   0, 229, 255;
+  --accent-2-rgb: 138, 92, 255;
+  --fg-1-rgb:     234, 242, 255;
+  --blue-rgb:     0, 229, 255;
+  --beat-rgb:     0, 229, 255;   /* beat grid lines in neon cyan */
+
+  /* ── Warp panel (harmonized with neon palette) ──────────── */
+  --wp-bg:   #090d12;
+  --wp-bg2:  #0d1319;
+  --wp-bg3:  #0b1018;
+  --wp-foot: #060a0d;
+  --wp-bd:   #0f1a26;
+  --wp-bd2:  #0d1520;
+  --wp-bd3:  rgba(0, 229, 255, 0.12);
+  --wp-bd4:  rgba(0, 229, 255, 0.22);
+  --wp-tx:   #eaf2ff;
+  --wp-tx2:  #9aa7b5;
+  --wp-tx3:  #6a7a88;
+  --wp-tx4:  #4a5a68;
+  --wp-tx5:  #2a3a48;
+
+  /* ── Font ───────────────────────────────────────────────── */
+  --font-family: ui-monospace, Consolas, monospace;
+}

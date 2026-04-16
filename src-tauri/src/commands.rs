@@ -175,7 +175,7 @@ pub struct WarpRequest {
 pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, String> {
     let job_id = uuid::Uuid::new_v4().to_string();
 
-    let out_dir = std::env::temp_dir().join("vj-toolkit");
+    let out_dir = std::env::temp_dir().join("lockstep");
     std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
     let out_path = out_dir.join(format!("warped_{}.mp4", &job_id));
     let out_path_str = out_path.to_string_lossy().to_string();
@@ -276,7 +276,7 @@ pub struct DiagnosticRequest {
 pub async fn start_diagnostic(app: AppHandle, req: DiagnosticRequest) -> Result<String, String> {
     let job_id = uuid::Uuid::new_v4().to_string();
 
-    let out_dir = std::env::temp_dir().join("vj-toolkit");
+    let out_dir = std::env::temp_dir().join("lockstep");
     std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
     let suffix = if req.mode == "overlay" { "overlay" } else { "diagnostic" };
     let out_path = out_dir.join(format!("{suffix}_{}.mp4", &job_id));

@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lockstep — Icon Set</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #0B0F14;
+  color: #EAF2FF;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', 'Courier New', monospace;
+  padding: 48px;
+  min-height: 100vh;
+}
+
+header {
+  margin-bottom: 48px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(0,229,255,0.1);
+}
+
+header h1 {
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  color: #00E5FF;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+header p {
+  font-size: 10px;
+  color: #5A6A7A;
+  letter-spacing: 0.12em;
+}
+
+section {
+  margin-bottom: 48px;
+}
+
+section h2 {
+  font-size: 9px;
+  letter-spacing: 0.25em;
+  color: #5A6A7A;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(0,229,255,0.06);
+}
+
+.icon-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  align-items: flex-start;
+}
+
+.icon-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-pair {
+  display: flex;
+  gap: 6px;
+}
+
+.icon-box {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0E141B;
+  border: 1px solid rgba(0,229,255,0.07);
+  border-radius: 10px;
+  color: #9AA7B5;
+  cursor: pointer;
+  transition: color 150ms, border-color 150ms;
+}
+
+.icon-box:hover {
+  color: #00E5FF;
+  border-color: rgba(0,229,255,0.25);
+  filter: drop-shadow(0 0 5px rgba(0,229,255,0.25));
+}
+
+.icon-box.active {
+  color: #00E5FF;
+  border-color: rgba(0,229,255,0.3);
+  box-shadow: 0 0 14px rgba(0,229,255,0.1);
+  filter: drop-shadow(0 0 3px rgba(0,229,255,0.4));
+}
+
+.pair-labels {
+  display: flex;
+  gap: 6px;
+  font-size: 8px;
+  color: #2A3A4A;
+  letter-spacing: 0.08em;
+}
+
+.pair-labels span { width: 48px; text-align: center; }
+.pair-labels .hi { color: rgba(0,229,255,0.35); }
+
+.icon-label {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: #4A5A6A;
+  text-align: center;
+  text-transform: uppercase;
+  max-width: 110px;
+  line-height: 1.5;
+}
+
+.large-preview {
+  display: flex;
+  gap: 2px;
+  margin-top: 56px;
+  padding: 20px;
+  background: #0E141B;
+  border: 1px solid rgba(0,229,255,0.06);
+  border-radius: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.large-preview .icon-box { width: 52px; height: 52px; }
+
+.divider {
+  width: 1px;
+  height: 36px;
+  background: rgba(0,229,255,0.1);
+  margin: 0 4px;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Lockstep · Icon System</h1>
+  <p>Neon Rhythm Theme &nbsp;·&nbsp; 24px grid &nbsp;·&nbsp; 2px monoline &nbsp;·&nbsp; Default #9AA7B5 &nbsp;·&nbsp; Active #00E5FF</p>
+</header>
+
+<!-- ── PLAYBACK ─────────────────────────────────────────── -->
+<section>
+  <h2>Playback</h2>
+  <div class="icon-grid">
+
+    <div class="icon-item">
+      <div class="icon-pair">
+        <div class="icon-box">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <line x1="5" y1="4" x2="5" y2="20" stroke-width="1.5" stroke-opacity="0.45"/>
+            <polygon points="8,4 8,20 21,12" stroke-width="2" stroke-linejoin="miter"/>
+          </svg>
+        </div>
+        <div class="icon-box active">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <line x1="5" y1="4" x2="5" y2="20" stroke-width="1.5" stroke-opacity="0.45"/>
+            <polygon points="8,4 8,20 21,12" stroke-width="2" stroke-linejoin="miter"/>
+          </svg>
+        </div>
+      </div>
+      <div class="pair-labels"><span>—</span><span class="hi">active</span></div>
+      <div class="icon-label">Play</div>
+    </div>
+
+    <div class="icon-item">
+      <div class="icon-pair">
+        <div class="icon-box">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <line x1="7" y1="5" x2="7" y2="19" stroke-width="2"/>
+            <line x1="10" y1="12" x2="19" y2="12" stroke-width="2"/>
+            <polyline points="14,8 19,12 14,16" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="icon-box active">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <line x1="7" y1="5" x2="7" y2="19" stroke-width="2"/>
+            <line x1="10" y1="12" x2="19" y2="12" stroke-width="2"/>
+            <polyline points="14,8 19,12 14,16" stroke-width="2"/>
+          </svg>
+        </div>
+      </div>
+      <div class="pair-labels"><span>—</span><span class="hi">active</span></div>
+      <div class="icon-label">Next Frame</div>
+    </div>
+
+    <div class="icon-item">
+      <div class="icon-pair">
+        <div class="icon-box">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <line x1="17" y1="5" x2="17" y2="19" stroke-width="2"/>
+            <line x1="14" y1="12" x2="5" y2="12" stroke-width="2"/>
+            <polyline points="10,8 5,12 10,16" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="icon-box active">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <line x1="17" y1="5" x2="17" y2="19" stroke-width="2"/>
+            <line x1="14" y1="12" x2="5" y2="12" stroke-width="2"/>
+            <polyline points="10,8 5,12 10,16" stroke-width="2"/>
+          </svg>
+        </div>
+      </div>
+      <div class="pair-labels"><span>—</span><span class="hi">active</span></div>
+      <div class="icon-label">Prev Frame</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── MARKERS ──────────────────────────────────────────── -->
+<section>
+  <h2>Markers</h2>
+  <div class="icon-grid">
+
+    <div class="icon-item">
+      <div class="icon-pair">
+        <div class="icon-box">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <line x1="3" y1="17" x2="21" y2="17" stroke-width="1.5" stroke-opacity="0.35"/>
+            <line x1="12" y1="5" x2="12" y2="11" stroke-width="1.5"/>
+            <line x1="9" y1="8" x2="15" y2="8" stroke-width="1.5"/>
+            <circle cx="12" cy="17" r="2.5" fill="currentColor" stroke="none"/>
+          </svg>
+        </div>
+        <div class="icon-box active">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <line x1="3" y1="17" x2="21" y2="17" stroke-width="1.5" stroke-opacity="0.35"/>
+            <line x1="12" y1="5" x2="12" y2="11" stroke-width="1.5"/>
+            <line x1="9" y1="8" x2="15" y2="8" stroke-width="1.5"/>
+            <circle cx="12" cy="17" r="2.5" fill="currentColor" stroke="none"/>
+          </svg>
+        </div>
+      </div>
+      <div class="pair-labels"><span>—</span><span class="hi">active</span></div>
+      <div class="icon-label">Create Marker</div>
+    </div>
+
+    <div class="icon-item">
+      <div class="icon-pair">
+        <div class="icon-box">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <line x1="3" y1="17" x2="21" y2="17" stroke-width="1.5" stroke-opacity="0.35"/>
+            <circle cx="19" cy="17" r="2.5" fill="currentColor" stroke="none"/>
+            <line x1="3" y1="11" x2="13" y2="11" stroke-width="2"/>
+            <polyline points="9,7 14,11 9,15" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="icon-box active">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <line x1="3" y1="17" x2="21" y2="17" stroke-width="1.5" stroke-opacity="0.35"/>
+            <circle cx="19" cy="17" r="2.5" fill="currentColor" stroke="none"/>
+            <line x1="3" y1="11" x2="13" y2="11" stroke-width="2"/>
+            <polyline points="9,7 14,11 9,15" stroke-width="2"/>
+          </svg>
+        </div>
+      </div>
+      <div class="pair-labels"><span>—</span><span class="hi">active</span></div>
+      <div class="icon-label">Next Marker</div>
+    </div>
+
+    <div class="icon-item">
+      <div class="icon-pair">
+        <div class="icon-box">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <line x1="3" y1="17" x2="21" y2="17" stroke-width="1.5" stroke-opacity="0.35"/>
+            <circle cx="5" cy="17" r="2.5" fill="currentColor" stroke="none"/>
+            <line x1="21" y1="11" x2="11" y2="11" stroke-width="2"/>
+            <polyline points="15,7 10,11 15,15" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="icon-box active">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <line x1="3" y1="17" x2="21" y2="17" stroke-width="1.5" stroke-opacity="0.35"/>
+            <circle cx="5" cy="17" r="2.5" fill="currentColor" stroke="none"/>
+            <line x1="21" y1="11" x2="11" y2="11" stroke-width="2"/>
+            <polyline points="15,7 10,11 15,15" stroke-width="2"/>
+          </svg>
+        </div>
+      </div>
+      <div class="pair-labels"><span>—</span><span class="hi">active</span></div>
+      <div class="icon-label">Prev Marker</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── REGIONS ──────────────────────────────────────────── -->
+<section>
+  <h2>Regions</h2>
+  <div class="icon-grid">
+
+    <!-- Create Region: [ ] caps face inward -->
+    <div class="icon-item">
+      <div class="icon-pair">
+        <div class="icon-box">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <rect x="8" y="6" width="8" height="12" fill="currentColor" fill-opacity="0.08" stroke="none"/>
+            <path d="M7,5 L10,5 M7,5 L7,19 M7,19 L10,19" stroke-width="2"/>
+            <path d="M17,5 L14,5 M17,5 L17,19 M17,19 L14,19" stroke-width="2"/>
+            <line x1="9" y1="12" x2="15" y2="12" stroke-width="1.5" stroke-dasharray="2,2" stroke-opacity="0.6"/>
+          </svg>
+        </div>
+        <div class="icon-box active">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <rect x="8" y="6" width="8" height="12" fill="currentColor" fill-opacity="0.1" stroke="none"/>
+            <path d="M7,5 L10,5 M7,5 L7,19 M7,19 L10,19" stroke-width="2"/>
+            <path d="M17,5 L14,5 M17,5 L17,19 M17,19 L14,19" stroke-width="2"/>
+            <line x1="9" y1="12" x2="15" y2="12" stroke-width="1.5" stroke-dasharray="2,2" stroke-opacity="0.6"/>
+          </svg>
+        </div>
+      </div>
+      <div class="pair-labels"><span>—</span><span class="hi">active</span></div>
+      <div class="icon-label">Create Region</div>
+    </div>
+
+    <!-- Set Beginning: [ + down arrow -->
+    <div class="icon-item">
+      <div class="icon-pair">
+        <div class="icon-box">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <line x1="3" y1="19" x2="21" y2="19" stroke-width="1.5" stroke-opacity="0.35"/>
+            <path d="M8,4 L11,4 M8,4 L8,19" stroke-width="2"/>
+            <line x1="16" y1="4" x2="16" y2="15" stroke-width="2"/>
+            <polyline points="13,11 16,15 19,11" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="icon-box active">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <line x1="3" y1="19" x2="21" y2="19" stroke-width="1.5" stroke-opacity="0.35"/>
+            <path d="M8,4 L11,4 M8,4 L8,19" stroke-width="2"/>
+            <line x1="16" y1="4" x2="16" y2="15" stroke-width="2"/>
+            <polyline points="13,11 16,15 19,11" stroke-width="2"/>
+          </svg>
+        </div>
+      </div>
+      <div class="pair-labels"><span>—</span><span class="hi">active</span></div>
+      <div class="icon-label">Set Beginning</div>
+    </div>
+
+    <!-- Set End: ] + down arrow -->
+    <div class="icon-item">
+      <div class="icon-pair">
+        <div class="icon-box">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <line x1="3" y1="19" x2="21" y2="19" stroke-width="1.5" stroke-opacity="0.35"/>
+            <path d="M16,4 L13,4 M16,4 L16,19" stroke-width="2"/>
+            <line x1="8" y1="4" x2="8" y2="15" stroke-width="2"/>
+            <polyline points="5,11 8,15 11,11" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="icon-box active">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <line x1="3" y1="19" x2="21" y2="19" stroke-width="1.5" stroke-opacity="0.35"/>
+            <path d="M16,4 L13,4 M16,4 L16,19" stroke-width="2"/>
+            <line x1="8" y1="4" x2="8" y2="15" stroke-width="2"/>
+            <polyline points="5,11 8,15 11,11" stroke-width="2"/>
+          </svg>
+        </div>
+      </div>
+      <div class="pair-labels"><span>—</span><span class="hi">active</span></div>
+      <div class="icon-label">Set End</div>
+    </div>
+
+    <!-- Go to Region Start: ←[ -->
+    <div class="icon-item">
+      <div class="icon-pair">
+        <div class="icon-box">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <path d="M7,4 L10,4 M7,4 L7,20 M7,20 L10,20" stroke-width="2"/>
+            <line x1="21" y1="12" x2="11" y2="12" stroke-width="2"/>
+            <polyline points="15,8 10,12 15,16" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="icon-box active">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <path d="M7,4 L10,4 M7,4 L7,20 M7,20 L10,20" stroke-width="2"/>
+            <line x1="21" y1="12" x2="11" y2="12" stroke-width="2"/>
+            <polyline points="15,8 10,12 15,16" stroke-width="2"/>
+          </svg>
+        </div>
+      </div>
+      <div class="pair-labels"><span>—</span><span class="hi">active</span></div>
+      <div class="icon-label">Go to Region Start</div>
+    </div>
+
+    <!-- Go to Region End: ]→ -->
+    <div class="icon-item">
+      <div class="icon-pair">
+        <div class="icon-box">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <path d="M17,4 L14,4 M17,4 L17,20 M17,20 L14,20" stroke-width="2"/>
+            <line x1="3" y1="12" x2="13" y2="12" stroke-width="2"/>
+            <polyline points="9,8 14,12 9,16" stroke-width="2"/>
+          </svg>
+        </div>
+        <div class="icon-box active">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+            <path d="M17,4 L14,4 M17,4 L17,20 M17,20 L14,20" stroke-width="2"/>
+            <line x1="3" y1="12" x2="13" y2="12" stroke-width="2"/>
+            <polyline points="9,8 14,12 9,16" stroke-width="2"/>
+          </svg>
+        </div>
+      </div>
+      <div class="pair-labels"><span>—</span><span class="hi">active</span></div>
+      <div class="icon-label">Go to Region End</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── TOOLBAR STRIP ─────────────────────────────────────── -->
+<section>
+  <h2>All icons · Active · Toolbar context</h2>
+  <div class="large-preview">
+
+    <div class="icon-box active" title="Play">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <line x1="5" y1="4" x2="5" y2="20" stroke-width="1.5" stroke-opacity="0.45"/>
+        <polygon points="8,4 8,20 21,12" stroke-width="2" stroke-linejoin="miter"/>
+      </svg>
+    </div>
+    <div class="icon-box active" title="Prev Frame">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+        <line x1="17" y1="5" x2="17" y2="19" stroke-width="2"/>
+        <line x1="14" y1="12" x2="5" y2="12" stroke-width="2"/>
+        <polyline points="10,8 5,12 10,16" stroke-width="2"/>
+      </svg>
+    </div>
+    <div class="icon-box active" title="Next Frame">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+        <line x1="7" y1="5" x2="7" y2="19" stroke-width="2"/>
+        <line x1="10" y1="12" x2="19" y2="12" stroke-width="2"/>
+        <polyline points="14,8 19,12 14,16" stroke-width="2"/>
+      </svg>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="icon-box active" title="Create Marker">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <line x1="3" y1="17" x2="21" y2="17" stroke-width="1.5" stroke-opacity="0.35"/>
+        <line x1="12" y1="5" x2="12" y2="11" stroke-width="1.5"/>
+        <line x1="9" y1="8" x2="15" y2="8" stroke-width="1.5"/>
+        <circle cx="12" cy="17" r="2.5" fill="currentColor" stroke="none"/>
+      </svg>
+    </div>
+    <div class="icon-box active" title="Prev Marker">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+        <line x1="3" y1="17" x2="21" y2="17" stroke-width="1.5" stroke-opacity="0.35"/>
+        <circle cx="5" cy="17" r="2.5" fill="currentColor" stroke="none"/>
+        <line x1="21" y1="11" x2="11" y2="11" stroke-width="2"/>
+        <polyline points="15,7 10,11 15,15" stroke-width="2"/>
+      </svg>
+    </div>
+    <div class="icon-box active" title="Next Marker">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+        <line x1="3" y1="17" x2="21" y2="17" stroke-width="1.5" stroke-opacity="0.35"/>
+        <circle cx="19" cy="17" r="2.5" fill="currentColor" stroke="none"/>
+        <line x1="3" y1="11" x2="13" y2="11" stroke-width="2"/>
+        <polyline points="9,7 14,11 9,15" stroke-width="2"/>
+      </svg>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="icon-box active" title="Create Region">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+        <rect x="8" y="6" width="8" height="12" fill="currentColor" fill-opacity="0.1" stroke="none"/>
+        <path d="M7,5 L10,5 M7,5 L7,19 M7,19 L10,19" stroke-width="2"/>
+        <path d="M17,5 L14,5 M17,5 L17,19 M17,19 L14,19" stroke-width="2"/>
+        <line x1="9" y1="12" x2="15" y2="12" stroke-width="1.5" stroke-dasharray="2,2" stroke-opacity="0.6"/>
+      </svg>
+    </div>
+    <div class="icon-box active" title="Set Region Beginning">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+        <line x1="3" y1="19" x2="21" y2="19" stroke-width="1.5" stroke-opacity="0.35"/>
+        <path d="M8,4 L11,4 M8,4 L8,19" stroke-width="2"/>
+        <line x1="16" y1="4" x2="16" y2="15" stroke-width="2"/>
+        <polyline points="13,11 16,15 19,11" stroke-width="2"/>
+      </svg>
+    </div>
+    <div class="icon-box active" title="Set Region End">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+        <line x1="3" y1="19" x2="21" y2="19" stroke-width="1.5" stroke-opacity="0.35"/>
+        <path d="M16,4 L13,4 M16,4 L16,19" stroke-width="2"/>
+        <line x1="8" y1="4" x2="8" y2="15" stroke-width="2"/>
+        <polyline points="5,11 8,15 11,11" stroke-width="2"/>
+      </svg>
+    </div>
+    <div class="icon-box active" title="Go to Region Start">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+        <path d="M7,4 L10,4 M7,4 L7,20 M7,20 L10,20" stroke-width="2"/>
+        <line x1="21" y1="12" x2="11" y2="12" stroke-width="2"/>
+        <polyline points="15,8 10,12 15,16" stroke-width="2"/>
+      </svg>
+    </div>
+    <div class="icon-box active" title="Go to Region End">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linejoin="miter">
+        <path d="M17,4 L14,4 M17,4 L17,20 M17,20 L14,20" stroke-width="2"/>
+        <line x1="3" y1="12" x2="13" y2="12" stroke-width="2"/>
+        <polyline points="9,8 14,12 9,16" stroke-width="2"/>
+      </svg>
+    </div>
+
+  </div>
+</section>
+
+</body>
+</html>
