@@ -75,6 +75,8 @@ export interface TimelineProps {
   onClipOverlayMove?: (id: string, inPoint: number, outPoint: number) => void
   /** Right-click on a clip overlay bar */
   onClipOverlayContextMenu?: (id: string, x: number, y: number) => void
+  /** Double-click on clip bar — caller handles zoom toggle. If not provided, zooms directly. */
+  onClipOverlayZoom?: (id: string) => void
   /** Only render beat grid lines within this time range */
   beatRangeStart?: number
   beatRangeEnd?: number
@@ -226,6 +228,7 @@ export default function Timeline({
   onClipOverlayResize,
   onClipOverlayMove,
   onClipOverlayContextMenu,
+  onClipOverlayZoom,
   beatRangeStart,
   beatRangeEnd,
   scrubOnTrackClick = false,
@@ -839,7 +842,11 @@ export default function Timeline({
           if (!flip && clipOverlays) {
             const clickY = e.clientY - rect.top
             const hit = clickY <= 14 ? clipOverlays.find(c => time >= c.inPoint && time <= c.outPoint) : null
-            if (hit) { setView({ start: hit.inPoint, end: hit.outPoint }); return }
+            if (hit) {
+              if (onClipOverlayZoom) onClipOverlayZoom(hit.id)
+              else setView({ start: hit.inPoint, end: hit.outPoint })
+              return
+            }
           }
           if (noAdd || !canInteract) return
           const marginSec = (mergeMarginPx / rect.width) * visibleSpan
@@ -915,7 +922,11 @@ export default function Timeline({
               {/* Handle bar — top for orig timeline, bottom for beat timeline */}
               <div
                 className={`clip-overlay__bar${flip ? ' clip-overlay__bar--flip' : ''}`}
-                onDoubleClick={e => { e.stopPropagation(); setView({ start: clip.inPoint, end: clip.outPoint }) }}
+                onDoubleClick={e => {
+                  e.stopPropagation()
+                  if (onClipOverlayZoom) onClipOverlayZoom(clip.id)
+                  else setView({ start: clip.inPoint, end: clip.outPoint })
+                }}
                 onContextMenu={onClipOverlayContextMenu ? e => {
                   e.preventDefault()
                   e.stopPropagation()

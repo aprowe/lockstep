@@ -33,6 +33,11 @@ Feature: Region Editing
             | 20 | 20 | 19 | 20 |
             |19.5| 20 | 19 | 20 |
 
+    Scenario: A regions zoom action is called when double clicked
+        Given A region
+        When the user double clicks the handle
+        Then The zoom action is called
+
     Scenario: A region when zoom action is called fills up the time bar
         Given A region that is not perfectly fit to the timeline
         When the user calls the zoom action into that region

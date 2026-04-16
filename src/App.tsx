@@ -8,6 +8,8 @@ import Toolbar from './components/Toolbar'
 import MenuBar from './components/MenuBar'
 import type { MenuDef } from './components/MenuBar'
 import { buildFileMenu, buildEditMenu, buildViewMenu } from './menus'
+import { calcZoomToRegion } from './utils/view'
+import type { View } from './types'
 import VideoFolderSidebar from './components/VideoFolderSidebar'
 import RegionSidebar from './components/RegionSidebar'
 import RegionInfoPanel from './components/RegionInfoPanel'
@@ -179,6 +181,7 @@ export default function App() {
   const [pendingZoom, setPendingZoom] = useState<{ start: number; end: number } | null>(null)
 
   const playerRef = useRef<VideoPlayerHandle>(null)
+  const preZoomView = useRef<View | null>(null)
   const vDragStart = useRef<{ y: number; h: number } | null>(null)
   const lDragStart = useRef<{ x: number; w: number } | null>(null)
   const rDragStart = useRef<{ x: number; w: number } | null>(null)
@@ -529,7 +532,11 @@ export default function App() {
                 onZoomToRegion={() => {
                   const from = activeRegion?.inPoint ?? 0
                   const to = activeRegion?.outPoint ?? video.duration
-                  dispatch(setViewAction({ start: from, end: to }))
+                  const currentView = store.getState().ui.view
+                  const { nextView, previousView } = calcZoomToRegion(currentView, from, to, preZoomView.current)
+                  if (previousView !== null) preZoomView.current = previousView
+                  else preZoomView.current = null
+                  dispatch(setViewAction(nextView))
                 }}
                 onJumpRegionStart={activeRegion ? () => {
                   playerRef.current?.seek(activeRegion.inPoint)
@@ -597,6 +604,15 @@ export default function App() {
                   onClipOverlayCreate={addRegion}
                   onClipOverlayResize={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
                   onClipOverlayMove={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
+                  onClipOverlayZoom={(id) => {
+                    const region = regions.find(r => r.id === id)
+                    if (!region) return
+                    const currentView = store.getState().ui.view
+                    const { nextView, previousView } = calcZoomToRegion(currentView, region.inPoint, region.outPoint, preZoomView.current)
+                    if (previousView !== null) preZoomView.current = previousView
+                    else preZoomView.current = null
+                    dispatch(setViewAction(nextView))
+                  }}
                   onClipOverlayContextMenu={(id, x, y) => {
                     const region = regions.find(r => r.id === id)
                     if (!region) return

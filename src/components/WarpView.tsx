@@ -49,6 +49,7 @@ interface WarpViewProps {
   onClipOverlayResize?: (id: string, inPoint: number, outPoint: number) => void
   onClipOverlayMove?: (id: string, inPoint: number, outPoint: number) => void
   onClipOverlayContextMenu?: (id: string, x: number, y: number) => void
+  onClipOverlayZoom?: (id: string) => void
 }
 
 export default function WarpView({
@@ -60,6 +61,7 @@ export default function WarpView({
   onClipOverlayResize,
   onClipOverlayMove,
   onClipOverlayContextMenu,
+  onClipOverlayZoom,
 }: WarpViewProps) {
   const dispatch = useAppDispatch()
 
@@ -568,6 +570,7 @@ export default function WarpView({
         onClipOverlayResize={onClipOverlayResize}
         onClipOverlayMove={onClipOverlayMove}
         onClipOverlayContextMenu={onClipOverlayContextMenu}
+        onClipOverlayZoom={onClipOverlayZoom}
         beatRangeStart={clipIn}
         beatRangeEnd={clipOut}
         onTrackScrub={onSeek}

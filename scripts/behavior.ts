@@ -172,7 +172,7 @@ const CALL_RE = /behaviorTest\(\s*['"]([^'"]+)['"]/g
 
 function scanTests(dir: string): CoverageRef[] {
   const refs: CoverageRef[] = []
-  for (const file of findFiles(dir, '.test.ts')) {
+  for (const file of [...findFiles(dir, '.test.ts'), ...findFiles(dir, '.test.tsx')]) {
     const rel   = relative(ROOT, file).replace(/\\/g, '/')
     const lines = readFileSync(file, 'utf8').split('\n')
     lines.forEach((text, i) => {

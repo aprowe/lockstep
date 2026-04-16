@@ -316,6 +316,18 @@
       "file": "spec/features/region-editing.feature",
       "line": 25
     },
+    "region-editing::35ddd908": {
+      "feature": "Region Editing",
+      "scenario": "A regions zoom action is called when double clicked",
+      "isOutline": false,
+      "steps": [
+        "Given A region",
+        "When the user double clicks the handle",
+        "Then The zoom action is called"
+      ],
+      "file": "spec/features/region-editing.feature",
+      "line": 36
+    },
     "region-editing::7a5597d1": {
       "feature": "Region Editing",
       "scenario": "A region when zoom action is called fills up the time bar",
@@ -326,7 +338,7 @@
         "Then the zoom and bounds are set so the region is 100% of the timeline"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 36
+      "line": 41
     },
     "region-editing::404dfafc": {
       "feature": "Region Editing",
@@ -339,7 +351,7 @@
         "Then the zoom and bounds are set to what it was when the user called the zoom action"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 41
+      "line": 46
     },
     "video-loading::90289e16": {
       "feature": "Video Loading",
