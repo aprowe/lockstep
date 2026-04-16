@@ -9,7 +9,21 @@ jobs:
   release:
     permissions:
       contents: write
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            ffmpeg_url: https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffmpeg-6.1-win-64.zip
+            ffprobe_url: https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffprobe-6.1-win-64.zip
+            ffmpeg_bin: binaries/ffmpeg-x86_64-pc-windows-msvc.exe
+            ffprobe_bin: binaries/ffprobe-x86_64-pc-windows-msvc.exe
+          - os: macos-13
+            ffmpeg_url: https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffmpeg-6.1-macos-64.zip
+            ffprobe_url: https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffprobe-6.1-macos-64.zip
+            ffmpeg_bin: binaries/ffmpeg-x86_64-apple-darwin
+            ffprobe_bin: binaries/ffprobe-x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +40,18 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
+
+      - name: Download FFmpeg binaries
+        shell: bash
+        run: |
+          mkdir -p src-tauri/binaries
+          curl -L "${{ matrix.ffmpeg_url }}" -o ffmpeg.zip
+          curl -L "${{ matrix.ffprobe_url }}" -o ffprobe.zip
+          unzip -j ffmpeg.zip -d ffmpeg_out
+          unzip -j ffprobe.zip -d ffprobe_out
+          cp ffmpeg_out/ffmpeg* src-tauri/${{ matrix.ffmpeg_bin }}
+          cp ffprobe_out/ffprobe* src-tauri/${{ matrix.ffprobe_bin }}
+          chmod +x src-tauri/${{ matrix.ffmpeg_bin }} src-tauri/${{ matrix.ffprobe_bin }}
 
       - uses: tauri-apps/tauri-action@v0
         env:

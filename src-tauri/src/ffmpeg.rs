@@ -1,7 +1,41 @@
 use std::process::{Command, Stdio};
 
+/// Resolve an ffmpeg/ffprobe binary: prefer a Tauri sidecar bundled next to the
+/// executable (Tauri names sidecars `<name>-<target-triple>[.exe]`), then fall
+/// back to whatever is on PATH.
+fn find_bin(name: &str) -> String {
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let mut candidates: Vec<String> = Vec::new();
+
+            #[cfg(target_os = "macos")]
+            {
+                candidates.push(format!("{name}-x86_64-apple-darwin"));
+                candidates.push(format!("{name}-aarch64-apple-darwin"));
+            }
+            #[cfg(target_os = "windows")]
+            {
+                candidates.push(format!("{name}-x86_64-pc-windows-msvc.exe"));
+                candidates.push(format!("{name}.exe"));
+            }
+            #[cfg(target_os = "linux")]
+            {
+                candidates.push(format!("{name}-x86_64-unknown-linux-gnu"));
+            }
+
+            for candidate in &candidates {
+                let path = dir.join(candidate);
+                if path.exists() {
+                    return path.to_string_lossy().into_owned();
+                }
+            }
+        }
+    }
+    name.to_string()
+}
+
 pub fn ffprobe_json(path: &str) -> Result<serde_json::Value, String> {
-    let output = Command::new("ffprobe")
+    let output = Command::new(find_bin("ffprobe"))
         .args([
             "-v", "quiet",
             "-print_format", "json",
@@ -12,7 +46,7 @@ pub fn ffprobe_json(path: &str) -> Result<serde_json::Value, String> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
-        .map_err(|e| format!("ffprobe not found in PATH: {e}"))?;
+        .map_err(|e| format!("ffprobe not found: {e}"))?;
 
     if !output.status.success() {
         return Err(format!(
@@ -43,12 +77,12 @@ pub fn atempo_chain(mut rate: f64) -> String {
 
 /// Run ffmpeg with the given args. Returns Ok(()) on success, Err with stderr on failure.
 pub fn run_ffmpeg(args: &[&str]) -> Result<(), String> {
-    let status = Command::new("ffmpeg")
+    let status = Command::new(find_bin("ffmpeg"))
         .args(args)
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .output()
-        .map_err(|e| format!("ffmpeg not found in PATH: {e}"))?;
+        .map_err(|e| format!("ffmpeg not found: {e}"))?;
 
     if status.status.success() {
         Ok(())
