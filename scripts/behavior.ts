@@ -99,13 +99,19 @@ function parseFeatureFile(content: string, relPath: string): Record<string, Beha
   let isOutline     = false
   let steps: string[] = []
   let inExamples    = false
+  let exampleRows: string[] = []
 
   const flush = () => {
     if (!scenarioTitle || steps.length === 0) return
-    const id = `${toSlug(featureTitle)}::${shortHash(normalizeSteps(steps))}`
+    const hashInput = [
+      scenarioTitle.toLowerCase().trim(),
+      normalizeSteps(steps),
+      ...exampleRows,
+    ].join('\n')
+    const id = `${toSlug(featureTitle)}::${shortHash(hashInput)}`
     if (behaviors[id]) console.warn(`  WARN: ID collision in ${relPath}: ${id}`)
     behaviors[id] = { feature: featureTitle, scenario: scenarioTitle, isOutline, steps: steps.map(s => s.trim()), file: relPath, line: scenarioLine }
-    steps = []; scenarioTitle = ''; isOutline = false; inExamples = false
+    steps = []; scenarioTitle = ''; isOutline = false; inExamples = false; exampleRows = []
   }
 
   for (const [i, raw] of lines.entries()) {
@@ -113,7 +119,7 @@ function parseFeatureFile(content: string, relPath: string): Record<string, Beha
     if (FEATURE_RE.test(t))  { featureTitle = t.replace(/^Feature\s*:\s*/i, '').trim(); continue }
     if (SCENARIO_RE.test(t)) { flush(); isOutline = /Outline/i.test(t); scenarioTitle = t.replace(/^Scenario(\s+Outline)?\s*:\s*/i, '').trim(); scenarioLine = i + 1; inExamples = false; continue }
     if (EXAMPLES_RE.test(t)) { inExamples = true; continue }
-    if (inExamples)            continue
+    if (inExamples)          { if (t.startsWith('|')) exampleRows.push(t.replace(/\s+/g, ' ')); continue }
     if (STEP_RE.test(t))       steps.push(t)
   }
   flush()

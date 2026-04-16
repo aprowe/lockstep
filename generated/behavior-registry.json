@@ -1,6 +1,6 @@
 {
   "behaviors": {
-    "drop-a-matching-marker-file-onto-a-loaded-clip::e0671657": {
+    "drop-a-matching-marker-file-onto-a-loaded-clip::535b7e93": {
       "feature": "Drop a matching marker file onto a loaded clip",
       "scenario": "Markers are replaced when a matching sidecar is dropped",
       "isOutline": false,
@@ -14,7 +14,7 @@
       "file": "features/drop-marker-file.feature",
       "line": 3
     },
-    "drop-a-matching-marker-file-onto-a-loaded-clip::a757305b": {
+    "drop-a-matching-marker-file-onto-a-loaded-clip::5a680ff1": {
       "feature": "Drop a matching marker file onto a loaded clip",
       "scenario": "Undo reverts the sidecar load",
       "isOutline": false,
@@ -26,7 +26,7 @@
       "file": "features/drop-marker-file.feature",
       "line": 10
     },
-    "drop-a-matching-marker-file-onto-a-loaded-clip::b07f7e75": {
+    "drop-a-matching-marker-file-onto-a-loaded-clip::b2dcfc34": {
       "feature": "Drop a matching marker file onto a loaded clip",
       "scenario": "No sibling video found results in silent error",
       "isOutline": false,
@@ -39,7 +39,7 @@
       "file": "features/drop-marker-file.feature",
       "line": 15
     },
-    "drop-a-matching-marker-file-onto-a-loaded-clip::7bf91849": {
+    "drop-a-matching-marker-file-onto-a-loaded-clip::dd2831c4": {
       "feature": "Drop a matching marker file onto a loaded clip",
       "scenario": "A different sibling video loads with its markers",
       "isOutline": false,
@@ -52,9 +52,9 @@
       "file": "features/drop-marker-file.feature",
       "line": 21
     },
-    "region-creation::3855ff5e": {
+    "region-creation::30fd066b": {
       "feature": "Region Creation",
-      "scenario": "New region size is the smaller of 10% of view or 5 seconds",
+      "scenario": "New region size is the larger of 10% of view or 5 seconds",
       "isOutline": true,
       "steps": [
         "Given the current viewport span is <viewSpan> seconds",
@@ -64,7 +64,7 @@
       "file": "features/region-creation.feature",
       "line": 3
     },
-    "region-creation::50730318": {
+    "region-creation::089f7025": {
       "feature": "Region Creation",
       "scenario": "New region from the timeline is is aligned on the cursor position",
       "isOutline": false,
@@ -72,12 +72,12 @@
         "Given the current viewport span is 40 seconds",
         "And the video duration is 120 seconds",
         "When a new region is created at cursor position 60 seconds",
-        "Then the region spans from 60 to 64 seconds"
+        "Then the region spans from 60 to 65 seconds"
       ],
       "file": "features/region-creation.feature",
       "line": 15
     },
-    "region-creation::7c76059f": {
+    "region-creation::622d79ba": {
       "feature": "Region Creation",
       "scenario": "New region from the region list is aligned on the playhead",
       "isOutline": false,
@@ -85,12 +85,12 @@
         "Given the current viewport span is 40 seconds",
         "And the video duration is 120 seconds",
         "When a new region is created at playhead position 60 seconds",
-        "Then the region spans from 60 to 64 seconds"
+        "Then the region spans from 60 to 65 seconds"
       ],
       "file": "features/region-creation.feature",
       "line": 21
     },
-    "region-creation::1cd7c8b4": {
+    "region-creation::beaf3038": {
       "feature": "Region Creation",
       "scenario": "Region is clamped to the start of the video",
       "isOutline": false,
@@ -103,7 +103,7 @@
       "file": "features/region-creation.feature",
       "line": 27
     },
-    "region-creation::9e815d8d": {
+    "region-creation::220bf2e0": {
       "feature": "Region Creation",
       "scenario": "Region is clamped to the end of the video",
       "isOutline": false,
@@ -116,7 +116,7 @@
       "file": "features/region-creation.feature",
       "line": 33
     },
-    "video-loading::95a00249": {
+    "video-loading::90289e16": {
       "feature": "Video Loading",
       "scenario": "Viewport is set to the video duration on load",
       "isOutline": false,
@@ -127,7 +127,7 @@
       "file": "features/video-loading.feature",
       "line": 3
     },
-    "video-loading::8d77b3e0": {
+    "video-loading::ea78fa82": {
       "feature": "Video Loading",
       "scenario": "Viewport resets when a different video is loaded",
       "isOutline": false,

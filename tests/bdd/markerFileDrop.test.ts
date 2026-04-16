@@ -38,10 +38,10 @@ import * as warpApi from '../../src/api/warp'
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-// drop-a-matching-marker-file-onto-a-loaded-clip::e0671657
+// drop-a-matching-marker-file-onto-a-loaded-clip::535b7e93
 // Markers are replaced when a matching sidecar is dropped
 
-behaviorTest('drop-a-matching-marker-file-onto-a-loaded-clip::e0671657', () => {
+behaviorTest('drop-a-matching-marker-file-onto-a-loaded-clip::535b7e93', () => {
   let store: ReturnType<typeof makeStore>
 
   beforeEach(() => {
@@ -99,10 +99,10 @@ behaviorTest('drop-a-matching-marker-file-onto-a-loaded-clip::e0671657', () => {
   })
 })
 
-// drop-a-matching-marker-file-onto-a-loaded-clip::a757305b
+// drop-a-matching-marker-file-onto-a-loaded-clip::5a680ff1
 // Undo reverts the sidecar load
 
-behaviorTest('drop-a-matching-marker-file-onto-a-loaded-clip::a757305b', () => {
+behaviorTest('drop-a-matching-marker-file-onto-a-loaded-clip::5a680ff1', () => {
   let store: ReturnType<typeof makeStore>
 
   beforeEach(() => {
@@ -134,10 +134,10 @@ behaviorTest('drop-a-matching-marker-file-onto-a-loaded-clip::a757305b', () => {
   })
 })
 
-// drop-a-matching-marker-file-onto-a-loaded-clip::b07f7e75
+// drop-a-matching-marker-file-onto-a-loaded-clip::b2dcfc34
 // No sibling video found results in silent error
 
-behaviorTest('drop-a-matching-marker-file-onto-a-loaded-clip::b07f7e75', () => {
+behaviorTest('drop-a-matching-marker-file-onto-a-loaded-clip::b2dcfc34', () => {
   let store: ReturnType<typeof makeStore>
 
   beforeEach(() => {
@@ -164,10 +164,10 @@ behaviorTest('drop-a-matching-marker-file-onto-a-loaded-clip::b07f7e75', () => {
   })
 })
 
-// drop-a-matching-marker-file-onto-a-loaded-clip::7bf91849
+// drop-a-matching-marker-file-onto-a-loaded-clip::dd2831c4
 // A different sibling video loads with its markers
 
-behaviorTest('drop-a-matching-marker-file-onto-a-loaded-clip::7bf91849', () => {
+behaviorTest('drop-a-matching-marker-file-onto-a-loaded-clip::dd2831c4', () => {
   let store: ReturnType<typeof makeStore>
 
   beforeEach(() => {

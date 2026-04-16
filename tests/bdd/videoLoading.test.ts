@@ -36,10 +36,10 @@ import * as warpApi from '../../src/api/warp'
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-// video-loading::95a00249
+// video-loading::90289e16
 // Viewport is set to the video duration on load
 
-behaviorTest('video-loading::95a00249', () => {
+behaviorTest('video-loading::90289e16', () => {
   let store: ReturnType<typeof makeStore>
 
   beforeEach(() => {
@@ -69,10 +69,10 @@ behaviorTest('video-loading::95a00249', () => {
   })
 })
 
-// video-loading::8d77b3e0
+// video-loading::ea78fa82
 // Viewport resets when a different video is loaded
 
-behaviorTest('video-loading::8d77b3e0', () => {
+behaviorTest('video-loading::ea78fa82', () => {
   let store: ReturnType<typeof makeStore>
 
   beforeEach(() => {

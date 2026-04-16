@@ -41,7 +41,7 @@ export function initialView(duration: number, bpm?: number): View {
  * Spec (BEHAVIORS.md §3): the smaller of 10% of the current viewport or 5 seconds.
  */
 export function calcNewRegionSpan(viewSpan: number): number {
-  return Math.min(viewSpan * 0.1, 5)
+  return Math.max(viewSpan * 0.1, 5)
 }
 
 /**
