@@ -4,6 +4,11 @@ A native desktop app for BPM-warping video to music. Built with Tauri v2 + Rust 
 
 ---
 
+## Developing Features
+- Feature development is behavior driven.
+- Run `npm run behaviors:check` to check for unimplemented or changed behaviors
+
+
 ## Stack
 
 - **Tauri v2** — app shell, native dialogs (`tauri-plugin-dialog`), asset protocol for local video playback

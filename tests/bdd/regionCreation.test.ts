@@ -26,38 +26,38 @@ behaviorTest('region-creation::3855ff5e', () => {
   })
 })
 
-// region-creation::2ca1d550
-// New region from the timeline is centred on the cursor position
+// region-creation::50730318
+// New region from the timeline is is aligned on the cursor position
 
-behaviorTest('region-creation::2ca1d550', () => {
-  it('centers the region on the cursor position', () => {
+behaviorTest('region-creation::50730318', () => {
+  it('starts the region at the cursor position', () => {
     const { inPoint, outPoint } = calcNewRegionBounds(10, 40, 120)
-    expect(inPoint).toBeCloseTo(8)
-    expect(outPoint).toBeCloseTo(12)
+    expect(inPoint).toBeCloseTo(10)
+    expect(outPoint).toBeCloseTo(14)
   })
 
-  it('centers correctly at a mid-timeline position', () => {
+  it('aligns correctly at a mid-timeline position', () => {
     const { inPoint, outPoint } = calcNewRegionBounds(60, 40, 120)
-    expect(inPoint).toBeCloseTo(58)
-    expect(outPoint).toBeCloseTo(62)
+    expect(inPoint).toBeCloseTo(60)
+    expect(outPoint).toBeCloseTo(64)
   })
 
   it('caps region size at 5s regardless of viewport width', () => {
     const { inPoint, outPoint } = calcNewRegionBounds(50, 200, 300)
     expect(outPoint - inPoint).toBeCloseTo(5)
-    expect(inPoint).toBeCloseTo(47.5)
-    expect(outPoint).toBeCloseTo(52.5)
+    expect(inPoint).toBeCloseTo(50)
+    expect(outPoint).toBeCloseTo(55)
   })
 })
 
-// region-creation::fcb8e9c7
-// New region from the region list is centred on the playhead
+// region-creation::7c76059f
+// New region from the region list is aligned on the playhead
 
-behaviorTest('region-creation::fcb8e9c7', () => {
-  it('centers the region on the playhead position', () => {
+behaviorTest('region-creation::7c76059f', () => {
+  it('starts the region at the playhead position', () => {
     const { inPoint, outPoint } = calcNewRegionBounds(60, 30, 120)
-    expect(inPoint).toBeCloseTo(58.5)
-    expect(outPoint).toBeCloseTo(61.5)
+    expect(inPoint).toBeCloseTo(60)
+    expect(outPoint).toBeCloseTo(63)
   })
 
   it('total span never exceeds 5 seconds', () => {
@@ -70,13 +70,13 @@ behaviorTest('region-creation::fcb8e9c7', () => {
 // Region is clamped to the start of the video
 
 behaviorTest('region-creation::1cd7c8b4', () => {
-  it('inPoint is clamped to 0 when the center is near the start', () => {
-    const { inPoint } = calcNewRegionBounds(0.5, 40, 120)
+  it('inPoint is 0 when cursor is at the very start', () => {
+    const { inPoint } = calcNewRegionBounds(0, 40, 120)
     expect(inPoint).toBe(0)
   })
 
-  it('inPoint is 0 when center is exactly 0', () => {
-    const { inPoint } = calcNewRegionBounds(0, 40, 120)
+  it('inPoint is 0 when cursor would be negative', () => {
+    const { inPoint } = calcNewRegionBounds(-1, 40, 120)
     expect(inPoint).toBe(0)
   })
 })

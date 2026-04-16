@@ -7,7 +7,7 @@ import {
   buildSegments,
   snapAllToBeat,
 } from '../utils/quantize'
-import { clampView, initialView } from '../utils/view'
+import { clampView, initialView, calcNewRegionBounds } from '../utils/view'
 import type { Anchor, View } from '../types'
 import type { ClipOverlay } from './Timeline'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
@@ -526,9 +526,7 @@ export default function WarpView({
           {
             label: 'New region here',
             action: () => {
-              const halfSpan = Math.max(beat * 4, 2) / 2
-              const inPoint = Math.max(0, time - halfSpan)
-              const outPoint = Math.min(duration, time + halfSpan)
+              const { inPoint, outPoint } = calcNewRegionBounds(time, reduxView.end - reduxView.start, duration)
               onClipOverlayCreate(inPoint, outPoint)
             },
           },

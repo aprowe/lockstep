@@ -64,28 +64,28 @@
       "file": "features/region-creation.feature",
       "line": 3
     },
-    "region-creation::2ca1d550": {
+    "region-creation::50730318": {
       "feature": "Region Creation",
-      "scenario": "New region from the timeline is centred on the cursor position",
+      "scenario": "New region from the timeline is is aligned on the cursor position",
       "isOutline": false,
       "steps": [
         "Given the current viewport span is 40 seconds",
         "And the video duration is 120 seconds",
         "When a new region is created at cursor position 60 seconds",
-        "Then the region spans from 58 to 62 seconds"
+        "Then the region spans from 60 to 64 seconds"
       ],
       "file": "features/region-creation.feature",
       "line": 15
     },
-    "region-creation::fcb8e9c7": {
+    "region-creation::7c76059f": {
       "feature": "Region Creation",
-      "scenario": "New region from the region list is centred on the playhead",
+      "scenario": "New region from the region list is aligned on the playhead",
       "isOutline": false,
       "steps": [
         "Given the current viewport span is 40 seconds",
         "And the video duration is 120 seconds",
         "When a new region is created at playhead position 60 seconds",
-        "Then the region spans from 58 to 62 seconds"
+        "Then the region spans from 60 to 64 seconds"
       ],
       "file": "features/region-creation.feature",
       "line": 21
@@ -97,7 +97,7 @@
       "steps": [
         "Given the current viewport span is 40 seconds",
         "And the video duration is 120 seconds",
-        "When a new region is created at cursor position 0.5 seconds",
+        "When a new region is created at cursor position -0.5 seconds",
         "Then the region in-point is 0"
       ],
       "file": "features/region-creation.feature",

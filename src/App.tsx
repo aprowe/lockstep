@@ -13,6 +13,7 @@ import RegionInfoPanel from './components/RegionInfoPanel'
 import ContextMenu from './components/ContextMenu'
 import type { ContextMenuState } from './components/ContextMenu'
 import { snapAllToBeat } from './utils/quantize'
+import { calcNewRegionBounds } from './utils/view'
 import { undo as undoAction, redo as redoAction } from './store/slices/historySlice'
 import {
   setRegions as setRegionsAction,
@@ -102,6 +103,7 @@ export default function App() {
   const regions = useAppSelector(s => s.region.regions)
   const activeRegionId = useAppSelector(s => s.region.activeRegionId)
   const activeRegion = useAppSelector(selectActiveRegionRedux)
+  const view = useAppSelector(s => s.ui.view)
   const loopBeats = useAppSelector(s => s.warp.loopBeats)
   const trimToLoop = useAppSelector(s => s.warp.trimToLoop)
   const addToEnd = useAppSelector(s => s.warp.addToEnd)
@@ -451,10 +453,7 @@ export default function App() {
                   }
                 }}
                 onAddRegion={() => {
-                  const beat = (warpData?.bpm ?? 120) > 0 ? 60 / (warpData?.bpm ?? 120) : 0.5
-                  const halfSpan = Math.max(beat * 4, 2) / 2
-                  const inPoint = Math.max(0, playhead - halfSpan)
-                  const outPoint = Math.min(video.duration, playhead + halfSpan)
+                  const { inPoint, outPoint } = calcNewRegionBounds(playhead, view.end - view.start, video.duration)
                   addRegion(inPoint, outPoint)
                 }}
                 onDeleteRegion={deleteRegion}
@@ -573,10 +572,7 @@ export default function App() {
                 gridDiv={gridDiv}
                 onGridDivChange={setGridDiv}
                 onNewRegion={() => {
-                  const beat = (warpData?.bpm ?? 120) > 0 ? 60 / (warpData?.bpm ?? 120) : 0.5
-                  const halfSpan = Math.max(beat * 4, 2) / 2
-                  const inPoint = Math.max(0, playhead - halfSpan)
-                  const outPoint = Math.min(video.duration, playhead + halfSpan)
+                  const { inPoint, outPoint } = calcNewRegionBounds(playhead, view.end - view.start, video.duration)
                   addRegion(inPoint, outPoint)
                 }}
               />

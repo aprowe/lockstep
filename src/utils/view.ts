@@ -45,17 +45,17 @@ export function calcNewRegionSpan(viewSpan: number): number {
 }
 
 /**
- * Compute inPoint/outPoint for a newly created region centered on `center`.
- * Clamps to [0, videoDuration].
+ * Compute inPoint/outPoint for a newly created region aligned on `cursor`.
+ * The region starts at the cursor position. Clamps to [0, videoDuration].
  */
 export function calcNewRegionBounds(
-  center: number,
+  cursor: number,
   viewSpan: number,
   videoDuration: number,
 ): { inPoint: number; outPoint: number } {
-  const half = calcNewRegionSpan(viewSpan) / 2
+  const span = calcNewRegionSpan(viewSpan)
   return {
-    inPoint: Math.max(0, center - half),
-    outPoint: Math.min(videoDuration, center + half),
+    inPoint: Math.max(0, cursor),
+    outPoint: Math.min(videoDuration, cursor + span),
   }
 }
