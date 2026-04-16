@@ -21,7 +21,7 @@ jobs:
             ffprobe_url: https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffprobe-6.1-win-64.zip
             ffmpeg_bin: binaries/ffmpeg-x86_64-pc-windows-msvc.exe
             ffprobe_bin: binaries/ffprobe-x86_64-pc-windows-msvc.exe
-          - os: macos-13
+          - os: macos-12
             ffmpeg_url: https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffmpeg-6.1-macos-64.zip
             ffprobe_url: https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffprobe-6.1-macos-64.zip
             ffmpeg_bin: binaries/ffmpeg-x86_64-apple-darwin
