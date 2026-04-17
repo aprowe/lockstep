@@ -1,7 +1,8 @@
 mod commands;
 mod diagnostic;
 mod ffmpeg;
-mod processor;
+pub mod pchip;
+pub mod processor;
 mod storage;
 mod video;
 
