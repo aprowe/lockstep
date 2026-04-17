@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use tempfile::TempDir;
 
 use crate::ffmpeg::{atempo_chain, ffprobe_json, run_ffmpeg};
+use crate::pchip::smooth_time_map;
 
 // ── BPM Estimation ──────────────────────────────────────────────────────────
 
@@ -106,6 +107,18 @@ fn direct_time_map(
     control_points
 }
 
+/// Build the PCHIP-smoothed time map from raw anchor arrays and clip bounds.
+/// Returns densified `(orig_time, output_time)` control points ready for segmenting.
+pub fn build_smooth_time_map(
+    orig_times: &[f64],
+    beat_times: &[f64],
+    clip_start: f64,
+    clip_end: f64,
+) -> Vec<(f64, f64)> {
+    let linear = direct_time_map(orig_times, beat_times, clip_start, clip_end);
+    smooth_time_map(&linear, 0.5)
+}
+
 // ── Video Duration ───────────────────────────────────────────────────────────
 
 pub fn get_video_duration(path: &str) -> Result<f64, String> {
@@ -148,7 +161,10 @@ where
 
     let clip_start = opts.clip_in.unwrap_or(0.0).max(0.0);
     let clip_end = opts.clip_out.unwrap_or(duration).min(duration);
-    let time_map = direct_time_map(&opts.orig_times, &opts.beat_times, clip_start, clip_end);
+    let linear_map = direct_time_map(&opts.orig_times, &opts.beat_times, clip_start, clip_end);
+    // Densify with PCHIP so speed transitions smoothly between anchor points
+    // rather than snapping to a new constant ratio at each boundary.
+    let time_map = smooth_time_map(&linear_map, 0.5);
 
     let tmp_dir = TempDir::new().map_err(|e| e.to_string())?;
     let tmp_path = tmp_dir.path();

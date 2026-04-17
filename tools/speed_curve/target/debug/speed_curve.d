@@ -1,0 +1,1 @@
+C:\Users\alexr\Projects\vj-toolkit-rs\.claude\worktrees\stoic-wing-3629c7\tools\speed_curve\target\debug\speed_curve.exe: C:\Users\alexr\Projects\vj-toolkit-rs\.claude\worktrees\stoic-wing-3629c7\tools\speed_curve\src\main.rs
