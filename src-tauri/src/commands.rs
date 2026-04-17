@@ -201,6 +201,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
             fade_at_loop: req.fade_at_loop,
             clip_in: req.clip_in,
             clip_out: req.clip_out,
+            interp_fps: None,
         };
 
         let result = tokio::task::spawn_blocking(move || {

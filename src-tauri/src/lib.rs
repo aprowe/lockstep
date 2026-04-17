@@ -4,7 +4,7 @@ mod ffmpeg;
 pub mod pchip;
 pub mod processor;
 mod storage;
-mod video;
+pub mod video;
 
 pub fn run() {
     tauri::Builder::default()

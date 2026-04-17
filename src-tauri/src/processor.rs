@@ -145,6 +145,8 @@ pub struct WarpOptions {
     pub clip_in: Option<f64>,
     /// End of clip in source video (seconds). None = video duration
     pub clip_out: Option<f64>,
+    /// When set, each segment is encoded at this constant fps with blend interpolation.
+    pub interp_fps: Option<u32>,
 }
 
 /// Main time-warp pipeline. Ported from frames2/backend/processor.py::remap_video
@@ -194,35 +196,46 @@ where
         let seg_out_str = seg_out.to_string_lossy().to_string();
 
         let atempo = atempo_chain(1.0 / ratio);
-        let setpts = format!("setpts={ratio:.6}*PTS");
+        let vf = match opts.interp_fps {
+            Some(fps) => format!("setpts={ratio:.6}*PTS,minterpolate=fps={fps}:mi_mode=blend"),
+            None      => format!("setpts={ratio:.6}*PTS"),
+        };
         let ss = format!("{in_start}");
         let t = format!("{seg_in_dur}");
-        let ratio_str = format!("{ratio:.6}");
+        let fps_args: Vec<&str> = match opts.interp_fps {
+            Some(_) => vec!["-vsync", "cfr"],
+            None    => vec![],
+        };
 
         // Try with audio first
-        let result = run_ffmpeg(&[
+        let mut args = vec![
             "-y", "-hide_banner", "-loglevel", "error",
             "-ss", &ss, "-t", &t, "-i", input_path,
-            "-vf", &setpts,
+            "-vf", &vf,
             "-af", &atempo,
             "-c:v", "libx264", "-preset", "fast", "-crf", "23",
             "-c:a", "aac", "-b:a", "192k",
             "-avoid_negative_ts", "make_zero",
-            &seg_out_str,
-        ]);
+        ];
+        args.extend_from_slice(&fps_args);
+        args.push(&seg_out_str);
+
+        let result = run_ffmpeg(&args);
 
         if result.is_err() {
             // Fallback: no audio
-            run_ffmpeg(&[
+            let mut args_na = vec![
                 "-y", "-hide_banner", "-loglevel", "error",
                 "-ss", &ss, "-t", &t, "-i", input_path,
-                "-vf", &setpts,
+                "-vf", &vf,
                 "-an",
                 "-c:v", "libx264", "-preset", "fast", "-crf", "23",
                 "-avoid_negative_ts", "make_zero",
-                &seg_out_str,
-            ])
-            .map_err(|e| format!("Segment {i} failed: {e}"))?;
+            ];
+            args_na.extend_from_slice(&fps_args);
+            args_na.push(&seg_out_str);
+            run_ffmpeg(&args_na)
+                .map_err(|e| format!("Segment {i} failed: {e}"))?;
         }
 
         if seg_out.exists() {
@@ -420,5 +433,39 @@ fn rearrange_loop(
         std::fs::rename(&rearranged, output_path).map_err(|e| e.to_string())?;
     }
 
+    Ok(())
+}
+
+// ── Frame Interpolation ──────────────────────────────────────────────────────
+
+/// Re-encode `input_path` at a constant `fps` using blend-mode frame interpolation.
+/// Frames that don't align with a source frame are blended from the two nearest ones.
+pub fn interpolate_video<F>(
+    input_path: &str,
+    fps: u32,
+    output_path: &str,
+    progress: &F,
+) -> Result<(), String>
+where
+    F: Fn(f64, &str) + Send,
+{
+    progress(0.0, &format!("Interpolating to {fps} fps..."));
+
+    let fps_str = fps.to_string();
+    let vf = format!("minterpolate=fps={fps}:mi_mode=blend");
+
+    crate::ffmpeg::run_ffmpeg(&[
+        "-y",
+        "-i", input_path,
+        "-vf", &vf,
+        "-r", &fps_str,
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "18",
+        "-c:a", "copy",
+        output_path,
+    ])?;
+
+    progress(1.0, "Done");
     Ok(())
 }

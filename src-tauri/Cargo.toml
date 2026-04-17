@@ -11,6 +11,14 @@ icon = ["icons/icon.ico"]
 name = "lockstep_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[[bin]]
+name = "lockstep"
+path = "src/main.rs"
+
+[[bin]]
+name = "lockstep-cli"
+path = "src/bin/cli.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
