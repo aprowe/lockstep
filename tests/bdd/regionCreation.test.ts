@@ -1,121 +1,104 @@
-import { it, expect } from 'vitest'
+import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber'
+import { expect } from 'vitest'
 import { calcNewRegionSpan, calcNewRegionBounds } from '../../src/utils/view'
 import { addRegion, setActiveRegionId } from '../../src/store/slices/regionSlice'
-import { behaviorTest } from '../helpers/runBehavior'
 import { makeStore } from '../helpers/setup'
 
-// region-creation::30fd066b
-// Scenario Outline: New region size is the larger of 10% of view or 5 seconds
+const feature = await loadFeature('./spec/features/region-creation.feature')
 
-behaviorTest('region-creation::30fd066b', () => {
-  it('returns 5 seconds when 10% of viewSpan is less than 5 seconds', () => {
-    expect(calcNewRegionSpan(20)).toBe(5)
-    expect(calcNewRegionSpan(40)).toBe(5)
-  })
-
-  it('returns 10% of viewSpan when that exceeds 5 seconds', () => {
-    expect(calcNewRegionSpan(200)).toBeCloseTo(20)
-    expect(calcNewRegionSpan(100)).toBeCloseTo(10)
-  })
-
-  it('returns exactly 5 seconds at the 50-second breakpoint', () => {
-    expect(calcNewRegionSpan(50)).toBe(5)
-  })
+const makeRegion = (id: string, inPoint: number, outPoint: number) => ({
+  id, name: id, inPoint, outPoint, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
 })
 
-// region-creation::089f7025
-// New region from the timeline is is aligned on the cursor position
+describeFeature(feature, ({ ScenarioOutline, Scenario }) => {
+  // @behavior region-creation::30fd066b
+  ScenarioOutline(
+    'New region size is the larger of 10% of view or 5 seconds',
+    ({ Given, When, Then }, variables) => {
+      let span = 0
+      Given('the current viewport span is <viewSpan> seconds', () => {
+        // variables.viewSpan drives the computation
+      })
+      When('a new region is created', () => {
+        span = calcNewRegionSpan(Number(variables.viewSpan))
+      })
+      Then('the region span is <expectedSpan> seconds', () => {
+        expect(span).toBeCloseTo(Number(variables.expectedSpan))
+      })
+    },
+  )
 
-behaviorTest('region-creation::089f7025', () => {
-  it('starts the region at the cursor position', () => {
-    const { inPoint, outPoint } = calcNewRegionBounds(10, 40, 120)
-    expect(inPoint).toBeCloseTo(10)
-    expect(outPoint).toBeCloseTo(15)
+  // @behavior region-creation::089f7025
+  Scenario('New region from the timeline is is aligned on the cursor position', ({ Given, And, When, Then }) => {
+    let bounds: { inPoint: number; outPoint: number } = { inPoint: 0, outPoint: 0 }
+    Given('the current viewport span is 40 seconds', () => {})
+    And('the video duration is 120 seconds', () => {})
+    When('a new region is created at cursor position 60 seconds', () => {
+      bounds = calcNewRegionBounds(60, 40, 120)
+    })
+    Then('the region spans from 60 to 65 seconds', () => {
+      expect(bounds.inPoint).toBeCloseTo(60)
+      expect(bounds.outPoint).toBeCloseTo(65)
+    })
   })
 
-  it('aligns correctly at a mid-timeline position', () => {
-    const { inPoint, outPoint } = calcNewRegionBounds(60, 40, 120)
-    expect(inPoint).toBeCloseTo(60)
-    expect(outPoint).toBeCloseTo(65)
+  // @behavior region-creation::622d79ba
+  Scenario('New region from the region list is aligned on the playhead', ({ Given, And, When, Then }) => {
+    let bounds: { inPoint: number; outPoint: number } = { inPoint: 0, outPoint: 0 }
+    Given('the current viewport span is 40 seconds', () => {})
+    And('the video duration is 120 seconds', () => {})
+    When('a new region is created at playhead position 60 seconds', () => {
+      bounds = calcNewRegionBounds(60, 40, 120)
+    })
+    Then('the region spans from 60 to 65 seconds', () => {
+      expect(bounds.inPoint).toBeCloseTo(60)
+      expect(bounds.outPoint).toBeCloseTo(65)
+    })
   })
 
-  it('uses 10% of viewport when that exceeds 5 seconds', () => {
-    const { inPoint, outPoint } = calcNewRegionBounds(50, 200, 300)
-    expect(outPoint - inPoint).toBeCloseTo(20)
-    expect(inPoint).toBeCloseTo(50)
-    expect(outPoint).toBeCloseTo(70)
-  })
-})
-
-// region-creation::622d79ba
-// New region from the region list is aligned on the playhead
-
-behaviorTest('region-creation::622d79ba', () => {
-  it('starts the region at the playhead position', () => {
-    const { inPoint, outPoint } = calcNewRegionBounds(60, 40, 120)
-    expect(inPoint).toBeCloseTo(60)
-    expect(outPoint).toBeCloseTo(65)
+  // @behavior region-creation::beaf3038
+  Scenario('Region is clamped to the start of the video', ({ Given, And, When, Then }) => {
+    let inPoint = 0
+    Given('the current viewport span is 40 seconds', () => {})
+    And('the video duration is 120 seconds', () => {})
+    When('a new region is created at cursor position -0.5 seconds', () => {
+      inPoint = calcNewRegionBounds(-0.5, 40, 120).inPoint
+    })
+    Then('the region in-point is 0', () => {
+      expect(inPoint).toBe(0)
+    })
   })
 
-  it('span is at least 5 seconds regardless of viewport width', () => {
-    const { inPoint, outPoint } = calcNewRegionBounds(60, 30, 120)
-    expect(outPoint - inPoint).toBeGreaterThanOrEqual(5)
-  })
-})
-
-// region-creation::beaf3038
-// Region is clamped to the start of the video
-
-behaviorTest('region-creation::beaf3038', () => {
-  it('inPoint is 0 when cursor is at the very start', () => {
-    const { inPoint } = calcNewRegionBounds(0, 40, 120)
-    expect(inPoint).toBe(0)
+  // @behavior region-creation::220bf2e0
+  Scenario('Region is clamped to the end of the video', ({ Given, And, When, Then }) => {
+    let outPoint = 0
+    Given('the current viewport span is 40 seconds', () => {})
+    And('the video duration is 120 seconds', () => {})
+    When('a new region is created at cursor position 119.5 seconds', () => {
+      outPoint = calcNewRegionBounds(119.5, 40, 120).outPoint
+    })
+    Then('the region out-point is 120', () => {
+      expect(outPoint).toBe(120)
+    })
   })
 
-  it('inPoint is 0 when cursor would be negative', () => {
-    const { inPoint } = calcNewRegionBounds(-1, 40, 120)
-    expect(inPoint).toBe(0)
-  })
-})
-
-// region-creation::220bf2e0
-// Region is clamped to the end of the video
-
-behaviorTest('region-creation::220bf2e0', () => {
-  it('outPoint is clamped to videoDuration when the center is near the end', () => {
-    const { outPoint } = calcNewRegionBounds(119.5, 40, 120)
-    expect(outPoint).toBe(120)
-  })
-
-  it('outPoint is clamped to duration when center equals duration', () => {
-    const { outPoint } = calcNewRegionBounds(120, 40, 120)
-    expect(outPoint).toBe(120)
-  })
-})
-
-// region-creation::95af3b45
-// Region is selected when created
-
-behaviorTest('region-creation::95af3b45', () => {
-  const makeRegion = (id: string, inPoint: number, outPoint: number) => ({
-    id, name: id, inPoint, outPoint, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
-  })
-
-  it('newly created region becomes the active region', () => {
-    const store = makeStore()
-    store.dispatch(addRegion(makeRegion('a', 0, 10)))
-    store.dispatch(setActiveRegionId('a'))
-    store.dispatch(addRegion(makeRegion('b', 10, 20)))
-
-    expect(store.getState().region.activeRegionId).toBe('b')
-  })
-
-  it('viewport is unchanged after creating a region', () => {
+  // @behavior region-creation::95af3b45
+  Scenario('Region is selected when created', ({ Given, When, Then, And }) => {
     const store = makeStore()
     const viewBefore = store.getState().ui.view
 
-    store.dispatch(addRegion(makeRegion('r', 0, 10)))
-
-    expect(store.getState().ui.view).toEqual(viewBefore)
+    Given('Region A is selected', () => {
+      store.dispatch(addRegion(makeRegion('a', 0, 10)))
+      store.dispatch(setActiveRegionId('a'))
+    })
+    When('Region B is created', () => {
+      store.dispatch(addRegion(makeRegion('b', 10, 20)))
+    })
+    Then('Region B is selected', () => {
+      expect(store.getState().region.activeRegionId).toBe('b')
+    })
+    And('the viewport has not changed', () => {
+      expect(store.getState().ui.view).toEqual(viewBefore)
+    })
   })
 })

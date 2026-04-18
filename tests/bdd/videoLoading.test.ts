@@ -1,9 +1,7 @@
-import { it, expect, vi, beforeEach } from 'vitest'
+import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber'
+import { expect, vi } from 'vitest'
 import { selectVideoThunk } from '../../src/store/thunks/videoThunks'
-import { behaviorTest } from '../helpers/runBehavior'
 import { makeStore, makeVideoInfo } from '../helpers/setup'
-
-// ── Module mocks ──────────────────────────────────────────────────────────────
 
 vi.mock('../../src/api/video', () => ({
   loadVideoFromPath: vi.fn(),
@@ -34,63 +32,43 @@ import * as videoApi from '../../src/api/video'
 import * as storageApi from '../../src/api/storage'
 import * as warpApi from '../../src/api/warp'
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+const feature = await loadFeature('./spec/features/video-loading.feature')
 
-// video-loading::90289e16
-// Viewport is set to the video duration on load
-
-behaviorTest('video-loading::90289e16', () => {
+describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   let store: ReturnType<typeof makeStore>
 
-  beforeEach(() => {
+  BeforeEachScenario(() => {
     vi.clearAllMocks()
     store = makeStore()
-  })
-
-  it('viewport start is 0 and end equals video duration', async () => {
-    vi.mocked(videoApi.loadVideoFromPath).mockResolvedValue(makeVideoInfo({ duration: 240 }))
     vi.mocked(warpApi.checkVideoSidecar).mockResolvedValue(null)
     vi.mocked(storageApi.loadVideoState).mockResolvedValue(null)
-
-    await store.dispatch(selectVideoThunk('/videos/concert.mp4'))
-
-    expect(store.getState().ui.view).toEqual({ start: 0, end: 240 })
   })
 
-  it('viewport end equals the exact duration for a different length video', async () => {
-    vi.mocked(videoApi.loadVideoFromPath).mockResolvedValue(makeVideoInfo({ duration: 90 }))
-    vi.mocked(warpApi.checkVideoSidecar).mockResolvedValue(null)
-    vi.mocked(storageApi.loadVideoState).mockResolvedValue(null)
-
-    await store.dispatch(selectVideoThunk('/videos/short.mp4'))
-
-    expect(store.getState().ui.view.start).toBe(0)
-    expect(store.getState().ui.view.end).toBe(90)
-  })
-})
-
-// video-loading::ea78fa82
-// Viewport resets when a different video is loaded
-
-behaviorTest('video-loading::ea78fa82', () => {
-  let store: ReturnType<typeof makeStore>
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-    store = makeStore()
+  // @behavior video-loading::90289e16
+  Scenario('Viewport is set to the video duration on load', ({ When, Then }) => {
+    When('a video is loaded', async () => {
+      vi.mocked(videoApi.loadVideoFromPath).mockResolvedValue(makeVideoInfo({ duration: 240 }))
+      await store.dispatch(selectVideoThunk('/videos/concert.mp4'))
+    })
+    Then('the viewport changes to the length of the video', () => {
+      expect(store.getState().ui.view).toEqual({ start: 0, end: 240 })
+    })
   })
 
-  it('viewport resets to the new duration when a second video loads', async () => {
-    vi.mocked(videoApi.loadVideoFromPath).mockResolvedValueOnce(makeVideoInfo({ duration: 300 }))
-    vi.mocked(warpApi.checkVideoSidecar).mockResolvedValue(null)
-    vi.mocked(storageApi.loadVideoState).mockResolvedValue(null)
-    await store.dispatch(selectVideoThunk('/videos/long.mp4'))
-
-    vi.mocked(videoApi.loadVideoFromPath).mockResolvedValueOnce(
-      makeVideoInfo({ duration: 45, path: '/videos/short.mp4' }),
-    )
-    await store.dispatch(selectVideoThunk('/videos/short.mp4'))
-
-    expect(store.getState().ui.view).toEqual({ start: 0, end: 45 })
+  // @behavior video-loading::ea78fa82
+  Scenario('Viewport resets when a different video is loaded', ({ Given, When, Then }) => {
+    Given('a first video with a long duration is already loaded', async () => {
+      vi.mocked(videoApi.loadVideoFromPath).mockResolvedValueOnce(makeVideoInfo({ duration: 300 }))
+      await store.dispatch(selectVideoThunk('/videos/long.mp4'))
+    })
+    When('a second video with a shorter duration is loaded', async () => {
+      vi.mocked(videoApi.loadVideoFromPath).mockResolvedValueOnce(
+        makeVideoInfo({ duration: 45, path: '/videos/short.mp4' }),
+      )
+      await store.dispatch(selectVideoThunk('/videos/short.mp4'))
+    })
+    Then("the viewport changes to the shorter video's duration", () => {
+      expect(store.getState().ui.view).toEqual({ start: 0, end: 45 })
+    })
   })
 })

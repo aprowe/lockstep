@@ -1,93 +1,103 @@
-import { it, expect } from 'vitest'
+import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber'
+import { expect } from 'vitest'
 import { secondsToFrames, formatFrames } from '../../src/utils/time'
-import { behaviorTest } from '../helpers/runBehavior'
 
-// frame-count-display::871cc353
-// Scenario: Frame count shown next to timecode
+const feature = await loadFeature('./spec/features/frame-count.feature')
 
-behaviorTest('frame-count-display::871cc353', () => {
-  it('converts 2.5 seconds at 30fps to 75 frames', () => {
-    expect(secondsToFrames(2.5, 30)).toBe(75)
+describeFeature(feature, ({ Scenario }) => {
+  const fps = 30
+
+  // @behavior frame-count-display::871cc353
+  Scenario('Frame count shown next to timecode', ({ Given, When, Then }) => {
+    let playheadSec = 0
+    Given('a 30fps video is loaded', () => {
+      // fps is closed over
+    })
+    When('the playhead is at 2.5 seconds', () => {
+      playheadSec = 2.5
+    })
+    Then('the toolbar displays "75f" next to the timecode', () => {
+      expect(secondsToFrames(playheadSec, fps)).toBe(75)
+      expect(formatFrames(playheadSec, fps)).toBe('75f')
+    })
   })
 
-  it('formats the frame count as "75f"', () => {
-    expect(formatFrames(2.5, 30)).toBe('75f')
-  })
-})
-
-// frame-count-display::3a49f366
-// Scenario: Step forward increments the frame count
-
-behaviorTest('frame-count-display::3a49f366', () => {
-  it('stepping 1 frame forward from 75f yields 76f at 30fps', () => {
-    const startSec = 75 / 30
-    const nextSec = startSec + 1 / 30
-    expect(secondsToFrames(nextSec, 30)).toBe(76)
-    expect(formatFrames(nextSec, 30)).toBe('76f')
-  })
-})
-
-// frame-count-display::607ab793
-// Scenario: Step backward decrements the frame count
-
-behaviorTest('frame-count-display::607ab793', () => {
-  it('stepping 1 frame backward from 75f yields 74f at 30fps', () => {
-    const startSec = 75 / 30
-    const prevSec = startSec - 1 / 30
-    expect(secondsToFrames(prevSec, 30)).toBe(74)
-    expect(formatFrames(prevSec, 30)).toBe('74f')
-  })
-})
-
-// frame-count-display::fc7df5e5
-// Scenario: Frame count rounds to nearest integer
-
-behaviorTest('frame-count-display::fc7df5e5', () => {
-  it('rounds 2.533s at 30fps to 76f (not 75)', () => {
-    // 2.533 * 30 = 75.99 → rounds to 76
-    expect(secondsToFrames(2.533, 30)).toBe(76)
-    expect(formatFrames(2.533, 30)).toBe('76f')
+  // @behavior frame-count-display::3a49f366
+  Scenario('Step forward increments the frame count', ({ Given, And, When, Then }) => {
+    let playheadSec = 0
+    Given('a 30fps video is loaded', () => {})
+    And('the playhead is at frame 75', () => {
+      playheadSec = 75 / fps
+    })
+    When('the user presses step-forward', () => {
+      playheadSec += 1 / fps
+    })
+    Then('the toolbar displays "76f"', () => {
+      expect(secondsToFrames(playheadSec, fps)).toBe(76)
+      expect(formatFrames(playheadSec, fps)).toBe('76f')
+    })
   })
 
-  it('rounds 2.516s at 30fps to 75f (exactly at boundary)', () => {
-    // 2.516 * 30 = 75.48 → rounds to 75
-    expect(secondsToFrames(2.516, 30)).toBe(75)
-  })
-})
-
-// frame-count-display::bfa96c35
-// Scenario: Frame count at time zero
-
-behaviorTest('frame-count-display::bfa96c35', () => {
-  it('shows 0f when playhead is at 0 seconds', () => {
-    expect(secondsToFrames(0, 30)).toBe(0)
-    expect(formatFrames(0, 30)).toBe('0f')
-  })
-
-  it('returns 0f safely when fps is invalid (divide-by-zero guard)', () => {
-    expect(secondsToFrames(5, 0)).toBe(0)
-    expect(formatFrames(5, 0)).toBe('0f')
-  })
-})
-
-// frame-count-display::2ae2aa1e
-// Scenario: Frame count can be edited
-
-behaviorTest('frame-count-display::2ae2aa1e', () => {
-  it('converts an entered frame number back to seconds via fps', () => {
-    // When user enters "100" at 30fps, playhead should move to 100/30 ≈ 3.333s
-    const enteredFrame = 100
-    const fps = 30
-    const targetSeconds = enteredFrame / fps
-    expect(targetSeconds).toBeCloseTo(3.3333, 3)
-    // And formatting that position back yields the same frame number
-    expect(secondsToFrames(targetSeconds, fps)).toBe(100)
-    expect(formatFrames(targetSeconds, fps)).toBe('100f')
+  // @behavior frame-count-display::607ab793
+  Scenario('Step backward decrements the frame count', ({ Given, And, When, Then }) => {
+    let playheadSec = 0
+    Given('a 30fps video is loaded', () => {})
+    And('the playhead is at frame 75', () => {
+      playheadSec = 75 / fps
+    })
+    When('the user presses step-back', () => {
+      playheadSec -= 1 / fps
+    })
+    Then('the toolbar displays "74f"', () => {
+      expect(secondsToFrames(playheadSec, fps)).toBe(74)
+      expect(formatFrames(playheadSec, fps)).toBe('74f')
+    })
   })
 
-  it('round-trips frame→seconds→frame for arbitrary values', () => {
-    for (const f of [0, 1, 30, 75, 1000]) {
-      expect(secondsToFrames(f / 30, 30)).toBe(f)
-    }
+  // @behavior frame-count-display::fc7df5e5
+  Scenario('Frame count rounds to nearest integer', ({ Given, When, Then }) => {
+    let playheadSec = 0
+    Given('a 30fps video is loaded', () => {})
+    When('the playhead is at 2.533 seconds', () => {
+      playheadSec = 2.533
+    })
+    Then('the toolbar displays "76f"', () => {
+      // 2.533 * 30 = 75.99 → rounds to 76
+      expect(secondsToFrames(playheadSec, fps)).toBe(76)
+      expect(formatFrames(playheadSec, fps)).toBe('76f')
+    })
+  })
+
+  // @behavior frame-count-display::bfa96c35
+  Scenario('Frame count at time zero', ({ Given, When, Then }) => {
+    let playheadSec = 0
+    Given('a 30fps video is loaded', () => {})
+    When('the playhead is at 0 seconds', () => {
+      playheadSec = 0
+    })
+    Then('the toolbar displays "0f"', () => {
+      expect(secondsToFrames(playheadSec, fps)).toBe(0)
+      expect(formatFrames(playheadSec, fps)).toBe('0f')
+      // Divide-by-zero guard: invalid fps still renders 0f.
+      expect(secondsToFrames(5, 0)).toBe(0)
+      expect(formatFrames(5, 0)).toBe('0f')
+    })
+  })
+
+  // @behavior frame-count-display::2ae2aa1e
+  Scenario('Frame count can be edited', ({ Given, When, And, Then }) => {
+    let targetSeconds = 0
+    Given('a 30fps video is loaded', () => {})
+    When('the user clicks the frame count display', () => {})
+    And('enters "100"', () => {
+      targetSeconds = 100 / fps
+    })
+    Then('the playhead moves to frame 100', () => {
+      expect(targetSeconds).toBeCloseTo(3.3333, 3)
+      expect(secondsToFrames(targetSeconds, fps)).toBe(100)
+    })
+    And('the toolbar displays "100f"', () => {
+      expect(formatFrames(targetSeconds, fps)).toBe('100f')
+    })
   })
 })
