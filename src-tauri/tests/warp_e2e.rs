@@ -7,7 +7,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-use lockstep_lib::processor::{remap_video, WarpOptions};
+use lockstep_lib::processor::{remap_video, InterpMethod, WarpOptions};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -83,6 +83,7 @@ fn warp_opts(interp_fps: Option<u32>) -> WarpOptions {
         clip_in: Some(0.0),
         clip_out: Some(1.0),
         interp_fps,
+        interp_method: Default::default(),
     }
 }
 
@@ -129,6 +130,32 @@ fn default_pts_warp_keeps_source_framerate() {
     assert!(
         (fps - 30.0).abs() < 2.0,
         "expected avg_frame_rate ~30, got {fps}",
+    );
+}
+
+// behavior: export-options::ee086472
+#[test]
+#[ignore = "heavy: spawns rife-ncnn-vulkan, ~15s"]
+fn rife_method_produces_constant_target_fps_output() {
+    let video = fixture_video();
+    let out = fixtures_dir().join("out_rife_60.mp4");
+    let _ = std::fs::remove_file(&out);
+
+    let mut opts = warp_opts(Some(60));
+    opts.interp_method = InterpMethod::Rife;
+
+    remap_video(
+        video.to_str().unwrap(),
+        &opts,
+        out.to_str().unwrap(),
+        &|_p, _m| {},
+    )
+    .expect("remap_video with RIFE");
+
+    let (fps, _frames) = probe_video(out.to_str().unwrap());
+    assert!(
+        (fps - 60.0).abs() < 0.5,
+        "expected avg_frame_rate ~60, got {fps}",
     );
 }
 

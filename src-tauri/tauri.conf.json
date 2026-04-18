@@ -31,7 +31,10 @@
     "active": true,
     "targets": "all",
     "icon": ["icons/icon.png", "icons/icon.ico"],
-    "externalBin": ["binaries/ffmpeg", "binaries/ffprobe"]
+    "externalBin": ["binaries/ffmpeg", "binaries/ffprobe", "binaries/rife-ncnn-vulkan"],
+    "resources": {
+      "binaries/rife-v4.6/*": "rife-v4.6/"
+    }
   },
   "plugins": {}
 }

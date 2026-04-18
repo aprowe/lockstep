@@ -19,13 +19,14 @@ export interface BuildWarpRequestInput {
   normalizeBpm: boolean
   interpolateFrames: boolean
   interpFps: number
+  interpMethod: 'minterpolate' | 'rife'
 }
 
 /** Builds the WarpRequest payload sent to the Rust backend.
  *  `interpolateFrames` toggles frame interpolation (constant fps, blended frames);
  *  when false, variable speed is encoded via PTS. */
 export function buildWarpRequest(input: BuildWarpRequestInput): WarpRequest {
-  const { videoPath, warpData, job, loopBeats, trimToLoop, fadeAtLoop, normalizeBpm, interpolateFrames, interpFps } = input
+  const { videoPath, warpData, job, loopBeats, trimToLoop, fadeAtLoop, normalizeBpm, interpolateFrames, interpFps, interpMethod } = input
 
   const hasMarkers = !!warpData && warpData.origAnchors.length >= 1
   const pairs = hasMarkers
@@ -51,5 +52,6 @@ export function buildWarpRequest(input: BuildWarpRequestInput): WarpRequest {
     clip_in: job.clipIn ?? null,
     clip_out: job.clipOut ?? null,
     interp_fps: interpolateFrames ? Math.max(1, Math.round(interpFps)) : null,
+    interp_method: interpolateFrames ? interpMethod : null,
   }
 }

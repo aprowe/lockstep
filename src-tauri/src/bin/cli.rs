@@ -211,6 +211,7 @@ fn build_opts(base: &BaseOpts, region: Option<&Region>, dr: &DefaultRegion) -> W
         clip_in: region.map(|r| r.in_point),
         clip_out: region.map(|r| r.out_point),
         interp_fps: base.interp_fps,
+        interp_method: Default::default(),
     }
 }
 

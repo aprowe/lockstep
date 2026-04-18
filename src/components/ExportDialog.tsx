@@ -226,6 +226,7 @@ export default function ExportDialog({
           normalizeBpm,
           interpolateFrames,
           interpFps,
+          interpMethod,
         }))
 
         const outputPath = await new Promise<string>((resolve, reject) => {

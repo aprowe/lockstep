@@ -17,6 +17,8 @@ export interface WarpRequest {
   /** When set, output is re-timed at this constant fps with blended interpolated frames.
    *  When null, variable speed is encoded via PTS (default). */
   interp_fps?: number | null
+  /** "minterpolate" (default) | "rife". Only consulted when interp_fps is set. */
+  interp_method?: 'minterpolate' | 'rife' | null
 }
 
 export interface WarpProgressPayload {

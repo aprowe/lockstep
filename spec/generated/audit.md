@@ -284,7 +284,7 @@ behaviorTest('drop-a-matching-marker-file-onto-a-loaded-clip::dd2831c4', () => {
   Scenario('User Exports PTS set Video (Default)', ({ Given, When, And, Then }) => {
 ```
 
-#### `src-tauri/tests/warp_e2e.rs:122` · rust · heavy
+#### `src-tauri/tests/warp_e2e.rs:123` · rust · heavy
 
 ```rust
 // behavior: export-options::5f05369b
@@ -343,7 +343,7 @@ fn default_pts_warp_keeps_source_framerate() {
 
 **Feature:** Export Options  
 **Spec:** `spec/features/export-options.feature:15`  
-**Status:** covered by 2 test(s)
+**Status:** covered by 3 test(s)
 
 **Steps:**
 - Given I have a clip i would like to export
@@ -362,7 +362,7 @@ fn default_pts_warp_keeps_source_framerate() {
   Scenario('User Exports Frame Interpolated Video', ({ Given, When, And, Then }) => {
 ```
 
-#### `src-tauri/tests/warp_e2e.rs:109` · rust · heavy
+#### `src-tauri/tests/warp_e2e.rs:110` · rust · heavy
 
 ```rust
 // behavior: export-options::ee086472
@@ -372,6 +372,36 @@ fn interp_fps_60_produces_constant_60fps_output() {
     let out = run_warp(Some(60));
     let (fps, _frames) = probe_video(out.to_str().unwrap());
     // Output should report ~60 fps (tolerate small rational rounding).
+    assert!(
+        (fps - 60.0).abs() < 0.5,
+        "expected avg_frame_rate ~60, got {fps}",
+    );
+}
+```
+
+#### `src-tauri/tests/warp_e2e.rs:136` · rust · heavy
+
+```rust
+// behavior: export-options::ee086472
+#[test]
+#[ignore = "heavy: spawns rife-ncnn-vulkan, ~15s"]
+fn rife_method_produces_constant_target_fps_output() {
+    let video = fixture_video();
+    let out = fixtures_dir().join("out_rife_60.mp4");
+    let _ = std::fs::remove_file(&out);
+
+    let mut opts = warp_opts(Some(60));
+    opts.interp_method = InterpMethod::Rife;
+
+    remap_video(
+        video.to_str().unwrap(),
+        &opts,
+        out.to_str().unwrap(),
+        &|_p, _m| {},
+    )
+    .expect("remap_video with RIFE");
+
+    let (fps, _frames) = probe_video(out.to_str().unwrap());
     assert!(
         (fps - 60.0).abs() < 0.5,
         "expected avg_frame_rate ~60, got {fps}",

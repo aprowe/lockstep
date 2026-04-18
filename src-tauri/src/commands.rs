@@ -1,6 +1,6 @@
 use tauri::{AppHandle, Emitter};
 
-use crate::processor::{estimate_bpm, remap_video, WarpOptions};
+use crate::processor::{estimate_bpm, remap_video, InterpMethod, WarpOptions};
 use crate::video::{get_video_info, VideoInfo};
 
 // ── Open Folder ───────────────────────────────────────────────────────────────
@@ -170,6 +170,8 @@ pub struct WarpRequest {
     pub clip_in: Option<f64>,
     pub clip_out: Option<f64>,
     pub interp_fps: Option<u32>,
+    /// "minterpolate" (default, ffmpeg blend) or "rife" (neural, via rife-ncnn-vulkan).
+    pub interp_method: Option<String>,
 }
 
 #[tauri::command]
@@ -203,6 +205,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
             clip_in: req.clip_in,
             clip_out: req.clip_out,
             interp_fps: req.interp_fps,
+            interp_method: InterpMethod::from_str(req.interp_method.as_deref()),
         };
 
         let result = tokio::task::spawn_blocking(move || {

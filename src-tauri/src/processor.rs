@@ -131,6 +131,26 @@ pub fn get_video_duration(path: &str) -> Result<f64, String> {
 
 // ── Remap Video ─────────────────────────────────────────────────────────────
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum InterpMethod {
+    /// ffmpeg minterpolate=mi_mode=blend, applied per segment during the warp pass.
+    #[default]
+    Minterpolate,
+    /// RIFE neural interpolation via the rife-ncnn-vulkan binary, applied as a
+    /// single post-concat pass. See rife.rs.
+    Rife,
+}
+
+impl InterpMethod {
+    /// Parse a frontend string ("minterpolate" | "rife" | None). Unknown → default.
+    pub fn from_str(s: Option<&str>) -> Self {
+        match s.map(|v| v.to_ascii_lowercase()).as_deref() {
+            Some("rife") => Self::Rife,
+            _ => Self::Minterpolate,
+        }
+    }
+}
+
 pub struct WarpOptions {
     pub orig_times: Vec<f64>,
     pub beat_times: Vec<f64>,
@@ -145,8 +165,11 @@ pub struct WarpOptions {
     pub clip_in: Option<f64>,
     /// End of clip in source video (seconds). None = video duration
     pub clip_out: Option<f64>,
-    /// When set, each segment is encoded at this constant fps with blend interpolation.
+    /// When set, each segment is encoded at this constant fps with blend interpolation,
+    /// or fed through RIFE post-concat (see `interp_method`).
     pub interp_fps: Option<u32>,
+    /// Which interpolation algorithm to use when `interp_fps` is Some.
+    pub interp_method: InterpMethod,
 }
 
 /// Main time-warp pipeline. Ported from frames2/backend/processor.py::remap_video
@@ -196,13 +219,16 @@ where
         let seg_out_str = seg_out.to_string_lossy().to_string();
 
         let atempo = atempo_chain(1.0 / ratio);
-        let vf = match opts.interp_fps {
+        // minterpolate is applied per-segment (cheap filter). RIFE is deferred
+        // to a single post-concat pass (expensive, needs frame extraction).
+        let inline_interp = opts.interp_fps.filter(|_| opts.interp_method == InterpMethod::Minterpolate);
+        let vf = match inline_interp {
             Some(fps) => format!("setpts={ratio:.6}*PTS,minterpolate=fps={fps}:mi_mode=blend"),
             None      => format!("setpts={ratio:.6}*PTS"),
         };
         let ss = format!("{in_start}");
         let t = format!("{seg_in_dur}");
-        let fps_args: Vec<&str> = match opts.interp_fps {
+        let fps_args: Vec<&str> = match inline_interp {
             Some(_) => vec!["-vsync", "cfr"],
             None    => vec![],
         };
@@ -283,6 +309,15 @@ where
             output_path,
         ])
         .map_err(|_| "FFmpeg concat failed".to_string())?;
+    }
+
+    // RIFE post-pass: segments were encoded without interpolation; run the whole
+    // concatenated video through rife-ncnn-vulkan now.
+    if let (Some(fps), InterpMethod::Rife) = (opts.interp_fps, opts.interp_method) {
+        progress(0.83, "Running RIFE interpolation...");
+        let rife_out = tmp_path.join("rife.mp4").to_string_lossy().into_owned();
+        crate::rife::interpolate_rife(output_path, fps, &rife_out, progress)?;
+        std::fs::rename(&rife_out, output_path).map_err(|e| e.to_string())?;
     }
 
     progress(0.88, "Post-processing...");
