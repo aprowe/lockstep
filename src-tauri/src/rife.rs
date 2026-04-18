@@ -3,16 +3,16 @@
 //! The binary is bundled as a sidecar under src-tauri/binaries/ with the
 //! rife-v4.6 model folder alongside it. See scripts/setup-binaries.mjs.
 //!
-//! Pipeline per call:
-//!   1. ffprobe to read source fps.
-//!   2. Extract source frames to a tempdir.
-//!   3. For each timestep k/M (k=1..M-1), run rife-ncnn-vulkan -s t on the
-//!      extracted frames. rife's output directory contains 2N interleaved
-//!      frames [src_i, interp_i, src_i+1, ...]; we keep only the interp slots.
-//!   4. Interleave back into time order: [src0, t1_0, t2_0, ..., src1, t1_1, ...].
-//!   5. Encode at source_fps * M, apply -vf fps=target_fps, mux audio.
+//! Two entry points:
 //!
-//! Reference impl: frames2/backend/interpolator.py::interpolate_rife
+//! `interpolate_rife` — legacy uniform-timestep pass over a pre-rendered video.
+//! Kept for non-warp interpolation (constant-speed fps up-conversion).
+//!
+//! `interpolate_rife_warped` — warp-aware. Given the piecewise-linear time_map
+//! (t_src → t_out) and a target fps, produces each output frame at the exact
+//! t_src position dictated by the warp: bracketing source frames A, B plus
+//! α = (idx - floor(idx)), fed to rife with `-s α` per pair. Output is silent;
+//! caller muxes the retimed audio track.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -111,7 +111,7 @@ fn run_rife_timestep(
     let ts = format!("{timestep:.6}");
 
     let mut cmd = Command::new(exe);
-    cmd.args(["-i", &src, "-o", &out, "-s", &ts, "-m", &model])
+    cmd.args(["-i", &src, "-o", &out, "-s", &ts, "-m", &model, "-g", "1"])
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
     #[cfg(target_os = "windows")]
@@ -124,6 +124,49 @@ fn run_rife_timestep(
     if !output.status.success() {
         return Err(format!(
             "rife-ncnn-vulkan exited with status {}: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr)
+                .lines()
+                .filter(|l| !l.trim().is_empty())
+                .last()
+                .unwrap_or("unknown error")
+        ));
+    }
+    Ok(())
+}
+
+/// Run rife-ncnn-vulkan in two-file mode at a specific α, producing exactly
+/// one interpolated frame between `a_png` and `b_png`. Unlike directory mode
+/// (`-i`/`-o`), the two-file mode (`-0`/`-1`) actually honors `-s` — in
+/// directory mode it is silently ignored and every pair is interpolated at α=0.5.
+fn run_rife_pair(
+    exe: &str,
+    a_png: &Path,
+    b_png: &Path,
+    out_png: &Path,
+    model_dir: &Path,
+    alpha: f64,
+) -> Result<(), String> {
+    let a = a_png.to_string_lossy().into_owned();
+    let b = b_png.to_string_lossy().into_owned();
+    let o = out_png.to_string_lossy().into_owned();
+    let model = model_dir.to_string_lossy().into_owned();
+    let ts = format!("{alpha:.6}");
+
+    let mut cmd = Command::new(exe);
+    cmd.args(["-0", &a, "-1", &b, "-o", &o, "-s", &ts, "-m", &model, "-g", "1"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd
+        .output()
+        .map_err(|e| format!("rife-ncnn-vulkan failed to spawn: {e}"))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "rife-ncnn-vulkan (pair, α={alpha:.4}) exited with status {}: {}",
             output.status,
             String::from_utf8_lossy(&output.stderr)
                 .lines()
@@ -287,6 +330,149 @@ where
         // No audio in source — just copy the video-only mp4.
         std::fs::copy(&noaudio, output).map_err(|e| e.to_string())?;
     }
+
+    progress(1.0, "Done");
+    Ok(())
+}
+
+// ── Warp-aware RIFE ──────────────────────────────────────────────────────────
+
+/// Invert the piecewise-linear time_map (t_src, t_out) at the given output time.
+/// Entries must be sorted by t_out (same as t_src since the map is monotonic).
+fn invert_time_map(time_map: &[(f64, f64)], t_out: f64) -> f64 {
+    if time_map.is_empty() {
+        return 0.0;
+    }
+    if t_out <= time_map[0].1 {
+        return time_map[0].0;
+    }
+    let last = time_map.last().unwrap();
+    if t_out >= last.1 {
+        return last.0;
+    }
+    let mut lo = 0usize;
+    let mut hi = time_map.len() - 1;
+    while hi - lo > 1 {
+        let mid = (lo + hi) / 2;
+        if time_map[mid].1 <= t_out { lo = mid; } else { hi = mid; }
+    }
+    let (s0, o0) = time_map[lo];
+    let (s1, o1) = time_map[hi];
+    if (o1 - o0).abs() <= 1e-9 {
+        return s0;
+    }
+    let a = (t_out - o0) / (o1 - o0);
+    s0 + a * (s1 - s0)
+}
+
+/// Warp-aware RIFE. For each output frame at n/target_fps, computes t_src via
+/// the inverse time_map, finds bracketing source frames A, B, and runs rife
+/// once per pair with the exact α = frac(t_src * src_fps). Output has no audio —
+/// caller is expected to mux the retimed audio track from another source.
+pub fn interpolate_rife_warped<F>(
+    input: &str,
+    time_map: &[(f64, f64)],
+    target_fps: u32,
+    output: &str,
+    progress: &F,
+) -> Result<(), String>
+where
+    F: Fn(f64, &str) + Send,
+{
+    if time_map.len() < 2 {
+        return Err("time_map must have at least 2 control points".into());
+    }
+    let (exe, model_dir) = find_rife()?;
+    progress(0.02, "Probing source fps...");
+
+    let src_fps = source_fps(input)?;
+    if src_fps <= 0.0 {
+        return Err("source fps <= 0".into());
+    }
+
+    let tmp = TempDir::new().map_err(|e| format!("tempdir: {e}"))?;
+    let src_dir = tmp.path().join("src");
+    std::fs::create_dir(&src_dir).map_err(|e| e.to_string())?;
+
+    progress(0.05, "Extracting source frames...");
+    run_ffmpeg(&[
+        "-y", "-hide_banner", "-loglevel", "error",
+        "-i", input,
+        &src_dir.join("%08d.png").to_string_lossy(),
+    ])?;
+
+    let src_frames = list_pngs(&src_dir)?;
+    if src_frames.is_empty() {
+        return Err("no source frames extracted".into());
+    }
+    let last_src_idx = (src_frames.len() - 1) as f64;
+
+    let t_out_min = time_map[0].1;
+    let t_out_max = time_map.last().unwrap().1;
+    let out_dur = (t_out_max - t_out_min).max(0.0);
+    let n_out = ((out_dur * target_fps as f64).round() as u64).max(1);
+
+    let final_dir = tmp.path().join("final");
+    std::fs::create_dir(&final_dir).map_err(|e| e.to_string())?;
+
+    let rife_start = 0.10;
+    let rife_end = 0.85;
+
+    eprintln!(
+        "[rife-warped] src_fps={src_fps:.4} target_fps={target_fps} n_out={n_out} \
+         t_out_min={t_out_min:.6} t_out_max={t_out_max:.6} src_frames={}",
+        src_frames.len()
+    );
+    eprintln!("[rife-warped] frame_times: n | t_out | t_src | idx_f | a | b | alpha");
+
+    for n in 0..n_out {
+        let t_out = t_out_min + n as f64 / target_fps as f64;
+        let t_src = invert_time_map(time_map, t_out);
+        let idx_f = (t_src * src_fps).max(0.0).min(last_src_idx);
+        let a = idx_f.floor() as usize;
+        let b = (a + 1).min(src_frames.len() - 1);
+        let alpha = idx_f - a as f64;
+
+        eprintln!(
+            "[rife-warped] {n:4} | t_out={t_out:.6} | t_src={t_src:.6} | idx_f={idx_f:.4} | a={a} | b={b} | α={alpha:.4}"
+        );
+
+        let dest = final_dir.join(format!("frame_{:08}.png", n + 1));
+
+        // Two-file mode (-0/-1): required because rife-ncnn-vulkan silently
+        // ignores `-s` in directory mode and always produces α=0.5 frames there,
+        // which was the source of the "pair" artefact in the output.
+        if a == b {
+            // Degenerate: only one source frame available; just emit it.
+            std::fs::copy(&src_frames[a], &dest).map_err(|e| e.to_string())?;
+        } else {
+            // Clamp α to the open interval — rife-ncnn-vulkan is undefined at 0/1.
+            let alpha_clamped = alpha.max(1e-3).min(1.0 - 1e-3);
+            run_rife_pair(&exe, &src_frames[a], &src_frames[b], &dest, &model_dir, alpha_clamped)?;
+        }
+
+        if n % 8 == 0 || n + 1 == n_out {
+            let frac = (n + 1) as f64 / n_out as f64;
+            progress(
+                rife_start + frac * (rife_end - rife_start),
+                &format!("RIFE frame {}/{}", n + 1, n_out),
+            );
+        }
+    }
+
+    progress(rife_end, "Encoding...");
+
+    let pattern = final_dir.join("frame_%08d.png").to_string_lossy().into_owned();
+    let fps_str = target_fps.to_string();
+    run_ffmpeg(&[
+        "-y", "-hide_banner", "-loglevel", "error",
+        "-framerate", &fps_str,
+        "-i", &pattern,
+        "-an",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+        "-pix_fmt", "yuv420p",
+        output,
+    ])?;
 
     progress(1.0, "Done");
     Ok(())

@@ -104,6 +104,17 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     )
   })
 
+  // @behavior export-options::bfc3070e
+  // Actual assertions live in src-tauri/tests/export_save.rs
+  // (save_to_folder_creates_missing_parent_directories). This stub exists
+  // only so vitest-cucumber stops complaining about an un-bound scenario.
+  Scenario("Export to a folder whose parents don't exist creates them", ({ Given, When, Then, And }) => {
+    Given('I have a processed clip ready to save', () => {})
+    When('I export to a folder path whose parent directories do not yet exist', () => {})
+    Then('the missing parent directories are created', () => {})
+    And('the output file lands at the expected nested path', () => {})
+  })
+
   // @behavior export-options::5f05369b
   Scenario('User Exports PTS set Video (Default)', ({ Given, When, And, Then }) => {
     Given('I have a clip i would like to export', () => {

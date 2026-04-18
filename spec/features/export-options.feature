@@ -27,3 +27,13 @@ Feature: Export Options
         When I leave options as default
         And I click export
         Then my output video will run at with PTS set to control the variable speed
+
+    # @test src-tauri/tests/export_save.rs
+    # @hint save_to_folder (commands.rs) must call std::fs::create_dir_all on
+    #       dest_folder before std::fs::copy. The Folder input in ExportDialog
+    #       is free-text, so users can type nested paths that don't exist yet.
+    Scenario: Export to a folder whose parents don't exist creates them
+        Given I have a processed clip ready to save
+        When I export to a folder path whose parent directories do not yet exist
+        Then the missing parent directories are created
+        And the output file lands at the expected nested path

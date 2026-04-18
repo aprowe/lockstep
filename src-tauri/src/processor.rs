@@ -89,17 +89,34 @@ fn direct_time_map(
         .collect();
     pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
 
-    // First sentinel: clip start maps to output time 0
-    let mut control_points: Vec<(f64, f64)> = vec![(clip_start, 0.0)];
+    let mut control_points: Vec<(f64, f64)> = Vec::new();
+
+    // Head: only insert a sentinel at clip_start if it sits meaningfully before
+    // the first anchor. Extrapolate at 1:1 from the first anchor so the
+    // pre-anchor portion of the clip doesn't get fictitiously stretched. When
+    // clip_start ≈ orig[0] (common: region inPoint == first anchor), the first
+    // anchor itself becomes the starting control point — skipping this avoids
+    // the (clip_start, 0.0) → (orig[0], beat[0]) catastrophic first segment.
+    match pairs.first() {
+        Some(&(first_orig, first_beat)) if first_orig > clip_start + 1e-6 => {
+            let head_out = first_beat - (first_orig - clip_start);
+            control_points.push((clip_start, head_out));
+        }
+        None => control_points.push((clip_start, 0.0)),
+        _ => {}
+    }
 
     for (orig_t, beat_t) in &pairs {
-        if *orig_t > control_points.last().unwrap().0 + 1e-6 {
+        if control_points.is_empty() || *orig_t > control_points.last().unwrap().0 + 1e-6 {
             control_points.push((*orig_t, *beat_t));
         }
     }
 
+    // Tail: if clip_end is past the last anchor, extrapolate at 1:1. When
+    // clip_end ≈ orig[-1] (region outPoint == last anchor), no extra point is
+    // needed and we avoid mirroring the head bug at the far end.
     let (last_orig, last_beat) = *control_points.last().unwrap();
-    if clip_end > last_orig + 0.001 {
+    if clip_end > last_orig + 1e-6 {
         let tail_out = last_beat + (clip_end - last_orig);
         control_points.push((clip_end, tail_out));
     }
@@ -170,6 +187,9 @@ pub struct WarpOptions {
     pub interp_fps: Option<u32>,
     /// Which interpolation algorithm to use when `interp_fps` is Some.
     pub interp_method: InterpMethod,
+    /// When true, skip PCHIP smoothing and use the raw piecewise-linear time map.
+    /// Useful for debugging RIFE pair artefacts caused by near-flat densified regions.
+    pub no_smooth: bool,
 }
 
 /// Main time-warp pipeline. Ported from frames2/backend/processor.py::remap_video
@@ -189,7 +209,12 @@ where
     let linear_map = direct_time_map(&opts.orig_times, &opts.beat_times, clip_start, clip_end);
     // Densify with PCHIP so speed transitions smoothly between anchor points
     // rather than snapping to a new constant ratio at each boundary.
-    let time_map = smooth_time_map(&linear_map, 0.5);
+    let time_map = if opts.no_smooth {
+        eprintln!("[warp] PCHIP smoothing disabled; using raw piecewise-linear time map");
+        linear_map
+    } else {
+        smooth_time_map(&linear_map, 0.5)
+    };
 
     let tmp_dir = TempDir::new().map_err(|e| e.to_string())?;
     let tmp_path = tmp_dir.path();
@@ -311,13 +336,31 @@ where
         .map_err(|_| "FFmpeg concat failed".to_string())?;
     }
 
-    // RIFE post-pass: segments were encoded without interpolation; run the whole
-    // concatenated video through rife-ncnn-vulkan now.
+    // Warp-aware RIFE: sample source frames directly at output-time positions
+    // via the time_map, bypassing the retimed concat video entirely. The
+    // existing concat output still provides the retimed audio, which we mux in.
     if let (Some(fps), InterpMethod::Rife) = (opts.interp_fps, opts.interp_method) {
-        progress(0.83, "Running RIFE interpolation...");
-        let rife_out = tmp_path.join("rife.mp4").to_string_lossy().into_owned();
-        crate::rife::interpolate_rife(output_path, fps, &rife_out, progress)?;
-        std::fs::rename(&rife_out, output_path).map_err(|e| e.to_string())?;
+        progress(0.83, "Running warp-aware RIFE...");
+        let rife_silent = tmp_path.join("rife_silent.mp4").to_string_lossy().into_owned();
+        crate::rife::interpolate_rife_warped(input_path, &time_map, fps, &rife_silent, progress)?;
+
+        let muxed = tmp_path.join("rife_muxed.mp4").to_string_lossy().into_owned();
+        let mux_res = run_ffmpeg(&[
+            "-y", "-hide_banner", "-loglevel", "error",
+            "-i", &rife_silent,
+            "-i", output_path,
+            "-map", "0:v:0",
+            "-map", "1:a:0?",
+            "-c:v", "copy",
+            "-c:a", "aac", "-b:a", "192k",
+            "-shortest",
+            &muxed,
+        ]);
+        if mux_res.is_err() {
+            // No audio in concat output — just use the silent rife video.
+            std::fs::copy(&rife_silent, &muxed).map_err(|e| e.to_string())?;
+        }
+        std::fs::rename(&muxed, output_path).map_err(|e| e.to_string())?;
     }
 
     progress(0.88, "Post-processing...");

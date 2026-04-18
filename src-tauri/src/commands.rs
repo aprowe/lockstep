@@ -172,6 +172,8 @@ pub struct WarpRequest {
     pub interp_fps: Option<u32>,
     /// "minterpolate" (default, ffmpeg blend) or "rife" (neural, via rife-ncnn-vulkan).
     pub interp_method: Option<String>,
+    #[serde(default)]
+    pub no_smooth: bool,
 }
 
 #[tauri::command]
@@ -206,6 +208,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
             clip_out: req.clip_out,
             interp_fps: req.interp_fps,
             interp_method: InterpMethod::from_str(req.interp_method.as_deref()),
+            no_smooth: req.no_smooth,
         };
 
         let result = tokio::task::spawn_blocking(move || {
@@ -407,9 +410,13 @@ pub struct SaveToFolderRequest {
 }
 
 /// Copies a temp output file directly to a folder without a save dialog.
+/// Creates `dest_folder` and any missing parent directories if they don't exist.
 #[tauri::command]
 pub async fn save_to_folder(req: SaveToFolderRequest) -> Result<String, String> {
-    let dest = std::path::Path::new(&req.dest_folder).join(&req.file_name);
+    let dest_folder = std::path::Path::new(&req.dest_folder);
+    std::fs::create_dir_all(dest_folder)
+        .map_err(|e| format!("Save failed: could not create {}: {e}", dest_folder.display()))?;
+    let dest = dest_folder.join(&req.file_name);
     std::fs::copy(&req.source_path, &dest)
         .map_err(|e| format!("Save failed: {e}"))?;
     Ok(dest.to_string_lossy().to_string())

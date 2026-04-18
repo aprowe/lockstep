@@ -103,6 +103,25 @@
         "Default path: interp_fps is null, so each segment uses only setpts to produce variable speed (no frame interpolation)."
       ]
     },
+    "export-options::bfc3070e": {
+      "feature": "Export Options",
+      "scenario": "Export to a folder whose parents don't exist creates them",
+      "isOutline": false,
+      "steps": [
+        "Given I have a processed clip ready to save",
+        "When I export to a folder path whose parent directories do not yet exist",
+        "Then the missing parent directories are created",
+        "And the output file lands at the expected nested path"
+      ],
+      "file": "spec/features/export-options.feature",
+      "line": 35,
+      "tests": [
+        "src-tauri/tests/export_save.rs"
+      ],
+      "hints": [
+        "save_to_folder (commands.rs) must call std::fs::create_dir_all on dest_folder before std::fs::copy. The Folder input in ExportDialog is free-text, so users can type nested paths that don't exist yet."
+      ]
+    },
     "file-menu::36132c0a": {
       "feature": "File Menu",
       "scenario": "A file opened shows up in recent files",

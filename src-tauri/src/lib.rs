@@ -1,4 +1,4 @@
-mod commands;
+pub mod commands;
 mod diagnostic;
 mod ffmpeg;
 pub mod pchip;

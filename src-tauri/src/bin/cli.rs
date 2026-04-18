@@ -1,5 +1,5 @@
 use std::path::Path;
-use lockstep_lib::processor::{remap_video, WarpOptions};
+use lockstep_lib::processor::{remap_video, InterpMethod, WarpOptions};
 
 // ── Sidecar JSON types ───────────────────────────────────────────────────────
 
@@ -56,6 +56,8 @@ fn main() {
     let mut normalize_bpm = false;
     let mut fade_at_loop = false;
     let mut interp_fps: Option<u32> = None;
+    let mut interp_method: InterpMethod = InterpMethod::Minterpolate;
+    let mut no_smooth = false;
 
     let mut i = 1;
     while i < args.len() {
@@ -77,6 +79,11 @@ fn main() {
                     None => { eprintln!("error: --fps requires a number"); std::process::exit(1); }
                 }
             }
+            "--interp-method" => {
+                i += 1;
+                interp_method = InterpMethod::from_str(args.get(i).map(|s| s.as_str()));
+            }
+            "--no-smooth" => no_smooth = true,
             "--help" | "-h" => { print_usage(); return; }
             arg if arg.starts_with('-') => {
                 eprintln!("error: unknown flag '{arg}'");
@@ -146,6 +153,8 @@ fn main() {
         normalize_bpm,
         fade_at_loop,
         interp_fps,
+        interp_method,
+        no_smooth,
     };
 
     // If -o ends with .mp4, it's a single-file output; otherwise it's a directory for batch
@@ -195,6 +204,8 @@ struct BaseOpts {
     normalize_bpm: bool,
     fade_at_loop: bool,
     interp_fps: Option<u32>,
+    interp_method: InterpMethod,
+    no_smooth: bool,
 }
 
 fn build_opts(base: &BaseOpts, region: Option<&Region>, dr: &DefaultRegion) -> WarpOptions {
@@ -211,7 +222,8 @@ fn build_opts(base: &BaseOpts, region: Option<&Region>, dr: &DefaultRegion) -> W
         clip_in: region.map(|r| r.in_point),
         clip_out: region.map(|r| r.out_point),
         interp_fps: base.interp_fps,
-        interp_method: Default::default(),
+        interp_method: base.interp_method,
+        no_smooth: base.no_smooth,
     }
 }
 
@@ -281,4 +293,6 @@ fn print_usage() {
     eprintln!("  --normalize-bpm        speed output to 120 BPM");
     eprintln!("  --fade-at-loop         add fade at loop point");
     eprintln!("  --fps <n>              output at constant <n> fps with frame interpolation");
+    eprintln!("  --interp-method <m>    interpolation method: minterpolate (default) | rife");
+    eprintln!("  --no-smooth            skip PCHIP smoothing; use raw linear time map (debug)");
 }
