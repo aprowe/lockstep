@@ -1,15 +1,14 @@
 # Lockstep
 
-A native desktop app for BPM-warping video to music. Built with Tauri v2 + Rust backend + React/TypeScript frontend. No Python, no HTTP server, no sidecar.
+A native desktop app for BPM-warping video to music. Built with Tauri v2 + Rust backend + React/TypeScript frontend.
 
 ---
 
 ## Developing Features
 - Feature development is behavior driven.
-- Run `npm run behaviors:check` to check for unimplemented or changed behaviors
+- Run `npm run behaviors` to check for unimplemented or changed behaviors
+- DO NOT change anything in spec/ unless specifically asked to.
 
-## Design & Visual Spec
-- See `docs/VISUAL_SPEC.md` for the full design system (Neon Rhythm Theme): colors, layout grid, shape language, glow rules, motion principles, and component specs.
 
 ---
 

@@ -291,6 +291,52 @@
   color: var(--fg-4);
 }
 
+/* ── Interpolation panel ────────────────────────────────────── */
+.export-dialog__interp {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.export-dialog__interp-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  margin-left: 22px;
+  background: #131110;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.export-dialog__interp-field {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.export-dialog__interp-label {
+  font-size: var(--t-sm);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+  width: 56px;
+  flex-shrink: 0;
+}
+
+.export-dialog__interp-method {
+  flex: 1;
+  padding: 4px var(--sp-3);
+  background: var(--bg-4);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: #b5a898;
+  font-family: inherit;
+  font-size: var(--t-base);
+  outline: none;
+}
+.export-dialog__interp-method:focus { border-color: var(--accent); }
+
 .export-dialog__job-info {
   font-size: var(--t-base);
   color: var(--fg-3);

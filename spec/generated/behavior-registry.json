@@ -52,6 +52,57 @@
       "file": "spec/features/drop-marker-file.feature",
       "line": 21
     },
+    "export-options::66beba92": {
+      "feature": "Export Options",
+      "scenario": "Interpolation Options",
+      "isOutline": false,
+      "steps": [
+        "Given I have a clip i would like to export",
+        "When I check \"Interpolate Frames\"",
+        "Then A panel is revealed that lets me pick the interpolation method, including minterpolate and RIFE, and the target FPS,"
+      ],
+      "file": "spec/features/export-options.feature",
+      "line": 4
+    },
+    "export-options::ee086472": {
+      "feature": "Export Options",
+      "scenario": "User Exports Frame Interpolated Video",
+      "isOutline": false,
+      "steps": [
+        "Given I have a clip i would like to export",
+        "When I check \"Interpolate Frames\"",
+        "And Fill in 60 FPS in the provided input",
+        "And I click export",
+        "Then my output video will run at 60 FPS consitently, with interpolated frames to control the variable speed"
+      ],
+      "file": "spec/features/export-options.feature",
+      "line": 15,
+      "tests": [
+        "tests/bdd/exportOptions.test.ts"
+      ],
+      "hints": [
+        "The \"Interpolate Frames\" checkbox and FPS input map to the WarpRequest field `interp_fps` (Rust: Option<u32>). When checked + fps filled, the backend re-times each segment at that constant fps using ffmpeg's minterpolate filter (blend mode) instead of just setpts."
+      ]
+    },
+    "export-options::5f05369b": {
+      "feature": "Export Options",
+      "scenario": "User Exports PTS set Video (Default)",
+      "isOutline": false,
+      "steps": [
+        "Given I have a clip i would like to export",
+        "When I leave options as default",
+        "And I click export",
+        "Then my output video will run at with PTS set to control the variable speed"
+      ],
+      "file": "spec/features/export-options.feature",
+      "line": 25,
+      "tests": [
+        "tests/bdd/exportOptions.test.ts"
+      ],
+      "hints": [
+        "Default path: interp_fps is null, so each segment uses only setpts to produce variable speed (no frame interpolation)."
+      ]
+    },
     "file-menu::36132c0a": {
       "feature": "File Menu",
       "scenario": "A file opened shows up in recent files",

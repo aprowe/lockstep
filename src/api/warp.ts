@@ -14,6 +14,9 @@ export interface WarpRequest {
   fade_at_loop: boolean
   clip_in?: number | null
   clip_out?: number | null
+  /** When set, output is re-timed at this constant fps with blended interpolated frames.
+   *  When null, variable speed is encoded via PTS (default). */
+  interp_fps?: number | null
 }
 
 export interface WarpProgressPayload {

@@ -169,6 +169,7 @@ pub struct WarpRequest {
     pub fade_at_loop: bool,
     pub clip_in: Option<f64>,
     pub clip_out: Option<f64>,
+    pub interp_fps: Option<u32>,
 }
 
 #[tauri::command]
@@ -201,7 +202,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
             fade_at_loop: req.fade_at_loop,
             clip_in: req.clip_in,
             clip_out: req.clip_out,
-            interp_fps: None,
+            interp_fps: req.interp_fps,
         };
 
         let result = tokio::task::spawn_blocking(move || {

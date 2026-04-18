@@ -710,6 +710,7 @@ export default function App() {
         warpData={warpData}
         videoPath={video?.path ?? ''}
         originalName={video?.originalName ?? ''}
+        videoFps={video?.fps}
         loopBeats={loopBeats}
         addToEnd={addToEnd}
         trimToLoop={trimToLoop}

@@ -4,6 +4,7 @@ import { startWarp, listenWarpProgress, saveOutput, pickExportFolder, saveToFold
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { setLastExportFolder } from '../store/slices/uiSlice'
+import { buildWarpRequest } from '../utils/exportRequest'
 import './ExportDialog.css'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -22,6 +23,7 @@ interface ExportDialogProps {
   warpData: WarpData | null
   videoPath: string
   originalName: string
+  videoFps?: number
   loopBeats: number | null
   addToEnd: boolean
   trimToLoop: boolean
@@ -30,6 +32,7 @@ interface ExportDialogProps {
 }
 
 type ExportMode = 'current' | 'all' | 'selected'
+type InterpMethod = 'minterpolate' | 'rife'
 
 // ── Name pattern helpers ──────────────────────────────────────────────────────
 
@@ -94,12 +97,15 @@ function parentFolder(filePath: string): string {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ExportDialog({
-  open, onClose, warpData, videoPath, originalName,
+  open, onClose, warpData, videoPath, originalName, videoFps,
   loopBeats, addToEnd, trimToLoop, regions, activeRegionId,
 }: ExportDialogProps) {
   const [fadeAtLoop, setFadeAtLoop] = useState(false)
   const [normalizeBpm, setNormalizeBpm] = useState(false)
   const [normBpmTarget, setNormBpmTarget] = useState(120)
+  const [interpolateFrames, setInterpolateFrames] = useState(false)
+  const [interpMethod, setInterpMethod] = useState<InterpMethod>('minterpolate')
+  const [interpFps, setInterpFps] = useState(() => Math.round(videoFps ?? 60))
   const [status, setStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle')
   const [progress, setProgress] = useState(0)
   const [currentJobLabel, setCurrentJobLabel] = useState('')
@@ -137,8 +143,9 @@ export default function ExportDialog({
       setTotalJobs(0)
       cancelRef.current = false
       setSelectedRegionIds(new Set(regions.map(r => r.id)))
+      setInterpFps(Math.round(videoFps ?? 60))
     }
-  }, [open, regions])
+  }, [open, regions, videoFps])
 
   useEffect(() => () => { unlistenRef.current?.() }, [])
 
@@ -146,7 +153,6 @@ export default function ExportDialog({
   const bpm = warpData?.bpm ?? 120
   // Allow export even with no markers (passthrough / cut only)
   const canProcess = !!warpData || (videoPath.length > 0)
-  const hasMarkers = !!warpData && (warpData.origAnchors.length ?? 0) >= 1
 
   const buildJobs = (): ExportJob[] => {
     if (mode === 'current') {
@@ -210,30 +216,17 @@ export default function ExportDialog({
       setProgress(0)
 
       try {
-        // If no markers, use empty arrays (passthrough trim only)
-        const pairs = hasMarkers
-          ? [...(warpData!.origAnchors)]
-              .sort((a, b) => a.time - b.time)
-              .map(oa => ({
-                orig: oa.time,
-                beat: warpData!.beatAnchors.find(ba => ba.id === oa.id)?.time ?? oa.time,
-              }))
-          : []
-
-        const jobId = await startWarp({
-          path: videoPath,
-          orig_times: pairs.map(p => p.orig),
-          beat_times: pairs.map(p => p.beat),
-          bpm: job.bpm,
-          beat_zero_time: warpData?.beatZeroTime ?? 0,
-          add_to_end: job.addToEnd,
-          fade_at_loop: fadeAtLoop && job.addToEnd,
-          trim_to_loop: trimToLoop,
-          loop_beats: loopBeats ?? null,
-          normalize_bpm: normalizeBpm,
-          clip_in: job.clipIn ?? null,
-          clip_out: job.clipOut ?? null,
-        })
+        const jobId = await startWarp(buildWarpRequest({
+          videoPath,
+          warpData,
+          job,
+          loopBeats,
+          trimToLoop,
+          fadeAtLoop,
+          normalizeBpm,
+          interpolateFrames,
+          interpFps,
+        }))
 
         const outputPath = await new Promise<string>((resolve, reject) => {
           listenWarpProgress(payload => {
@@ -484,6 +477,42 @@ export default function ExportDialog({
                   />
                 )}
                 {normalizeBpm && <span className="export-dialog__norm-label">BPM</span>}
+              </div>
+              <div className="export-dialog__interp">
+                <label className="export-dialog__check">
+                  <input
+                    type="checkbox"
+                    checked={interpolateFrames}
+                    onChange={e => setInterpolateFrames(e.target.checked)}
+                  />
+                  Interpolate Frames
+                </label>
+                {interpolateFrames && (
+                  <div className="export-dialog__interp-panel" aria-label="Interpolation Options">
+                    <label className="export-dialog__interp-field">
+                      <span className="export-dialog__interp-label">Method</span>
+                      <select
+                        className="export-dialog__interp-method"
+                        aria-label="Interpolation Method"
+                        value={interpMethod}
+                        onChange={e => setInterpMethod(e.target.value as InterpMethod)}
+                      >
+                        <option value="minterpolate">minterpolate</option>
+                        <option value="rife">RIFE</option>
+                      </select>
+                    </label>
+                    <label className="export-dialog__interp-field">
+                      <span className="export-dialog__interp-label">FPS</span>
+                      <input
+                        className="export-dialog__norm-bpm"
+                        aria-label="Target FPS"
+                        type="number" min={1} max={240} step={1}
+                        value={interpFps}
+                        onChange={e => setInterpFps(Number(e.target.value))}
+                      />
+                    </label>
+                  </div>
+                )}
               </div>
             </div>
           )}
