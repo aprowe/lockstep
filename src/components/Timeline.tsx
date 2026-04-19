@@ -98,6 +98,8 @@ export interface TimelineProps {
   clipResizeNoGridSnap?: boolean
   /** Regions to show as colored bars in the minimap */
   minimapRegions?: ClipOverlay[]
+  /** Extra content rendered between the ruler and the label. Only used when flip=true. */
+  belowRulerContent?: React.ReactNode
 }
 
 /** A clip block overlaid on the timeline track at the same zoom level */
@@ -240,6 +242,7 @@ export default function Timeline({
   clipResizeSnapTargets,
   clipResizeNoGridSnap,
   minimapRegions,
+  belowRulerContent,
 }: TimelineProps) {
   const [internalView, setInternalView] = useState<View>({ start: 0, end: duration })
   const isControlled = controlledView !== undefined
@@ -1090,7 +1093,7 @@ export default function Timeline({
   return (
     <div className={`timeline${flip ? ' timeline--flip' : ''}`}>
       {flip ? (
-        <>{trackEl}{rulerEl}{labelEl}</>
+        <>{trackEl}{rulerEl}{belowRulerContent}{labelEl}</>
       ) : (
         <>{labelEl}{minimapEl}{rulerEl}{trackEl}</>
       )}

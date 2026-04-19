@@ -49,7 +49,7 @@
   --sz-track:     calc(50px * var(--ui-scale));
   --sz-ruler:     calc(28px * var(--ui-scale));
   --sz-minimap:   calc(18px * var(--ui-scale));
-  --sz-connector: calc(52px * var(--ui-scale));
+  --sz-connector: calc(26px * var(--ui-scale));
 }
 
 * { box-sizing: border-box; }

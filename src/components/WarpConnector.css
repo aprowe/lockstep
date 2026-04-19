@@ -16,18 +16,6 @@
   display: block;
 }
 
-.warp-connector__label {
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  font-family: var(--font-family);
-  font-size: var(--t-base);
-  color: rgba(var(--beat-rgb), 0.28);
-  white-space: nowrap;
-  pointer-events: none;
-  letter-spacing: 0.03em;
-}
-
 .warp-connector__out-of-range {
   position: absolute;
   top: 0; bottom: 0;

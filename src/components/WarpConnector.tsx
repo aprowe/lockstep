@@ -93,6 +93,7 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
           viewBox="0 0 100 1"
           preserveAspectRatio="none"
         >
+          {/* Trapezoids — orig (y=0) → quant (y=1) */}
           {segments.map((seg, i) => {
             const oL = toView(seg.origLeft, origDuration, view)
             const oR = toView(seg.origRight, origDuration, view)
@@ -123,25 +124,7 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
               />
             )
           })}
-
         </svg>
-
-        {/* Ratio labels — positioned at midpoint of each segment in view space */}
-        {segments.map((seg, i) => {
-          const oMid = toView((seg.origLeft + seg.origRight) / 2, origDuration, view)
-          const qMid = toView((seg.quantLeft + seg.quantRight) / 2, outputDuration, view)
-          const midX = (oMid + qMid) / 2
-          if (midX < 0 || midX > 100) return null
-          return (
-            <div
-              key={i}
-              className="warp-connector__label"
-              style={{ left: `${midX}%` }}
-            >
-              {seg.stretchRatio.toFixed(2)}×
-            </div>
-          )
-        })}
 
         {/* Clip region shading */}
         {clipIn !== undefined && clipIn > view.start && (

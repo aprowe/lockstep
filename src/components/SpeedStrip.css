@@ -1,0 +1,26 @@
+.speed-strip {
+  position: relative;
+  width: 100%;
+  height: calc(20px * var(--ui-scale));
+  background: var(--bg-0);
+  border-top: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.speed-strip--empty {
+  border-top: 1px dashed var(--bg-4);
+}
+
+.speed-strip__label {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-family);
+  font-size: var(--t-sm);
+  color: var(--fg-1);
+  white-space: nowrap;
+  pointer-events: none;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.7);
+}

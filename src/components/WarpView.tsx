@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Timeline, { newAnchorId as timelineNewAnchorId } from './Timeline'
 import WarpConnector from './WarpConnector'
+import SpeedStrip from './SpeedStrip'
 import ContextMenu from './ContextMenu'
 import type { ContextMenuState } from './ContextMenu'
 import {
@@ -649,6 +650,13 @@ export default function WarpView({
         linkedAnchorIds={linkedAnchorIds}
         clipResizeSnapTargets={clipIn !== undefined ? [clipIn, clipOut ?? duration] : undefined}
         clipResizeNoGridSnap={regionLock === 'beats'}
+        belowRulerContent={
+          <SpeedStrip
+            segments={segments}
+            view={view}
+            outputDuration={outputDuration}
+          />
+        }
       />
       <input
         ref={importRef}

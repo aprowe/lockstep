@@ -98,3 +98,13 @@ export function stretchColor(ratio: number): string {
   if (ratio < 0.75) return 'rgba(96, 165, 250, 0.14)'
   return 'rgba(75, 85, 99, 0.12)'
 }
+
+/** Bolder variant of stretchColor for foreground bars that need to read
+ *  clearly on their own (e.g. the per-segment speed strip under the trapezoids). */
+export function stretchBarColor(ratio: number): string {
+  if (ratio > 2.0) return 'rgba(239, 68, 68, 0.65)'
+  if (ratio > 1.3) return 'rgba(245, 158, 11, 0.55)'
+  if (ratio < 0.5) return 'rgba(59, 130, 246, 0.65)'
+  if (ratio < 0.75) return 'rgba(96, 165, 250, 0.5)'
+  return 'rgba(130, 140, 150, 0.35)'
+}
