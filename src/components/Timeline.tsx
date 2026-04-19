@@ -3,6 +3,7 @@ import type { Anchor, Band, View } from '../types'
 import { stretchColor } from '../utils/quantize'
 import { clampView, MIN_VISIBLE, beatGridOpacity } from '../utils/view'
 import { formatTime } from '../utils/time'
+import { computeSnap, pixelsToSeconds, type SnapTarget } from '../utils/snap'
 import { newAnchorId, bumpAnchorIdCounter } from '../store/slices/warpSlice'
 import './Timeline.css'
 
@@ -301,41 +302,25 @@ export default function Timeline({
     [view.start, visibleSpan],
   )
 
-  /** Proximity snap: snaps to beat grid and clip overlay edges */
+  /** Proximity snap for anchor drag: beat grid + clip-overlay edges + playhead + scene throughlines. */
   const trySnap = useCallback(
     (rawTime: number): number => {
       const rect = trackRef.current?.getBoundingClientRect()
-      const thresholdSec = rect ? (snapThresholdPx / rect.width) * visibleSpan : MIN_VISIBLE
-      let best = rawTime
-      let bestDist = thresholdSec
-      // Snap to beat grid
-      if (snapInterval && snapInterval > 0) {
-        const nearest = snapOffset + Math.round((rawTime - snapOffset) / snapInterval) * snapInterval
-        const d = Math.abs(rawTime - nearest)
-        if (d < bestDist) { bestDist = d; best = nearest }
-      }
-      // Snap to clip overlay edges
+      const thresholdSec = rect ? pixelsToSeconds(snapThresholdPx, rect.width, visibleSpan) : MIN_VISIBLE
+      const targets: SnapTarget[] = []
       if (clipOverlays) {
         for (const c of clipOverlays) {
-          const dIn = Math.abs(rawTime - c.inPoint)
-          if (dIn < bestDist) { bestDist = dIn; best = c.inPoint }
-          const dOut = Math.abs(rawTime - c.outPoint)
-          if (dOut < bestDist) { bestDist = dOut; best = c.outPoint }
+          targets.push({ time: c.inPoint, source: 'region-edge', id: c.id })
+          targets.push({ time: c.outPoint, source: 'region-edge', id: c.id })
         }
       }
-      // Snap to playhead
-      if (playhead !== undefined) {
-        const d = Math.abs(rawTime - playhead)
-        if (d < bestDist) { bestDist = d; best = playhead }
-      }
-      // Snap to externally-provided targets (e.g. scene changes)
+      if (playhead !== undefined) targets.push({ time: playhead, source: 'playhead' })
       if (snapTargets) {
-        for (const t of snapTargets) {
-          const d = Math.abs(rawTime - t)
-          if (d < bestDist) { bestDist = d; best = t }
-        }
+        for (const t of snapTargets) targets.push({ time: t, source: 'scene' })
       }
-      return best
+      const grid = snapInterval && snapInterval > 0 ? { interval: snapInterval, offset: snapOffset } : undefined
+      const { delta } = computeSnap({ subjects: [rawTime], targets, grid, thresholdSec })
+      return rawTime + delta
     },
     [snapInterval, snapOffset, snapThresholdPx, visibleSpan, clipOverlays, playhead, snapTargets],
   )
@@ -450,28 +435,28 @@ export default function Timeline({
       const g = gesture.current
       if (!g) return
 
-      /** Build snap targets for clip resize/move: anchors + other clip edges + beat grid + playhead */
-      const buildSnapTargets = (excludeClipId?: string, rawTime?: number, isClipResize = false): { targets: number[]; snapSec: number } => {
+      /** Build the shared target list for clip resize/move gestures.
+       *  Grid is returned separately so callers can skip it (e.g. beats-locked resize). */
+      const buildClipSnapInputs = (opts: { excludeClipId?: string; includeGrid: boolean; extraTargets?: number[] }) => {
         const rect = trackRef.current?.getBoundingClientRect()
-        const snapSec = rect ? (snapThresholdPx / rect.width) * visibleSpan : 0
-        const targets: number[] = anchors.map(a => a.time)
+        const thresholdSec = rect ? pixelsToSeconds(snapThresholdPx, rect.width, visibleSpan) : 0
+        const targets: SnapTarget[] = []
+        for (const a of anchors) targets.push({ time: a.time, source: 'anchor', id: a.id })
         if (clipOverlays) {
           for (const c of clipOverlays) {
-            if (c.id === excludeClipId) continue
-            targets.push(c.inPoint, c.outPoint)
+            if (c.id === opts.excludeClipId) continue
+            targets.push({ time: c.inPoint, source: 'region-edge', id: c.id })
+            targets.push({ time: c.outPoint, source: 'region-edge', id: c.id })
           }
         }
-        if (playhead !== undefined) targets.push(playhead)
-        // Beat grid snap (skip for clip resize when clipResizeNoGridSnap is set)
-        const skipGrid = isClipResize && clipResizeNoGridSnap
-        if (!skipGrid && snapInterval && snapInterval > 0 && rawTime !== undefined) {
-          targets.push(snapOffset + Math.round((rawTime - snapOffset) / snapInterval) * snapInterval)
+        if (playhead !== undefined) targets.push({ time: playhead, source: 'playhead' })
+        if (opts.extraTargets) {
+          for (const t of opts.extraTargets) targets.push({ time: t, source: 'custom' })
         }
-        // Extra snap targets for clip resize (e.g. identity boundary positions)
-        if (isClipResize && clipResizeSnapTargets) {
-          targets.push(...clipResizeSnapTargets)
-        }
-        return { targets, snapSec }
+        const grid = opts.includeGrid && snapInterval && snapInterval > 0
+          ? { interval: snapInterval, offset: snapOffset }
+          : undefined
+        return { targets, grid, thresholdSec }
       }
 
       if (g.type === 'potential') {
@@ -595,18 +580,19 @@ export default function Timeline({
 
       if (g.type === 'clip-resize') {
         const raw = xToTime(e.clientX)
-        const { targets, snapSec } = buildSnapTargets(g.id, raw, true)
-        const snap = (t: number) => {
-          let best = t, bestD = snapSec
-          for (const s of targets) { const d = Math.abs(t - s); if (d < bestD) { bestD = d; best = s } }
-          return best
-        }
+        const { targets, grid, thresholdSec } = buildClipSnapInputs({
+          excludeClipId: g.id,
+          includeGrid: !clipResizeNoGridSnap,
+          extraTargets: clipResizeSnapTargets,
+        })
+        const { delta } = computeSnap({ subjects: [raw], targets, grid, thresholdSec })
+        const snapped = raw + delta
         if (g.edge === 'left') {
-          const inPoint = Math.min(snap(raw), g.outPoint - 0.1)
+          const inPoint = Math.min(snapped, g.outPoint - 0.1)
           gesture.current = { ...g, inPoint }
           onClipOverlayResize?.(g.id, inPoint, g.outPoint)
         } else {
-          const outPoint = Math.max(snap(raw), g.inPoint + 0.1)
+          const outPoint = Math.max(snapped, g.inPoint + 0.1)
           gesture.current = { ...g, outPoint }
           onClipOverlayResize?.(g.id, g.inPoint, outPoint)
         }
@@ -615,24 +601,18 @@ export default function Timeline({
 
       if (g.type === 'clip-move') {
         const time = xToTime(e.clientX)
-        const delta = time - g.startTime
+        const dragDelta = time - g.startTime
         const span = g.outPoint - g.inPoint
-        let newIn = Math.max(0, Math.min(duration - span, g.inPoint + delta))
-        const { targets, snapSec } = buildSnapTargets(g.id, newIn)
-        // Also snap the out edge to the beat grid
-        if (snapInterval && snapInterval > 0) {
-          targets.push(snapOffset + Math.round(((newIn + span) - snapOffset) / snapInterval) * snapInterval)
-        }
-        let bestDist = snapSec
-        for (const s of targets) {
-          // Snap inPoint to target
-          const dIn = Math.abs(newIn - s)
-          if (dIn < bestDist) { bestDist = dIn; newIn = s }
-          // Snap outPoint to target
-          const dOut = Math.abs((newIn + span) - s)
-          if (dOut < bestDist) { bestDist = dOut; newIn = s - span }
-        }
-        newIn = Math.max(0, Math.min(duration - span, newIn))
+        let newIn = Math.max(0, Math.min(duration - span, g.inPoint + dragDelta))
+        const { targets, grid, thresholdSec } = buildClipSnapInputs({ excludeClipId: g.id, includeGrid: true })
+        // Rigid move: both edges are snap subjects, grid is evaluated per-subject.
+        const { delta } = computeSnap({
+          subjects: [newIn, newIn + span],
+          targets,
+          grid,
+          thresholdSec,
+        })
+        newIn = Math.max(0, Math.min(duration - span, newIn + delta))
         const newOut = newIn + span
         onClipOverlayMove?.(g.id, newIn, newOut)
         return
