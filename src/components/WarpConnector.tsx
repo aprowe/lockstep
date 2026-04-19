@@ -1,6 +1,5 @@
 import { forwardRef, useCallback, useRef, useState } from 'react'
 import type { WarpSegment, View } from '../types'
-import { stretchColor } from '../utils/quantize'
 import { timeToViewPct } from '../utils/view'
 import './WarpConnector.css'
 
@@ -15,14 +14,20 @@ interface WarpConnectorProps {
   /** Clip in/out in beat space (for slanted boundary lines) — defaults to clipIn/clipOut */
   beatClipIn?: number
   beatClipOut?: number
-  /** HSL color string for clip boundary lines (e.g. "hsl(30,80%,52%)") */
-  clipColor?: string
+  /** Semi-transparent fill color for the region quadrilateral (matches timeline clip-overlay tint) */
+  clipFillColor?: string
+  /** Solid color for the clip boundary lines (should match region palette). Defaults to blue via CSS. */
+  boundaryColor?: string
   /** For each segment boundary (length = segments.length - 1): true = anchor is unmanually-adjusted */
   linkedBoundaries?: boolean[]
+  /** For each segment boundary: true = the paired anchor is selected (intensifies the connector line). */
+  selectedBoundaries?: boolean[]
   /** Anchors for lasso selection in the connector area */
   anchors?: { id: number; time: number }[]
   /** Called when lasso selection changes */
   onSelectionChange?: (ids: Set<number>) => void
+  /** Label shown in the left-side rail next to the connector. */
+  railLabel?: React.ReactNode
 }
 
 /** Convert a full-duration percentage to view-space percentage */
@@ -31,7 +36,7 @@ function toView(pct: number, totalDuration: number, view: View): number {
 }
 
 const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
-  function WarpConnector({ segments, view, origDuration, outputDuration, clipIn, clipOut, beatClipIn, beatClipOut, clipColor, linkedBoundaries, anchors, onSelectionChange }, ref) {
+  function WarpConnector({ segments, view, origDuration, outputDuration, clipIn, clipOut, beatClipIn, beatClipOut, clipFillColor, boundaryColor, linkedBoundaries, selectedBoundaries, anchors, onSelectionChange, railLabel }, ref) {
     const lassoRef = useRef<{ startX: number } | null>(null)
     const [lassoRect, setLassoRect] = useState<{ left: number; width: number } | null>(null)
     const containerRef = useRef<HTMLDivElement>(null)
@@ -68,7 +73,12 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
     }, [])
 
     if (segments.length === 0) {
-      return <div ref={ref} className="warp-connector warp-connector--empty" />
+      return (
+        <div className="warp-connector-wrap">
+          <div className="warp-connector__rail-cell">{railLabel ?? null}</div>
+          <div ref={ref} className="warp-connector warp-connector--empty" />
+        </div>
+      )
     }
 
     // Merge refs
@@ -79,65 +89,81 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
     }
 
     return (
-      <div
-        ref={setRefs}
-        className="warp-connector"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
-      >
+      <div className="warp-connector-wrap">
+        <div className="warp-connector__rail-cell">{railLabel ?? null}</div>
+        <div
+          ref={setRefs}
+          className="warp-connector"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerLeave={handlePointerUp}
+        >
         <svg
           width="100%"
           height="100%"
           viewBox="0 0 100 1"
           preserveAspectRatio="none"
         >
-          {/* Trapezoids — orig (y=0) → quant (y=1) */}
-          {segments.map((seg, i) => {
-            const oL = toView(seg.origLeft, origDuration, view)
-            const oR = toView(seg.origRight, origDuration, view)
-            const qL = toView(seg.quantLeft, outputDuration, view)
-            const qR = toView(seg.quantRight, outputDuration, view)
-            return (
-              <polygon
-                key={i}
-                points={`${oL},0 ${oR},0 ${qR},1 ${qL},1`}
-                fill={stretchColor(seg.stretchRatio)}
-              />
-            )
-          })}
-
-          {/* Divider lines at anchor positions */}
+          {/* Connector lines between paired top/bottom anchors.
+              - Style (solid vs dashed) encodes linked vs unlinked.
+              - Intensity (alpha + width) encodes whether the pair is selected. */}
           {segments.slice(1).map((seg, i) => {
+            const origTime = (seg.origLeft / 100) * origDuration
+            const atClipIn = clipIn !== undefined && Math.abs(origTime - clipIn) < 1e-3
+            const atClipOut = clipOut !== undefined && Math.abs(origTime - clipOut) < 1e-3
+            if (atClipIn || atClipOut) return null
             const oX = toView(seg.origLeft, origDuration, view)
             const qX = toView(seg.quantLeft, outputDuration, view)
             const linked = linkedBoundaries?.[i] ?? false
+            const selected = selectedBoundaries?.[i] ?? false
+            const alpha = linked
+              ? (selected ? 1.0 : 0.75)
+              : (selected ? 1.0 : 0.75)
+            const width = selected ? 1.3 : (linked ? 1.0 : 1)
             return (
               <line
                 key={i}
                 x1={oX} y1={0} x2={qX} y2={1}
-                stroke={linked ? 'rgba(245,158,11,0.75)' : 'rgba(245,158,11,0.35)'}
-                strokeWidth={linked ? '0.9' : '0.6'}
-                strokeDasharray={linked ? undefined : '2 3'}
+                stroke={`rgba(245,158,11,${alpha})`}
+                strokeWidth={String(width)}
+                strokeDasharray={linked ? undefined : '5 5'}
                 vectorEffect="non-scaling-stroke"
               />
             )
           })}
+
+          {/* Region tint — quadrilateral matching the clip block on top/bottom timelines */}
+          {clipFillColor && clipIn !== undefined && clipOut !== undefined && (
+            <polygon
+              points={`${timeToViewPct(clipIn, view)},0 ${timeToViewPct(clipOut, view)},0 ${timeToViewPct(beatClipOut ?? clipOut, view)},1 ${timeToViewPct(beatClipIn ?? clipIn, view)},1`}
+              fill={clipFillColor}
+              pointerEvents="none"
+            />
+          )}
         </svg>
 
-        {/* Clip region shading */}
-        {clipIn !== undefined && clipIn > view.start && (
-          <div
-            className="warp-connector__out-of-range"
-            style={{ left: 0, width: `${timeToViewPct(clipIn, view)}%` }}
-          />
-        )}
-        {clipOut !== undefined && clipOut < origDuration && (
-          <div
-            className="warp-connector__out-of-range"
-            style={{ left: `${timeToViewPct(clipOut, view)}%`, right: 0 }}
-          />
+        {/* Out-of-range shading — polygons follow the slanted clip boundaries */}
+        {(clipIn !== undefined || clipOut !== undefined) && (
+          <svg
+            width="100%" height="100%"
+            viewBox="0 0 100 1"
+            preserveAspectRatio="none"
+            style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none', zIndex: 1 }}
+          >
+            {clipIn !== undefined && (
+              <polygon
+                points={`0,0 ${timeToViewPct(clipIn, view)},0 ${timeToViewPct(beatClipIn ?? clipIn, view)},1 0,1`}
+                fill="rgba(0,0,0,0.45)"
+              />
+            )}
+            {clipOut !== undefined && clipOut < origDuration && (
+              <polygon
+                points={`${timeToViewPct(clipOut, view)},0 100,0 100,1 ${timeToViewPct(beatClipOut ?? clipOut, view)},1`}
+                fill="rgba(0,0,0,0.45)"
+              />
+            )}
+          </svg>
         )}
         {/* Clip boundary lines — rendered above the out-of-range overlays */}
         {(clipIn !== undefined || (clipOut !== undefined && clipOut < origDuration)) && (
@@ -152,7 +178,8 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
               const beatX = timeToViewPct(beatClipIn ?? clipIn, view)
               return (origX >= -5 && origX <= 105) || (beatX >= -5 && beatX <= 105) ? (
                 <line x1={origX} y1={0} x2={beatX} y2={1}
-                  stroke={clipColor ?? 'rgba(255,255,255,0.18)'} strokeWidth="1"
+                  className="warp-connector__boundary-line"
+                  style={boundaryColor ? { stroke: boundaryColor } : undefined}
                   vectorEffect="non-scaling-stroke" />
               ) : null
             })()}
@@ -161,7 +188,8 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
               const beatX = timeToViewPct(beatClipOut ?? clipOut, view)
               return (origX >= -5 && origX <= 105) || (beatX >= -5 && beatX <= 105) ? (
                 <line x1={origX} y1={0} x2={beatX} y2={1}
-                  stroke={clipColor ?? 'rgba(255,255,255,0.18)'} strokeWidth="1"
+                  className="warp-connector__boundary-line"
+                  style={boundaryColor ? { stroke: boundaryColor } : undefined}
                   vectorEffect="non-scaling-stroke" />
               ) : null
             })()}
@@ -174,6 +202,7 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
             style={{ left: `${lassoRect.left}%`, width: `${lassoRect.width}%` }}
           />
         )}
+        </div>
       </div>
     )
   }

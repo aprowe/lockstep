@@ -14,17 +14,102 @@
   --minimap-h:   var(--sz-minimap);
   --handle-size: calc(12px * var(--ui-scale));
   --anchor-color: var(--accent);
-  --beat-color:   rgba(var(--beat-rgb), 0.07);
+  --beat-color:   rgba(var(--beat-rgb), 0.2);
   --track-bg:     var(--bg-2);
   --ruler-bg:     var(--bg-4);
   --border-color: var(--border-hi);
+  --rail-w:       calc(76px * var(--ui-scale));
 
   width: 100%;
   user-select: none;
   font-family: var(--font-family);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.timeline__body {
+  position: relative;
+}
+
+.timeline__row {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+.timeline__row--track {
+  flex: 1 1 var(--track-h);
+  min-height: var(--track-h);
+}
+
+.timeline__row > .track,
+.timeline__row > .ruler,
+.timeline__row > .minimap {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.timeline__row--track > .track {
+  height: auto;
+  flex: 1 1 0;
+}
+
+.timeline__row--below {
+  flex-shrink: 0;
+}
+
+.timeline__row--below > *:not(.timeline__rail-cell) {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.timeline__rail-cell {
+  width: var(--rail-w);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-3);
+  background: var(--bg-1);
+  border-right: 1px solid var(--border-color);
+  font-size: calc(10px * var(--ui-scale));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
+  z-index: 4;
+}
+
+.timeline__rail-cell:empty {
+  background: var(--bg-2);
+}
+
+.timeline__throughlines {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--rail-w);
+  right: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Top (non-flip) timeline: keep throughlines below the minimap row */
+.timeline:not(.timeline--flip) .timeline__throughlines {
+  top: var(--minimap-h);
+}
+
+.timeline__throughline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed rgba(245, 200, 90, 0.35);
 }
 
 /* ── Ruler ──────────────────────────────────────────── */
@@ -61,7 +146,20 @@
 
 .tick--minor::before { height: 6px; }
 .tick--major::before { height: 12px; background: var(--fg-3); }
+.tick--sub::before { height: 4px; opacity: 0.6; }
 .tick--dimmed { opacity: 0.4; }
+
+/* Bottom (flip) timeline: brighter, taller ruler ticks + subdivisions */
+.timeline--flip .tick::before {
+  background: var(--fg-1);
+  width: 1px;
+}
+.timeline--flip .tick--sub::before { height: 6px; opacity: 0.5; }
+.timeline--flip .tick--minor::before { height: 10px; }
+.timeline--flip .tick--major::before {
+  height: 16px;
+  width: 2px;
+}
 
 .tick-label {
   position: absolute;
@@ -182,7 +280,7 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background: rgba(var(--beat-rgb), 0.18);
+  background: rgba(var(--beat-rgb), 0.45);
   pointer-events: none;
   transform: translateX(-50%);
   opacity: var(--beat-opacity, 1);
@@ -199,6 +297,28 @@
   opacity: calc(var(--beat-opacity, 1) * 0.35);
 }
 
+/* Top (non-flip) timeline: no beat grid inside the track */
+.timeline:not(.timeline--flip) .beat-line,
+.timeline:not(.timeline--flip) .measure-line,
+.timeline:not(.timeline--flip) .sub-beat-line {
+  display: none;
+}
+
+/* Bottom (flip) timeline: brighter beat grid */
+.timeline--flip .beat-line {
+  background: rgba(var(--beat-rgb), 0.6);
+  width: 1px;
+}
+
+.timeline--flip .measure-line {
+  background: rgba(var(--beat-rgb), 1);
+  width: 2px;
+}
+
+.timeline--flip .sub-beat-line {
+  background: rgba(var(--beat-rgb), 0.35);
+}
+
 .beat-dimmed {
   opacity: 0.4 !important;
 }
@@ -212,6 +332,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   cursor: grab;
   z-index: 10;
 }
@@ -225,27 +346,14 @@
   border-radius: 50%;
   transform: rotate(45deg) scale(0.85);
   flex-shrink: 0;
-  margin-top: 6px;
   box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.45);
   transition: box-shadow 0.1s, transform 0.1s;
-}
-
-.timeline--flip .anchor {
-  flex-direction: column-reverse;
-}
-
-.timeline--flip .anchor-handle {
-  margin-top: 0;
-  margin-bottom: 6px;
-}
-
-.timeline--flip .anchor-line {
-  background: linear-gradient(to top, var(--anchor-color), rgba(var(--accent-rgb), 0.1));
+  z-index: 1;
 }
 
 .timeline--flip .anchor-time {
-  bottom: auto;
-  top: 5px;
+  top: auto;
+  bottom: 2px;
 }
 
 .anchor:hover .anchor-handle {
@@ -254,14 +362,23 @@
 }
 
 .anchor-line {
-  flex: 1;
-  width: 1px;
-  background: linear-gradient(to bottom, var(--anchor-color), rgba(var(--accent-rgb), 0.1));
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  background: var(--anchor-color);
+  opacity: 0.55;
+}
+
+.anchor:hover .anchor-line {
+  opacity: 0.75;
 }
 
 .anchor-time {
   position: absolute;
-  bottom: 5px;
+  top: 2px;
   font-size: var(--t-sm);
   color: var(--anchor-color);
   white-space: nowrap;
@@ -272,18 +389,18 @@
 
 .anchor:hover .anchor-time { opacity: 0.9; }
 
-/* ── Selected anchor ───────────────────────────────── */
+/* ── Selected anchor — user's active editing target ──
+   Bright fill on the dot plus a thicker, brighter stem.
+   Color is --fg-1 (white/bright) to stay distinct from the playhead. */
 .anchor--selected .anchor-handle {
   background: var(--fg-1);
   box-shadow: 0 0 10px rgba(var(--fg-1-rgb), 0.7);
 }
 
 .anchor--selected .anchor-line {
-  background: linear-gradient(to bottom, var(--fg-1), rgba(var(--fg-1-rgb), 0.1));
-}
-
-.timeline--flip .anchor--selected .anchor-line {
-  background: linear-gradient(to top, var(--fg-1), rgba(var(--fg-1-rgb), 0.1));
+  width: 3px;
+  background: var(--fg-1);
+  opacity: 0.9;
 }
 
 .anchor--selected .anchor-time {
@@ -291,20 +408,22 @@
   opacity: 0.8;
 }
 
-/* ── Secondary selected (selected from the other timeline) ── */
+/* ── Paired-selected (partner of a selected anchor on the other timeline) ─
+   Keep the orange fill to preserve marker identity; add a bright halo ring
+   so the pairing relationship reads at a glance. */
 .anchor--selected-secondary .anchor-handle {
-  background: #a09080;
-  box-shadow: 0 0 6px rgba(160, 144, 128, 0.4);
+  background: var(--anchor-color);
+  box-shadow:
+    0 0 0 2px rgba(var(--fg-1-rgb), 0.85),
+    0 0 8px rgba(var(--fg-1-rgb), 0.4);
 }
 .anchor--selected-secondary .anchor-line {
-  background: linear-gradient(to bottom, #a09080, rgba(160, 144, 128, 0.05));
-}
-.timeline--flip .anchor--selected-secondary .anchor-line {
-  background: linear-gradient(to top, #a09080, rgba(160, 144, 128, 0.05));
+  background: var(--anchor-color);
+  opacity: 0.8;
 }
 .anchor--selected-secondary .anchor-time {
-  color: #a09080;
-  opacity: 0.6;
+  color: var(--fg-1);
+  opacity: 0.7;
 }
 
 /* ── Lasso selection rectangle ─────────────────────── */
@@ -362,39 +481,25 @@
 }
 
 .anchor--zero .anchor-line {
-  background: linear-gradient(to bottom, var(--accent-2), rgba(var(--accent-2-rgb), 0.1));
+  background: var(--accent-2);
+  opacity: 0.7;
 }
 
-/* ── Boundary anchors (linked to clip edges) ──────────── */
+/* ── Boundary anchors (linked to clip edges) — colored from region palette ───── */
 .anchor--boundary .anchor-handle {
-  background: var(--blue);
-  box-shadow: 0 0 7px rgba(var(--blue-rgb), 0.5);
+  background: var(--boundary-color, var(--blue));
+  box-shadow: 0 0 7px rgba(0, 0, 0, 0.4);
 }
 .anchor--boundary .anchor-line {
-  background: linear-gradient(to bottom, var(--blue), rgba(var(--blue-rgb), 0.1));
-}
-.timeline--flip .anchor--boundary .anchor-line {
-  background: linear-gradient(to top, var(--blue), rgba(var(--blue-rgb), 0.1));
+  background: var(--boundary-color, var(--blue));
+  opacity: 0.65;
 }
 .anchor--boundary .anchor-time {
-  color: var(--blue-light);
+  color: var(--boundary-color, var(--blue-light));
 }
 
-/* ── Linked anchors (beat = orig, subtle chain dot) ─────── */
-.anchor--linked .anchor-handle {
-  position: relative;
-}
-.anchor--linked .anchor-handle::after {
-  content: '';
-  position: absolute;
-  bottom: -4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.35);
-}
+/* Linked/unlinked state is encoded on the connector line (solid vs dashed),
+   not on the marker dot — markers stay visually identical either way. */
 
 .anchor--dimmed {
   opacity: 0.25;
@@ -422,12 +527,21 @@
 
 .minimap-viewport {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  background: rgba(var(--beat-rgb), 0.08);
-  border-inline: 1px solid rgba(var(--beat-rgb), 0.2);
+  top: 2px;
+  bottom: 2px;
+  background: rgba(var(--beat-rgb), 0.1);
+  border: 1px solid rgba(var(--beat-rgb), 0.75);
+  border-top-width: 1.5px;
+  border-bottom-width: 1.5px;
+  border-radius: 4px;
   pointer-events: none;
   min-width: 2px;
+  box-sizing: border-box;
+  transition: opacity 0.15s;
+}
+
+.minimap-viewport--full {
+  opacity: 0;
 }
 
 .minimap-anchor {
@@ -446,8 +560,9 @@
   --clip-s: 70%;
   --clip-l: 52%;
   position: absolute;
-  top: 4px;
-  height: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 6px;
   background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.25);
   border-left: 1px solid hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.5);
   border-right: 1px solid hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.5);
@@ -469,9 +584,9 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.06);
-  border-left: 1px solid hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.18);
-  border-right: 1px solid hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.18);
+  background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.035);
+  border-left: 1px solid hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.14);
+  border-right: 1px solid hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.14);
   box-sizing: border-box;
   pointer-events: none;
   z-index: 1;
@@ -479,8 +594,8 @@
 }
 
 .clip-overlay--active {
-  background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.10);
-  border-color: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.40);
+  background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.06);
+  border-color: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.32);
 }
 
 /* 8-color rainbow palette — must come after .clip-overlay to override defaults */
@@ -523,14 +638,26 @@
   background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.60);
 }
 
-/* Flipped bar: at bottom of clip overlay instead of top */
-.clip-overlay__bar--flip {
-  top: auto;
+/* Flipped bar: no visible band — spans the full track so the left/right
+   grips have a generous (invisible) hit area at any track height.
+   The bar itself is pointer-transparent; only the handles accept input. */
+.clip-overlay__bar--flip,
+.clip-overlay--active .clip-overlay__bar--flip,
+.clip-overlay__bar--flip:hover,
+.clip-overlay--active .clip-overlay__bar--flip:hover {
+  top: 0;
   bottom: 0;
-  height: 10px;
-  border-bottom: none;
-  border-top: 1px solid hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.30);
-  border-radius: 0 0 2px 2px;
+  height: auto;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  cursor: default;
+  pointer-events: none;
+  align-items: stretch;
+}
+
+.clip-overlay__bar-spacer {
+  flex: 1;
 }
 
 .clip-overlay__label {
@@ -565,11 +692,31 @@
   background: rgba(var(--accent-2-rgb), 0.3);
 }
 
-/* Flipped bar: wider handles with visible grip lines */
+/* Flipped bar: right-triangle grips — rectangular hit area with visible triangle via ::before */
 .clip-overlay__bar--flip .clip-overlay__handle {
-  width: 8px;
-  background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.25);
+  position: relative;
+  width: 18px;
+  height: 100%;
+  background: transparent;
+  pointer-events: auto;
 }
-.clip-overlay__bar--flip .clip-overlay__handle:hover {
-  background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.55);
+.clip-overlay__bar--flip .clip-overlay__handle::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  width: 10px;
+  height: 10px;
+  background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.75);
+  pointer-events: none;
+}
+.clip-overlay__bar--flip .clip-overlay__handle--left::before {
+  left: 0;
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+}
+.clip-overlay__bar--flip .clip-overlay__handle--right::before {
+  right: 0;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+.clip-overlay__bar--flip .clip-overlay__handle:hover::before {
+  background: hsla(var(--clip-h), var(--clip-s), var(--clip-l), 0.95);
 }

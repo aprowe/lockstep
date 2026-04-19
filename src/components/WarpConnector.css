@@ -1,9 +1,34 @@
+.warp-connector-wrap {
+  --rail-w: calc(76px * var(--ui-scale));
+  display: grid;
+  grid-template-columns: var(--rail-w) 1fr;
+  width: 100%;
+}
+
+.warp-connector__rail-cell {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0 var(--sp-3);
+  background: var(--bg-1);
+  border-right: 1px solid var(--border-hi);
+  font-family: var(--font-family);
+  font-size: calc(10px * var(--ui-scale));
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
+}
+
 .warp-connector {
+  grid-column: 2;
   position: relative;
   width: 100%;
   height: var(--sz-connector);
   background: var(--bg-0);
-  border-inline: 1px solid var(--border);
   overflow: hidden;
 }
 
@@ -22,6 +47,12 @@
   background: rgba(0, 0, 0, 0.45);
   pointer-events: none;
   z-index: 1;
+}
+
+.warp-connector__boundary-line {
+  stroke: var(--blue);
+  stroke-opacity: 0.65;
+  stroke-width: 1;
 }
 
 .warp-connector__lasso {

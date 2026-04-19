@@ -2,7 +2,41 @@
   display: flex;
   flex-direction: column;
   width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding-bottom: var(--sp-6);
   gap: 0;
+}
+
+.warp-view > .timeline {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.warp-view__scene-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-1);
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.warp-view__scene-toggle:hover {
+  color: var(--fg-1);
+}
+
+.warp-view__scene-chevron {
+  font-size: calc(10px * var(--ui-scale));
+  color: var(--fg-3);
 }
 
 .warp-controls {
@@ -109,26 +143,4 @@
   cursor: pointer;
 }
 
-/* Remove border-radius on connecting edges */
-.warp-view .timeline:not(.timeline--flip) {
-  border-radius: 6px 6px 0 0;
-  border-bottom: none;
-}
 
-.warp-view .timeline--flip {
-  border-radius: 0 0 6px 6px;
-  border-top: none;
-}
-
-/* Beat lines more visible on the bottom timeline */
-.warp-view .timeline--flip .beat-line {
-  background: rgba(var(--beat-rgb), 0.1);
-}
-
-.warp-view .timeline--flip .measure-line {
-  background: rgba(var(--beat-rgb), 0.28);
-}
-
-.warp-view .timeline--flip .track {
-  cursor: ew-resize;
-}

@@ -3,7 +3,10 @@ import type { Anchor, Band, View } from '../types'
 import { stretchColor } from '../utils/quantize'
 import { clampView, MIN_VISIBLE, beatGridOpacity } from '../utils/view'
 import { formatTime } from '../utils/time'
+import { newAnchorId, bumpAnchorIdCounter } from '../store/slices/warpSlice'
 import './Timeline.css'
+
+export { newAnchorId, bumpAnchorIdCounter }
 
 export interface TimelineProps {
   duration: number
@@ -86,6 +89,8 @@ export interface TimelineProps {
   onTrackScrub?: (time: number) => void
   /** IDs of anchors that are linked to clip boundaries — rendered with a distinct style */
   boundaryAnchorIds?: Set<number>
+  /** Color (CSS color string) used for boundary anchor handles/lines. Defaults to blue. */
+  boundaryColor?: string
   /** IDs of anchors whose beat position matches orig (unmanually adjusted) — shown with link indicator */
   linkedAnchorIds?: Set<number>
   /** IDs of anchors to dim (outside active region) */
@@ -98,8 +103,21 @@ export interface TimelineProps {
   clipResizeNoGridSnap?: boolean
   /** Regions to show as colored bars in the minimap */
   minimapRegions?: ClipOverlay[]
-  /** Extra content rendered between the ruler and the label. Only used when flip=true. */
+  /** Extra content rendered directly below the ruler (between ruler and track in
+   *  non-flipped mode; between ruler and label in flipped mode). */
   belowRulerContent?: React.ReactNode
+  /** Times (seconds) at which to draw hairline dashed vertical guide lines
+   *  spanning the body of the timeline (track + ruler + belowRulerContent). */
+  throughlines?: number[]
+  /** Extra times (seconds) to snap dragged anchors to. */
+  snapTargets?: number[]
+  /** Per-layer labels shown on a left-side rail next to each row. */
+  rowLabels?: {
+    minimap?: React.ReactNode
+    ruler?: React.ReactNode
+    belowRuler?: React.ReactNode
+    track?: React.ReactNode
+  }
 }
 
 /** A clip block overlaid on the timeline track at the same zoom level */
@@ -150,11 +168,11 @@ function musicalTicks(
   const span = viewEnd - viewStart
   const BPM = beatsPerMeasure
   const measure = beat * BPM
-  const candidates = [beat, measure, measure * 2, measure * 4, measure * 8, measure * 16, measure * 32]
-  // Tick marks: at most ~20 in view
-  const interval = candidates.find(t => t > 0 && span / t <= 20) ?? candidates[candidates.length - 1]
+  const candidates = [beat / 16, beat / 8, beat / 4, beat / 2, beat, measure, measure * 2, measure * 4, measure * 8, measure * 16, measure * 32]
+  // Tick marks: at most ~40 in view so subdivisions can show when zoomed in
+  const interval = candidates.find(t => t > 0 && span / t <= 40) ?? candidates[candidates.length - 1]
   // Labels: at most ~10 in view — find the coarsest interval that keeps ≤10
-  const labelInterval = candidates.find(t => t > 0 && span / t <= 10) ?? candidates[candidates.length - 1]
+  const labelInterval = candidates.find(t => t > 0 && t >= beat && span / t <= 10) ?? candidates[candidates.length - 1]
 
   const first = beatOffset + Math.ceil((viewStart - beatOffset) / interval) * interval
   const ticks: MusicalTick[] = []
@@ -162,16 +180,17 @@ function musicalTicks(
   for (let t = first; t <= viewEnd + 1e-9; t += interval) {
     const rawBeat = (t - beatOffset) / beat
     const beatIdx = Math.round(rawBeat)
+    const onBeat = Math.abs(rawBeat - beatIdx) < 0.01
     const beatInMeasure = ((beatIdx % BPM) + BPM) % BPM
-    const onMeasure = beatInMeasure === 0
+    const onMeasure = onBeat && beatInMeasure === 0
 
     const m = Math.floor(beatIdx / BPM)
     const b = beatInMeasure
-    const type: MusicalTick['type'] = onMeasure ? 'measure' : 'beat'
+    const type: MusicalTick['type'] = onMeasure ? 'measure' : onBeat ? 'beat' : 'sub'
 
-    // Show label only at labelInterval spacing to avoid crowding
+    // Show label only at labelInterval spacing (and never on sub-beats)
     const elapsed = t - beatOffset
-    const showLabel = Math.abs(elapsed - Math.round(elapsed / labelInterval) * labelInterval) < beat * 0.01
+    const showLabel = onBeat && Math.abs(elapsed - Math.round(elapsed / labelInterval) * labelInterval) < beat * 0.01
     const label = showLabel ? (onMeasure ? String(m) : `${m}.${b}`) : ''
 
     ticks.push({ time: t, type, label })
@@ -180,15 +199,6 @@ function musicalTicks(
 }
 
 type BeatLine = { time: number; measure: boolean; onBeat: boolean }
-
-let nextId = 1
-export function newAnchorId() { return nextId++ }
-/** Ensure counter is above all existing anchor IDs to prevent collisions */
-export function bumpAnchorIdCounter(anchors: { id: number }[]) {
-  for (const a of anchors) {
-    if (a.id >= nextId) nextId = a.id + 1
-  }
-}
 
 export default function Timeline({
   duration,
@@ -236,6 +246,7 @@ export default function Timeline({
   scrubOnTrackClick = false,
   onTrackScrub,
   boundaryAnchorIds,
+  boundaryColor,
   linkedAnchorIds,
   dimmedAnchorIds,
   primarySelection = true,
@@ -243,6 +254,9 @@ export default function Timeline({
   clipResizeNoGridSnap,
   minimapRegions,
   belowRulerContent,
+  throughlines,
+  snapTargets,
+  rowLabels,
 }: TimelineProps) {
   const [internalView, setInternalView] = useState<View>({ start: 0, end: duration })
   const isControlled = controlledView !== undefined
@@ -314,9 +328,16 @@ export default function Timeline({
         const d = Math.abs(rawTime - playhead)
         if (d < bestDist) { bestDist = d; best = playhead }
       }
+      // Snap to externally-provided targets (e.g. scene changes)
+      if (snapTargets) {
+        for (const t of snapTargets) {
+          const d = Math.abs(rawTime - t)
+          if (d < bestDist) { bestDist = d; best = t }
+        }
+      }
       return best
     },
-    [snapInterval, snapOffset, snapThresholdPx, visibleSpan, clipOverlays],
+    [snapInterval, snapOffset, snapThresholdPx, visibleSpan, clipOverlays, playhead, snapTargets],
   )
 
   // Keep a ref to the latest zoom state so the wheel handler never goes stale
@@ -811,11 +832,12 @@ export default function Timeline({
       >
         {ticks.map((tick) => {
           const major = 'major' in tick ? tick.major : tick.type === 'measure'
+          const isSub = 'type' in tick && tick.type === 'sub'
           const outsideClip = (clipIn !== undefined && tick.time < clipIn - 0.01) || (clipOut !== undefined && tick.time > clipOut + 0.01)
           return (
             <div
               key={`t-${tick.time}`}
-              className={`tick ${major ? 'tick--major' : 'tick--minor'}${outsideClip ? ' tick--dimmed' : ''}`}
+              className={`tick ${major ? 'tick--major' : isSub ? 'tick--sub' : 'tick--minor'}${outsideClip ? ' tick--dimmed' : ''}`}
               style={{ left: `${timeToPercent(tick.time)}%` }}
             >
               {tick.label && <span className="tick-label">{tick.label}</span>}
@@ -922,7 +944,7 @@ export default function Timeline({
               className={`clip-overlay${clip.active ? ' clip-overlay--active' : ''} clip-overlay--color-${(clip.colorIndex ?? 0) % 8}`}
               style={{ left: `${left}%`, width: `${width}%` }}
             >
-              {/* Handle bar — top for orig timeline, bottom for beat timeline */}
+              {/* Handle bar — solid on top timeline; edge-grips-only on flipped */}
               <div
                 className={`clip-overlay__bar${flip ? ' clip-overlay__bar--flip' : ''}`}
                 onDoubleClick={e => {
@@ -937,7 +959,7 @@ export default function Timeline({
                 } : undefined}
               >
                 <div className="clip-overlay__handle clip-overlay__handle--left" />
-                {flip ? <div style={{ flex: 1 }} /> : <span className="clip-overlay__label">{clip.name}</span>}
+                {flip ? <div className="clip-overlay__bar-spacer" /> : <span className="clip-overlay__label">{clip.name}</span>}
                 <div className="clip-overlay__handle clip-overlay__handle--right" />
               </div>
             </div>
@@ -976,7 +998,10 @@ export default function Timeline({
           <div
             key={`a-${anchor.id}`}
             className={`anchor${anchorZeroId === anchor.id ? ' anchor--zero' : ''}${isSelected ? (primarySelection ? ' anchor--selected' : ' anchor--selected-secondary') : ''}${isBoundary ? ' anchor--boundary' : ''}${isLinked ? ' anchor--linked' : ''}${isDimmed ? ' anchor--dimmed' : ''}`}
-            style={{ left: `${timeToPercent(anchor.time)}%` }}
+            style={{
+              left: `${timeToPercent(anchor.time)}%`,
+              ...(isBoundary && boundaryColor ? ({ ['--boundary-color' as string]: boundaryColor } as React.CSSProperties) : {}),
+            }}
             onPointerDown={e => handleAnchorPointerDown(e, anchor)}
             onDoubleClick={e => handleAnchorDblClick(e, anchor.id)}
             onContextMenu={e => {
@@ -1080,23 +1105,60 @@ export default function Timeline({
             style={{ left: `${(anchor.time / duration) * 100}%` }}
           />
         ))}
-        <div
-          className="minimap-viewport"
-          style={{
-            left: `${(view.start / duration) * 100}%`,
-            width: `${(visibleSpan / duration) * 100}%`,
-          }}
-        />
+        {(() => {
+          const leftPct = Math.max(0, (view.start / duration) * 100)
+          const rightPct = Math.min(100, (view.end / duration) * 100)
+          const widthPct = Math.max(0, rightPct - leftPct)
+          return (
+            <div
+              className={`minimap-viewport${visibleSpan >= duration - 0.001 ? ' minimap-viewport--full' : ''}`}
+              style={{
+                left: `${leftPct}%`,
+                width: `${widthPct}%`,
+              }}
+            />
+          )
+        })()}
       </div>
+  )
+
+  const throughlineOverlay = throughlines && throughlines.length > 0 ? (
+    <div className="timeline__throughlines">
+      {throughlines.map((t, i) => {
+        const x = timeToPercent(t)
+        if (x < -1 || x > 101) return null
+        return <div key={i} className="timeline__throughline" style={{ left: `${x}%` }} />
+      })}
+    </div>
+  ) : null
+
+  const row = (railContent: React.ReactNode, bodyContent: React.ReactNode, modifier: string) => (
+    <div className={`timeline__row timeline__row--${modifier}`}>
+      <div className={`timeline__rail-cell timeline__rail-cell--${modifier}`}>
+        {railContent ?? null}
+      </div>
+      {bodyContent}
+    </div>
   )
 
   return (
     <div className={`timeline${flip ? ' timeline--flip' : ''}`}>
+      {labelEl}
+      {!flip && row(rowLabels?.minimap, minimapEl, 'minimap')}
       {flip ? (
-        <>{trackEl}{rulerEl}{belowRulerContent}{labelEl}</>
+        <>
+          {row(rowLabels?.track, trackEl, 'track')}
+          {row(rowLabels?.ruler, rulerEl, 'ruler')}
+          {belowRulerContent !== undefined && row(rowLabels?.belowRuler, belowRulerContent, 'below')}
+        </>
       ) : (
-        <>{labelEl}{minimapEl}{rulerEl}{trackEl}</>
+        <>
+          {row(rowLabels?.ruler, rulerEl, 'ruler')}
+          {belowRulerContent !== undefined && row(rowLabels?.belowRuler, belowRulerContent, 'below')}
+          {row(rowLabels?.track, trackEl, 'track')}
+        </>
       )}
+      {throughlineOverlay}
     </div>
   )
 }

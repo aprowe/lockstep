@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Timeline, { newAnchorId as timelineNewAnchorId } from './Timeline'
+import Timeline from './Timeline'
 import WarpConnector from './WarpConnector'
 import SpeedStrip from './SpeedStrip'
+import SceneRow from './SceneRow'
 import ContextMenu from './ContextMenu'
 import type { ContextMenuState } from './ContextMenu'
 import {
@@ -99,6 +100,7 @@ export default function WarpView({
   const [panning, setPanning] = useState(false)
   const [mouseOver, setMouseOver] = useState(false)
   const [selectionOrigin, setSelectionOrigin] = useState<'orig' | 'beat'>('orig')
+  const [scenesExpanded, setScenesExpanded] = useState(false)
 
   const warpContainerRef = useRef<HTMLDivElement>(null)
   const connectorRef = useRef<HTMLDivElement>(null)
@@ -144,6 +146,13 @@ export default function WarpView({
     : outputDuration
 
   const maxDuration = Math.max(duration, outputDuration)
+
+  // Placeholder scene changes — evenly spaced until scene detection is wired up.
+  const scenes = useMemo(() => {
+    if (duration <= 0) return []
+    const n = 5
+    return Array.from({ length: n }, (_, i) => ((i + 1) / (n + 1)) * duration)
+  }, [duration])
 
   // ── Segments (with synthetic clip boundary anchors) ────────────────────────
   const { segments, segmentAnchors } = useMemo(() => {
@@ -240,6 +249,17 @@ export default function WarpView({
     [clipOverlays, origToBeat],
   )
 
+  const activeRegionPalette = useMemo(() => {
+    const active = clipOverlays?.find(c => c.active)
+    if (!active) return null
+    const PALETTE = [[0,75,55],[30,80,52],[58,80,48],[115,65,45],[183,65,42],[213,70,55],[270,60,55],[305,65,52]]
+    const [h,s,l] = PALETTE[(active.colorIndex ?? 0) % 8]
+    return {
+      fill: `hsla(${h},${s}%,${l}%,0.06)`,
+      solid: `hsl(${h},${s}%,${l}%)`,
+    }
+  }, [clipOverlays])
+
   const seekFromBeat = useCallback(
     (beatTime: number) => onSeek?.(Math.max(0, Math.min(duration, beatToOrig(beatTime)))),
     [onSeek, duration, beatToOrig],
@@ -262,6 +282,11 @@ export default function WarpView({
   const linkedBoundaries = useMemo(
     () => segmentAnchors.map(a => a.id < 0 || linkedAnchorIds.has(a.id)),
     [segmentAnchors, linkedAnchorIds],
+  )
+
+  const selectedBoundaries = useMemo(
+    () => segmentAnchors.map(a => selectedIds.has(a.id)),
+    [segmentAnchors, selectedIds],
   )
 
   const getBeatAnchorBounds = useCallback(
@@ -315,11 +340,6 @@ export default function WarpView({
   const handleBeatAnchorReset = useCallback(
     (id: number) => dispatch(resetBeatLinks([id])),
     [dispatch],
-  )
-
-  const handleSetBeatZero = useCallback(
-    (id: number) => dispatch(setBeatZeroId(beatZeroId === id ? null : id)),
-    [dispatch, beatZeroId],
   )
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
@@ -585,6 +605,26 @@ export default function WarpView({
         linkedAnchorIds={linkedAnchorIds}
         dimmedAnchorIds={dimmedAnchorIds}
         minimapRegions={clipOverlays}
+        belowRulerContent={
+          <SceneRow scenes={scenes} view={view} duration={duration} expanded={scenesExpanded} />
+        }
+        throughlines={scenes}
+        snapTargets={scenes}
+        rowLabels={{
+          minimap: 'Overview',
+          ruler: 'Time',
+          belowRuler: (
+            <button
+              className="warp-view__scene-toggle"
+              onClick={() => setScenesExpanded(v => !v)}
+              title={scenesExpanded ? 'Collapse scenes' : 'Expand scenes'}
+            >
+              <span>Scenes</span>
+              <span className="warp-view__scene-chevron">{scenesExpanded ? '▾' : '▸'}</span>
+            </button>
+          ),
+          track: 'Source',
+        }}
       />
       <WarpConnector
         ref={connectorRef}
@@ -596,16 +636,13 @@ export default function WarpView({
         clipOut={clipOut}
         beatClipIn={beatClipIn}
         beatClipOut={beatClipOut}
-        clipColor={(() => {
-          const active = clipOverlays?.find(c => c.active)
-          if (!active) return undefined
-          const PALETTE = [[0,75,55],[30,80,52],[58,80,48],[115,65,45],[183,65,42],[213,70,55],[270,60,55],[305,65,52]]
-          const [h,s,l] = PALETTE[(active.colorIndex ?? 0) % 8]
-          return `hsla(${h},${s}%,${l}%,0.4)`
-        })()}
+        clipFillColor={activeRegionPalette?.fill}
+        boundaryColor={activeRegionPalette?.solid}
         linkedBoundaries={linkedBoundaries}
+        selectedBoundaries={selectedBoundaries}
         anchors={origAnchors}
         onSelectionChange={setSelectedIds}
+        railLabel="Warp"
       />
       <Timeline
         flip
@@ -626,7 +663,6 @@ export default function WarpView({
         onViewChange={handleViewChange}
         maxDuration={maxDuration}
         anchorZeroId={clipIn !== undefined ? (effectiveBeatZeroId ?? undefined) : undefined}
-        onAnchorSetZero={clipIn !== undefined ? handleSetBeatZero : undefined}
         selectedIds={selectedIds}
         onSelectionChange={setSelectedIdsBeat}
         primarySelection={selectionOrigin === 'beat'}
@@ -657,6 +693,12 @@ export default function WarpView({
             outputDuration={outputDuration}
           />
         }
+        throughlines={quantAnchors.map(a => a.time)}
+        rowLabels={{
+          track: 'Beats',
+          ruler: 'Bars',
+          belowRuler: 'Speed',
+        }}
       />
       <input
         ref={importRef}
