@@ -2,6 +2,7 @@ pub mod commands;
 mod diagnostic;
 mod ffmpeg;
 pub mod pchip;
+pub mod pipeline;
 pub mod processor;
 pub mod rife;
 mod storage;

@@ -40,6 +40,15 @@ fn find_bin(name: &str) -> String {
     name.to_string()
 }
 
+/// Read the video's container duration (seconds) via ffprobe.
+pub fn video_duration(path: &str) -> Result<f64, String> {
+    let info = ffprobe_json(path)?;
+    info["format"]["duration"]
+        .as_str()
+        .and_then(|s| s.parse::<f64>().ok())
+        .ok_or_else(|| "ffprobe: missing duration".to_string())
+}
+
 pub fn ffprobe_json(path: &str) -> Result<serde_json::Value, String> {
     let mut cmd = Command::new(find_bin("ffprobe"));
     cmd.args([

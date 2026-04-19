@@ -1,8 +1,21 @@
-use std::path::PathBuf;
+//! Warp orchestrator: chains the pipeline stages in `crate::pipeline` into the
+//! single `remap_video` entry point. Also houses the standalone BPM estimator
+//! and the legacy constant-fps `interpolate_video` helper which aren't part of
+//! the warp pipeline proper.
+
 use tempfile::TempDir;
 
-use crate::ffmpeg::{atempo_chain, ffprobe_json, run_ffmpeg};
-use crate::pchip::smooth_time_map;
+use crate::ffmpeg::video_duration;
+use crate::pipeline::{
+    post::{apply_post_processing, PostOptions},
+    rife_pass::apply_warp_aware_rife,
+    segments::{concat_segments, encode_segments, plan_segments},
+    time_map::build_time_map,
+};
+
+// Backward-compat re-exports: callers (commands, cli, tests) import these via
+// `crate::processor::`. Keep the surface stable during refactors.
+pub use crate::pipeline::options::{InterpMethod, WarpOptions};
 
 // ── BPM Estimation ──────────────────────────────────────────────────────────
 
@@ -71,128 +84,12 @@ pub fn estimate_bpm(anchor_times: &[f64]) -> (f64, f64, f64) {
     ((best_bpm * 100.0).round() / 100.0, best_interval, avg_interval)
 }
 
-// ── Time Map ────────────────────────────────────────────────────────────────
+// ── Orchestrator ────────────────────────────────────────────────────────────
 
-/// Piecewise-linear time map: orig_time → output_time.
-/// Ported from frames2/backend/processor.py::_direct_time_map
-/// clip_start/clip_end define the range of the source video to process.
-fn direct_time_map(
-    orig_times: &[f64],
-    beat_times: &[f64],
-    clip_start: f64,
-    clip_end: f64,
-) -> Vec<(f64, f64)> {
-    let mut pairs: Vec<(f64, f64)> = orig_times
-        .iter()
-        .zip(beat_times.iter())
-        .map(|(&o, &b)| (o, b))
-        .collect();
-    pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-
-    let mut control_points: Vec<(f64, f64)> = Vec::new();
-
-    // Head: only insert a sentinel at clip_start if it sits meaningfully before
-    // the first anchor. Extrapolate at 1:1 from the first anchor so the
-    // pre-anchor portion of the clip doesn't get fictitiously stretched. When
-    // clip_start ≈ orig[0] (common: region inPoint == first anchor), the first
-    // anchor itself becomes the starting control point — skipping this avoids
-    // the (clip_start, 0.0) → (orig[0], beat[0]) catastrophic first segment.
-    match pairs.first() {
-        Some(&(first_orig, first_beat)) if first_orig > clip_start + 1e-6 => {
-            let head_out = first_beat - (first_orig - clip_start);
-            control_points.push((clip_start, head_out));
-        }
-        None => control_points.push((clip_start, 0.0)),
-        _ => {}
-    }
-
-    for (orig_t, beat_t) in &pairs {
-        if control_points.is_empty() || *orig_t > control_points.last().unwrap().0 + 1e-6 {
-            control_points.push((*orig_t, *beat_t));
-        }
-    }
-
-    // Tail: if clip_end is past the last anchor, extrapolate at 1:1. When
-    // clip_end ≈ orig[-1] (region outPoint == last anchor), no extra point is
-    // needed and we avoid mirroring the head bug at the far end.
-    let (last_orig, last_beat) = *control_points.last().unwrap();
-    if clip_end > last_orig + 1e-6 {
-        let tail_out = last_beat + (clip_end - last_orig);
-        control_points.push((clip_end, tail_out));
-    }
-
-    control_points
-}
-
-/// Build the PCHIP-smoothed time map from raw anchor arrays and clip bounds.
-/// Returns densified `(orig_time, output_time)` control points ready for segmenting.
-pub fn build_smooth_time_map(
-    orig_times: &[f64],
-    beat_times: &[f64],
-    clip_start: f64,
-    clip_end: f64,
-) -> Vec<(f64, f64)> {
-    let linear = direct_time_map(orig_times, beat_times, clip_start, clip_end);
-    smooth_time_map(&linear, 0.5)
-}
-
-// ── Video Duration ───────────────────────────────────────────────────────────
-
-pub fn get_video_duration(path: &str) -> Result<f64, String> {
-    let info = ffprobe_json(path)?;
-    info["format"]["duration"]
-        .as_str()
-        .and_then(|s| s.parse::<f64>().ok())
-        .ok_or_else(|| "ffprobe: missing duration".to_string())
-}
-
-// ── Remap Video ─────────────────────────────────────────────────────────────
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum InterpMethod {
-    /// ffmpeg minterpolate=mi_mode=blend, applied per segment during the warp pass.
-    #[default]
-    Minterpolate,
-    /// RIFE neural interpolation via the rife-ncnn-vulkan binary, applied as a
-    /// single post-concat pass. See rife.rs.
-    Rife,
-}
-
-impl InterpMethod {
-    /// Parse a frontend string ("minterpolate" | "rife" | None). Unknown → default.
-    pub fn from_str(s: Option<&str>) -> Self {
-        match s.map(|v| v.to_ascii_lowercase()).as_deref() {
-            Some("rife") => Self::Rife,
-            _ => Self::Minterpolate,
-        }
-    }
-}
-
-pub struct WarpOptions {
-    pub orig_times: Vec<f64>,
-    pub beat_times: Vec<f64>,
-    pub bpm: f64,
-    pub beat_zero_time: f64,
-    pub add_to_end: bool,
-    pub trim_to_loop: bool,
-    pub loop_beats: Option<u32>,
-    pub normalize_bpm: bool,
-    pub fade_at_loop: bool,
-    /// Start of clip in source video (seconds). None = 0.0
-    pub clip_in: Option<f64>,
-    /// End of clip in source video (seconds). None = video duration
-    pub clip_out: Option<f64>,
-    /// When set, each segment is encoded at this constant fps with blend interpolation,
-    /// or fed through RIFE post-concat (see `interp_method`).
-    pub interp_fps: Option<u32>,
-    /// Which interpolation algorithm to use when `interp_fps` is Some.
-    pub interp_method: InterpMethod,
-    /// When true, skip PCHIP smoothing and use the raw piecewise-linear time map.
-    /// Useful for debugging RIFE pair artefacts caused by near-flat densified regions.
-    pub no_smooth: bool,
-}
-
-/// Main time-warp pipeline. Ported from frames2/backend/processor.py::remap_video
+/// Main time-warp entry point. Builds the time map, renders & concatenates
+/// retimed segments, optionally swaps the video for warp-aware RIFE output,
+/// then applies post-processing. Each stage lives in its own module under
+/// `crate::pipeline` so it can be tested and validated independently.
 pub fn remap_video<F>(
     input_path: &str,
     opts: &WarpOptions,
@@ -202,322 +99,69 @@ pub fn remap_video<F>(
 where
     F: Fn(f64, &str) + Send,
 {
-    let duration = get_video_duration(input_path)?;
-
+    // ── Stage 1: Time map ──
+    let duration = video_duration(input_path)?;
     let clip_start = opts.clip_in.unwrap_or(0.0).max(0.0);
     let clip_end = opts.clip_out.unwrap_or(duration).min(duration);
-    let linear_map = direct_time_map(&opts.orig_times, &opts.beat_times, clip_start, clip_end);
-    // Densify with PCHIP so speed transitions smoothly between anchor points
-    // rather than snapping to a new constant ratio at each boundary.
-    let time_map = if opts.no_smooth {
-        eprintln!("[warp] PCHIP smoothing disabled; using raw piecewise-linear time map");
-        linear_map
-    } else {
-        smooth_time_map(&linear_map, 0.5)
-    };
 
+    if opts.no_smooth {
+        eprintln!("[warp] PCHIP smoothing disabled; using raw piecewise-linear time map");
+    }
+    let time_map = build_time_map(
+        &opts.orig_times,
+        &opts.beat_times,
+        clip_start,
+        clip_end,
+        !opts.no_smooth,
+    );
+
+    // ── Stage 2: Segments ──
     let tmp_dir = TempDir::new().map_err(|e| e.to_string())?;
     let tmp_path = tmp_dir.path();
 
-    progress(0.02, "Building segments...");
+    let plans = plan_segments(&time_map);
+    let segment_files = encode_segments(
+        input_path,
+        &plans,
+        opts.interp_fps,
+        opts.interp_method,
+        tmp_path,
+        progress,
+    )?;
 
-    let n_segs = time_map.len().saturating_sub(1);
-    let mut segment_files: Vec<PathBuf> = Vec::new();
+    // ── Stage 3: Concat ──
+    concat_segments(&segment_files, tmp_path, output_path, progress)?;
 
-    for i in 0..n_segs {
-        let (in_start, _) = time_map[i];
-        let (in_end, _) = time_map[i + 1];
-        let (_, out_start) = time_map[i];
-        let (_, out_end) = time_map[i + 1];
-
-        let seg_in_dur = in_end - in_start;
-        let seg_out_dur = out_end - out_start;
-
-        if seg_in_dur <= 0.001 || seg_out_dur <= 0.001 {
-            continue;
-        }
-       
-        // Dont hard code these
-        let ratio = (seg_out_dur / seg_in_dur).max(0.5).min(2.0);
-
-        let seg_out = tmp_path.join(format!("seg_{i:04}.mp4"));
-        let seg_out_str = seg_out.to_string_lossy().to_string();
-
-        let atempo = atempo_chain(1.0 / ratio);
-        // minterpolate is applied per-segment (cheap filter). RIFE is deferred
-        // to a single post-concat pass (expensive, needs frame extraction).
-        let inline_interp = opts.interp_fps.filter(|_| opts.interp_method == InterpMethod::Minterpolate);
-        let vf = match inline_interp {
-            Some(fps) => format!("setpts={ratio:.6}*PTS,minterpolate=fps={fps}:mi_mode=blend"),
-            None      => format!("setpts={ratio:.6}*PTS"),
-        };
-        let ss = format!("{in_start}");
-        let t = format!("{seg_in_dur}");
-        let fps_args: Vec<&str> = match inline_interp {
-            Some(_) => vec!["-vsync", "cfr"],
-            None    => vec![],
-        };
-
-        // Try with audio first
-        let mut args = vec![
-            "-y", "-hide_banner", "-loglevel", "error",
-            "-ss", &ss, "-t", &t, "-i", input_path,
-            "-vf", &vf,
-            "-af", &atempo,
-            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-            "-c:a", "aac", "-b:a", "192k",
-            "-avoid_negative_ts", "make_zero",
-        ];
-        args.extend_from_slice(&fps_args);
-        args.push(&seg_out_str);
-
-        let result = run_ffmpeg(&args);
-
-        if result.is_err() {
-            // Fallback: no audio
-            let mut args_na = vec![
-                "-y", "-hide_banner", "-loglevel", "error",
-                "-ss", &ss, "-t", &t, "-i", input_path,
-                "-vf", &vf,
-                "-an",
-                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-                "-avoid_negative_ts", "make_zero",
-            ];
-            args_na.extend_from_slice(&fps_args);
-            args_na.push(&seg_out_str);
-            run_ffmpeg(&args_na)
-                .map_err(|e| format!("Segment {i} failed: {e}"))?;
-        }
-
-        if seg_out.exists() {
-            segment_files.push(seg_out);
-        }
-
-        progress(
-            0.02 + 0.78 * (i + 1) as f64 / n_segs as f64,
-            &format!("Segment {}/{}", i + 1, n_segs),
-        );
-    }
-
-    if segment_files.is_empty() {
-        return Err("No segments were created".to_string());
-    }
-
-    // Build concat list — forward slashes required on Windows too
-    let concat_path = tmp_path.join("concat.txt");
-    let concat_content: String = segment_files
-        .iter()
-        .map(|p| format!("file '{}'\n", p.to_string_lossy().replace('\\', "/")))
-        .collect();
-    std::fs::write(&concat_path, &concat_content).map_err(|e| e.to_string())?;
-
-    progress(0.82, "Concatenating segments...");
-
-    let concat_str = concat_path.to_string_lossy().to_string();
-
-    let concat_result = run_ffmpeg(&[
-        "-y", "-hide_banner", "-loglevel", "error",
-        "-f", "concat", "-safe", "0",
-        "-i", &concat_str,
-        "-c", "copy",
-        output_path,
-    ]);
-
-    if concat_result.is_err() {
-        // Re-encode fallback
-        run_ffmpeg(&[
-            "-y", "-hide_banner", "-loglevel", "error",
-            "-f", "concat", "-safe", "0",
-            "-i", &concat_str,
-            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-            "-c:a", "aac",
-            output_path,
-        ])
-        .map_err(|_| "FFmpeg concat failed".to_string())?;
-    }
-
-    // Warp-aware RIFE: sample source frames directly at output-time positions
-    // via the time_map, bypassing the retimed concat video entirely. The
-    // existing concat output still provides the retimed audio, which we mux in.
+    // ── Stage 4 (optional): warp-aware RIFE, replacing the video track ──
     if let (Some(fps), InterpMethod::Rife) = (opts.interp_fps, opts.interp_method) {
-        progress(0.83, "Running warp-aware RIFE...");
-        let rife_silent = tmp_path.join("rife_silent.mp4").to_string_lossy().into_owned();
-        crate::rife::interpolate_rife_warped(input_path, &time_map, fps, &rife_silent, progress)?;
-
-        let muxed = tmp_path.join("rife_muxed.mp4").to_string_lossy().into_owned();
-        let mux_res = run_ffmpeg(&[
-            "-y", "-hide_banner", "-loglevel", "error",
-            "-i", &rife_silent,
-            "-i", output_path,
-            "-map", "0:v:0",
-            "-map", "1:a:0?",
-            "-c:v", "copy",
-            "-c:a", "aac", "-b:a", "192k",
-            "-shortest",
-            &muxed,
-        ]);
-        if mux_res.is_err() {
-            // No audio in concat output — just use the silent rife video.
-            std::fs::copy(&rife_silent, &muxed).map_err(|e| e.to_string())?;
-        }
-        std::fs::rename(&muxed, output_path).map_err(|e| e.to_string())?;
+        apply_warp_aware_rife(input_path, &time_map, fps, output_path, tmp_path, progress)?;
     }
 
-    progress(0.88, "Post-processing...");
-
-    let beat_interval = 60.0 / opts.bpm;
-
-    // Determine first beat time from first beat anchor
+    // ── Stage 5: Post-processing ──
     let first_beat_time = opts.beat_times.iter().copied().reduce(f64::min).unwrap_or(0.0);
-    let beat_zero = opts.beat_zero_time;
-
-    if let Some(loop_beats) = opts.loop_beats {
-        if loop_beats > 0 && opts.add_to_end && beat_zero > first_beat_time + 0.01 {
-            let loop_duration = loop_beats as f64 * beat_interval;
-            let pre_beat_dur = beat_zero - first_beat_time;
-
-            // Trim to [first_beat_time, first_beat_time + loop_duration]
-            let trimmed = format!("{output_path}.trim.mp4");
-            run_ffmpeg(&[
-                "-y", "-hide_banner", "-loglevel", "error",
-                "-ss", &format!("{first_beat_time}"),
-                "-t", &format!("{loop_duration}"),
-                "-i", output_path,
-                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-                "-c:a", "aac", "-b:a", "192k",
-                &trimmed,
-            ])?;
-            std::fs::rename(&trimmed, output_path).map_err(|e| e.to_string())?;
-
-            // Rearrange: [beat_zero→end] + [first_beat→beat_zero]
-            let adjusted_zero = beat_zero - first_beat_time;
-            rearrange_loop(output_path, adjusted_zero, pre_beat_dur, tmp_path)?;
-        } else if loop_beats > 0 {
-            let loop_duration = loop_beats as f64 * beat_interval;
-            let trimmed = format!("{output_path}.loop.mp4");
-            // Re-encode (not stream-copy) so FFmpeg decodes accurately to beat_zero
-            // and makes it keyframe 0.  Stream-copy would fast-seek to the nearest
-            // keyframe *before* beat_zero and dump those pre-beat frames with PTS=0.
-            run_ffmpeg(&[
-                "-y", "-hide_banner", "-loglevel", "error",
-                "-ss", &format!("{beat_zero}"),
-                "-t", &format!("{loop_duration}"),
-                "-i", output_path,
-                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-                "-c:a", "aac", "-b:a", "192k",
-                "-avoid_negative_ts", "make_zero",
-                &trimmed,
-            ])?;
-            if std::path::Path::new(&trimmed).exists() {
-                std::fs::rename(&trimmed, output_path).map_err(|e| e.to_string())?;
-            }
-        }
-    } else if opts.add_to_end && beat_zero > first_beat_time + 0.01 {
-        let pre_beat_dur = beat_zero - first_beat_time;
-        rearrange_loop(output_path, beat_zero, pre_beat_dur, tmp_path)?;
-    } else if opts.trim_to_loop {
-        // Trim to last complete beat from beat_zero
-        let out_dur = get_video_duration(output_path)?;
-        let beats_in = ((out_dur - beat_zero) / beat_interval).floor() as u32;
-        if beats_in > 0 {
-            let trim_end = beat_zero + beats_in as f64 * beat_interval;
-            let trimmed = format!("{output_path}.trim.mp4");
-            let r = run_ffmpeg(&[
-                "-y", "-hide_banner", "-loglevel", "error",
-                "-ss", &format!("{beat_zero}"),
-                "-to", &format!("{trim_end}"),
-                "-i", output_path,
-                "-c", "copy",
-                &trimmed,
-            ]);
-            if r.is_err() {
-                run_ffmpeg(&[
-                    "-y", "-hide_banner", "-loglevel", "error",
-                    "-ss", &format!("{beat_zero}"),
-                    "-to", &format!("{trim_end}"),
-                    "-i", output_path,
-                    "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-                    "-c:a", "aac",
-                    &trimmed,
-                ])?;
-            }
-            if std::path::Path::new(&trimmed).exists() {
-                std::fs::rename(&trimmed, output_path).map_err(|e| e.to_string())?;
-            }
-        }
-    }
-
-    if opts.normalize_bpm && (opts.bpm - 120.0).abs() > 0.01 {
-        let speed = 120.0 / opts.bpm;
-        let normed = format!("{output_path}.norm.mp4");
-        let atempo = atempo_chain(speed);
-        run_ffmpeg(&[
-            "-y", "-hide_banner", "-loglevel", "error",
-            "-i", output_path,
-            "-vf", &format!("setpts=PTS/{speed:.6}"),
-            "-af", &atempo,
-            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-            "-c:a", "aac", "-b:a", "192k",
-            &normed,
-        ])?;
-        std::fs::rename(&normed, output_path).map_err(|e| e.to_string())?;
-    }
+    apply_post_processing(
+        output_path,
+        PostOptions {
+            bpm: opts.bpm,
+            beat_zero_time: opts.beat_zero_time,
+            first_beat_time,
+            add_to_end: opts.add_to_end,
+            trim_to_loop: opts.trim_to_loop,
+            loop_beats: opts.loop_beats,
+            normalize_bpm: opts.normalize_bpm,
+        },
+        tmp_path,
+        progress,
+    )?;
 
     progress(1.0, "Done");
     Ok(())
 }
 
-/// Split output at beat_zero_time, rearrange to: [beat_zero→end] + [0→beat_zero]
-fn rearrange_loop(
-    output_path: &str,
-    beat_zero_time: f64,
-    pre_beat_dur: f64,
-    tmp_path: &std::path::Path,
-) -> Result<(), String> {
-    if pre_beat_dur <= 0.01 {
-        return Ok(());
-    }
-
-    let part_b = tmp_path.join("loop_b.mp4").to_string_lossy().to_string();
-    let part_a = tmp_path.join("loop_a.mp4").to_string_lossy().to_string();
-    let enc = &["-c:v", "libx264", "-preset", "fast", "-crf", "23", "-c:a", "aac", "-b:a", "192k"];
-
-    run_ffmpeg(&[
-        &["-y", "-hide_banner", "-loglevel", "error",
-          "-ss", &format!("{beat_zero_time}"), "-i", output_path],
-        enc.as_slice(),
-        &[&part_b],
-    ].concat())?;
-
-    run_ffmpeg(&[
-        &["-y", "-hide_banner", "-loglevel", "error",
-          "-ss", "0", "-t", &format!("{pre_beat_dur}"), "-i", output_path],
-        enc.as_slice(),
-        &["-t", &format!("{pre_beat_dur}"), &part_a],
-    ].concat())?;
-
-    let rearranged = format!("{output_path}.loop.mp4");
-    run_ffmpeg(&[
-        "-y", "-hide_banner", "-loglevel", "error",
-        "-i", &part_b, "-i", &part_a,
-        "-filter_complex", "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]",
-        "-map", "[v]", "-map", "[a]",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-        "-c:a", "aac", "-b:a", "192k",
-        &rearranged,
-    ])?;
-
-    if std::path::Path::new(&rearranged).exists() {
-        std::fs::rename(&rearranged, output_path).map_err(|e| e.to_string())?;
-    }
-
-    Ok(())
-}
-
-// ── Frame Interpolation ──────────────────────────────────────────────────────
+// ── Constant-fps interpolation (legacy, not part of the warp pipeline) ──────
 
 /// Re-encode `input_path` at a constant `fps` using blend-mode frame interpolation.
-/// Frames that don't align with a source frame are blended from the two nearest ones.
+/// Frames that don't align with a source frame are blended from the two nearest.
 pub fn interpolate_video<F>(
     input_path: &str,
     fps: u32,
