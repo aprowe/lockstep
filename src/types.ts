@@ -95,4 +95,9 @@ export interface SavedVideoState {
     addToEnd?: boolean
   }
   regions: Region[]
+  /** Cached scene detection output — keyed to the threshold it was computed at. */
+  scenes?: {
+    threshold: number
+    cuts: number[]
+  }
 }

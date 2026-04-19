@@ -7,6 +7,7 @@ import { checkVideoSidecar, deleteVideoSidecar, openJsonFile as openJsonFileApi,
 import { setVideo, clearVideo, setFolderVideos, setMarkerCount, setMarkersLoaded, setDetectingBpm } from '../slices/videoSlice'
 import { loadAnchors, clearAnchors, setBpm, setMinStretch, setMaxStretch, setLoopBeats, setTrimToLoop, setAddToEnd, setGlobalMarkers, setPlayhead, bumpAnchorIdCounter } from '../slices/warpSlice'
 import { setRegions, setActiveRegionId } from '../slices/regionSlice'
+import { loadCached as loadCachedScenes } from '../slices/sceneSlice'
 import { resetHistory, pushSnapshot } from '../slices/historySlice'
 import type { HistoryEntry } from '../slices/historySlice'
 import { setView } from '../slices/uiSlice'
@@ -243,6 +244,15 @@ function applyLoadedState(dispatch: any, state: SavedVideoState | null, videoPat
   dispatch(setRegions(loadedRegions))
   dispatch(setActiveRegionId(null))
   dispatch(setMarkersLoaded(true))
+
+  // Restore cached scene cuts so we don't have to re-run ffmpeg scdet.
+  if (state?.scenes && Array.isArray(state.scenes.cuts)) {
+    dispatch(loadCachedScenes({
+      path: videoPath,
+      cuts: state.scenes.cuts,
+      threshold: state.scenes.threshold,
+    }))
+  }
 
   // Set history: pre-load state as base so undo can revert the load,
   // then push the loaded state on top as the current entry

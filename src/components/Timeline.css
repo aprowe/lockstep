@@ -306,17 +306,17 @@
 
 /* Bottom (flip) timeline: brighter beat grid */
 .timeline--flip .beat-line {
-  background: rgba(var(--beat-rgb), 0.6);
+  background: rgba(var(--beat-rgb), 0.48);
   width: 1px;
 }
 
 .timeline--flip .measure-line {
-  background: rgba(var(--beat-rgb), 1);
+  background: rgba(var(--beat-rgb), 0.82);
   width: 2px;
 }
 
 .timeline--flip .sub-beat-line {
-  background: rgba(var(--beat-rgb), 0.35);
+  background: rgba(var(--beat-rgb), 0.28);
 }
 
 .beat-dimmed {

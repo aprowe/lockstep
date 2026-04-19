@@ -22,16 +22,25 @@
   justify-content: center;
   gap: 2px;
   transform: translateX(-50%);
-  pointer-events: none;
 }
 
 .scene-row__diamond {
   width: 9px;
   height: 9px;
+  padding: 0;
   transform: rotate(45deg);
   background: hsl(48, 95%, 62%);
   border: 1px solid hsl(40, 90%, 45%);
   flex-shrink: 0;
+  cursor: pointer;
+  transition: background 0.08s, box-shadow 0.08s, transform 0.08s;
+}
+.scene-row__diamond:hover {
+  background: hsl(48, 100%, 72%);
+  box-shadow: 0 0 4px hsla(48, 95%, 62%, 0.8);
+}
+.scene-row__diamond:active {
+  transform: rotate(45deg) scale(0.9);
 }
 
 .scene-row__label {

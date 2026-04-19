@@ -31,6 +31,12 @@
   flex-shrink: 0;
 }
 
+.export-dialog__header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
 .export-dialog__title {
   font-size: calc(15px * var(--ui-scale));
   font-weight: 700;

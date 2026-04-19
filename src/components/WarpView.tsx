@@ -9,7 +9,7 @@ import {
   buildSegments,
   snapAllToBeat,
 } from '../utils/quantize'
-import { clampView, initialView, calcNewRegionBounds } from '../utils/view'
+import { clampView, initialView, calcNewRegionBoundsFromScenes } from '../utils/view'
 import type { Anchor, View } from '../types'
 import type { ClipOverlay } from './Timeline'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
@@ -52,6 +52,8 @@ interface WarpViewProps {
   onClipOverlayMove?: (id: string, inPoint: number, outPoint: number) => void
   onClipOverlayContextMenu?: (id: string, x: number, y: number) => void
   onClipOverlayZoom?: (id: string) => void
+  /** Detected scene cut times in input (orig) seconds. */
+  scenes?: number[]
 }
 
 export default function WarpView({
@@ -64,6 +66,7 @@ export default function WarpView({
   onClipOverlayMove,
   onClipOverlayContextMenu,
   onClipOverlayZoom,
+  scenes: scenesProp,
 }: WarpViewProps) {
   const dispatch = useAppDispatch()
 
@@ -147,12 +150,7 @@ export default function WarpView({
 
   const maxDuration = Math.max(duration, outputDuration)
 
-  // Placeholder scene changes — evenly spaced until scene detection is wired up.
-  const scenes = useMemo(() => {
-    if (duration <= 0) return []
-    const n = 5
-    return Array.from({ length: n }, (_, i) => ((i + 1) / (n + 1)) * duration)
-  }, [duration])
+  const scenes = useMemo(() => scenesProp ?? [], [scenesProp])
 
   // ── Segments (with synthetic clip boundary anchors) ────────────────────────
   const { segments, segmentAnchors } = useMemo(() => {
@@ -550,14 +548,14 @@ export default function WarpView({
           {
             label: 'New region here',
             action: () => {
-              const { inPoint, outPoint } = calcNewRegionBounds(time, reduxView.end - reduxView.start, duration)
+              const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(time, reduxView, scenes, duration)
               onClipOverlayCreate(inPoint, outPoint)
             },
           },
         ] : []),
       ],
     })
-  }, [duration, clipIn, clipOut, origAnchors, onClipOverlayCreate, beat, dispatch])
+  }, [duration, clipIn, clipOut, origAnchors, onClipOverlayCreate, beat, dispatch, reduxView, scenes])
 
   // ── Render ────────────────────────────────────────────────────────────────
   const warpCursor = panning
@@ -606,7 +604,7 @@ export default function WarpView({
         dimmedAnchorIds={dimmedAnchorIds}
         minimapRegions={clipOverlays}
         belowRulerContent={
-          <SceneRow scenes={scenes} view={view} duration={duration} expanded={scenesExpanded} />
+          <SceneRow scenes={scenes} view={view} duration={duration} expanded={scenesExpanded} onSceneClick={onSeek} />
         }
         throughlines={scenes}
         snapTargets={scenes}

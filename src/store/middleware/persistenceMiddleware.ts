@@ -35,6 +35,7 @@ import {
   updateRegionBpm,
   updateRegionStretch,
 } from '../slices/regionSlice'
+import { setCuts as setScenes } from '../slices/sceneSlice'
 
 export const persistenceMiddleware = createListenerMiddleware()
 
@@ -51,6 +52,8 @@ const shouldSave = isAnyOf(
   setRegions, addRegion, deleteRegion,
   updateRegionInOut, updateRegionBeatTimes, updateRegionLock,
   renameRegion, updateRegionBpm, updateRegionStretch,
+  // Scene detection results
+  setScenes,
 )
 
 persistenceMiddleware.startListening({
@@ -77,6 +80,9 @@ persistenceMiddleware.startListening({
       if (z) beatZeroTime = z.time
     }
 
+    const cuts = state.scene.cutsByPath[vid.path]
+    const threshold = state.scene.thresholdByPath[vid.path]
+
     const savedState: SavedVideoState = {
       version: 2,
       defaultRegion: {
@@ -91,6 +97,9 @@ persistenceMiddleware.startListening({
         addToEnd: warp.addToEnd,
       },
       regions: state.region.regions,
+      ...(cuts && typeof threshold === 'number'
+        ? { scenes: { threshold, cuts } }
+        : {}),
     }
 
     // Save to internal hash-based storage

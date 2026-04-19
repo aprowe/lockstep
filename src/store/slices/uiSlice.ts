@@ -1,6 +1,18 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { View } from '../../types'
 
+export type ExportStatus = 'idle' | 'processing' | 'done' | 'error'
+
+export interface ExportProgressState {
+  status: ExportStatus
+  progress: number
+  label: string
+  jobIdx: number
+  totalJobs: number
+  message: string
+  error: string | null
+}
+
 interface UiState {
   timelineHeight: number
   sidebarWidth: number
@@ -15,6 +27,19 @@ interface UiState {
   view: View
   /** Last-used export folder (persists across dialog open/close) */
   lastExportFolder: string | null
+  /** Export progress — survives dialog close so the background export can be
+   *  monitored from the top-right progress bar. */
+  exportProgress: ExportProgressState
+}
+
+const initialExportProgress: ExportProgressState = {
+  status: 'idle',
+  progress: 0,
+  label: '',
+  jobIdx: 0,
+  totalJobs: 0,
+  message: '',
+  error: null,
 }
 
 const initialState: UiState = {
@@ -28,6 +53,7 @@ const initialState: UiState = {
   exportOpen: false,
   view: { start: 0, end: 60 },
   lastExportFolder: null,
+  exportProgress: initialExportProgress,
 }
 
 const uiSlice = createSlice({
@@ -64,6 +90,12 @@ const uiSlice = createSlice({
     setLastExportFolder(state, action: PayloadAction<string | null>) {
       state.lastExportFolder = action.payload
     },
+    setExportProgress(state, action: PayloadAction<Partial<ExportProgressState>>) {
+      state.exportProgress = { ...state.exportProgress, ...action.payload }
+    },
+    resetExportProgress(state) {
+      state.exportProgress = { ...initialExportProgress }
+    },
   },
 })
 
@@ -78,6 +110,8 @@ export const {
   setExportOpen,
   setView,
   setLastExportFolder,
+  setExportProgress,
+  resetExportProgress,
 } = uiSlice.actions
 
 export default uiSlice.reducer

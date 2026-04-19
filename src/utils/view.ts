@@ -60,6 +60,56 @@ export function calcNewRegionBounds(
   }
 }
 
+/**
+ * Given scene cuts + the video endpoints, find the two scene boundaries
+ * that bracket `cursor`. Returns `null` if no sensible pair exists.
+ */
+export function findSurroundingScenes(
+  cursor: number,
+  cuts: number[],
+  videoDuration: number,
+): { prev: number; next: number } | null {
+  if (videoDuration <= 0) return null
+  const sorted = [...cuts].filter(c => c > 0 && c < videoDuration).sort((a, b) => a - b)
+  const boundaries = [0, ...sorted, videoDuration]
+  for (let i = 0; i < boundaries.length - 1; i++) {
+    const lo = boundaries[i], hi = boundaries[i + 1]
+    if (cursor >= lo && cursor <= hi && hi > lo) {
+      return { prev: lo, next: hi }
+    }
+  }
+  return null
+}
+
+/**
+ * Compute region bounds from scene cuts when the next scene is inside the
+ * visible view; otherwise fall back to {@link calcNewRegionBounds}.
+ * Also falls back when the resulting span would be essentially zero.
+ */
+export function calcNewRegionBoundsFromScenes(
+  cursor: number,
+  view: View,
+  cuts: number[],
+  videoDuration: number,
+): { inPoint: number; outPoint: number } {
+  const viewSpan = view.end - view.start
+  const fallback = () => calcNewRegionBounds(cursor, viewSpan, videoDuration)
+  const surrounding = findSurroundingScenes(cursor, cuts, videoDuration)
+  if (!surrounding) return fallback()
+  // Per spec: retain current behavior when the end isn't in view.
+  if (surrounding.next > view.end || surrounding.next < view.start) return fallback()
+  if (surrounding.next - surrounding.prev < MIN_VISIBLE) return fallback()
+  return { inPoint: surrounding.prev, outPoint: surrounding.next }
+}
+
+/** Center `view` on `time` if `time` falls outside it; returns unchanged view otherwise. */
+export function ensureTimeInView(view: View, time: number, videoDuration: number): View {
+  if (time >= view.start && time <= view.end) return view
+  const span = view.end - view.start
+  const ns = time - span / 2
+  return clampView(ns, ns + span, videoDuration)
+}
+
 const ZOOM_EPS = 0.001
 
 /** Return true when `view` is already fitted to `[regionIn, regionOut]`. */

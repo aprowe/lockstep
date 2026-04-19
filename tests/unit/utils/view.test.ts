@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { clampView, timeToViewPct, beatGridOpacity, initialView, MIN_VISIBLE } from '../../../src/utils/view'
+import {
+  clampView,
+  timeToViewPct,
+  beatGridOpacity,
+  initialView,
+  MIN_VISIBLE,
+  findSurroundingScenes,
+  calcNewRegionBoundsFromScenes,
+  ensureTimeInView,
+} from '../../../src/utils/view'
 import type { View } from '../../../src/types'
 
 describe('clampView', () => {
@@ -89,5 +98,83 @@ describe('initialView', () => {
     const v = initialView(300, 120)
     expect(v.start).toBe(0)
     expect(v.end).toBeCloseTo(12)
+  })
+})
+
+describe('findSurroundingScenes', () => {
+  it('brackets cursor between two cuts', () => {
+    expect(findSurroundingScenes(7, [3, 10, 18], 20)).toEqual({ prev: 3, next: 10 })
+  })
+
+  it('uses 0 as the prev boundary when cursor is before the first cut', () => {
+    expect(findSurroundingScenes(1, [5, 10], 20)).toEqual({ prev: 0, next: 5 })
+  })
+
+  it('uses duration as the next boundary when cursor is past the last cut', () => {
+    expect(findSurroundingScenes(15, [5, 10], 20)).toEqual({ prev: 10, next: 20 })
+  })
+
+  it('returns null for zero-duration videos', () => {
+    expect(findSurroundingScenes(0, [], 0)).toBeNull()
+  })
+
+  it('ignores cuts at or outside the video bounds', () => {
+    expect(findSurroundingScenes(5, [-1, 0, 15, 20, 25], 20)).toEqual({ prev: 0, next: 15 })
+  })
+})
+
+describe('calcNewRegionBoundsFromScenes', () => {
+  const view: View = { start: 0, end: 20 }
+
+  it('returns prev/next scene bounds when both are in view', () => {
+    expect(calcNewRegionBoundsFromScenes(7, view, [3, 10, 18], 30))
+      .toEqual({ inPoint: 3, outPoint: 10 })
+  })
+
+  it('falls back to calcNewRegionBounds when the next scene is past view.end', () => {
+    const narrow: View = { start: 0, end: 8 }
+    const result = calcNewRegionBoundsFromScenes(7, narrow, [3, 10, 18], 30)
+    // Fallback: inPoint = cursor, span = max(viewSpan*0.1, 5)
+    expect(result.inPoint).toBe(7)
+    expect(result.outPoint).toBeCloseTo(12)
+  })
+
+  it('falls back when there are no scene cuts', () => {
+    const result = calcNewRegionBoundsFromScenes(5, view, [], 30)
+    expect(result.inPoint).toBe(5)
+    expect(result.outPoint).toBeCloseTo(10)
+  })
+
+  it('falls back when surrounding scenes are too close together', () => {
+    // Cuts at 6.9 and 7.1 — span 0.2 < MIN_VISIBLE
+    const result = calcNewRegionBoundsFromScenes(7, view, [6.9, 7.1], 30)
+    expect(result.inPoint).toBe(7)
+  })
+})
+
+describe('ensureTimeInView', () => {
+  it('returns the same view when time is inside', () => {
+    const v: View = { start: 10, end: 20 }
+    expect(ensureTimeInView(v, 15, 60)).toBe(v)
+  })
+
+  it('centers view on time when time is left of view', () => {
+    const v: View = { start: 30, end: 40 }
+    const next = ensureTimeInView(v, 20, 60)
+    expect(next.end - next.start).toBeCloseTo(10)
+    expect((next.start + next.end) / 2).toBeCloseTo(20)
+  })
+
+  it('centers view on time when time is right of view', () => {
+    const v: View = { start: 0, end: 10 }
+    const next = ensureTimeInView(v, 40, 60)
+    expect(next.end - next.start).toBeCloseTo(10)
+    expect((next.start + next.end) / 2).toBeCloseTo(40)
+  })
+
+  it('clamps to video bounds when time is near the start', () => {
+    const v: View = { start: 30, end: 40 }
+    const next = ensureTimeInView(v, 2, 60)
+    expect(next.start).toBe(0)
   })
 })

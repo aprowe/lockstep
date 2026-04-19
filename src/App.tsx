@@ -3,12 +3,14 @@ import VideoPlayer from './components/VideoPlayer'
 import type { VideoPlayerHandle } from './components/VideoPlayer'
 import WarpView from './components/WarpView'
 import MarkerList from './components/MarkerList'
+import SceneList from './components/SceneList'
+import ExportProgressBar from './components/ExportProgressBar'
 import ExportDialog from './components/ExportDialog'
 import Toolbar from './components/Toolbar'
 import MenuBar from './components/MenuBar'
 import type { MenuDef } from './components/MenuBar'
 import { buildFileMenu, buildEditMenu, buildViewMenu } from './menus'
-import { calcZoomToRegion } from './utils/view'
+import { calcZoomToRegion, calcNewRegionBoundsFromScenes, ensureTimeInView } from './utils/view'
 import type { View } from './types'
 import VideoFolderSidebar from './components/VideoFolderSidebar'
 import RegionSidebar from './components/RegionSidebar'
@@ -16,7 +18,6 @@ import RegionInfoPanel from './components/RegionInfoPanel'
 import ContextMenu from './components/ContextMenu'
 import type { ContextMenuState } from './components/ContextMenu'
 import { snapAllToBeat } from './utils/quantize'
-import { calcNewRegionBounds } from './utils/view'
 import { undo as undoAction, redo as redoAction } from './store/slices/historySlice'
 import {
   setRegions as setRegionsAction,
@@ -37,6 +38,7 @@ import {
   resetVideoDataThunk,
   openJsonFileThunk,
 } from './store/thunks/videoThunks'
+import { detectScenesThunk, ensureSceneListener } from './store/thunks/sceneThunks'
 import { useAppDispatch, useAppSelector } from './store/hooks'
 import { setDetectingBpm as setDetectingBpmAction } from './store/slices/videoSlice'
 import {
@@ -108,6 +110,12 @@ export default function App() {
   const loopBeats = useAppSelector(s => s.warp.loopBeats)
   const trimToLoop = useAppSelector(s => s.warp.trimToLoop)
   const addToEnd = useAppSelector(s => s.warp.addToEnd)
+  const videoPath = video?.path ?? null
+  const sceneCuts = useAppSelector(s => videoPath ? s.scene.cutsByPath[videoPath] : undefined)
+  const sceneStatus = useAppSelector(s => videoPath ? s.scene.statusByPath[videoPath] : undefined) ?? 'idle'
+  const sceneProgress = useAppSelector(s => videoPath ? s.scene.progressByPath[videoPath] : undefined) ?? 0
+  const sceneError = useAppSelector(s => videoPath ? s.scene.errorByPath[videoPath] : undefined)
+  const sceneThreshold = useAppSelector(s => videoPath ? s.scene.thresholdByPath[videoPath] : undefined) ?? 10
 
   // ── Dispatch helpers ────────────────────────────────────────────────────
   const openFile = () => dispatch(openFileThunk())
@@ -239,6 +247,16 @@ export default function App() {
 
     return () => { unlisten?.() }
   }, [selectVideo, loadFolderFromPath])
+
+  // ── Scene detection: register listener + auto-trigger on video load ──────
+
+  useEffect(() => { dispatch(ensureSceneListener()) }, [dispatch])
+
+  useEffect(() => {
+    if (!videoPath || !markersLoaded) return
+    if (sceneStatus === 'analyzing' || sceneStatus === 'done' || sceneStatus === 'error') return
+    dispatch(detectScenesThunk({ path: videoPath }))
+  }, [videoPath, sceneStatus, markersLoaded, dispatch])
 
   // ── Seek to region start when active region changes ──────────────────────
 
@@ -442,7 +460,7 @@ export default function App() {
                   }
                 }}
                 onAddRegion={() => {
-                  const { inPoint, outPoint } = calcNewRegionBounds(playhead, view.end - view.start, video.duration)
+                  const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(playhead, view, sceneCuts ?? [], video.duration)
                   addRegion(inPoint, outPoint)
                 }}
                 onDeleteRegion={deleteRegion}
@@ -563,7 +581,7 @@ export default function App() {
                 gridDiv={gridDiv}
                 onGridDivChange={setGridDiv}
                 onNewRegion={() => {
-                  const { inPoint, outPoint } = calcNewRegionBounds(playhead, view.end - view.start, video.duration)
+                  const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(playhead, view, sceneCuts ?? [], video.duration)
                   addRegion(inPoint, outPoint)
                 }}
                 onPrevRegion={regions.length > 1 ? () => {
@@ -591,6 +609,7 @@ export default function App() {
               <div className="vj-timeline" style={{ height: timelineHeight }}>
                 <WarpView
                   onSeek={t => playerRef.current?.seek(t)}
+                  scenes={sceneCuts}
                   onSendToNewRegion={(inPoint, outPoint) =>
                     addRegion(inPoint, outPoint)
                   }
@@ -645,9 +664,30 @@ export default function App() {
               onPointerMove={handleRightResizerMove}
               onPointerUp={handleRightResizerUp}
             />
-            {/* Right column: empty top area + markers panel aligned with timeline */}
+            {/* Right column: scene list on top + markers panel aligned with timeline */}
             <div style={{ width: rightWidth, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ flex: 1, minHeight: 0 }} />
+              <ExportProgressBar />
+              <div style={{ flex: 1, minHeight: 0 }}>
+                <SceneList
+                  cuts={sceneCuts ?? []}
+                  status={sceneStatus}
+                  progress={sceneProgress}
+                  error={sceneError}
+                  threshold={sceneThreshold}
+                  duration={video.duration}
+                  regions={regions}
+                  view={view}
+                  onSeek={t => {
+                    playerRef.current?.seek(t)
+                    const currentView = store.getState().ui.view
+                    const nextView = ensureTimeInView(currentView, t, video.duration)
+                    if (nextView !== currentView) dispatch(setViewAction(nextView))
+                  }}
+                  onRecompute={(t) => {
+                    if (videoPath) dispatch(detectScenesThunk({ path: videoPath, threshold: t }))
+                  }}
+                />
+              </div>
               {/* 5px spacer matching vj-resizer height */}
               <div style={{ height: 5, flexShrink: 0, background: '#1b1814' }} />
               <div style={{ height: timelineHeight, flexShrink: 0, overflow: 'hidden' }}>

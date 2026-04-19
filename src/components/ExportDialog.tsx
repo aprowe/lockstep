@@ -3,7 +3,7 @@ import type { WarpData, Region } from '../types'
 import { startWarp, listenWarpProgress, saveOutput, pickExportFolder, saveToFolder, writeTextFile, revealInFolder } from '../api/warp'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
-import { setLastExportFolder } from '../store/slices/uiSlice'
+import { setLastExportFolder, setExportProgress, resetExportProgress } from '../store/slices/uiSlice'
 import { buildWarpRequest } from '../utils/exportRequest'
 import './ExportDialog.css'
 
@@ -141,7 +141,9 @@ export default function ExportDialog({
   const baseName = originalName.replace(/\.[^.]+$/, '')  // stem of source video
 
   useEffect(() => {
-    if (open) {
+    // Do not reset if a background export is in progress — the user may be
+    // reopening the dialog to see its progress.
+    if (open && status !== 'processing') {
       setStatus('idle')
       setProgress(0)
       setError(null)
@@ -156,9 +158,30 @@ export default function ExportDialog({
       setSelectedRegionIds(new Set(regions.map(r => r.id)))
       setInterpFps(Math.round(videoFps ?? 60))
     }
-  }, [open, regions, videoFps])
+  }, [open, regions, videoFps]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => { unlistenRef.current?.() }, [])
+
+  // Mirror local processing state into Redux so the top-right progress bar can
+  // render it while this dialog is closed.
+  useEffect(() => {
+    reduxDispatch(setExportProgress({
+      status,
+      progress,
+      label: currentJobLabel,
+      jobIdx: currentJobIdx,
+      totalJobs,
+      message: currentMessage,
+      error,
+    }))
+  }, [status, progress, currentJobLabel, currentJobIdx, totalJobs, currentMessage, error, reduxDispatch])
+
+  // Clear redux progress once the user dismisses the dialog after a finished run.
+  useEffect(() => {
+    if (!open && (status === 'done' || status === 'error' || status === 'idle')) {
+      reduxDispatch(resetExportProgress())
+    }
+  }, [open, status, reduxDispatch])
 
   // Auto-scroll the log to the latest line as it grows.
   useEffect(() => {
@@ -380,12 +403,14 @@ export default function ExportDialog({
     }
   }
 
+  // Close hides the dialog but leaves any in-flight processing running in the
+  // background (progress is mirrored to Redux and shown in the top-right bar).
   const handleClose = () => {
-    if (status === 'processing') {
-      cancelRef.current = true
-      return
-    }
     onClose()
+  }
+
+  const handleCancel = () => {
+    cancelRef.current = true
   }
 
   const toggleRegion = (id: string) => {
@@ -397,8 +422,8 @@ export default function ExportDialog({
     })
   }
 
-  if (!open) return null
-
+  // Keep the dialog mounted so processing survives close. Hide via CSS when
+  // !open; this preserves local state (log lines, listener refs, cancelRef).
   const hasRegions = regions.length > 0
   const jobs = buildJobs()
   const previewName = jobs.length > 0 ? getFileName(jobs[0], 0) : ''
@@ -407,6 +432,7 @@ export default function ExportDialog({
     <div
       className="export-overlay"
       ref={overlayRef}
+      style={{ display: open ? undefined : 'none' }}
       onMouseDown={e => { mousedownOnOverlay.current = e.target === overlayRef.current }}
       onMouseUp={e => {
         if (mousedownOnOverlay.current && e.target === overlayRef.current) handleClose()
@@ -417,9 +443,20 @@ export default function ExportDialog({
 
         <div className="export-dialog__header">
           <span className="export-dialog__title">Export</span>
-          <button className="export-dialog__close" onClick={handleClose}>
-            {status === 'processing' ? 'Cancel' : '✕'}
-          </button>
+          <div className="export-dialog__header-actions">
+            {status === 'processing' && (
+              <button
+                className="export-dialog__close"
+                onClick={handleCancel}
+                title="Stop processing"
+              >
+                Cancel
+              </button>
+            )}
+            <button className="export-dialog__close" onClick={handleClose} title="Close">
+              ✕
+            </button>
+          </div>
         </div>
 
         <div className="export-dialog__body">

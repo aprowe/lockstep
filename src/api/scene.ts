@@ -1,0 +1,25 @@
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import type { UnlistenFn } from '@tauri-apps/api/event'
+
+export interface SceneDetectionProgressPayload {
+  job_id: string
+  path?: string
+  percent?: number
+  status: 'running' | 'done' | 'error'
+  cuts?: number[]
+  error?: string
+}
+
+export async function startSceneDetection(params: {
+  path: string
+  threshold?: number
+}): Promise<string> {
+  return invoke<string>('start_scene_detection', { req: params })
+}
+
+export async function listenSceneProgress(
+  cb: (payload: SceneDetectionProgressPayload) => void,
+): Promise<UnlistenFn> {
+  return listen<SceneDetectionProgressPayload>('scene-detection-progress', e => cb(e.payload))
+}

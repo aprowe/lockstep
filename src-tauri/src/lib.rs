@@ -1,10 +1,11 @@
 pub mod commands;
 mod diagnostic;
-mod ffmpeg;
+pub mod ffmpeg;
 pub mod pchip;
 pub mod pipeline;
 pub mod processor;
 pub mod rife;
+pub mod scene;
 mod storage;
 pub mod video;
 
@@ -29,6 +30,7 @@ pub fn run() {
             commands::delete_video_sidecar,
             commands::open_json_file,
             commands::read_json_sidecar_for_video,
+            commands::start_scene_detection,
             storage::save_video_state,
             storage::load_video_state,
             storage::list_saved_hashes,

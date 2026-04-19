@@ -1,6 +1,8 @@
 use tauri::{AppHandle, Emitter};
 
+use crate::ffmpeg::video_duration;
 use crate::processor::{estimate_bpm, remap_video, InterpMethod, WarpOptions};
+use crate::scene::{detect_cuts, DEFAULT_THRESHOLD};
 use crate::video::{get_video_info, VideoInfo};
 
 // ── Open Folder ───────────────────────────────────────────────────────────────
@@ -567,4 +569,93 @@ pub async fn read_json_sidecar_for_video(json_path: String) -> Result<JsonFileRe
     }
 
     Err(format!("No video file found for '{stem}' in the same folder"))
+}
+
+// ── Scene Detection ──────────────────────────────────────────────────────────
+
+#[derive(serde::Deserialize)]
+pub struct SceneDetectRequest {
+    pub path: String,
+    /// Optional scdet threshold. Higher = fewer, more confident cuts. Defaults to 10.
+    pub threshold: Option<f64>,
+}
+
+#[tauri::command]
+pub async fn start_scene_detection(
+    app: AppHandle,
+    req: SceneDetectRequest,
+) -> Result<String, String> {
+    let job_id = uuid::Uuid::new_v4().to_string();
+    let threshold = req.threshold.unwrap_or(DEFAULT_THRESHOLD);
+
+    let app_clone = app.clone();
+    let jid = job_id.clone();
+    let path = req.path.clone();
+
+    tokio::spawn(async move {
+        let app2 = app_clone.clone();
+        let jid2 = jid.clone();
+        let path_for_block = path.clone();
+
+        let result = tokio::task::spawn_blocking(move || {
+            let duration = video_duration(&path_for_block).ok();
+            let progress = {
+                let app = app2.clone();
+                let j = jid2.clone();
+                let p = path_for_block.clone();
+                move |fraction: f64| {
+                    let _ = app.emit(
+                        "scene-detection-progress",
+                        serde_json::json!({
+                            "job_id": &j,
+                            "path": &p,
+                            "percent": fraction,
+                            "status": "running"
+                        }),
+                    );
+                }
+            };
+            detect_cuts(&path_for_block, threshold, duration, progress)
+        })
+        .await;
+
+        match result {
+            Ok(Ok(cuts)) => {
+                let _ = app_clone.emit(
+                    "scene-detection-progress",
+                    serde_json::json!({
+                        "job_id": &jid,
+                        "path": &path,
+                        "percent": 1.0,
+                        "status": "done",
+                        "cuts": cuts,
+                    }),
+                );
+            }
+            Ok(Err(e)) => {
+                let _ = app_clone.emit(
+                    "scene-detection-progress",
+                    serde_json::json!({
+                        "job_id": &jid,
+                        "path": &path,
+                        "status": "error",
+                        "error": e,
+                    }),
+                );
+            }
+            Err(e) => {
+                let _ = app_clone.emit(
+                    "scene-detection-progress",
+                    serde_json::json!({
+                        "job_id": &jid,
+                        "path": &path,
+                        "status": "error",
+                        "error": e.to_string(),
+                    }),
+                );
+            }
+        }
+    });
+
+    Ok(job_id)
 }

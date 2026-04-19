@@ -9,7 +9,7 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 /// Resolve an ffmpeg/ffprobe binary: prefer a Tauri sidecar bundled next to the
 /// executable (Tauri names sidecars `<name>-<target-triple>[.exe]`), then fall
 /// back to whatever is on PATH.
-fn find_bin(name: &str) -> String {
+pub fn find_bin(name: &str) -> String {
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
             let mut candidates: Vec<String> = Vec::new();

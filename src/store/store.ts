@@ -4,6 +4,7 @@ import uiReducer from './slices/uiSlice'
 import warpReducer from './slices/warpSlice'
 import regionReducer from './slices/regionSlice'
 import historyReducer from './slices/historySlice'
+import sceneReducer from './slices/sceneSlice'
 import { persistenceMiddleware } from './middleware/persistenceMiddleware'
 import { historyMiddleware } from './middleware/historyMiddleware'
 
@@ -14,6 +15,7 @@ export const store = configureStore({
     warp: warpReducer,
     region: regionReducer,
     history: historyReducer,
+    scene: sceneReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware()
