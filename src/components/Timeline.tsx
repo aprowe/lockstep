@@ -450,6 +450,9 @@ export default function Timeline({
           }
         }
         if (playhead !== undefined) targets.push({ time: playhead, source: 'playhead' })
+        if (snapTargets) {
+          for (const t of snapTargets) targets.push({ time: t, source: 'scene' })
+        }
         if (opts.extraTargets) {
           for (const t of opts.extraTargets) targets.push({ time: t, source: 'custom' })
         }
