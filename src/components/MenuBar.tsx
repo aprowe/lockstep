@@ -48,6 +48,16 @@ export default function MenuBar({ menus, rightContent }: MenuBarProps) {
   // Register keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Don't hijack shortcuts while the user is typing in an editable field —
+      // Ctrl+A, Ctrl+Z, etc. should behave natively inside inputs.
+      const active = document.activeElement as HTMLElement | null
+      if (active && (
+        active.tagName === 'INPUT' ||
+        active.tagName === 'TEXTAREA' ||
+        active.tagName === 'SELECT' ||
+        active.isContentEditable
+      )) return
+
       const ctrl = e.ctrlKey || e.metaKey
 
       for (const menu of menus) {

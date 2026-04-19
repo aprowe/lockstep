@@ -324,9 +324,16 @@ export default function WarpView({
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const active = document.activeElement
-      const inInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')
-      if (!inInput && (e.key === 'Delete' || e.key === 'Backspace')) {
+      const active = document.activeElement as HTMLElement | null
+      const inInput = !!active && (
+        active.tagName === 'INPUT' ||
+        active.tagName === 'TEXTAREA' ||
+        active.tagName === 'SELECT' ||
+        active.isContentEditable
+      )
+      // Don't override browser editing shortcuts while typing.
+      if (inInput) return
+      if (e.key === 'Delete' || e.key === 'Backspace') {
         const ids = [...selectedIds]
         if (ids.length > 0) {
           e.preventDefault()
