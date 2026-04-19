@@ -86,8 +86,8 @@ function hasJsonExt(p: string) {
 
 // ── Layout constants ─────────────────────────────────────────────────────────
 
-const MIN_TIMELINE = 100
-const MAX_TIMELINE = 500
+const MIN_TIMELINE = 275
+const MIN_PLAYER_HEIGHT = 120
 const DEFAULT_TIMELINE = 280
 
 // ── App ──────────────────────────────────────────────────────────────────────
@@ -256,7 +256,9 @@ export default function App() {
   }
   const handleResizerPointerMove = (e: React.PointerEvent) => {
     if (!vDragStart.current || !e.buttons) return
-    setTimelineHeight(Math.max(MIN_TIMELINE, Math.min(MAX_TIMELINE,
+    const body = (e.currentTarget as HTMLElement).closest('.vj-center') as HTMLElement | null
+    const maxTimeline = Math.max(MIN_TIMELINE, (body?.clientHeight ?? window.innerHeight) - MIN_PLAYER_HEIGHT)
+    setTimelineHeight(Math.max(MIN_TIMELINE, Math.min(maxTimeline,
       vDragStart.current.h - (e.clientY - vDragStart.current.y)
     )))
   }

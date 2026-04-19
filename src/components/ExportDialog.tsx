@@ -166,6 +166,18 @@ export default function ExportDialog({
     if (el) el.scrollTop = el.scrollHeight
   }, [logLines])
 
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        handleClose()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [open, status]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const activeRegion = regions.find(r => r.id === activeRegionId) ?? null
   const bpm = warpData?.bpm ?? 120
   // Allow export even with no markers (passthrough / cut only)
