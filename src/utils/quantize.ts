@@ -91,20 +91,25 @@ export function quantBands(segments: WarpSegment[]): Band[] {
   return segments.map(s => ({ left: s.quantLeft, right: s.quantRight, stretchRatio: s.stretchRatio }))
 }
 
+/** Interpolate between neutral and the warm (slow / ratio > 1) or
+ *  cool (fast / ratio < 1) stretch color, using log-space distance so
+ *  doubling and halving feel equivalent. `maxAlpha` is reached at 2× / 0.5×. */
+function interpolateStretch(ratio: number, maxAlpha: number): string {
+  if (!isFinite(ratio) || ratio <= 0) ratio = 1
+  const d = Math.log2(ratio) // 0 at neutral, ±1 at 2×/0.5×
+  const t = Math.min(1, Math.abs(d))
+  const alpha = t * maxAlpha
+  // Warm target: rgb(239, 68, 68). Cool target: rgb(59, 130, 246).
+  const [r, g, b] = d >= 0 ? [239, 68, 68] : [59, 130, 246]
+  return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`
+}
+
 export function stretchColor(ratio: number): string {
-  if (ratio > 2.0) return 'rgba(239, 68, 68, 0.22)'
-  if (ratio > 1.3) return 'rgba(245, 158, 11, 0.16)'
-  if (ratio < 0.5) return 'rgba(59, 130, 246, 0.22)'
-  if (ratio < 0.75) return 'rgba(96, 165, 250, 0.14)'
-  return 'rgba(75, 85, 99, 0.12)'
+  return interpolateStretch(ratio, 0.22)
 }
 
 /** Bolder variant of stretchColor for foreground bars that need to read
  *  clearly on their own (e.g. the per-segment speed strip under the trapezoids). */
 export function stretchBarColor(ratio: number): string {
-  if (ratio > 2.0) return 'rgba(239, 68, 68, 0.65)'
-  if (ratio > 1.3) return 'rgba(245, 158, 11, 0.55)'
-  if (ratio < 0.5) return 'rgba(59, 130, 246, 0.65)'
-  if (ratio < 0.75) return 'rgba(96, 165, 250, 0.5)'
-  return 'rgba(130, 140, 150, 0.35)'
+  return interpolateStretch(ratio, 0.35)
 }
