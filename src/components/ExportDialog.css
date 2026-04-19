@@ -343,6 +343,25 @@
   letter-spacing: 0.04em;
 }
 
+/* ── Output log ────────────────────────────────────────────── */
+.export-dialog__log {
+  height: 120px;
+  overflow-y: auto;
+  padding: var(--sp-3) var(--sp-4);
+  background: #131110;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--font-mono, ui-monospace, Consolas, monospace);
+  font-size: var(--t-sm);
+  color: var(--fg-4);
+  line-height: 1.5;
+}
+
+.export-dialog__log-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ── Footer ────────────────────────────────────────────────── */
 .export-dialog__footer {
   padding: var(--sp-5) var(--sp-7);
@@ -379,6 +398,36 @@
 }
 .export-dialog__process:hover:not(:disabled) { background: var(--accent-hi); }
 .export-dialog__process:disabled { opacity: 0.4; cursor: default; }
+
+.export-dialog__progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 100%;
+}
+
+.export-dialog__progress-text {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  font-size: var(--t-sm);
+  min-width: 0;
+}
+
+.export-dialog__progress-pct {
+  color: var(--accent);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.export-dialog__progress-msg {
+  color: var(--fg-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
 
 .export-dialog__progress {
   height: 4px;

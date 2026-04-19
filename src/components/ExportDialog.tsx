@@ -111,6 +111,8 @@ export default function ExportDialog({
   const [currentJobLabel, setCurrentJobLabel] = useState('')
   const [currentJobIdx, setCurrentJobIdx] = useState(0)
   const [totalJobs, setTotalJobs] = useState(0)
+  const [currentMessage, setCurrentMessage] = useState('')
+  const [logLines, setLogLines] = useState<string[]>([])
   const [outputPaths, setOutputPaths] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -118,6 +120,13 @@ export default function ExportDialog({
   const [savedFolder, setSavedFolder] = useState<string | null>(null)
   const unlistenRef = useRef<UnlistenFn | null>(null)
   const cancelRef = useRef(false)
+  const logRef = useRef<HTMLDivElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  // Guards the "click outside the dialog closes it" behavior: only close when
+  // the press STARTED on the overlay. Without this, selecting text inside an
+  // input and releasing the mouse outside the dialog bubbles up to the overlay
+  // (the common ancestor of mousedown/mouseup) and fires handleClose.
+  const mousedownOnOverlay = useRef(false)
 
   const [mode, setMode] = useState<ExportMode>('current')
   const [selectedRegionIds, setSelectedRegionIds] = useState<Set<string>>(new Set())
@@ -141,6 +150,8 @@ export default function ExportDialog({
       setSavedFolder(null)
       setCurrentJobIdx(0)
       setTotalJobs(0)
+      setCurrentMessage('')
+      setLogLines([])
       cancelRef.current = false
       setSelectedRegionIds(new Set(regions.map(r => r.id)))
       setInterpFps(Math.round(videoFps ?? 60))
@@ -148,6 +159,12 @@ export default function ExportDialog({
   }, [open, regions, videoFps])
 
   useEffect(() => () => { unlistenRef.current?.() }, [])
+
+  // Auto-scroll the log to the latest line as it grows.
+  useEffect(() => {
+    const el = logRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [logLines])
 
   const activeRegion = regions.find(r => r.id === activeRegionId) ?? null
   const bpm = warpData?.bpm ?? 120
@@ -204,6 +221,8 @@ export default function ExportDialog({
     setOutputPaths([])
     setError(null)
     setSavedFolder(null)
+    setLogLines([])
+    setCurrentMessage('')
     cancelRef.current = false
 
     const results: string[] = []
@@ -214,6 +233,10 @@ export default function ExportDialog({
       setCurrentJobIdx(i)
       setCurrentJobLabel(job.label)
       setProgress(0)
+      setCurrentMessage('')
+      if (jobs.length > 1) {
+        setLogLines(prev => [...prev, `── ${job.label} (${i + 1}/${jobs.length}) ──`])
+      }
 
       try {
         const jobId = await startWarp(buildWarpRequest({
@@ -233,6 +256,15 @@ export default function ExportDialog({
           listenWarpProgress(payload => {
             if (payload.job_id !== jobId) return
             setProgress(payload.percent ?? 0)
+            const msg = payload.message
+            if (msg) {
+              setCurrentMessage(msg)
+              // Dedupe consecutive duplicate messages — the backend can emit
+              // the same label many times per stage (e.g. per RIFE frame).
+              setLogLines(prev =>
+                prev.length > 0 && prev[prev.length - 1] === msg ? prev : [...prev, msg]
+              )
+            }
             if (payload.status === 'done' && payload.output_path) {
               unlistenRef.current?.()
               resolve(payload.output_path)
@@ -246,8 +278,10 @@ export default function ExportDialog({
 
         results.push(outputPath)
       } catch (e: any) {
+        const msg = `${job.label}: ${e.message ?? String(e)}`
         setStatus('error')
-        setError(`${job.label}: ${e.message ?? String(e)}`)
+        setError(msg)
+        setLogLines(prev => [...prev, `ERROR — ${msg}`])
         return
       }
     }
@@ -358,8 +392,16 @@ export default function ExportDialog({
   const previewName = jobs.length > 0 ? getFileName(jobs[0], 0) : ''
 
   return (
-    <div className="export-overlay" onClick={handleClose}>
-      <div className="export-dialog" onClick={e => e.stopPropagation()}>
+    <div
+      className="export-overlay"
+      ref={overlayRef}
+      onMouseDown={e => { mousedownOnOverlay.current = e.target === overlayRef.current }}
+      onMouseUp={e => {
+        if (mousedownOnOverlay.current && e.target === overlayRef.current) handleClose()
+        mousedownOnOverlay.current = false
+      }}
+    >
+      <div className="export-dialog">
 
         <div className="export-dialog__header">
           <span className="export-dialog__title">Export</span>
@@ -519,9 +561,18 @@ export default function ExportDialog({
           )}
 
           {/* Processing status */}
-          {status === 'processing' && (
+          {(status === 'processing' || logLines.length > 0) && (
             <div className="export-dialog__job-info">
               {totalJobs > 1 ? `${currentJobLabel} (${currentJobIdx + 1}/${totalJobs})` : currentJobLabel}
+            </div>
+          )}
+
+          {/* Output log — persists after processing so user can review */}
+          {logLines.length > 0 && (
+            <div className="export-dialog__log" ref={logRef} aria-label="Export Log">
+              {logLines.map((line, i) => (
+                <div key={i} className="export-dialog__log-line">{line}</div>
+              ))}
             </div>
           )}
 
@@ -533,11 +584,23 @@ export default function ExportDialog({
           )}
 
           {status === 'processing' ? (
-            <div className="export-dialog__progress">
-              <div
-                className="export-dialog__progress-fill"
-                style={{ width: `${((currentJobIdx + progress) / Math.max(totalJobs, 1)) * 100}%` }}
-              />
+            <div className="export-dialog__progress-wrap">
+              <div className="export-dialog__progress-text">
+                <span className="export-dialog__progress-pct">
+                  {Math.round(((currentJobIdx + progress) / Math.max(totalJobs, 1)) * 100)}%
+                </span>
+                {currentMessage && (
+                  <span className="export-dialog__progress-msg" title={currentMessage}>
+                    {currentMessage}
+                  </span>
+                )}
+              </div>
+              <div className="export-dialog__progress">
+                <div
+                  className="export-dialog__progress-fill"
+                  style={{ width: `${((currentJobIdx + progress) / Math.max(totalJobs, 1)) * 100}%` }}
+                />
+              </div>
             </div>
           ) : status === 'done' && outputPaths.length > 0 ? (
             <div className="export-dialog__results">
