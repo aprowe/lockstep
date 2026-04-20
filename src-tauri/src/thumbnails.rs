@@ -249,9 +249,11 @@ fn purge_video_cache(st: &mut VideoState) {
 }
 
 fn frame_to_time(frame: i64, fps: f64) -> f64 {
-    // Aim for the middle of the target frame so ffmpeg's output seek lands
-    // unambiguously inside it, not on the boundary with the previous frame.
-    ((frame as f64 + 0.5) / fps).max(0.0)
+    // ffmpeg's output seek keeps the first frame whose pts >= seek_time and
+    // drops earlier ones. Frame N has pts = N/fps, so we need to seek to
+    // *just before* that — overshooting by even a fraction lands us on frame
+    // N+1 (off-by-one). Half a frame duration earlier is a safe margin.
+    ((frame as f64 - 0.5) / fps).max(0.0)
 }
 
 fn extract_frame(video_path: &str, time: f64, out_path: &PathBuf, width: u32) -> Result<(), String> {
