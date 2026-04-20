@@ -99,6 +99,22 @@ const sceneSlice = createSlice({
       const { path, minGap } = action.payload
       state.minGapByPath[path] = Math.max(0, minGap)
     },
+    /** User-added cut. Same-position dedup as appendCut; does not change status. */
+    addCut(state, action: PayloadAction<{ path: string; cut: number }>) {
+      const { path, cut } = action.payload
+      const list = state.cutsByPath[path] ?? []
+      if (list.some(t => Math.abs(t - cut) < 1e-3)) return
+      let i = 0
+      while (i < list.length && list[i] < cut) i += 1
+      state.cutsByPath[path] = [...list.slice(0, i), cut, ...list.slice(i)]
+    },
+    /** User-removed cut. Matches within 1ms to tolerate float drift. */
+    deleteCut(state, action: PayloadAction<{ path: string; cut: number }>) {
+      const { path, cut } = action.payload
+      const list = state.cutsByPath[path]
+      if (!list) return
+      state.cutsByPath[path] = list.filter(t => Math.abs(t - cut) >= 1e-3)
+    },
   },
 })
 
@@ -111,6 +127,8 @@ export const {
   loadCached,
   clearForPath,
   setMinGap,
+  addCut,
+  deleteCut,
 } = sceneSlice.actions
 
 export default sceneSlice.reducer

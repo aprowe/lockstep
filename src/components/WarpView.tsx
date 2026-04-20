@@ -54,6 +54,10 @@ interface WarpViewProps {
   onClipOverlayZoom?: (id: string) => void
   /** Detected scene cut times in input (orig) seconds. */
   scenes?: number[]
+  /** Add a scene cut at this time (click on empty scene row background). */
+  onSceneAdd?: (time: number) => void
+  /** Delete the scene cut at this time (shift-click or right-click on diamond). */
+  onSceneDelete?: (time: number) => void
 }
 
 export default function WarpView({
@@ -67,6 +71,8 @@ export default function WarpView({
   onClipOverlayContextMenu,
   onClipOverlayZoom,
   scenes: scenesProp,
+  onSceneAdd,
+  onSceneDelete,
 }: WarpViewProps) {
   const dispatch = useAppDispatch()
 
@@ -631,6 +637,8 @@ export default function WarpView({
             onSceneClick={onSeek}
             onSceneHover={setHoveredScene}
             playhead={playhead}
+            onSceneAdd={onSceneAdd}
+            onSceneDelete={onSceneDelete}
           />
         }
         throughlines={scenes}

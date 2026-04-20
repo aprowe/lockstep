@@ -43,7 +43,7 @@ import {
   openJsonFileThunk,
 } from './store/thunks/videoThunks'
 import { detectScenesThunk, ensureSceneListener } from './store/thunks/sceneThunks'
-import { setMinGap as setSceneMinGapAction } from './store/slices/sceneSlice'
+import { setMinGap as setSceneMinGapAction, addCut as addSceneCutAction, deleteCut as deleteSceneCutAction } from './store/slices/sceneSlice'
 import { filterCutsByMinGap } from './utils/sceneFilter'
 import { useAppDispatch, useAppSelector } from './store/hooks'
 import { setDetectingBpm as setDetectingBpmAction } from './store/slices/videoSlice'
@@ -665,6 +665,12 @@ export default function App() {
                 <WarpView
                   onSeek={t => playerRef.current?.seek(t)}
                   scenes={filteredSceneCuts}
+                  onSceneAdd={t => {
+                    if (videoPath) dispatch(addSceneCutAction({ path: videoPath, cut: t }))
+                  }}
+                  onSceneDelete={t => {
+                    if (videoPath) dispatch(deleteSceneCutAction({ path: videoPath, cut: t }))
+                  }}
                   onSendToNewRegion={(inPoint, outPoint) =>
                     addRegion(inPoint, outPoint)
                   }
@@ -744,6 +750,9 @@ export default function App() {
                   minGap={sceneMinGap}
                   onMinGapChange={(g) => {
                     if (videoPath) dispatch(setSceneMinGapAction({ path: videoPath, minGap: g }))
+                  }}
+                  onSceneDelete={(t) => {
+                    if (videoPath) dispatch(deleteSceneCutAction({ path: videoPath, cut: t }))
                   }}
                 />
               </div>

@@ -32,6 +32,8 @@ interface SceneListProps {
   /** Min seconds between consecutive cuts to keep; collapses dense clusters. 0 disables. */
   minGap: number
   onMinGapChange: (minGap: number) => void
+  /** Remove the scene boundary at this time. Omit to hide the delete affordance. */
+  onSceneDelete?: (time: number) => void
 }
 
 export default function SceneList({
@@ -39,6 +41,7 @@ export default function SceneList({
   regions, view,
   onSeek, onRecompute,
   minGap, onMinGapChange,
+  onSceneDelete,
 }: SceneListProps) {
   const [draftThreshold, setDraftThreshold] = useState<string>(String(threshold))
   const [nearViewOnly, setNearViewOnly] = useState<boolean>(false)
@@ -165,6 +168,9 @@ export default function SceneList({
           rows.map(({ originalIndex, start, end }) => {
             const length = end - start
             const color = regionColorFor(start)
+            // The first row always starts at t=0 (boundary, not a real cut),
+            // so deletion only makes sense for subsequent rows.
+            const canDelete = !!onSceneDelete && originalIndex > 0
             return (
               <div
                 key={originalIndex}
@@ -180,6 +186,18 @@ export default function SceneList({
                 <span className="sl-row__idx">{originalIndex + 1}</span>
                 <span className="sl-row__time">{formatTime(start)}</span>
                 <span className="sl-row__len">{length.toFixed(2)}s</span>
+                {canDelete && (
+                  <button
+                    type="button"
+                    className="sl-row__delete"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onSceneDelete!(start)
+                    }}
+                    title="Delete scene boundary"
+                    aria-label={`Delete scene ${originalIndex + 1}`}
+                  >×</button>
+                )}
               </div>
             )
           })

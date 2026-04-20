@@ -20,11 +20,15 @@ interface SceneRowProps {
   onSceneHover?: (time: number | null) => void
   /** Current playhead time — highlights the closest scene within one frame. */
   playhead?: number
+  /** Shift-click (or right-click) on a scene diamond — remove that scene. */
+  onSceneDelete?: (time: number) => void
+  /** Click on the empty row background — add a scene at that timestamp. */
+  onSceneAdd?: (time: number) => void
 }
 
 const PLAYHEAD_MATCH_TOLERANCE = 0.05 // ~1 video frame at 20fps
 
-export default function SceneRow({ scenes, view, duration, expanded, onSceneClick, onSceneHover, playhead }: SceneRowProps) {
+export default function SceneRow({ scenes, view, duration, expanded, onSceneClick, onSceneHover, playhead, onSceneDelete, onSceneAdd }: SceneRowProps) {
   const video = useAppSelector(s => s.video.video)
   const thumbPaths = useAppSelector(s =>
     video ? s.thumbnails.pathsByHashAndFrame[video.fileHash] ?? {} : {},
@@ -64,8 +68,26 @@ export default function SceneRow({ scenes, view, duration, expanded, onSceneClic
     setThumbnailHover(null)
   }, [onSceneHover, setThumbnailHover])
 
+  // Background click → add a cut at the clicked timestamp. Ignore clicks that
+  // bubble up from diamonds/labels (they're handled separately).
+  const handleBackgroundClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!onSceneAdd) return
+      if (e.target !== e.currentTarget) return
+      const rect = e.currentTarget.getBoundingClientRect()
+      const pct = (e.clientX - rect.left) / rect.width
+      const span = view.end - view.start
+      const t = view.start + Math.max(0, Math.min(1, pct)) * span
+      if (t >= 0 && t <= duration) onSceneAdd(t)
+    },
+    [onSceneAdd, view.start, view.end, duration],
+  )
+
   return (
-    <div className={`scene-row${expanded ? ' scene-row--expanded' : ''}`}>
+    <div
+      className={`scene-row${expanded ? ' scene-row--expanded' : ''}`}
+      onClick={handleBackgroundClick}
+    >
       {scenes.map((t, i) => {
         if (t < 0 || t > duration) return null
         const x = timeToViewPct(t, view)
@@ -77,11 +99,26 @@ export default function SceneRow({ scenes, view, duration, expanded, onSceneClic
             <button
               type="button"
               className={`scene-row__diamond${active ? ' scene-row__diamond--active' : ''}`}
-              onClick={onSceneClick ? () => onSceneClick(t) : undefined}
+              onClick={(e) => {
+                // Shift-click deletes; plain click seeks. Stop propagation so
+                // the row background doesn't also fire an "add" at this spot.
+                e.stopPropagation()
+                if (e.shiftKey && onSceneDelete) {
+                  onSceneDelete(t)
+                } else {
+                  onSceneClick?.(t)
+                }
+              }}
+              onContextMenu={(e) => {
+                if (!onSceneDelete) return
+                e.preventDefault()
+                e.stopPropagation()
+                onSceneDelete(t)
+              }}
               onMouseEnter={(e) => handleDiamondEnter(t, e)}
               onMouseLeave={handleLeave}
               aria-label={`Scene ${i + 1}`}
-              title={`Scene ${i + 1}`}
+              title={onSceneDelete ? `Scene ${i + 1} — shift-click to delete` : `Scene ${i + 1}`}
             />
             {expanded && (
               <button

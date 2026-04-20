@@ -194,3 +194,18 @@
   margin-left: auto;
   flex-shrink: 0;
 }
+
+.sl-row__delete {
+  background: none;
+  border: none;
+  color: var(--fg-4);
+  font-size: var(--t-lg);
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 var(--sp-1);
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+}
+.sl-row:hover .sl-row__delete { opacity: 1; }
+.sl-row__delete:hover { color: hsl(0, 80%, 65%); }

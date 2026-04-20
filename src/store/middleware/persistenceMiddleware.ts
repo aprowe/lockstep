@@ -36,7 +36,7 @@ import {
   updateRegionStretch,
   updateRegionTriggerMode,
 } from '../slices/regionSlice'
-import { setCuts as setScenes } from '../slices/sceneSlice'
+import { setCuts as setScenes, addCut, deleteCut } from '../slices/sceneSlice'
 
 export const persistenceMiddleware = createListenerMiddleware()
 
@@ -53,8 +53,8 @@ const shouldSave = isAnyOf(
   setRegions, addRegion, deleteRegion,
   updateRegionInOut, updateRegionBeatTimes, updateRegionLock,
   renameRegion, updateRegionBpm, updateRegionStretch, updateRegionTriggerMode,
-  // Scene detection results
-  setScenes,
+  // Scene detection results + user edits
+  setScenes, addCut, deleteCut,
 )
 
 persistenceMiddleware.startListening({
