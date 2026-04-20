@@ -699,6 +699,8 @@ export default function WarpView({
           linkedBoundaries={linkedBoundaries}
           selectedBoundaries={selectedBoundaries}
           onConnectorSelectionChange={setSelectedIds}
+          warpCollapsed={warpCollapsed}
+          onToggleWarp={() => dispatch(setWarpCollapsed(!warpCollapsed))}
         />
       ) : (
       <Timeline

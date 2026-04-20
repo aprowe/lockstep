@@ -95,3 +95,39 @@
   background: var(--fg-4);
   opacity: 0.5;
 }
+
+.thin-timeline__toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
+  background: var(--bg-4);
+  border-top: 1px solid var(--border);
+}
+
+.thin-toolbar__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(22px * var(--ui-scale));
+  height: calc(22px * var(--ui-scale));
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--fg-3);
+  cursor: pointer;
+  transition: background 0.08s, color 0.08s, border-color 0.08s;
+}
+
+.thin-toolbar__btn:hover {
+  background: var(--bg-2);
+  color: var(--fg-1);
+}
+
+.thin-toolbar__btn--active {
+  background: var(--bg-2);
+  border-color: var(--border-hi);
+  color: var(--fg-1);
+}

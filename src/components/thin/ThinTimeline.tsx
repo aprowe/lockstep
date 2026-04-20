@@ -57,6 +57,10 @@ interface ThinTimelineProps {
   linkedBoundaries?: boolean[]
   selectedBoundaries?: boolean[]
   onConnectorSelectionChange?: (ids: Set<number>) => void
+
+  /** When true, Warp / Marker Out / Clip Out / Speed rows are hidden. */
+  warpCollapsed?: boolean
+  onToggleWarp?: () => void
 }
 
 /**
@@ -78,6 +82,7 @@ export default function ThinTimeline({
   segments, clipIn, clipOut, beatClipIn, beatClipOut,
   clipFillColor, boundaryColor, linkedBoundaries, selectedBoundaries,
   onConnectorSelectionChange,
+  warpCollapsed = false, onToggleWarp,
 }: ThinTimelineProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const connectorRef = useRef<HTMLDivElement>(null)
@@ -173,38 +178,42 @@ export default function ThinTimeline({
         onContextMenu={onAnchorContextMenu}
       />
 
-      <WarpConnector
-        ref={connectorRef}
-        segments={segments}
-        view={view}
-        origDuration={duration}
-        outputDuration={outputDuration}
-        clipIn={clipIn}
-        clipOut={clipOut}
-        beatClipIn={beatClipIn}
-        beatClipOut={beatClipOut}
-        clipFillColor={clipFillColor}
-        boundaryColor={boundaryColor}
-        linkedBoundaries={linkedBoundaries}
-        selectedBoundaries={selectedBoundaries}
-        anchors={anchors}
-        onSelectionChange={onConnectorSelectionChange}
-        railLabel="Warp"
-      />
+      {!warpCollapsed && (
+        <WarpConnector
+          ref={connectorRef}
+          segments={segments}
+          view={view}
+          origDuration={duration}
+          outputDuration={outputDuration}
+          clipIn={clipIn}
+          clipOut={clipOut}
+          beatClipIn={beatClipIn}
+          beatClipOut={beatClipOut}
+          clipFillColor={clipFillColor}
+          boundaryColor={boundaryColor}
+          linkedBoundaries={linkedBoundaries}
+          selectedBoundaries={selectedBoundaries}
+          anchors={anchors}
+          onSelectionChange={onConnectorSelectionChange}
+          railLabel="Warp"
+        />
+      )}
 
-      <MarkersTrack
-        label="Marker Out"
-        anchors={beatAnchors}
-        view={view}
-        duration={outputDuration}
-        selectedIds={selectedAnchorIds}
-        onSeek={onSeekBeat}
-        onDelete={onBeatAnchorDelete}
-        onSelect={onBeatAnchorSelect}
-        onContextMenu={onBeatAnchorContextMenu}
-      />
+      {!warpCollapsed && (
+        <MarkersTrack
+          label="Marker Out"
+          anchors={beatAnchors}
+          view={view}
+          duration={outputDuration}
+          selectedIds={selectedAnchorIds}
+          onSeek={onSeekBeat}
+          onDelete={onBeatAnchorDelete}
+          onSelect={onBeatAnchorSelect}
+          onContextMenu={onBeatAnchorContextMenu}
+        />
+      )}
 
-      {regionsOutput && (
+      {!warpCollapsed && regionsOutput && (
         <RegionBand
           label="Clip Out"
           kind="output"
@@ -224,16 +233,18 @@ export default function ThinTimeline({
         onSeek={onSeek}
       />
 
-      <div className="thin-timeline__speed-wrapper">
-        <div className="thin-row__rail thin-row__rail--inline">Speed</div>
-        <div className="thin-timeline__speed-body">
-          <SpeedStrip
-            segments={segments}
-            view={view}
-            outputDuration={outputDuration}
-          />
+      {!warpCollapsed && (
+        <div className="thin-timeline__speed-wrapper">
+          <div className="thin-row__rail thin-row__rail--inline">Speed</div>
+          <div className="thin-timeline__speed-body">
+            <SpeedStrip
+              segments={segments}
+              view={view}
+              outputDuration={outputDuration}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {playheadX !== null && (
         <div className="thin-timeline__playhead" style={{ left: `calc(var(--thin-rail-w) + ${playheadX}% * (100% - var(--thin-rail-w)) / 100)` }} />
@@ -241,6 +252,27 @@ export default function ThinTimeline({
       {hoverPct !== null && (
         <div className="thin-timeline__hover" style={{ left: `calc(var(--thin-rail-w) + ${hoverPct * 100}% * (100% - var(--thin-rail-w)) / 100)` }} />
       )}
+
+      <div className="thin-timeline__toolbar">
+        <button
+          type="button"
+          className={`thin-toolbar__btn${warpCollapsed ? '' : ' thin-toolbar__btn--active'}`}
+          onClick={onToggleWarp}
+          title={warpCollapsed ? 'Show warp views (warp, marker out, clip out, speed)' : 'Hide warp views'}
+          aria-pressed={!warpCollapsed}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              d="M2 4 L14 4 M2 8 L10 12 M14 8 L6 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
     </div>
   )
 }
