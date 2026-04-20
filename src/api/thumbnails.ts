@@ -11,6 +11,8 @@ export interface ThumbnailPriorityRequest {
   markerFrames: number[]
   sceneFrames: number[]
   viewportFrames: [number, number]
+  thumbWidth?: number
+  maxCachedFrames?: number
 }
 
 /** Replaces the priority context for the given file. Workers re-rank against it. */
@@ -26,6 +28,8 @@ export function setThumbnailPriority(r: ThumbnailPriorityRequest): Promise<void>
       marker_frames: r.markerFrames,
       scene_frames: r.sceneFrames,
       viewport_frames: r.viewportFrames,
+      thumb_width: r.thumbWidth,
+      max_cached_frames: r.maxCachedFrames,
     },
   })
 }
@@ -36,6 +40,10 @@ export function getThumbnailPath(fileHash: string, frame: number): Promise<strin
 
 export function clearThumbnails(fileHash: string): Promise<void> {
   return invoke('clear_thumbnails', { fileHash })
+}
+
+export function clearAllThumbnails(): Promise<void> {
+  return invoke('clear_all_thumbnails')
 }
 
 export interface ThumbnailReadyPayload {

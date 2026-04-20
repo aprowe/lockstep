@@ -40,6 +40,7 @@ pub fn run() {
             thumbnails::set_thumbnail_priority,
             thumbnails::get_thumbnail_path,
             thumbnails::clear_thumbnails,
+            thumbnails::clear_all_thumbnails,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

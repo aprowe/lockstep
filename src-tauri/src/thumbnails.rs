@@ -25,8 +25,8 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 use crate::ffmpeg::find_bin;
 
 const MAX_WORKERS: u32 = 3;
-const MAX_CACHED_FRAMES: usize = 2000;
-const THUMB_WIDTH: u32 = 120;
+const DEFAULT_MAX_CACHED_FRAMES: usize = 2000;
+const DEFAULT_THUMB_WIDTH: u32 = 120;
 const PLAYHEAD_WINDOW: i64 = 15;
 const VIEWPORT_SAMPLES: i64 = 40;
 
@@ -48,6 +48,8 @@ struct VideoState {
     in_flight: HashSet<i64>,
     context: PriorityContext,
     workers_running: u32,
+    thumb_width: u32,
+    max_cached_frames: usize,
 }
 
 #[derive(Default)]
@@ -77,6 +79,14 @@ pub struct PriorityRequest {
     #[serde(default)]
     pub scene_frames: Vec<i64>,
     pub viewport_frames: (i64, i64),
+    /// Output width for extracted thumbnails. Changing this invalidates the
+    /// existing cache for this video (entries at a different size get wiped).
+    #[serde(default)]
+    pub thumb_width: Option<u32>,
+    /// Maximum number of cached frames per video before LRU-style eviction
+    /// kicks in.
+    #[serde(default)]
+    pub max_cached_frames: Option<usize>,
 }
 
 fn thumbnails_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
@@ -200,11 +210,11 @@ fn pick_next(st: &VideoState) -> Option<i64> {
     None
 }
 
-/// Try to evict ready frames to stay under MAX_CACHED_FRAMES. Drops frames
-/// with the lowest priority under the current context — i.e. those furthest
-/// from anything the user cares about.
+/// Try to evict ready frames to stay under the per-video cache cap. Drops
+/// frames with the lowest priority under the current context — i.e. those
+/// furthest from anything the user cares about.
 fn evict_overflow(st: &mut VideoState) {
-    if st.ready.len() <= MAX_CACHED_FRAMES {
+    if st.ready.len() <= st.max_cached_frames {
         return;
     }
     let ph = st.context.playhead_frame;
@@ -215,12 +225,27 @@ fn evict_overflow(st: &mut VideoState) {
         .collect();
     // Largest distance first — those are the first to go.
     scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-    let excess = st.ready.len() - MAX_CACHED_FRAMES;
+    let excess = st.ready.len() - st.max_cached_frames;
     for (f, _) in scored.into_iter().take(excess) {
         let p = thumb_path(&st.cache_dir, f);
         let _ = std::fs::remove_file(&p);
         st.ready.remove(&f);
     }
+}
+
+/// Wipe every cached thumbnail + in-memory tracking for this video. Called
+/// when the requested thumb width changes, since existing files are at the
+/// wrong resolution.
+fn purge_video_cache(st: &mut VideoState) {
+    if let Ok(entries) = std::fs::read_dir(&st.cache_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().map_or(false, |e| e == "jpg") {
+                let _ = std::fs::remove_file(&path);
+            }
+        }
+    }
+    st.ready.clear();
 }
 
 fn frame_to_time(frame: i64, fps: f64) -> f64 {
@@ -229,7 +254,7 @@ fn frame_to_time(frame: i64, fps: f64) -> f64 {
     ((frame as f64 + 0.5) / fps).max(0.0)
 }
 
-fn extract_frame(video_path: &str, time: f64, out_path: &PathBuf) -> Result<(), String> {
+fn extract_frame(video_path: &str, time: f64, out_path: &PathBuf, width: u32) -> Result<(), String> {
     let bin = find_bin("ffmpeg");
     let out_str = out_path.to_string_lossy().to_string();
     let mut cmd = Command::new(&bin);
@@ -249,7 +274,7 @@ fn extract_frame(video_path: &str, time: f64, out_path: &PathBuf) -> Result<(), 
         "-frames:v",
         "1",
         "-vf",
-        &format!("scale={THUMB_WIDTH}:-2"),
+        &format!("scale={width}:-2"),
         "-q:v",
         "5",
         "-y",
@@ -299,11 +324,12 @@ fn schedule<R: Runtime>(
             st.workers_running += 1;
             let video_path = st.video_path.clone();
             let fps = st.fps;
+            let width = st.thumb_width;
             let out_path = thumb_path(&st.cache_dir, frame);
-            Some((frame, video_path, fps, out_path))
+            Some((frame, video_path, fps, width, out_path))
         };
 
-        let Some((frame, video_path, fps, out_path)) = next else {
+        let Some((frame, video_path, fps, width, out_path)) = next else {
             return;
         };
 
@@ -315,7 +341,7 @@ fn schedule<R: Runtime>(
             let time = frame_to_time(frame, fps);
             let out_for_task = out_path.clone();
             let result = tokio::task::spawn_blocking(move || {
-                extract_frame(&video_path, time, &out_for_task)
+                extract_frame(&video_path, time, &out_for_task, width)
             })
             .await;
 
@@ -359,6 +385,12 @@ pub async fn set_thumbnail_priority<R: Runtime>(
     let max_frame = (req.duration * req.fps).floor() as i64;
     let cache_dir = cache_dir_for(&app, &req.file_hash)?;
 
+    let thumb_width = req.thumb_width.unwrap_or(DEFAULT_THUMB_WIDTH).max(16);
+    let max_cached_frames = req
+        .max_cached_frames
+        .unwrap_or(DEFAULT_MAX_CACHED_FRAMES)
+        .max(16);
+
     let entry = {
         let mut reg = state.0.lock().unwrap();
         reg.videos
@@ -374,6 +406,8 @@ pub async fn set_thumbnail_priority<R: Runtime>(
                     in_flight: HashSet::new(),
                     context: PriorityContext::default(),
                     workers_running: 0,
+                    thumb_width,
+                    max_cached_frames,
                 }))
             })
             .clone()
@@ -386,6 +420,13 @@ pub async fn set_thumbnail_priority<R: Runtime>(
         st.video_path = req.video_path;
         st.fps = req.fps;
         st.max_frame = max_frame;
+        // Thumb width change invalidates on-disk cache — wipe it so workers
+        // regenerate at the new size.
+        if st.thumb_width != thumb_width {
+            st.thumb_width = thumb_width;
+            purge_video_cache(&mut st);
+        }
+        st.max_cached_frames = max_cached_frames;
         st.context = PriorityContext {
             playhead_frame: req.playhead_frame,
             region_frames: req.region_frames,
@@ -393,6 +434,7 @@ pub async fn set_thumbnail_priority<R: Runtime>(
             scene_frames: req.scene_frames,
             viewport_frames: req.viewport_frames,
         };
+        evict_overflow(&mut st);
     }
 
     schedule(app, req.file_hash, entry);
@@ -439,6 +481,21 @@ pub async fn clear_thumbnails<R: Runtime>(
     }
     let dir = cache_dir_for(&app, &file_hash)?;
     let _ = std::fs::remove_dir_all(&dir);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn clear_all_thumbnails<R: Runtime>(
+    app: AppHandle<R>,
+    state: tauri::State<'_, ThumbnailsState>,
+) -> Result<(), String> {
+    {
+        let mut reg = state.0.lock().unwrap();
+        reg.videos.clear();
+    }
+    let root = thumbnails_root(&app)?;
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;
     Ok(())
 }
 

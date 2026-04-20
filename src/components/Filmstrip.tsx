@@ -19,17 +19,26 @@ interface FilmstripProps {
 export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
   const dispatch = useAppDispatch()
   const video = useAppSelector(s => s.video.video)
-  const playhead = useAppSelector(s => s.warp.playhead)
+  const livePlayhead = useAppSelector(s => s.warp.playhead)
+  const playing = useAppSelector(s => s.ui.playing)
   const origAnchors = useAppSelector(s => s.warp.origAnchors)
   const regions = useAppSelector(s => s.region.regions)
   const view = useAppSelector(s => s.ui.view)
   const stripHeight = useAppSelector(s => s.ui.filmstripHeight)
+  const thumbWidth = useAppSelector(s => s.settings.thumbWidth)
+  const maxCachedFrames = useAppSelector(s => s.settings.maxCachedFrames)
   const scenes = useAppSelector(s =>
     video ? s.scene.cutsByPath[video.path] ?? [] : [],
   )
   const thumbPaths = useAppSelector(s =>
     video ? s.thumbnails.pathsByHashAndFrame[video.fileHash] ?? {} : {},
   )
+
+  // Freeze the playhead (and therefore the filmstrip slots + priority signature)
+  // while the video is playing — we don't want thumbnail churn during playback.
+  const frozenPlayheadRef = useRef<number>(livePlayhead)
+  if (!playing) frozenPlayheadRef.current = livePlayhead
+  const playhead = playing ? frozenPlayheadRef.current : livePlayhead
 
   // Listen once for thumbnail-ready events while the component is mounted.
   useEffect(() => {
@@ -77,6 +86,8 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
       markerFrames.join(','),
       sceneFrames.join(','),
       viewportFrames.join(','),
+      thumbWidth,
+      maxCachedFrames,
     ].join('|')
     if (signature === lastPushedRef.current) return
 
@@ -92,10 +103,12 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
         markerFrames,
         sceneFrames,
         viewportFrames,
+        thumbWidth,
+        maxCachedFrames,
       }).catch(() => {})
     }, PUSH_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [video, playhead, origAnchors, regions, scenes, view])
+  }, [video, playhead, origAnchors, regions, scenes, view, thumbWidth, maxCachedFrames])
 
   const slots = useMemo(() => {
     if (!video) return []
@@ -141,7 +154,7 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
   if (!video) return null
 
   return (
-    <div className="filmstrip-wrap" style={{ height: stripHeight }}>
+    <div className={`filmstrip-wrap${playing ? ' filmstrip-wrap--playing' : ''}`} style={{ height: stripHeight }}>
       <div
         className="filmstrip__resizer"
         onMouseDown={handleResizeDown}

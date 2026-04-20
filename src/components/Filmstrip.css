@@ -6,6 +6,13 @@
   border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+  transition: opacity 0.15s;
+}
+
+.filmstrip-wrap--playing .filmstrip {
+  opacity: 0.35;
+  filter: grayscale(0.6);
+  pointer-events: none;
 }
 
 .filmstrip__resizer {

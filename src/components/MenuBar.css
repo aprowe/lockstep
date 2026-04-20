@@ -131,6 +131,33 @@
 }
 .menubar__close:hover { color: #b5a898; }
 
+/* ── Right actions group (settings + export) ───────────────── */
+.menubar__right-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-right: var(--sp-3);
+  -webkit-app-region: no-drag;
+}
+
+.menubar__settings-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--fg-3);
+  padding: 4px var(--sp-2);
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.menubar__settings-btn:hover {
+  background: var(--bg-4);
+  color: var(--fg-1);
+  border-color: var(--border);
+}
+
 /* ── Export button (right side of menu bar) ──────────────── */
 .menubar__export-btn {
   background: var(--accent);

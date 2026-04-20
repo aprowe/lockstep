@@ -11,15 +11,22 @@ export const ensureSceneListener = createAsyncThunk<void, void>(
   async (_, { dispatch, getState }) => {
     if (unlisten) return
     unlisten = await listenSceneProgress(payload => {
-      const { path, job_id, status, percent, cut, cuts, error } = payload
+      const { path, job_id, status, cut, cuts, error } = payload
       if (!path) return
       const state = getState() as RootState
       // Drop events from stale jobs (user re-triggered detection for this path).
       const current = state.scene.jobByPath[path]
       if (current && current !== job_id) return
       if (status === 'running') {
-        if (typeof cut === 'number') dispatch(appendCut({ path, cut }))
-        if (typeof percent === 'number') dispatch(setProgress({ path, progress: percent }))
+        if (typeof cut === 'number') {
+          dispatch(appendCut({ path, cut }))
+          // Backend's percent is unreliable; derive progress from the latest
+          // cut time vs. the loaded video's duration.
+          const video = state.video.video
+          if (video && video.path === path && video.duration > 0) {
+            dispatch(setProgress({ path, progress: Math.min(1, cut / video.duration) }))
+          }
+        }
       } else if (status === 'done' && Array.isArray(cuts)) {
         dispatch(setCuts({ path, cuts }))
       } else if (status === 'error') {
