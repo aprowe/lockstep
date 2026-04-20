@@ -50,7 +50,8 @@ pub fn video_duration(path: &str) -> Result<f64, String> {
 }
 
 pub fn ffprobe_json(path: &str) -> Result<serde_json::Value, String> {
-    let mut cmd = Command::new(find_bin("ffprobe"));
+    let bin = find_bin("ffprobe");
+    let mut cmd = Command::new(&bin);
     cmd.args([
             "-v", "quiet",
             "-print_format", "json",
@@ -63,7 +64,7 @@ pub fn ffprobe_json(path: &str) -> Result<serde_json::Value, String> {
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
     let output = cmd.output()
-        .map_err(|e| format!("ffprobe not found: {e}"))?;
+        .map_err(|e| format!("ffprobe spawn failed at `{bin}`: {e}"))?;
 
     if !output.status.success() {
         return Err(format!(
@@ -94,14 +95,15 @@ pub fn atempo_chain(mut rate: f64) -> String {
 
 /// Run ffmpeg with the given args. Returns Ok(()) on success, Err with stderr on failure.
 pub fn run_ffmpeg(args: &[&str]) -> Result<(), String> {
-    let mut cmd = Command::new(find_bin("ffmpeg"));
+    let bin = find_bin("ffmpeg");
+    let mut cmd = Command::new(&bin);
     cmd.args(args)
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
     let status = cmd.output()
-        .map_err(|e| format!("ffmpeg not found: {e}"))?;
+        .map_err(|e| format!("ffmpeg spawn failed at `{bin}`: {e}"))?;
 
     if status.status.success() {
         Ok(())
