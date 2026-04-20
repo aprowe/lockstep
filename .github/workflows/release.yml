@@ -41,6 +41,20 @@ jobs:
           cp ffmpeg_out/ffmpeg.exe src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
           cp ffprobe_out/ffprobe.exe src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe
 
+      - name: Download rife-ncnn-vulkan
+        shell: bash
+        run: |
+          mkdir -p src-tauri/binaries
+          curl -L "https://github.com/nihui/rife-ncnn-vulkan/releases/download/20221029/rife-ncnn-vulkan-20221029-windows.zip" -o rife.zip
+          unzip rife.zip -d rife_out
+          # The zip extracts to a versioned directory; find it.
+          RIFE_DIR=$(find rife_out -maxdepth 1 -type d -name "rife-ncnn-vulkan-*" | head -n1)
+          cp "$RIFE_DIR/rife-ncnn-vulkan.exe" src-tauri/binaries/rife-ncnn-vulkan-x86_64-pc-windows-msvc.exe
+          # Ship only the v4.6 model dir (matches the bundle resources glob).
+          mkdir -p src-tauri/binaries/rife-v4.6
+          cp "$RIFE_DIR/rife-v4.6/flownet.bin" src-tauri/binaries/rife-v4.6/
+          cp "$RIFE_DIR/rife-v4.6/flownet.param" src-tauri/binaries/rife-v4.6/
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
