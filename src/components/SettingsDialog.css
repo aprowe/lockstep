@@ -154,6 +154,16 @@
   color: var(--fg-3);
 }
 
+.settings-btn--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg-1);
+}
+.settings-btn--active:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 .settings-dialog__footer {
   margin-top: auto;
   padding-top: var(--sp-4);
