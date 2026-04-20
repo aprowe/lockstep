@@ -7,11 +7,13 @@ pub mod processor;
 pub mod rife;
 pub mod scene;
 mod storage;
+pub mod thumbnails;
 pub mod video;
 
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .manage(thumbnails::ThumbnailsState::new())
         .invoke_handler(tauri::generate_handler![
             commands::open_video,
             commands::open_folder,
@@ -35,6 +37,9 @@ pub fn run() {
             storage::load_video_state,
             storage::list_saved_hashes,
             storage::get_file_hash,
+            thumbnails::set_thumbnail_priority,
+            thumbnails::get_thumbnail_path,
+            thumbnails::clear_thumbnails,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
