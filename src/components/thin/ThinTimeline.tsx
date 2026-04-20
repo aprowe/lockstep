@@ -1,22 +1,27 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import type { Anchor, View } from '../../types'
+import type { Anchor, View, WarpSegment } from '../../types'
 import { clampView, timeToViewPct } from '../../utils/view'
 import SceneRow from '../SceneRow'
+import SpeedStrip from '../SpeedStrip'
+import WarpConnector from '../WarpConnector'
+import ThinMinimap from './ThinMinimap'
 import ThinRuler from './ThinRuler'
 import MarkersTrack from './MarkersTrack'
 import BarsTrack from './BarsTrack'
-import BeatsTrack from './BeatsTrack'
 import RegionBand, { type RegionBlock } from './RegionBand'
 import './ThinTimeline.css'
 
 interface ThinTimelineProps {
   duration: number
+  outputDuration: number
   view: View
   onViewChange: (v: View) => void
   maxDuration: number
 
   playhead?: number
+  beatPlayhead?: number
   onSeek?: (time: number) => void
+  onSeekBeat?: (beatTime: number) => void
 
   anchors: Anchor[]
   selectedAnchorIds: Set<number>
@@ -25,11 +30,13 @@ interface ThinTimelineProps {
   onAnchorSelect?: (id: number, additive: boolean) => void
   onAnchorContextMenu?: (id: number, x: number, y: number) => void
 
+  beatAnchors: Anchor[]
+  onBeatAnchorDelete?: (id: number) => void
+  onBeatAnchorSelect?: (id: number, additive: boolean) => void
+  onBeatAnchorContextMenu?: (id: number, x: number, y: number) => void
+
   bpm: number
   beatOffset?: number
-  /** When true, render the thin Beats row. The user opts in per clip via
-   *  the presence of anchors (warp is being used). */
-  showBeats?: boolean
 
   scenes: number[]
   onSceneAdd?: (time: number) => void
@@ -39,33 +46,43 @@ interface ThinTimelineProps {
   regionsOutput?: RegionBlock[]
   onRegionSelect?: (id: string) => void
   onRegionContextMenu?: (id: string, x: number, y: number) => void
+
+  segments: WarpSegment[]
+  clipIn?: number
+  clipOut?: number
+  beatClipIn?: number
+  beatClipOut?: number
+  clipFillColor?: string
+  boundaryColor?: string
+  linkedBoundaries?: boolean[]
+  selectedBoundaries?: boolean[]
+  onConnectorSelectionChange?: (ids: Set<number>) => void
 }
 
 /**
- * Experimental thin-track timeline. Stacks narrow per-type rows (ruler,
- * regions-in, scenes, markers, bars, regions-out) so each track stays focused
- * on one marker type instead of the Ableton-style source track piling them
- * all into one lane.
- *
- * Scope for this MVP: non-warped workflows — seek + add/delete scenes and
- * markers, snap to bars, see region spans. Warp/beats/speed rows are not
- * wired yet; when warpCollapsed is false in the parent view the existing
- * Timeline pair still renders the warp section below.
+ * Experimental thin-track timeline. Renders one narrow row per type so
+ * each marker kind lives in its own lane. Order: Minimap → Time → Clip In
+ * → Scenes → Marker In → Warp → Marker Out → Clip Out → Beat → Speed.
  */
 export default function ThinTimeline({
-  duration, view, onViewChange, maxDuration,
-  playhead, onSeek,
+  duration, outputDuration, view, onViewChange, maxDuration,
+  playhead, beatPlayhead, onSeek, onSeekBeat,
   anchors, selectedAnchorIds,
   onAnchorAdd, onAnchorDelete, onAnchorSelect, onAnchorContextMenu,
-  bpm, beatOffset = 0, showBeats = false,
+  beatAnchors,
+  onBeatAnchorDelete, onBeatAnchorSelect, onBeatAnchorContextMenu,
+  bpm, beatOffset = 0,
   scenes, onSceneAdd, onSceneDelete,
   regions, regionsOutput,
   onRegionSelect, onRegionContextMenu,
+  segments, clipIn, clipOut, beatClipIn, beatClipOut,
+  clipFillColor, boundaryColor, linkedBoundaries, selectedBoundaries,
+  onConnectorSelectionChange,
 }: ThinTimelineProps) {
   const rootRef = useRef<HTMLDivElement>(null)
+  const connectorRef = useRef<HTMLDivElement>(null)
   const [hoverPct, setHoverPct] = useState<number | null>(null)
 
-  // Scroll-zoom — cursor-centered, matches WarpView's gesture.
   const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
     const el = rootRef.current
     if (!el) return
@@ -103,27 +120,31 @@ export default function ThinTimeline({
       onMouseMove={onBodyMouseMove}
       onMouseLeave={() => setHoverPct(null)}
     >
+      <ThinMinimap
+        duration={maxDuration}
+        view={view}
+        onViewChange={onViewChange}
+        anchors={anchors}
+        regions={regions}
+      />
+
       <ThinRuler
+        label="Time"
         view={view}
         duration={duration}
         playhead={playhead}
         onSeek={onSeek}
       />
 
-      {regions.length > 0 && (
-        <RegionBand
-          label="Regions"
-          kind="input"
-          regions={regions}
-          view={view}
-          onSelect={onRegionSelect}
-          onContextMenu={onRegionContextMenu}
-        />
-      )}
+      <RegionBand
+        label="Clip In"
+        kind="input"
+        regions={regions}
+        view={view}
+        onSelect={onRegionSelect}
+        onContextMenu={onRegionContextMenu}
+      />
 
-      {/* Scene row reuses the existing SceneRow so thumbnail + diamond styling
-          stays consistent with the scene sidebar. Expanded mode is deferred
-          until we wire a toggle into the thin layout. */}
       <div className="thin-timeline__scene-wrapper">
         <div className="thin-row__rail thin-row__rail--inline">Scenes</div>
         <div className="thin-timeline__scene-body">
@@ -140,6 +161,7 @@ export default function ThinTimeline({
       </div>
 
       <MarkersTrack
+        label="Marker In"
         anchors={anchors}
         view={view}
         duration={duration}
@@ -151,27 +173,42 @@ export default function ThinTimeline({
         onContextMenu={onAnchorContextMenu}
       />
 
-      <BarsTrack
+      <div className="thin-timeline__warp-wrapper">
+        <WarpConnector
+          ref={connectorRef}
+          segments={segments}
+          view={view}
+          origDuration={duration}
+          outputDuration={outputDuration}
+          clipIn={clipIn}
+          clipOut={clipOut}
+          beatClipIn={beatClipIn}
+          beatClipOut={beatClipOut}
+          clipFillColor={clipFillColor}
+          boundaryColor={boundaryColor}
+          linkedBoundaries={linkedBoundaries}
+          selectedBoundaries={selectedBoundaries}
+          anchors={anchors}
+          onSelectionChange={onConnectorSelectionChange}
+          railLabel="Warp"
+        />
+      </div>
+
+      <MarkersTrack
+        label="Marker Out"
+        anchors={beatAnchors}
         view={view}
-        duration={duration}
-        bpm={bpm}
-        beatOffset={beatOffset}
-        onSeek={onSeek}
+        duration={outputDuration}
+        selectedIds={selectedAnchorIds}
+        onSeek={onSeekBeat}
+        onDelete={onBeatAnchorDelete}
+        onSelect={onBeatAnchorSelect}
+        onContextMenu={onBeatAnchorContextMenu}
       />
 
-      {showBeats && (
-        <BeatsTrack
-          view={view}
-          duration={duration}
-          bpm={bpm}
-          beatOffset={beatOffset}
-          onSeek={onSeek}
-        />
-      )}
-
-      {regionsOutput && regionsOutput.length > 0 && (
+      {regionsOutput && (
         <RegionBand
-          label="Out"
+          label="Clip Out"
           kind="output"
           regions={regionsOutput}
           view={view}
@@ -180,9 +217,26 @@ export default function ThinTimeline({
         />
       )}
 
-      {/* Full-stack playhead line that crosses every row. Absolute positioned
-          in the content column, offset by the rail width so it sits on top
-          of the actual time-mapped area. */}
+      <BarsTrack
+        label="Beat"
+        view={view}
+        duration={duration}
+        bpm={bpm}
+        beatOffset={beatOffset}
+        onSeek={onSeek}
+      />
+
+      <div className="thin-timeline__speed-wrapper">
+        <div className="thin-row__rail thin-row__rail--inline">Speed</div>
+        <div className="thin-timeline__speed-body">
+          <SpeedStrip
+            segments={segments}
+            view={view}
+            outputDuration={outputDuration}
+          />
+        </div>
+      </div>
+
       {playheadX !== null && (
         <div className="thin-timeline__playhead" style={{ left: `calc(var(--thin-rail-w) + ${playheadX}% * (100% - var(--thin-rail-w)) / 100)` }} />
       )}

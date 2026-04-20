@@ -9,6 +9,7 @@ interface MarkersTrackProps {
   view: View
   duration: number
   selectedIds: Set<number>
+  label?: string
   onSeek?: (time: number) => void
   onAdd?: (time: number) => void
   onDelete?: (id: number) => void
@@ -25,6 +26,7 @@ interface MarkersTrackProps {
 export default function MarkersTrack({
   anchors, view, duration,
   selectedIds,
+  label = 'Markers',
   onSeek, onAdd, onDelete, onSelect, onContextMenu,
 }: MarkersTrackProps) {
   const handleBgClick = useCallback((pct: number) => {
@@ -36,7 +38,7 @@ export default function MarkersTrack({
 
   return (
     <TrackRow
-      label="Markers"
+      label={label}
       kind="markers"
       onBackgroundClick={handleBgClick}
     >

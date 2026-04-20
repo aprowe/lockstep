@@ -4,22 +4,52 @@
 
 /* Scene row wrapper uses the same rail convention as TrackRow since the
  * existing SceneRow manages its own inner layout. */
-.thin-timeline__scene-wrapper {
+.thin-timeline__scene-wrapper,
+.thin-timeline__speed-wrapper,
+.thin-timeline__warp-wrapper {
   display: flex;
   flex-direction: row;
   width: 100%;
   border-bottom: 1px solid var(--border);
 }
 
-.thin-timeline__scene-body {
+.thin-timeline__scene-body,
+.thin-timeline__speed-body {
   flex: 1;
   min-width: 0;
+}
+
+.thin-timeline__speed-body {
+  height: var(--thin-row-h);
+}
+
+.thin-timeline__warp-wrapper {
+  min-height: calc(var(--thin-row-h) * 3);
+}
+
+.thin-timeline__warp-wrapper > .warp-connector-wrap {
+  flex: 1;
 }
 
 .thin-row__rail--inline {
   height: auto;
   min-height: var(--thin-row-h);
   align-self: stretch;
+}
+
+/* Minimap row — let .minimap dictate height, but keep the rail visible. */
+.thin-row--minimap {
+  height: auto;
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+
+.thin-row--minimap > .minimap {
+  flex: 1;
+  min-width: 0;
 }
 
 .thin-timeline__playhead,

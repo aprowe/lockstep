@@ -12,6 +12,7 @@ interface BarsTrackProps {
   beatsPerBar?: number
   /** Time offset of the first beat (in seconds). Defaults to 0. */
   beatOffset?: number
+  label?: string
   onSeek?: (time: number) => void
 }
 
@@ -20,7 +21,7 @@ interface BarsTrackProps {
  * to be a snap reference; click a tick to seek to that bar. Hides ticks
  * entirely when the view would be too dense to read (>~80 bars visible).
  */
-export default function BarsTrack({ view, duration, bpm, beatsPerBar = 4, beatOffset = 0, onSeek }: BarsTrackProps) {
+export default function BarsTrack({ view, duration, bpm, beatsPerBar = 4, beatOffset = 0, label = 'Bars', onSeek }: BarsTrackProps) {
   const bars = useMemo(() => {
     if (!bpm || bpm <= 0) return []
     const barSec = (60 / bpm) * beatsPerBar
@@ -49,7 +50,7 @@ export default function BarsTrack({ view, duration, bpm, beatsPerBar = 4, beatOf
   }, [view.start, view.end, duration, bpm, beatsPerBar, beatOffset])
 
   return (
-    <TrackRow label="Bars" kind="bars">
+    <TrackRow label={label} kind="bars">
       {bars.map(b => {
         const x = timeToViewPct(b.time, view)
         if (x < -1 || x > 101) return null

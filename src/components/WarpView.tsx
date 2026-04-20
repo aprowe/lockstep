@@ -630,6 +630,21 @@ export default function WarpView({
     }
   }, [dispatch, selectedIds])
 
+  const handleThinBeatAnchorDelete = useCallback((id: number) => {
+    dispatch(removeAnchors([id]))
+  }, [dispatch])
+
+  const handleThinBeatAnchorSelect = useCallback((id: number, additive: boolean) => {
+    setSelectionOrigin('beat')
+    if (additive) {
+      const next = new Set(selectedIds)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      dispatch(setSelectedIdsAction([...next]))
+    } else {
+      dispatch(setSelectedIdsAction([id]))
+    }
+  }, [dispatch, selectedIds])
+
   // ── Render ────────────────────────────────────────────────────────────────
   const warpCursor = panning
     ? { cursor: 'grabbing' }
@@ -647,20 +662,26 @@ export default function WarpView({
       {thinLayout ? (
         <ThinTimeline
           duration={duration}
+          outputDuration={outputDuration}
           view={view}
           onViewChange={handleViewChange}
           maxDuration={maxDuration}
           playhead={playhead}
+          beatPlayhead={beatPlayhead}
           onSeek={onSeek}
+          onSeekBeat={seekFromBeat}
           anchors={origAnchors}
           selectedAnchorIds={selectedIds}
           onAnchorAdd={handleThinAnchorAdd}
           onAnchorDelete={handleThinAnchorDelete}
           onAnchorSelect={handleThinAnchorSelect}
           onAnchorContextMenu={handleAnchorContextMenu}
+          beatAnchors={quantAnchors}
+          onBeatAnchorDelete={handleThinBeatAnchorDelete}
+          onBeatAnchorSelect={handleThinBeatAnchorSelect}
+          onBeatAnchorContextMenu={handleAnchorContextMenu}
           bpm={bpm}
           beatOffset={beatOffset}
-          showBeats={origAnchors.length > 0}
           scenes={scenes}
           onSceneAdd={onSceneAdd}
           onSceneDelete={onSceneDelete}
@@ -668,6 +689,16 @@ export default function WarpView({
           regionsOutput={thinRegionsOut}
           onRegionSelect={onClipOverlaySelect}
           onRegionContextMenu={onClipOverlayContextMenu}
+          segments={segments}
+          clipIn={clipIn}
+          clipOut={clipOut}
+          beatClipIn={beatClipIn}
+          beatClipOut={beatClipOut}
+          clipFillColor={activeRegionPalette?.fill}
+          boundaryColor={activeRegionPalette?.solid}
+          linkedBoundaries={linkedBoundaries}
+          selectedBoundaries={selectedBoundaries}
+          onConnectorSelectionChange={setSelectedIds}
         />
       ) : (
       <Timeline
@@ -748,7 +779,7 @@ export default function WarpView({
         }}
       />
       )}
-      {warpCollapsed ? null : <><WarpConnector
+      {(warpCollapsed || thinLayout) ? null : <><WarpConnector
         ref={connectorRef}
         segments={segments}
         view={view}
