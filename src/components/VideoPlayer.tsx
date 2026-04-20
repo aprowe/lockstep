@@ -28,12 +28,27 @@ export default forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPla
   const rafRef = useRef<number | null>(null)
   const onTimeUpdateRef = useRef(onTimeUpdate)
   onTimeUpdateRef.current = onTimeUpdate
+  const lastEmittedRef = useRef(0)
+
+  function emit(t: number) {
+    lastEmittedRef.current = t
+    onTimeUpdateRef.current?.(t)
+  }
+
+  // Some files (edit-list mp4s, odd duration metadata) fire `pause`/`ended`
+  // with currentTime=0 even though playback was mid-video. In that case the
+  // last raf tick has the real position — don't clobber it with 0.
+  function emitIfNotSpuriousZero() {
+    const t = videoRef.current?.currentTime ?? 0
+    if (t === 0 && lastEmittedRef.current > 0.05) return
+    emit(t)
+  }
 
   function startRaf() {
     if (rafRef.current !== null) return
     const tick = () => {
       if (!playingRef.current) { rafRef.current = null; return }
-      onTimeUpdateRef.current?.(videoRef.current?.currentTime ?? 0)
+      emit(videoRef.current?.currentTime ?? 0)
       rafRef.current = requestAnimationFrame(tick)
     }
     rafRef.current = requestAnimationFrame(tick)
@@ -77,18 +92,17 @@ export default forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPla
           playingRef.current = false
           onPlayStateChange?.(false)
           stopRaf()
-          // Emit final position on pause/seek
-          onTimeUpdateRef.current?.(videoRef.current?.currentTime ?? 0)
+          emitIfNotSpuriousZero()
         }}
         onEnded={() => {
           playingRef.current = false
           onPlayStateChange?.(false)
           stopRaf()
-          onTimeUpdateRef.current?.(videoRef.current?.currentTime ?? 0)
+          emitIfNotSpuriousZero()
         }}
         onSeeked={() => {
           if (!playingRef.current) {
-            onTimeUpdateRef.current?.(videoRef.current?.currentTime ?? 0)
+            emit(videoRef.current?.currentTime ?? 0)
           }
         }}
       />
