@@ -5,8 +5,7 @@
 /* Scene row wrapper uses the same rail convention as TrackRow since the
  * existing SceneRow manages its own inner layout. */
 .thin-timeline__scene-wrapper,
-.thin-timeline__speed-wrapper,
-.thin-timeline__warp-wrapper {
+.thin-timeline__speed-wrapper {
   display: flex;
   flex-direction: row;
   width: 100%;
@@ -23,12 +22,30 @@
   height: var(--thin-row-h);
 }
 
-.thin-timeline__warp-wrapper {
-  min-height: calc(var(--thin-row-h) * 3);
+/* Only the Marker In / Marker Out rows expand when the timeline gains
+ * vertical space. Every other row holds its natural thin height. */
+.thin-timeline .thin-row--markers {
+  flex: 1 1 0;
+  height: auto;
+  min-height: var(--thin-row-h);
 }
 
-.thin-timeline__warp-wrapper > .warp-connector-wrap {
-  flex: 1;
+/* Align WarpConnector's rail with thin rails (it normally uses 76px). */
+.thin-timeline > .warp-connector-wrap {
+  --rail-w: var(--thin-rail-w);
+  border-bottom: 1px solid var(--border);
+}
+
+.thin-timeline > .warp-connector-wrap .warp-connector__rail-cell {
+  font-size: calc(9px * var(--ui-scale));
+  letter-spacing: 0.08em;
+  padding: 0 var(--sp-3);
+  background: var(--bg-2);
+  border-right: 1px solid var(--border);
+}
+
+.thin-timeline > .warp-connector-wrap .warp-connector {
+  height: calc(var(--thin-row-h) * 4);
 }
 
 .thin-row__rail--inline {

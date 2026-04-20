@@ -173,26 +173,24 @@ export default function ThinTimeline({
         onContextMenu={onAnchorContextMenu}
       />
 
-      <div className="thin-timeline__warp-wrapper">
-        <WarpConnector
-          ref={connectorRef}
-          segments={segments}
-          view={view}
-          origDuration={duration}
-          outputDuration={outputDuration}
-          clipIn={clipIn}
-          clipOut={clipOut}
-          beatClipIn={beatClipIn}
-          beatClipOut={beatClipOut}
-          clipFillColor={clipFillColor}
-          boundaryColor={boundaryColor}
-          linkedBoundaries={linkedBoundaries}
-          selectedBoundaries={selectedBoundaries}
-          anchors={anchors}
-          onSelectionChange={onConnectorSelectionChange}
-          railLabel="Warp"
-        />
-      </div>
+      <WarpConnector
+        ref={connectorRef}
+        segments={segments}
+        view={view}
+        origDuration={duration}
+        outputDuration={outputDuration}
+        clipIn={clipIn}
+        clipOut={clipOut}
+        beatClipIn={beatClipIn}
+        beatClipOut={beatClipOut}
+        clipFillColor={clipFillColor}
+        boundaryColor={boundaryColor}
+        linkedBoundaries={linkedBoundaries}
+        selectedBoundaries={selectedBoundaries}
+        anchors={anchors}
+        onSelectionChange={onConnectorSelectionChange}
+        railLabel="Warp"
+      />
 
       <MarkersTrack
         label="Marker Out"
