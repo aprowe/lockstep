@@ -38,7 +38,7 @@ import {
   newAnchorId,
 } from '../store/slices/warpSlice'
 import { updateRegionBeatTimes } from '../store/slices/regionSlice'
-import { setView as setReduxView } from '../store/slices/uiSlice'
+import { setView as setReduxView, setWarpCollapsed } from '../store/slices/uiSlice'
 import { undo as undoAction, redo as redoAction } from '../store/slices/historySlice'
 import './WarpView.css'
 
@@ -79,6 +79,7 @@ export default function WarpView({
   const addToEnd = useAppSelector(s => s.warp.addToEnd)
   const playhead = useAppSelector(s => s.warp.playhead)
   const gridDiv = useAppSelector(s => s.ui.gridDiv)
+  const warpCollapsed = useAppSelector(s => s.ui.warpCollapsed)
   const duration = useAppSelector(s => s.video.video?.duration ?? 60)
 
   const activeRegion = useAppSelector(selectActiveRegion)
@@ -104,6 +105,8 @@ export default function WarpView({
   const [mouseOver, setMouseOver] = useState(false)
   const [selectionOrigin, setSelectionOrigin] = useState<'orig' | 'beat'>('orig')
   const [scenesExpanded, setScenesExpanded] = useState(false)
+  const [hoveredScene, setHoveredScene] = useState<number | null>(null)
+  const [dragTime, setDragTime] = useState<number | null>(null)
 
   const warpContainerRef = useRef<HTMLDivElement>(null)
   const connectorRef = useRef<HTMLDivElement>(null)
@@ -151,6 +154,22 @@ export default function WarpView({
   const maxDuration = Math.max(duration, outputDuration)
 
   const scenes = useMemo(() => scenesProp ?? [], [scenesProp])
+
+  // Scene throughlines are hidden by default. They appear for the hovered scene
+  // marker, or for the 2 nearest scenes on each side of a dragging anchor/clip.
+  const visibleScenes = useMemo(() => {
+    if (hoveredScene !== null) return [hoveredScene]
+    if (dragTime !== null && scenes.length > 0) {
+      const before: number[] = []
+      const after: number[] = []
+      for (const t of scenes) {
+        if (t <= dragTime) before.push(t)
+        else after.push(t)
+      }
+      return [...before.slice(-2), ...after.slice(0, 2)]
+    }
+    return []
+  }, [hoveredScene, dragTime, scenes])
 
   // ── Segments (with synthetic clip boundary anchors) ────────────────────────
   const { segments, segmentAnchors } = useMemo(() => {
@@ -604,10 +623,19 @@ export default function WarpView({
         dimmedAnchorIds={dimmedAnchorIds}
         minimapRegions={clipOverlays}
         belowRulerContent={
-          <SceneRow scenes={scenes} view={view} duration={duration} expanded={scenesExpanded} onSceneClick={onSeek} />
+          <SceneRow
+            scenes={scenes}
+            view={view}
+            duration={duration}
+            expanded={scenesExpanded}
+            onSceneClick={onSeek}
+            onSceneHover={setHoveredScene}
+          />
         }
         throughlines={scenes}
+        activeThroughlines={visibleScenes}
         snapTargets={scenes}
+        onDragPositionChange={setDragTime}
         rowLabels={{
           minimap: 'Overview',
           ruler: 'Time',
@@ -621,10 +649,19 @@ export default function WarpView({
               <span className="warp-view__scene-chevron">{scenesExpanded ? '▾' : '▸'}</span>
             </button>
           ),
-          track: 'Source',
+          track: (
+            <button
+              className="warp-view__collapse-toggle"
+              onClick={() => dispatch(setWarpCollapsed(!warpCollapsed))}
+              title={warpCollapsed ? 'Show warp / beats / bars / speed' : 'Hide warp / beats / bars / speed'}
+            >
+              <span>Source</span>
+              <span className="warp-view__collapse-chevron">{warpCollapsed ? '▸' : '▾'}</span>
+            </button>
+          ),
         }}
       />
-      <WarpConnector
+      {warpCollapsed ? null : <><WarpConnector
         ref={connectorRef}
         segments={segments}
         view={view}
@@ -697,7 +734,7 @@ export default function WarpView({
           ruler: 'Bars',
           belowRuler: 'Speed',
         }}
-      />
+      /></>}
       <input
         ref={importRef}
         type="file"

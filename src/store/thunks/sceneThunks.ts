@@ -1,7 +1,7 @@
 import { createAsyncThunk } from '@reduxjs/toolkit'
 import type { RootState } from '../store'
 import { startSceneDetection, listenSceneProgress } from '../../api/scene'
-import { startDetection, setProgress, setCuts, setError } from '../slices/sceneSlice'
+import { startDetection, setProgress, setCuts, appendCut, setError } from '../slices/sceneSlice'
 
 let unlisten: (() => void) | null = null
 
@@ -11,14 +11,15 @@ export const ensureSceneListener = createAsyncThunk<void, void>(
   async (_, { dispatch, getState }) => {
     if (unlisten) return
     unlisten = await listenSceneProgress(payload => {
-      const { path, job_id, status, percent, cuts, error } = payload
+      const { path, job_id, status, percent, cut, cuts, error } = payload
       if (!path) return
       const state = getState() as RootState
       // Drop events from stale jobs (user re-triggered detection for this path).
       const current = state.scene.jobByPath[path]
       if (current && current !== job_id) return
-      if (status === 'running' && typeof percent === 'number') {
-        dispatch(setProgress({ path, progress: percent }))
+      if (status === 'running') {
+        if (typeof cut === 'number') dispatch(appendCut({ path, cut }))
+        if (typeof percent === 'number') dispatch(setProgress({ path, progress: percent }))
       } else if (status === 'done' && Array.isArray(cuts)) {
         dispatch(setCuts({ path, cuts }))
       } else if (status === 'error') {

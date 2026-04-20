@@ -23,15 +23,18 @@ pub const DEFAULT_THRESHOLD: f64 = 10.0;
 ///
 /// `on_progress` receives a rough 0.0–1.0 progress fraction as ffmpeg streams
 /// `time=HH:MM:SS.xx` status lines; it's called best-effort and may not fire
-/// if the duration is unknown.
-pub fn detect_cuts<F>(
+/// if the duration is unknown. `on_cut` fires once per detected cut (in the
+/// order ffmpeg reports them) so callers can stream results to the UI.
+pub fn detect_cuts<F, G>(
     video_path: &str,
     threshold: f64,
     duration: Option<f64>,
     mut on_progress: F,
+    mut on_cut: G,
 ) -> Result<Vec<f64>, String>
 where
     F: FnMut(f64),
+    G: FnMut(f64),
 {
     let filter = format!("scdet=t={threshold}");
     let mut cmd = Command::new(find_bin("ffmpeg"));
@@ -71,6 +74,7 @@ where
 
         if let Some(t) = parse_cut_time(&line) {
             cuts.push(t);
+            on_cut(t);
         } else if let (Some(t), Some(dur)) = (parse_progress_time(&line), duration) {
             if dur > 0.0 {
                 on_progress((t / dur).clamp(0.0, 1.0));

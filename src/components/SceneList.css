@@ -74,6 +74,11 @@
 .sl-controls__btn:hover:not(:disabled) { color: var(--fg-1); border-color: var(--fg-3); }
 .sl-controls__btn:disabled { opacity: 0.3; cursor: default; }
 
+.sl-controls__unit {
+  font-size: var(--t-base);
+  color: var(--fg-4);
+}
+
 .sl-progress {
   position: relative;
   height: 18px;

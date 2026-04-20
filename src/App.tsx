@@ -40,6 +40,8 @@ import {
   openJsonFileThunk,
 } from './store/thunks/videoThunks'
 import { detectScenesThunk, ensureSceneListener } from './store/thunks/sceneThunks'
+import { setMinGap as setSceneMinGapAction } from './store/slices/sceneSlice'
+import { filterCutsByMinGap } from './utils/sceneFilter'
 import { useAppDispatch, useAppSelector } from './store/hooks'
 import { setDetectingBpm as setDetectingBpmAction } from './store/slices/videoSlice'
 import {
@@ -117,6 +119,11 @@ export default function App() {
   const sceneProgress = useAppSelector(s => videoPath ? s.scene.progressByPath[videoPath] : undefined) ?? 0
   const sceneError = useAppSelector(s => videoPath ? s.scene.errorByPath[videoPath] : undefined)
   const sceneThreshold = useAppSelector(s => videoPath ? s.scene.thresholdByPath[videoPath] : undefined) ?? 10
+  const sceneMinGap = useAppSelector(s => videoPath ? s.scene.minGapByPath[videoPath] : undefined) ?? 0
+  const filteredSceneCuts = useMemo(
+    () => filterCutsByMinGap(sceneCuts ?? [], sceneMinGap),
+    [sceneCuts, sceneMinGap],
+  )
 
   // ── Dispatch helpers ────────────────────────────────────────────────────
   const openFile = () => dispatch(openFileThunk())
@@ -613,7 +620,7 @@ export default function App() {
               <div className="vj-timeline" style={{ height: timelineHeight }}>
                 <WarpView
                   onSeek={t => playerRef.current?.seek(t)}
-                  scenes={sceneCuts}
+                  scenes={filteredSceneCuts}
                   onSendToNewRegion={(inPoint, outPoint) =>
                     addRegion(inPoint, outPoint)
                   }
@@ -689,6 +696,10 @@ export default function App() {
                   }}
                   onRecompute={(t) => {
                     if (videoPath) dispatch(detectScenesThunk({ path: videoPath, threshold: t }))
+                  }}
+                  minGap={sceneMinGap}
+                  onMinGapChange={(g) => {
+                    if (videoPath) dispatch(setSceneMinGapAction({ path: videoPath, minGap: g }))
                   }}
                 />
               </div>

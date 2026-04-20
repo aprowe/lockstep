@@ -12,9 +12,11 @@ interface SceneRowProps {
   expanded?: boolean
   /** Click on a scene diamond — receives the scene time. */
   onSceneClick?: (time: number) => void
+  /** Fired on diamond hover enter (time) / leave (null). */
+  onSceneHover?: (time: number | null) => void
 }
 
-export default function SceneRow({ scenes, view, duration, expanded, onSceneClick }: SceneRowProps) {
+export default function SceneRow({ scenes, view, duration, expanded, onSceneClick, onSceneHover }: SceneRowProps) {
   return (
     <div className={`scene-row${expanded ? ' scene-row--expanded' : ''}`}>
       {scenes.map((t, i) => {
@@ -27,6 +29,8 @@ export default function SceneRow({ scenes, view, duration, expanded, onSceneClic
               type="button"
               className="scene-row__diamond"
               onClick={onSceneClick ? () => onSceneClick(t) : undefined}
+              onMouseEnter={onSceneHover ? () => onSceneHover(t) : undefined}
+              onMouseLeave={onSceneHover ? () => onSceneHover(null) : undefined}
               aria-label={`Scene ${i + 1}`}
               title={`Scene ${i + 1}`}
             />

@@ -110,7 +110,12 @@
   bottom: 0;
   width: 0;
   border-left: 1px dashed rgba(245, 200, 90, 0.35);
+  opacity: 1;
+  transition: opacity 100ms ease;
 }
+/* Gated parent: only --active children are visible; others fade out. */
+.timeline__throughlines--gated .timeline__throughline { opacity: 0; }
+.timeline__throughlines--gated .timeline__throughline--active { opacity: 1; }
 
 /* ── Ruler ──────────────────────────────────────────── */
 .ruler {
@@ -149,16 +154,17 @@
 .tick--sub::before { height: 4px; opacity: 0.6; }
 .tick--dimmed { opacity: 0.4; }
 
-/* Bottom (flip) timeline: brighter, taller ruler ticks + subdivisions */
+/* Bottom (flip) timeline: short, muted ticks so they don't fight the measure labels. */
 .timeline--flip .tick::before {
-  background: var(--fg-1);
+  background: var(--fg-3);
   width: 1px;
 }
-.timeline--flip .tick--sub::before { height: 6px; opacity: 0.5; }
-.timeline--flip .tick--minor::before { height: 10px; }
+.timeline--flip .tick--sub::before { height: 3px; opacity: 0.45; }
+.timeline--flip .tick--minor::before { height: 6px; opacity: 0.7; }
 .timeline--flip .tick--major::before {
-  height: 16px;
-  width: 2px;
+  height: 9px;
+  width: 1px;
+  background: var(--fg-2);
 }
 
 .tick-label {

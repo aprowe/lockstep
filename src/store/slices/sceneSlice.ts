@@ -15,6 +15,8 @@ interface SceneState {
   jobByPath: Record<string, string>
   /** Per-video scdet threshold override. Higher = fewer cuts. */
   thresholdByPath: Record<string, number>
+  /** Per-video min seconds between consecutive cuts. 0 disables. Collapses dense clusters in the UI. */
+  minGapByPath: Record<string, number>
 }
 
 const initialState: SceneState = {
@@ -24,6 +26,7 @@ const initialState: SceneState = {
   errorByPath: {},
   jobByPath: {},
   thresholdByPath: {},
+  minGapByPath: {},
 }
 
 const sceneSlice = createSlice({
@@ -39,6 +42,8 @@ const sceneSlice = createSlice({
       state.progressByPath[path] = 0
       state.jobByPath[path] = jobId
       state.thresholdByPath[path] = threshold
+      // Clear stale cuts so streaming results don't mingle with a previous run.
+      state.cutsByPath[path] = []
       delete state.errorByPath[path]
     },
     setProgress(state, action: PayloadAction<{ path: string; progress: number }>) {
@@ -52,6 +57,19 @@ const sceneSlice = createSlice({
       state.cutsByPath[action.payload.path] = action.payload.cuts
       state.statusByPath[action.payload.path] = 'done'
       state.progressByPath[action.payload.path] = 1
+    },
+    /** Append a single streaming cut as ffmpeg discovers it. Keeps the list sorted. */
+    appendCut(state, action: PayloadAction<{ path: string; cut: number }>) {
+      const { path, cut } = action.payload
+      const list = state.cutsByPath[path] ?? []
+      // Dedup within 1ms of an existing cut.
+      if (list.some(t => Math.abs(t - cut) < 1e-3)) return
+      // Insert in sorted position.
+      let i = 0
+      while (i < list.length && list[i] < cut) i += 1
+      state.cutsByPath[path] = [...list.slice(0, i), cut, ...list.slice(i)]
+      const s = state.statusByPath[path]
+      if (s !== 'done' && s !== 'error') state.statusByPath[path] = 'analyzing'
     },
     setError(state, action: PayloadAction<{ path: string; error: string }>) {
       state.statusByPath[action.payload.path] = 'error'
@@ -77,6 +95,10 @@ const sceneSlice = createSlice({
       delete state.errorByPath[path]
       delete state.jobByPath[path]
     },
+    setMinGap(state, action: PayloadAction<{ path: string; minGap: number }>) {
+      const { path, minGap } = action.payload
+      state.minGapByPath[path] = Math.max(0, minGap)
+    },
   },
 })
 
@@ -84,9 +106,11 @@ export const {
   startDetection,
   setProgress,
   setCuts,
+  appendCut,
   setError,
   loadCached,
   clearForPath,
+  setMinGap,
 } = sceneSlice.actions
 
 export default sceneSlice.reducer

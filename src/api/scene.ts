@@ -7,6 +7,9 @@ export interface SceneDetectionProgressPayload {
   path?: string
   percent?: number
   status: 'running' | 'done' | 'error'
+  /** A single cut time (seconds) emitted during running — lets the UI stream markers in. */
+  cut?: number
+  /** Final sorted cut list, only present on `status: 'done'`. */
   cuts?: number[]
   error?: string
 }

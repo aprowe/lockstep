@@ -19,6 +19,8 @@ interface UiState {
   clipSidebarWidth: number
   rightWidth: number
   sidebarCollapsed: boolean
+  /** Hide the warp connector + beats/bars/speed timeline so the source timeline fills the pane. */
+  warpCollapsed: boolean
   gridDiv: number
   playing: boolean
   exportOpen: boolean
@@ -48,6 +50,7 @@ const initialState: UiState = {
   clipSidebarWidth: 210,
   rightWidth: 280,
   sidebarCollapsed: false,
+  warpCollapsed: false,
   gridDiv: 1,
   playing: false,
   exportOpen: false,
@@ -74,6 +77,9 @@ const uiSlice = createSlice({
     },
     setSidebarCollapsed(state, action: PayloadAction<boolean>) {
       state.sidebarCollapsed = action.payload
+    },
+    setWarpCollapsed(state, action: PayloadAction<boolean>) {
+      state.warpCollapsed = action.payload
     },
     setGridDiv(state, action: PayloadAction<number>) {
       state.gridDiv = action.payload
@@ -105,6 +111,7 @@ export const {
   setClipSidebarWidth,
   setRightWidth,
   setSidebarCollapsed,
+  setWarpCollapsed,
   setGridDiv,
   setPlaying,
   setExportOpen,

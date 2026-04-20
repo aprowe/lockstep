@@ -110,8 +110,14 @@ export interface TimelineProps {
   /** Times (seconds) at which to draw hairline dashed vertical guide lines
    *  spanning the body of the timeline (track + ruler + belowRulerContent). */
   throughlines?: number[]
+  /** If provided, only throughlines whose time is in this set are shown; others
+   *  fade out. Undefined = all throughlines shown (default). */
+  activeThroughlines?: number[]
   /** Extra times (seconds) to snap dragged anchors to. */
   snapTargets?: number[]
+  /** Fires during active drags (anchors, groups, clip overlays) with the pointer time,
+   *  and with `null` when the drag ends. Used by the parent to show contextual UI. */
+  onDragPositionChange?: (time: number | null) => void
   /** Per-layer labels shown on a left-side rail next to each row. */
   rowLabels?: {
     minimap?: React.ReactNode
@@ -256,7 +262,9 @@ export default function Timeline({
   minimapRegions,
   belowRulerContent,
   throughlines,
+  activeThroughlines,
   snapTargets,
+  onDragPositionChange,
   rowLabels,
 }: TimelineProps) {
   const [internalView, setInternalView] = useState<View>({ start: 0, end: duration })
@@ -434,6 +442,11 @@ export default function Timeline({
     (e: React.PointerEvent) => {
       const g = gesture.current
       if (!g) return
+
+      if (g.type === 'anchor-drag' || g.type === 'group-drag' ||
+          g.type === 'clip-move' || g.type === 'clip-resize' || g.type === 'clip-create') {
+        onDragPositionChange?.(xToTime(e.clientX))
+      }
 
       /** Build the shared target list for clip resize/move gestures.
        *  Grid is returned separately so callers can skip it (e.g. beats-locked resize). */
@@ -626,7 +639,7 @@ export default function Timeline({
         return
       }
     },
-    [view, visibleSpan, duration, xToTime, trySnap, setView, anchors, onAnchorsChange, getBounds, onSelectionChange, timeToPercent, onClipOverlayCreate, onClipOverlayResize, onClipOverlayMove, onTrackScrub, scrubOnTrackClick, clipOverlays, snapThresholdPx],
+    [view, visibleSpan, duration, xToTime, trySnap, setView, anchors, onAnchorsChange, getBounds, onSelectionChange, timeToPercent, onClipOverlayCreate, onClipOverlayResize, onClipOverlayMove, onTrackScrub, scrubOnTrackClick, clipOverlays, snapThresholdPx, onDragPositionChange],
   )
 
   const handleTrackPointerUp = useCallback(
@@ -634,6 +647,7 @@ export default function Timeline({
       const g = gesture.current
       gesture.current = null
       setLassoRect(null)
+      onDragPositionChange?.(null)
 
       if (g?.type === 'potential') {
         if (g.clipId != null) {
@@ -705,7 +719,7 @@ export default function Timeline({
         return
       }
     },
-    [noAdd, canInteract, duration, anchors, onAnchorsChange, onSelectionChange, mergeMarginPx, visibleSpan, scrubOnTrackClick, onTrackScrub, onClipOverlayCreate, onClipOverlaySelect],
+    [noAdd, canInteract, duration, anchors, onAnchorsChange, onSelectionChange, mergeMarginPx, visibleSpan, scrubOnTrackClick, onTrackScrub, onClipOverlayCreate, onClipOverlaySelect, onDragPositionChange],
   )
 
   const handleAnchorPointerDown = useCallback(
@@ -1105,12 +1119,20 @@ export default function Timeline({
       </div>
   )
 
+  const activeSet = activeThroughlines ? new Set(activeThroughlines) : null
   const throughlineOverlay = throughlines && throughlines.length > 0 ? (
-    <div className="timeline__throughlines">
-      {throughlines.map((t, i) => {
+    <div className={`timeline__throughlines${activeSet ? ' timeline__throughlines--gated' : ''}`}>
+      {throughlines.map((t) => {
         const x = timeToPercent(t)
         if (x < -1 || x > 101) return null
-        return <div key={i} className="timeline__throughline" style={{ left: `${x}%` }} />
+        const active = activeSet ? activeSet.has(t) : true
+        return (
+          <div
+            key={t}
+            className={`timeline__throughline${active ? ' timeline__throughline--active' : ''}`}
+            style={{ left: `${x}%` }}
+          />
+        )
       })}
     </div>
   ) : null

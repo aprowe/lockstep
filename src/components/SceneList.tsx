@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import type { Region, View } from '../types'
 import { formatTime } from '../utils/time'
+import { filterCutsByMinGap } from '../utils/sceneFilter'
 import './SceneList.css'
 
 // Must match the palette in RegionSidebar / Timeline.css (clip-overlay--color-N).
@@ -28,12 +29,16 @@ interface SceneListProps {
   view: View
   onSeek?: (time: number) => void
   onRecompute: (threshold: number) => void
+  /** Min seconds between consecutive cuts to keep; collapses dense clusters. 0 disables. */
+  minGap: number
+  onMinGapChange: (minGap: number) => void
 }
 
 export default function SceneList({
   cuts, status, progress, error, threshold, duration,
   regions, view,
   onSeek, onRecompute,
+  minGap, onMinGapChange,
 }: SceneListProps) {
   const [draftThreshold, setDraftThreshold] = useState<string>(String(threshold))
   const [nearViewOnly, setNearViewOnly] = useState<boolean>(false)
@@ -44,10 +49,12 @@ export default function SceneList({
   const parsed = Number.parseFloat(draftThreshold)
   const thresholdChanged = Number.isFinite(parsed) && Math.abs(parsed - threshold) > 1e-3
 
-  // Scene boundaries (0, ...cuts, duration) turned into rows. Each row is a scene
+  const filteredCuts = useMemo(() => filterCutsByMinGap(cuts, minGap), [cuts, minGap])
+
+  // Scene boundaries (0, ...filteredCuts, duration) turned into rows. Each row is a scene
   // interval [start, end). Optionally filtered to the current view ± 50% of its span.
   const rows = useMemo(() => {
-    const boundaries = [0, ...cuts, duration]
+    const boundaries = [0, ...filteredCuts, duration]
     const all = boundaries.slice(0, -1).map((start, i) => ({
       originalIndex: i,
       start,
@@ -59,7 +66,7 @@ export default function SceneList({
     const hi = view.end + span * 0.25
     // Keep a row if its [start, end) overlaps the expanded window.
     return all.filter(r => r.end > lo && r.start < hi)
-  }, [cuts, duration, nearViewOnly, view])
+  }, [filteredCuts, duration, nearViewOnly, view])
 
   // Region index (by array position) covering a given time, or -1 if none.
   const regionColorFor = (time: number) => {
@@ -75,8 +82,10 @@ export default function SceneList({
         <span className="sl-header__count">
           {status === 'analyzing'
             ? `${Math.round(progress * 100)}%`
-            : cuts.length > 0
-              ? cuts.length
+            : filteredCuts.length > 0
+              ? (minGap > 0 && filteredCuts.length !== cuts.length
+                  ? `${filteredCuts.length}/${cuts.length}`
+                  : filteredCuts.length)
               : status === 'error' ? '—' : 0}
         </span>
       </div>
@@ -102,6 +111,23 @@ export default function SceneList({
         >
           {thresholdChanged ? 'Apply' : 'Recompute'}
         </button>
+      </div>
+
+      <div className="sl-controls">
+        <label className="sl-controls__label" title="Collapse markers closer than this into one segment.">Min gap</label>
+        <input
+          type="number"
+          className="sl-controls__input"
+          min={0}
+          max={60}
+          step={0.25}
+          value={minGap}
+          onChange={e => {
+            const v = Number.parseFloat(e.target.value)
+            onMinGapChange(Number.isFinite(v) && v >= 0 ? v : 0)
+          }}
+        />
+        <span className="sl-controls__unit">s</span>
       </div>
 
       <label className="sl-filter">

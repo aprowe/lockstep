@@ -618,7 +618,23 @@ pub async fn start_scene_detection(
                     );
                 }
             };
-            detect_cuts(&path_for_block, threshold, duration, progress)
+            let on_cut = {
+                let app = app2.clone();
+                let j = jid2.clone();
+                let p = path_for_block.clone();
+                move |cut: f64| {
+                    let _ = app.emit(
+                        "scene-detection-progress",
+                        serde_json::json!({
+                            "job_id": &j,
+                            "path": &p,
+                            "status": "running",
+                            "cut": cut,
+                        }),
+                    );
+                }
+            };
+            detect_cuts(&path_for_block, threshold, duration, progress, on_cut)
         })
         .await;
 

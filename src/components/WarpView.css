@@ -39,6 +39,32 @@
   color: var(--fg-3);
 }
 
+.warp-view__collapse-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-1);
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.warp-view__collapse-toggle:hover {
+  color: var(--fg-1);
+}
+
+.warp-view__collapse-chevron {
+  font-size: calc(10px * var(--ui-scale));
+  color: var(--fg-3);
+}
+
 .warp-controls {
   display: flex;
   align-items: center;
