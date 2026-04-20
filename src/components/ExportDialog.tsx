@@ -134,6 +134,7 @@ export default function ExportDialog({
 
   const reduxDispatch = useAppDispatch()
   const lastExportFolder = useAppSelector(s => s.ui.lastExportFolder)
+  const sceneCuts = useAppSelector(s => (videoPath ? s.scene?.cutsByPath?.[videoPath] ?? [] : []))
 
   // Output settings — default folder is last-used export folder, then video's parent folder
   const videoFolder = useMemo(() => videoPath ? parentFolder(videoPath) : null, [videoPath])
@@ -288,6 +289,7 @@ export default function ExportDialog({
           interpolateFrames,
           interpFps,
           interpMethod,
+          sceneCuts,
         }))
 
         const outputPath = await new Promise<string>((resolve, reject) => {

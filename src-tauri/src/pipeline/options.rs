@@ -51,4 +51,8 @@ pub struct WarpOptions {
     /// is shorter, or extended with a freeze-frame + silence pad if longer.
     /// Implies `no_smooth`; incompatible with RIFE (caller must not set that).
     pub trigger_mode: bool,
+    /// Source-time positions (seconds) of hard scene cuts. RIFE uses this to
+    /// avoid blending two frames that straddle a cut — it holds instead.
+    /// Empty = no awareness; behaves like before.
+    pub scene_cuts: Vec<f64>,
 }

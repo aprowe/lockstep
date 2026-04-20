@@ -22,6 +22,9 @@ export interface WarpRequest {
   /** When true, play each anchor interval at 1.0x (truncate or freeze-pad)
    *  instead of time-warping. Forces interp_fps=null on the backend. */
   trigger_mode?: boolean
+  /** Source-time positions (seconds) of hard scene cuts. RIFE uses these
+   *  to avoid blending frames across a cut. Optional. */
+  scene_cuts?: number[]
 }
 
 export interface WarpProgressPayload {

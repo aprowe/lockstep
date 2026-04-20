@@ -16,6 +16,7 @@ use crate::pipeline::time_map::TimeMap;
 pub fn apply_warp_aware_rife<F>(
     input_path: &str,
     time_map: &TimeMap,
+    scene_cuts: &[f64],
     fps: u32,
     output_path: &str,
     tmp_path: &Path,
@@ -27,7 +28,14 @@ where
     progress(0.83, "Running warp-aware RIFE...");
 
     let rife_silent = tmp_path.join("rife_silent.mp4").to_string_lossy().into_owned();
-    crate::rife::interpolate_rife_warped(input_path, time_map, fps, &rife_silent, progress)?;
+    crate::rife::interpolate_rife_warped(
+        input_path,
+        time_map,
+        scene_cuts,
+        fps,
+        &rife_silent,
+        progress,
+    )?;
 
     let muxed = tmp_path.join("rife_muxed.mp4").to_string_lossy().into_owned();
     let mux_res = run_ffmpeg(&[

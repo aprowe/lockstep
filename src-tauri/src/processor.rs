@@ -140,7 +140,15 @@ where
     // freeze-pads would confuse the warp-aware pair selection.
     if !opts.trigger_mode {
         if let (Some(fps), InterpMethod::Rife) = (opts.interp_fps, opts.interp_method) {
-            apply_warp_aware_rife(input_path, &time_map, fps, output_path, tmp_path, progress)?;
+            apply_warp_aware_rife(
+                input_path,
+                &time_map,
+                &opts.scene_cuts,
+                fps,
+                output_path,
+                tmp_path,
+                progress,
+            )?;
         }
     }
 

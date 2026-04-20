@@ -178,6 +178,8 @@ pub struct WarpRequest {
     pub no_smooth: bool,
     #[serde(default)]
     pub trigger_mode: bool,
+    #[serde(default)]
+    pub scene_cuts: Vec<f64>,
 }
 
 #[tauri::command]
@@ -214,6 +216,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
             interp_method: InterpMethod::from_str(req.interp_method.as_deref()),
             no_smooth: req.no_smooth,
             trigger_mode: req.trigger_mode,
+            scene_cuts: req.scene_cuts,
         };
 
         let result = tokio::task::spawn_blocking(move || {

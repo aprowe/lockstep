@@ -372,6 +372,7 @@ fn invert_time_map(time_map: &[(f64, f64)], t_out: f64) -> f64 {
 pub fn interpolate_rife_warped<F>(
     input: &str,
     time_map: &[(f64, f64)],
+    scene_cuts: &[f64],
     target_fps: u32,
     output: &str,
     progress: &F,
@@ -442,9 +443,17 @@ where
         // Two-file mode (-0/-1): required because rife-ncnn-vulkan silently
         // ignores `-s` in directory mode and always produces α=0.5 frames there,
         // which was the source of the "pair" artefact in the output.
+        let t_a = a as f64 / src_fps;
+        let t_b = b as f64 / src_fps;
+        let straddles_cut = scene_cuts.iter().any(|&c| c > t_a && c <= t_b);
         if a == b {
             // Degenerate: only one source frame available; just emit it.
             std::fs::copy(&src_frames[a], &dest).map_err(|e| e.to_string())?;
+        } else if straddles_cut {
+            // Don't blend across a hard cut — the two frames are unrelated and
+            // RIFE would melt them together. Hold the closer source frame.
+            let pick = if alpha < 0.5 { a } else { b };
+            std::fs::copy(&src_frames[pick], &dest).map_err(|e| e.to_string())?;
         } else {
             // Clamp α to the open interval — rife-ncnn-vulkan is undefined at 0/1.
             let alpha_clamped = alpha.max(1e-3).min(1.0 - 1e-3);

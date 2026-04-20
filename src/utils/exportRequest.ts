@@ -21,13 +21,16 @@ export interface BuildWarpRequestInput {
   interpolateFrames: boolean
   interpFps: number
   interpMethod: 'minterpolate' | 'rife'
+  /** Source-time positions of detected scene cuts. Filtered to the job's
+   *  clip window before sending. */
+  sceneCuts?: number[]
 }
 
 /** Builds the WarpRequest payload sent to the Rust backend.
  *  `interpolateFrames` toggles frame interpolation (constant fps, blended frames);
  *  when false, variable speed is encoded via PTS. */
 export function buildWarpRequest(input: BuildWarpRequestInput): WarpRequest {
-  const { videoPath, warpData, job, loopBeats, trimToLoop, fadeAtLoop, normalizeBpm, interpolateFrames, interpFps, interpMethod } = input
+  const { videoPath, warpData, job, loopBeats, trimToLoop, fadeAtLoop, normalizeBpm, interpolateFrames, interpFps, interpMethod, sceneCuts } = input
 
   const hasMarkers = !!warpData && warpData.origAnchors.length >= 1
   // Per-region export jobs must only carry anchors that fall within this
@@ -49,6 +52,7 @@ export function buildWarpRequest(input: BuildWarpRequestInput): WarpRequest {
     : []
 
   const triggerMode = !!job.triggerMode
+  const cutsInRange = (sceneCuts ?? []).filter(inRange)
   return {
     path: videoPath,
     orig_times: pairs.map(p => p.orig),
@@ -66,5 +70,6 @@ export function buildWarpRequest(input: BuildWarpRequestInput): WarpRequest {
     interp_fps: !triggerMode && interpolateFrames ? Math.max(1, Math.round(interpFps)) : null,
     interp_method: !triggerMode && interpolateFrames ? interpMethod : null,
     trigger_mode: triggerMode,
+    scene_cuts: cutsInRange,
   }
 }

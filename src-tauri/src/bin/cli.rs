@@ -244,6 +244,7 @@ fn build_opts(base: &BaseOpts, region: Option<&Region>, dr: &DefaultRegion) -> W
         interp_method,
         no_smooth: base.no_smooth,
         trigger_mode,
+        scene_cuts: Vec::new(),
     }
 }
 
