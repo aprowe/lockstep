@@ -13,6 +13,14 @@
   min-height: 0;
 }
 
+/* When the scenes row is expanded inside the top timeline, give the top
+   timeline extra flex-basis equal to the scene-row expansion delta so the
+   burden is shared with the bottom timeline (beats/bars/speed) instead of
+   being absorbed entirely by the source track. */
+.warp-view--scenes-expanded > .timeline:first-of-type {
+  flex-basis: calc(48px * var(--ui-scale));
+}
+
 .warp-view__scene-toggle {
   display: flex;
   align-items: center;

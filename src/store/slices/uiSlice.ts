@@ -18,6 +18,7 @@ interface UiState {
   sidebarWidth: number
   clipSidebarWidth: number
   rightWidth: number
+  filmstripHeight: number
   sidebarCollapsed: boolean
   /** Hide the warp connector + beats/bars/speed timeline so the source timeline fills the pane. */
   warpCollapsed: boolean
@@ -49,6 +50,7 @@ const initialState: UiState = {
   sidebarWidth: 170,
   clipSidebarWidth: 210,
   rightWidth: 280,
+  filmstripHeight: 90,
   sidebarCollapsed: false,
   warpCollapsed: false,
   gridDiv: 1,
@@ -74,6 +76,9 @@ const uiSlice = createSlice({
     },
     setRightWidth(state, action: PayloadAction<number>) {
       state.rightWidth = Math.max(200, Math.min(480, action.payload))
+    },
+    setFilmstripHeight(state, action: PayloadAction<number>) {
+      state.filmstripHeight = Math.max(50, Math.min(220, action.payload))
     },
     setSidebarCollapsed(state, action: PayloadAction<boolean>) {
       state.sidebarCollapsed = action.payload
@@ -110,6 +115,7 @@ export const {
   setSidebarWidth,
   setClipSidebarWidth,
   setRightWidth,
+  setFilmstripHeight,
   setSidebarCollapsed,
   setWarpCollapsed,
   setGridDiv,

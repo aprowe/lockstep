@@ -73,6 +73,13 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.vj-player__video {
+  flex: 1;
+  min-height: 0;
 }
 
 .vj-resizer {

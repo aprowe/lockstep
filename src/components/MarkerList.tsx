@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import type { Anchor } from '../types'
 import { formatTime } from '../utils/time'
+import { useSetThumbnailHover } from './ThumbnailPopup'
 import './MarkerList.css'
 
 interface MarkerListProps {
@@ -27,6 +28,7 @@ export default function MarkerList({
   selectedIds, onSelectionChange, onSeek,
   onClear, onReset, onSnap, onDeleteSelected, onResetSelected, onSnapSelected,
 }: MarkerListProps) {
+  const setThumbnailHover = useSetThumbnailHover()
   const beatDuration = 60 / bpm
   const sorted = [...origAnchors].sort((a, b) => a.time - b.time)
   const hasSelection = selectedIds.size > 0
@@ -106,6 +108,11 @@ export default function MarkerList({
                 className={`ml-row${isSelected ? ' ml-row--selected' : ''}`}
                 onClick={e => handleClick(e, anchor.id)}
                 onDoubleClick={() => onSeek?.(anchor.time)}
+                onMouseEnter={e => {
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  setThumbnailHover({ time: anchor.time, x: rect.left, y: rect.top })
+                }}
+                onMouseLeave={() => setThumbnailHover(null)}
               >
                 <span className="ml-row__idx">{i + 1}</span>
                 <span className="ml-row__time">{formatTime(anchor.time)}</span>

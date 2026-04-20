@@ -5,6 +5,7 @@ import { clampView, MIN_VISIBLE, beatGridOpacity } from '../utils/view'
 import { formatTime } from '../utils/time'
 import { computeSnap, pixelsToSeconds, type SnapTarget } from '../utils/snap'
 import { newAnchorId, bumpAnchorIdCounter } from '../store/slices/warpSlice'
+import { useSetThumbnailHover } from './ThumbnailPopup'
 import './Timeline.css'
 
 export { newAnchorId, bumpAnchorIdCounter }
@@ -267,6 +268,7 @@ export default function Timeline({
   onDragPositionChange,
   rowLabels,
 }: TimelineProps) {
+  const setThumbnailHover = useSetThumbnailHover()
   const [internalView, setInternalView] = useState<View>({ start: 0, end: duration })
   const isControlled = controlledView !== undefined
 
@@ -994,6 +996,11 @@ export default function Timeline({
             }}
             onPointerDown={e => handleAnchorPointerDown(e, anchor)}
             onDoubleClick={e => handleAnchorDblClick(e, anchor.id)}
+            onMouseEnter={e => {
+              const rect = e.currentTarget.getBoundingClientRect()
+              setThumbnailHover({ time: anchor.time, x: rect.left + rect.width / 2, y: rect.top })
+            }}
+            onMouseLeave={() => setThumbnailHover(null)}
             onContextMenu={e => {
               e.preventDefault()
               e.stopPropagation()

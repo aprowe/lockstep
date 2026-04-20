@@ -42,7 +42,7 @@
 
 .timeline__row--track {
   flex: 1 1 var(--track-h);
-  min-height: var(--track-h);
+  min-height: 0;
 }
 
 .timeline__row > .track,

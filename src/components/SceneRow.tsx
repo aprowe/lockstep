@@ -1,5 +1,9 @@
+import { useCallback } from 'react'
+import { convertFileSrc } from '@tauri-apps/api/core'
+import { useAppSelector } from '../store/hooks'
 import type { View } from '../types'
 import { timeToViewPct } from '../utils/view'
+import { useSetThumbnailHover } from './ThumbnailPopup'
 import './SceneRow.css'
 
 interface SceneRowProps {
@@ -21,6 +25,19 @@ interface SceneRowProps {
 const PLAYHEAD_MATCH_TOLERANCE = 0.05 // ~1 video frame at 20fps
 
 export default function SceneRow({ scenes, view, duration, expanded, onSceneClick, onSceneHover, playhead }: SceneRowProps) {
+  const video = useAppSelector(s => s.video.video)
+  const thumbPaths = useAppSelector(s =>
+    video ? s.thumbnails.pathsByHashAndFrame[video.fileHash] ?? {} : {},
+  )
+  const setThumbnailHover = useSetThumbnailHover()
+
+  const thumbSrc = (t: number): string | null => {
+    if (!video || video.fps <= 0) return null
+    const frame = Math.floor(t * video.fps)
+    const path = thumbPaths[frame]
+    return path ? convertFileSrc(path) : null
+  }
+
   let activeIdx = -1
   if (playhead !== undefined) {
     let bestDist = PLAYHEAD_MATCH_TOLERANCE
@@ -30,6 +47,23 @@ export default function SceneRow({ scenes, view, duration, expanded, onSceneClic
     }
   }
 
+  // Diamond hover — fires onSceneHover always; popup only in collapsed mode
+  // (expanded mode already shows the thumbnail inline).
+  const handleDiamondEnter = useCallback(
+    (time: number, e: React.MouseEvent<HTMLElement>) => {
+      onSceneHover?.(time)
+      if (expanded) return
+      const rect = e.currentTarget.getBoundingClientRect()
+      setThumbnailHover({ time, x: rect.left + rect.width / 2, y: rect.top })
+    },
+    [onSceneHover, expanded, setThumbnailHover],
+  )
+
+  const handleLeave = useCallback(() => {
+    onSceneHover?.(null)
+    setThumbnailHover(null)
+  }, [onSceneHover, setThumbnailHover])
+
   return (
     <div className={`scene-row${expanded ? ' scene-row--expanded' : ''}`}>
       {scenes.map((t, i) => {
@@ -37,17 +71,40 @@ export default function SceneRow({ scenes, view, duration, expanded, onSceneClic
         const x = timeToViewPct(t, view)
         if (x < -2 || x > 102) return null
         const active = i === activeIdx
+        const inlineSrc = expanded ? thumbSrc(t) : null
         return (
           <div key={i} className="scene-row__marker" style={{ left: `${x}%` }}>
             <button
               type="button"
               className={`scene-row__diamond${active ? ' scene-row__diamond--active' : ''}`}
               onClick={onSceneClick ? () => onSceneClick(t) : undefined}
-              onMouseEnter={onSceneHover ? () => onSceneHover(t) : undefined}
-              onMouseLeave={onSceneHover ? () => onSceneHover(null) : undefined}
+              onMouseEnter={(e) => handleDiamondEnter(t, e)}
+              onMouseLeave={handleLeave}
               aria-label={`Scene ${i + 1}`}
               title={`Scene ${i + 1}`}
             />
+            {expanded && (
+              <button
+                type="button"
+                className={`scene-row__thumb-btn${active ? ' scene-row__thumb-btn--active' : ''}`}
+                onClick={onSceneClick ? () => onSceneClick(t) : undefined}
+                onMouseEnter={() => onSceneHover?.(t)}
+                onMouseLeave={() => onSceneHover?.(null)}
+                aria-label={`Scene ${i + 1} thumbnail`}
+                title={`Scene ${i + 1}`}
+              >
+                {inlineSrc ? (
+                  <img
+                    className="scene-row__thumb-img"
+                    src={inlineSrc}
+                    alt=""
+                    draggable={false}
+                  />
+                ) : (
+                  <div className="scene-row__thumb-img scene-row__thumb-img--placeholder" />
+                )}
+              </button>
+            )}
             {expanded && <span className="scene-row__label">{i + 1}</span>}
           </div>
         )

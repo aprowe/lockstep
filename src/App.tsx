@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import VideoPlayer from './components/VideoPlayer'
 import type { VideoPlayerHandle } from './components/VideoPlayer'
+import Filmstrip from './components/Filmstrip'
 import WarpView from './components/WarpView'
 import MarkerList from './components/MarkerList'
 import SceneList from './components/SceneList'
@@ -17,6 +18,7 @@ import RegionSidebar from './components/RegionSidebar'
 import RegionInfoPanel from './components/RegionInfoPanel'
 import ContextMenu from './components/ContextMenu'
 import type { ContextMenuState } from './components/ContextMenu'
+import ThumbnailPopup, { ThumbnailHoverProvider } from './components/ThumbnailPopup'
 import { snapAllToBeat } from './utils/quantize'
 import { undo as undoAction, redo as redoAction } from './store/slices/historySlice'
 import {
@@ -396,6 +398,7 @@ export default function App() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
+    <ThumbnailHoverProvider>
     <div className="app">
 
       {/* Menu bar */}
@@ -535,12 +538,19 @@ export default function App() {
                 )}
               </div>
               <div className="vj-player">
-                <VideoPlayer
-                  ref={playerRef}
-                  src={video.videoUrl}
-                  duration={video.duration}
-                  onTimeUpdate={t => dispatch(setPlayheadAction(t))}
-                  onPlayStateChange={setPlaying}
+                <div className="vj-player__video">
+                  <VideoPlayer
+                    ref={playerRef}
+                    src={video.videoUrl}
+                    duration={video.duration}
+                    onTimeUpdate={t => dispatch(setPlayheadAction(t))}
+                    onPlayStateChange={setPlaying}
+                  />
+                </div>
+                <Filmstrip
+                  onSeekFrame={frame => {
+                    if (video.fps > 0) playerRef.current?.seek(frame / video.fps)
+                  }}
                 />
               </div>
 
@@ -793,6 +803,8 @@ export default function App() {
         regions={regions}
         activeRegionId={activeRegionId}
       />
+      <ThumbnailPopup />
     </div>
+    </ThumbnailHoverProvider>
   )
 }

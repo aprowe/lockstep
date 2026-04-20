@@ -584,7 +584,7 @@ export default function WarpView({
   return (
     <div
       ref={warpContainerRef}
-      className="warp-view"
+      className={`warp-view${scenesExpanded ? ' warp-view--scenes-expanded' : ''}`}
       style={warpCursor}
       onMouseEnter={() => setMouseOver(true)}
       onMouseLeave={() => setMouseOver(false)}
@@ -636,7 +636,10 @@ export default function WarpView({
         throughlines={scenes}
         activeThroughlines={visibleScenes}
         snapTargets={scenes}
-        onDragPositionChange={setDragTime}
+        onDragPositionChange={t => {
+          setDragTime(t)
+          if (t !== null) onSeek?.(t)
+        }}
         rowLabels={{
           minimap: 'Overview',
           ruler: 'Time',

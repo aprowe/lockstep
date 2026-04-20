@@ -224,7 +224,9 @@ fn evict_overflow(st: &mut VideoState) {
 }
 
 fn frame_to_time(frame: i64, fps: f64) -> f64 {
-    (frame as f64 / fps).max(0.0)
+    // Aim for the middle of the target frame so ffmpeg's output seek lands
+    // unambiguously inside it, not on the boundary with the previous frame.
+    ((frame as f64 + 0.5) / fps).max(0.0)
 }
 
 fn extract_frame(video_path: &str, time: f64, out_path: &PathBuf) -> Result<(), String> {
