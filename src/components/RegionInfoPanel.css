@@ -94,22 +94,27 @@
 /* ── Input fields ──────────────────────────────────────── */
 
 .rip__input {
-  width: 52px;
+  width: 78px;
   background: var(--bg-6);
   border: 1px solid var(--border-hi);
   border-radius: 4px;
   color: var(--fg-1);
   font-family: var(--font-family);
   font-size: var(--t-base);
-  padding: 2px var(--sp-2);
+  padding: 2px var(--sp-1) 2px var(--sp-2);
   text-align: right;
   outline: none;
+}
+/* Give Chromium's native spin-buttons breathing room next to the value. */
+.rip__input::-webkit-inner-spin-button {
+  margin-left: var(--sp-1);
+  height: 100%;
+}
+.rip__input:focus { border-color: var(--fg-3); }
+.rip__input--time {
+  width: 80px;
   -moz-appearance: textfield;
 }
-.rip__input::-webkit-outer-spin-button,
-.rip__input::-webkit-inner-spin-button { -webkit-appearance: none; }
-.rip__input:focus { border-color: var(--fg-3); }
-.rip__input--time { width: 80px; }
 
 
 /* ── Lock button ───────────────────────────────────────── */

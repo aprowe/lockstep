@@ -975,13 +975,6 @@ export default function Timeline({
           )
         })}
 
-        {playhead !== undefined && (
-          <div
-            className="playhead"
-            style={{ left: `${timeToPercent(playhead)}%` }}
-          />
-        )}
-
         {rulerHover !== null && onRulerClick && (
           <div className="playhead-ghost" style={{ left: `${timeToPercent(rulerHover)}%` }} />
         )}
@@ -1119,6 +1112,12 @@ export default function Timeline({
       </div>
   )
 
+  const playheadOverlay = playhead !== undefined ? (
+    <div className="timeline__playhead-overlay">
+      <div className="playhead" style={{ left: `${timeToPercent(playhead)}%` }} />
+    </div>
+  ) : null
+
   const activeSet = activeThroughlines ? new Set(activeThroughlines) : null
   const throughlineOverlay = throughlines && throughlines.length > 0 ? (
     <div className={`timeline__throughlines${activeSet ? ' timeline__throughlines--gated' : ''}`}>
@@ -1164,6 +1163,7 @@ export default function Timeline({
         </>
       )}
       {throughlineOverlay}
+      {playheadOverlay}
     </div>
   )
 }

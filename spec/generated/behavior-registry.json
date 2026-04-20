@@ -398,6 +398,24 @@
         "dispatch updateRegionInOut with outPoint < inPoint, assert region shifts"
       ]
     },
+    "region-editing::fb4e23f1": {
+      "feature": "Region Editing",
+      "scenario": "In point set for region after end point creates a new region",
+      "isOutline": false,
+      "steps": [
+        "Given a region with start 10 and end 20",
+        "When the Set In Point Button is clicked when the playhead is at 30",
+        "Then a new region is created starting at 30. The region is 10% of the viewport, minimum 5 seconds, max up to the next region or end of video"
+      ],
+      "file": "spec/features/region-editing.feature",
+      "line": 35,
+      "tests": [
+        "tests/bdd/regionEditing.test.ts"
+      ],
+      "hints": [
+        "mirror of the out-before-in scenario; uses calcNewRegionBoundsUpToNext"
+      ]
+    },
     "region-editing::c8493472": {
       "feature": "Region Editing",
       "scenario": "A region is prevented from being too small",
@@ -408,7 +426,7 @@
         "Then the region span is now <c> to <d> seconds"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 35,
+      "line": 42,
       "tests": [
         "tests/bdd/regionEditing.test.ts"
       ],
@@ -426,7 +444,7 @@
         "Then The zoom action is called"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 49,
+      "line": 56,
       "tests": [
         "tests/bdd/regionZoom.test.tsx"
       ],
@@ -444,7 +462,7 @@
         "Then the zoom and bounds are set so the region is 100% of the timeline"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 57,
+      "line": 64,
       "tests": [
         "tests/bdd/regionZoom.test.tsx"
       ],
@@ -463,7 +481,7 @@
         "Then the zoom and bounds are set to what it was when the user called the zoom action"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 65,
+      "line": 72,
       "tests": [
         "tests/bdd/regionZoom.test.tsx"
       ],
@@ -498,7 +516,8 @@
         "Then thumbnails in the background start being generated"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 3,
+      "line": 4,
+      "todo": true,
       "defs": [
         "a video is loaded"
       ]
@@ -513,7 +532,8 @@
         "Then the thumbnails for frames near the playhead are generated first, and thumbnails nearby are quickly generated"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 8,
+      "line": 10,
+      "todo": true,
       "defs": [
         "a video is loaded"
       ]
@@ -528,7 +548,8 @@
         "Then thumbnails for frames in that region are quickly generated"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 13,
+      "line": 16,
+      "todo": true,
       "defs": [
         "a video is loaded",
         "region"
@@ -544,7 +565,8 @@
         "Then the thumbnail viewer will show the current frame the playhead is on and X frames before and after,"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 18,
+      "line": 22,
+      "todo": true,
       "defs": [
         "a video is loaded",
         "input ruler",
@@ -562,7 +584,8 @@
         "Then a placeholder thumbnail is shown until the thumbnail for that frame is generated"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 24
+      "line": 29,
+      "todo": true
     },
     "thumbnail-scrolling::fe834cb1": {
       "feature": "Thumbnail scrolling",
@@ -576,7 +599,8 @@
         "Then a thumbnail of the frame at the scene change is shown in a pop up"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 29,
+      "line": 35,
+      "todo": true,
       "defs": [
         "a video is loaded",
         "scene strip"
@@ -593,7 +617,8 @@
         "Then thumbnails are shown of the different markers, in an area contained in the scene strip"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 36,
+      "line": 43,
+      "todo": true,
       "defs": [
         "a video is loaded",
         "scene strip"

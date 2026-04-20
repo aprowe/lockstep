@@ -52,6 +52,10 @@
   --sz-connector: calc(26px * var(--ui-scale));
 }
 
+/* Tell the browser native form controls (spin buttons, select dropdowns,
+   scrollbar shadows) are rendered on a dark surface. */
+html { color-scheme: dark; }
+
 * { box-sizing: border-box; }
 
 *:not(input):not(textarea) {
@@ -74,6 +78,56 @@ body {
 }
 
 p { margin: 0; }
+
+/* ── Checkboxes ─────────────────────────────────────────── */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: calc(13px * var(--ui-scale));
+  height: calc(13px * var(--ui-scale));
+  margin: 0;
+  background: var(--bg-6);
+  border: 1px solid var(--border-hi);
+  border-radius: 3px;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  vertical-align: middle;
+  transition: background 0.1s, border-color 0.1s;
+}
+input[type="checkbox"]:hover:not(:disabled) { border-color: var(--fg-3); }
+input[type="checkbox"]:focus-visible {
+  outline: 1px solid var(--accent-2);
+  outline-offset: 1px;
+}
+input[type="checkbox"]:checked {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+}
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: calc(3px * var(--ui-scale));
+  height: calc(7px * var(--ui-scale));
+  border: solid var(--bg-1);
+  border-width: 0 calc(2px * var(--ui-scale)) calc(2px * var(--ui-scale)) 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Numeric stepper ────────────────────────────────────── */
+/* Show native spin buttons by default — themed via color-scheme above.
+   Opt out per-input with the `no-stepper` class. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+  cursor: pointer;
+}
+input[type="number"].no-stepper::-webkit-outer-spin-button,
+input[type="number"].no-stepper::-webkit-inner-spin-button { -webkit-appearance: none; }
+input[type="number"].no-stepper { -moz-appearance: textfield; }
 
 /* ── Scrollbars ─────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

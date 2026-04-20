@@ -31,10 +31,11 @@ Features
 - Speed bar below
 
 UI
-- Unify Timelines
+[x] Unify Timelines
 - Brighter ticks
 - Play head on minimap
 - Nav buttons together
+- Next prev scene
 - File bar compact button
 - frame count
 - Double click go back after region views

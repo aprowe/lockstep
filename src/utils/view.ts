@@ -82,6 +82,27 @@ export function findSurroundingScenes(
 }
 
 /**
+ * Bounds for a new region starting at `playhead`, clamped so it stops at the
+ * nearest existing region start (or the end of the video). Used when the user
+ * sets Out before a region's In — spawns a fresh region that fills the gap.
+ */
+export function calcNewRegionBoundsUpToNext(
+  playhead: number,
+  viewSpan: number,
+  regions: { inPoint: number }[],
+  videoDuration: number,
+): { inPoint: number; outPoint: number } {
+  const span = calcNewRegionSpan(viewSpan)
+  const nextStart = regions
+    .map(r => r.inPoint)
+    .filter(t => t > playhead)
+    .reduce((m, t) => Math.min(m, t), videoDuration)
+  const inPoint  = Math.max(0, playhead)
+  const outPoint = Math.min(nextStart, videoDuration, inPoint + span)
+  return { inPoint, outPoint }
+}
+
+/**
  * Compute region bounds from scene cuts when the next scene is inside the
  * visible view; otherwise fall back to {@link calcNewRegionBounds}.
  * Also falls back when the resulting span would be essentially zero.

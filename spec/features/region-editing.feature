@@ -28,7 +28,14 @@ Feature: Region Editing
     Scenario: Out point set for region before beginning point creates a new region
         Given a region with start 30 and end 40
         When the Set Out Point Button is clicked when the playhead is at 20
-        Then a new region is created starting at 20. The region is 10% of the viewport, minimum 5 seconds, max up to the next region, 
+        Then a new region is created starting at 20. The region is 10% of the viewport, minimum 5 seconds, max up to the next region,
+
+    # @test tests/bdd/regionEditing.test.ts
+    # @hint mirror of the out-before-in scenario; uses calcNewRegionBoundsUpToNext
+    Scenario: In point set for region after end point creates a new region
+        Given a region with start 10 and end 20
+        When the Set In Point Button is clicked when the playhead is at 30
+        Then a new region is created starting at 30. The region is 10% of the viewport, minimum 5 seconds, max up to the next region or end of video
 
     # @test tests/bdd/regionEditing.test.ts
     # @hint use Scenario Outline examples as test.each; dispatch updateRegionInOut, assert clamped result

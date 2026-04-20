@@ -10,7 +10,7 @@ import Toolbar from './components/Toolbar'
 import MenuBar from './components/MenuBar'
 import type { MenuDef } from './components/MenuBar'
 import { buildFileMenu, buildEditMenu, buildViewMenu } from './menus'
-import { calcZoomToRegion, calcNewRegionBoundsFromScenes, ensureTimeInView } from './utils/view'
+import { calcZoomToRegion, calcNewRegionBoundsFromScenes, calcNewRegionBoundsUpToNext, ensureTimeInView } from './utils/view'
 import type { View } from './types'
 import VideoFolderSidebar from './components/VideoFolderSidebar'
 import RegionSidebar from './components/RegionSidebar'
@@ -497,6 +497,7 @@ export default function App() {
                   onBpmChange={handleBpmChange}
                   onAddToEndChange={setAddToEnd}
                   onUpdateRegionInOut={updateRegionInOut}
+                  onUpdateRegionBeatTimes={updateRegionBeatTimes}
                   beatZeroOrigTime={(() => {
                     if (!warpData) return null
                     const zeroBA = warpData.beatAnchors.find(ba => Math.abs(ba.time - warpData.beatZeroTime) < 0.001)
@@ -576,14 +577,32 @@ export default function App() {
                   playerRef.current?.seek(activeRegion.outPoint)
                 } : undefined}
                 onSetIn={activeRegion ? () => {
-                  updateRegionInOut(activeRegion.id, playhead, activeRegion.outPoint)
+                  if (playhead > activeRegion.outPoint) {
+                    // In after Out → spawn a new region from playhead up to the next region edge
+                    const { inPoint, outPoint } = calcNewRegionBoundsUpToNext(
+                      playhead, view.end - view.start, regions, video.duration,
+                    )
+                    const id = addRegion(inPoint, outPoint)
+                    if (id) setActiveRegionId(id)
+                  } else {
+                    updateRegionInOut(activeRegion.id, playhead, activeRegion.outPoint)
+                  }
                 } : () => {
                   // Full Video: create a new region from playhead to end
                   const id = addRegion(playhead, video.duration)
                   if (id) setActiveRegionId(id)
                 }}
                 onSetOut={activeRegion ? () => {
-                  updateRegionInOut(activeRegion.id, activeRegion.inPoint, playhead)
+                  if (playhead < activeRegion.inPoint) {
+                    // Out before In → spawn a new region from playhead up to the next region edge
+                    const { inPoint, outPoint } = calcNewRegionBoundsUpToNext(
+                      playhead, view.end - view.start, regions, video.duration,
+                    )
+                    const id = addRegion(inPoint, outPoint)
+                    if (id) setActiveRegionId(id)
+                  } else {
+                    updateRegionInOut(activeRegion.id, activeRegion.inPoint, playhead)
+                  }
                 } : () => {
                   // Full Video: create a new region from start to playhead
                   const id = addRegion(0, Math.max(playhead, 0.1))

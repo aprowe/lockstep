@@ -3,7 +3,7 @@ import { expect } from 'vitest'
 import { cleanup, fireEvent } from '@testing-library/react/pure'
 import { addRegion, updateRegionInOut } from '../../src/store/slices/regionSlice'
 import { pushSnapshot, undo } from '../../src/store/slices/historySlice'
-import { calcZoomToRegion, viewFitsRegion } from '../../src/utils/view'
+import { calcZoomToRegion, calcNewRegionBoundsUpToNext, viewFitsRegion } from '../../src/utils/view'
 import { makeStore } from '../helpers/setup'
 import { renderTimeline } from '../harnesses/timeline'
 
@@ -82,11 +82,74 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     })
   })
 
+  // Simulate App.tsx's onSetOut / onSetIn handlers against a test store.
+  // When the playhead is outside the active region's bounds, the handler must
+  // spawn a NEW region (via calcNewRegionBoundsUpToNext + addRegion) rather
+  // than resize the active one.
+  const VIEW_SPAN = 100 // → calcNewRegionSpan = max(10, 5) = 10
+  const DURATION  = 120
+  const spawnRegion = (
+    store: ReturnType<typeof makeStore>,
+    playhead: number,
+  ) => {
+    const b = calcNewRegionBoundsUpToNext(playhead, VIEW_SPAN, store.getState().region.regions, DURATION)
+    store.dispatch(addRegion(makeRegion(`spawned_${Date.now()}`, b.inPoint, b.outPoint)))
+  }
+
   // @behavior region-editing::eec30ad5
   Scenario('Out point set for region before beginning point creates a new region', ({ Given, When, Then }) => {
-    Given('a region with start 30 and end 40', () => {})
-    When('the Set Out Point Button is clicked when the playhead is at 20', () => {})
-    Then('a new region is created starting at 20. The region is 10% of the viewport, minimum 5 seconds, max up to the next region,', () => {})
+    const store = makeStore()
+
+    Given('a region with start 30 and end 40', () => {
+      store.dispatch(addRegion(makeRegion('r', 30, 40)))
+      expect(store.getState().region.regions).toHaveLength(1)
+    })
+    When('the Set Out Point Button is clicked when the playhead is at 20', () => {
+      const active = store.getState().region.regions.find(r => r.id === 'r')!
+      const playhead = 20
+      expect(playhead).toBeLessThan(active.inPoint)  // precondition: Out before In
+      spawnRegion(store, playhead)
+    })
+    Then('a new region is created starting at 20. The region is 10% of the viewport, minimum 5 seconds, max up to the next region,', () => {
+      const regions = store.getState().region.regions
+      expect(regions).toHaveLength(2)
+      // Original region untouched
+      const original = regions.find(r => r.id === 'r')!
+      expect(original.inPoint).toBe(30)
+      expect(original.outPoint).toBe(40)
+      // New region clamped to next region's start
+      const created = regions.find(r => r.id !== 'r')!
+      expect(created.inPoint).toBe(20)
+      expect(created.outPoint).toBe(30)
+    })
+  })
+
+  // @behavior region-editing::fb4e23f1
+  Scenario('In point set for region after end point creates a new region', ({ Given, When, Then }) => {
+    const store = makeStore()
+
+    Given('a region with start 10 and end 20', () => {
+      store.dispatch(addRegion(makeRegion('r', 10, 20)))
+      expect(store.getState().region.regions).toHaveLength(1)
+    })
+    When('the Set In Point Button is clicked when the playhead is at 30', () => {
+      const active = store.getState().region.regions.find(r => r.id === 'r')!
+      const playhead = 30
+      expect(playhead).toBeGreaterThan(active.outPoint)  // precondition: In after Out
+      spawnRegion(store, playhead)
+    })
+    Then('a new region is created starting at 30. The region is 10% of the viewport, minimum 5 seconds, max up to the next region or end of video', () => {
+      const regions = store.getState().region.regions
+      expect(regions).toHaveLength(2)
+      // Original region untouched
+      const original = regions.find(r => r.id === 'r')!
+      expect(original.inPoint).toBe(10)
+      expect(original.outPoint).toBe(20)
+      // No next region → spans the full calcNewRegionSpan (10s) from playhead
+      const created = regions.find(r => r.id !== 'r')!
+      expect(created.inPoint).toBe(30)
+      expect(created.outPoint).toBe(40)
+    })
   })
 
   // @behavior region-editing::c8493472

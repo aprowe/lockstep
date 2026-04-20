@@ -235,16 +235,45 @@
 .ruler--clickable { cursor: crosshair; }
 
 /* ── Playhead ────────────────────────────────────────── */
+.timeline__playhead-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--rail-w);
+  right: 0;
+  pointer-events: none;
+  z-index: 15;
+  overflow: hidden;
+}
+
+/* Top (non-flip) timeline: keep playhead below the minimap row */
+.timeline:not(.timeline--flip) .timeline__playhead-overlay {
+  top: var(--minimap-h);
+}
+
 .playhead {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 3px;
+  width: 1px;
   background: var(--accent-2);
   pointer-events: none;
   transform: translateX(-50%);
-  z-index: 15;
-  box-shadow: 0 0 6px rgba(var(--accent-2-rgb), 0.5);
+  box-shadow: 0 0 4px rgba(var(--accent-2-rgb), 0.5);
+}
+
+.timeline:not(.timeline--flip) .playhead::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--accent-2);
+  transform: translateX(-50%);
+  filter: drop-shadow(0 0 2px rgba(var(--accent-2-rgb), 0.6));
 }
 
 .playhead-ghost {

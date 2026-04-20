@@ -183,6 +183,10 @@ interface BehaviorEntry {
   steps: string[]
   file: string
   line: number
+  /** Scenario is a stub / intentionally unimplemented (Gherkin `@todo` tag). */
+  todo?: boolean
+  /** Gherkin `@tag` lines on the scenario (minus `@todo`, which is promoted to `todo`). */
+  tags?: string[]
   /** Canonical keys of glossary defs referenced directly by this scenario. */
   defs?: string[]
   /** `[key]` refs that didn't resolve against defs.yaml. */
@@ -212,12 +216,14 @@ function parseFeatureFile(
   let steps: string[] = []
   let inExamples    = false
   let exampleRows: string[] = []
-  // pendingTests/Hints: annotations collected BETWEEN scenarios (before the next Scenario: line)
+  // pendingTests/Hints/Tags: annotations collected BETWEEN scenarios (before the next Scenario: line)
   let pendingTests: string[] = []
   let pendingHints: string[] = []
-  // scenarioTests/Hints: annotations for the CURRENT scenario being built
+  let pendingTags: string[]  = []
+  // scenarioTests/Hints/Tags: annotations for the CURRENT scenario being built
   let scenarioTests: string[] = []
   let scenarioHints: string[] = []
+  let scenarioTags: string[]  = []
 
   const flush = () => {
     if (!scenarioTitle || steps.length === 0) return
@@ -240,13 +246,17 @@ function parseFeatureFile(
     const id = `${toSlug(featureTitle)}::${shortHash(hashInput)}`
     if (behaviors[id]) console.warn(`  WARN: ID collision in ${relPath}: ${id}`)
     const entry: BehaviorEntry = { feature: featureTitle, scenario: scenarioTitle, isOutline, steps: steps.map(s => s.trim()), file: relPath, line: scenarioLine }
+    const todo = scenarioTags.includes('@todo')
+    const otherTags = scenarioTags.filter(t => t !== '@todo')
+    if (todo) entry.todo = true
+    if (otherTags.length > 0) entry.tags = otherTags
     if (directResolved.length > 0) entry.defs = directResolved
     if (unresolved.length > 0) entry.unresolvedRefs = unresolved
     if (scenarioTests.length > 0) entry.tests = scenarioTests
     if (scenarioHints.length > 0) entry.hints = scenarioHints
     behaviors[id] = entry
     steps = []; scenarioTitle = ''; isOutline = false; inExamples = false; exampleRows = []
-    scenarioTests = []; scenarioHints = []
+    scenarioTests = []; scenarioHints = []; scenarioTags = []
   }
 
   for (const [i, raw] of lines.entries()) {
@@ -264,11 +274,16 @@ function parseFeatureFile(
       }
       continue
     }
+    // Gherkin tag line: one or more `@tag` tokens on their own line, directly above a scenario.
+    if (t.startsWith('@') && !STEP_RE.test(t)) {
+      for (const tok of t.split(/\s+/)) if (/^@\S+/.test(tok)) pendingTags.push(tok)
+      continue
+    }
     if (SCENARIO_RE.test(t)) {
       flush()
       // Transfer pending annotations to the new scenario
-      scenarioTests = pendingTests; scenarioHints = pendingHints
-      pendingTests = []; pendingHints = []
+      scenarioTests = pendingTests; scenarioHints = pendingHints; scenarioTags = pendingTags
+      pendingTests = []; pendingHints = []; pendingTags = []
       isOutline = /Outline/i.test(t); scenarioTitle = t.replace(/^Scenario(\s+Outline)?\s*:\s*/i, '').trim(); scenarioLine = i + 1; inExamples = false; continue
     }
     if (EXAMPLES_RE.test(t)) { inExamples = true; continue }
@@ -314,16 +329,34 @@ function runParse() {
     : c.gray(`(no defs loaded — ${defsRel} missing)`)
   console.log(`\n${c.bold(`Wrote ${count} behavior${count !== 1 ? 's' : ''}`)}`
     + ` ${c.gray('→')} ${c.cyan(outRel)} ${defsNote}\n`)
+
+  // Group entries by feature file for a tree-style printout.
+  const byFile = new Map<string, Array<[string, BehaviorEntry]>>()
   for (const [id, e] of Object.entries(all)) {
-    const tag = e.isOutline ? c.gray(' [outline]') : ''
-    console.log(`  ${c.cyan(id)}${tag}`)
-    console.log(`  ${c.gray(e.scenario)}`)
-    if (e.defs && e.defs.length > 0) {
-      console.log(`    ${c.gray('defs:')} ${e.defs.map(k => c.yellow(k)).join(c.gray(', '))}`)
-    }
-    if (e.unresolvedRefs && e.unresolvedRefs.length > 0) {
-      console.log(`    ${c.red('unresolved:')} ${e.unresolvedRefs.map(k => c.red(`[${k}]`)).join(' ')}`)
-    }
+    if (!byFile.has(e.file)) byFile.set(e.file, [])
+    byFile.get(e.file)!.push([id, e])
+  }
+  const files = [...byFile.keys()].sort()
+  for (const file of files) {
+    const entries = byFile.get(file)!
+    console.log(`${c.cyan(file)}  ${c.gray(`(${entries.length})`)}`)
+    entries.forEach(([id, e], idx) => {
+      const last   = idx === entries.length - 1
+      const branch = c.gray(last ? '└─' : '├─')
+      const pipe   = c.gray(last ? '  ' : '│ ')
+      const bits: string[] = []
+      if (e.isOutline) bits.push('outline')
+      if (e.todo)      bits.push('todo')
+      const tag = bits.length > 0 ? ' ' + c.yellow(`[${bits.join(' ')}]`) : ''
+      console.log(`  ${branch} ${e.scenario}${tag}  ${c.gray(id)}`)
+      if (e.defs && e.defs.length > 0) {
+        console.log(`  ${pipe}    ${c.gray('defs:')} ${e.defs.map(k => c.yellow(k)).join(c.gray(', '))}`)
+      }
+      if (e.unresolvedRefs && e.unresolvedRefs.length > 0) {
+        console.log(`  ${pipe}    ${c.red('unresolved:')} ${e.unresolvedRefs.map(k => c.red(`[${k}]`)).join(' ')}`)
+      }
+    })
+    console.log('')
   }
 
   const unresolvedCount = Object.values(all).reduce((n, e) => n + (e.unresolvedRefs?.length ?? 0), 0)
@@ -423,12 +456,16 @@ function runCoverage(print = true): boolean {
     if (coverage.has(ref.id)) coverage.get(ref.id)!.push(ref)
   }
 
-  const missing = [...expectedIds].filter(id => coverage.get(id)!.length === 0)
-  const orphans = testRefs.filter(ref => !expectedIds.has(ref.id))
-  const covered = [...expectedIds].filter(id => coverage.get(id)!.length > 0)
-  const pct     = expectedIds.size === 0 ? 100 : Math.round((covered.length / expectedIds.size) * 100)
+  // @todo scenarios are intentional stubs — excluded from missing, shown in their own bucket.
+  const isTodo   = (id: string) => behaviors[id]?.todo === true
+  const missing  = [...expectedIds].filter(id => coverage.get(id)!.length === 0 && !isTodo(id))
+  const todo     = [...expectedIds].filter(id => isTodo(id))
+  const orphans  = testRefs.filter(ref => !expectedIds.has(ref.id))
+  const covered  = [...expectedIds].filter(id => coverage.get(id)!.length > 0 && !isTodo(id))
+  const denom    = expectedIds.size - todo.length
+  const pct      = denom === 0 ? 100 : Math.round((covered.length / denom) * 100)
 
-  const result = { total: expectedIds.size, covered: covered.length, percentage: pct, missing, orphans }
+  const result = { total: expectedIds.size, covered: covered.length, todo: todo.length, percentage: pct, missing, orphans }
   mkdirSync(GENERATED, { recursive: true })
   writeFileSync(COVERAGE_OUT, JSON.stringify(result, null, 2) + '\n')
 
@@ -439,28 +476,68 @@ function runCoverage(print = true): boolean {
   const light = '─'.repeat(W)
   console.log(`\n${c.bold(heavy)}\n  ${c.bold('BEHAVIOR COVERAGE')}\n${c.bold(heavy)}\n`)
 
-  console.log(`${c.bold(`COVERED  (${covered.length}/${expectedIds.size})`)}\n${c.gray(light)}`)
-  for (const id of covered) {
-    console.log(`  ${c.green('✓')} ${c.cyan(id)}`)
-    console.log(`    ${c.gray(behaviors[id].scenario)}`)
+  // Group ids by feature file for a tree-style printout.
+  const groupByFile = (ids: string[]) => {
+    const m = new Map<string, string[]>()
+    for (const id of ids) {
+      const f = behaviors[id].file
+      if (!m.has(f)) m.set(f, [])
+      m.get(f)!.push(id)
+    }
+    return [...m.entries()].sort(([a], [b]) => a.localeCompare(b))
+  }
+
+  const renderBucket = (
+    ids: string[],
+    renderLine: (id: string, branch: string, pipe: string) => void,
+  ) => {
+    for (const [file, fileIds] of groupByFile(ids)) {
+      console.log(`  ${c.cyan(file)}  ${c.gray(`(${fileIds.length})`)}`)
+      fileIds.forEach((id, idx) => {
+        const last   = idx === fileIds.length - 1
+        const branch = c.gray(last ? '└─' : '├─')
+        const pipe   = c.gray(last ? '  ' : '│ ')
+        renderLine(id, branch, pipe)
+      })
+      console.log('')
+    }
+  }
+
+  console.log(`${c.bold(`COVERED  (${covered.length}/${denom})`)}\n${c.gray(light)}`)
+  renderBucket(covered, (id, branch, pipe) => {
+    console.log(`    ${branch} ${c.green('✓')} ${behaviors[id].scenario}  ${c.gray(id)}`)
     for (const ref of coverage.get(id)!) {
       const bits: string[] = []
       if (ref.lang === 'rust') bits.push(ref.heavy ? 'rust·heavy' : 'rust')
       if (ref.skipped)         bits.push('skipped')
       const tag = bits.length ? ' ' + c.yellow(`[${bits.join(' ')}]`) : ''
-      console.log(`    ${c.gray('→')} ${ref.file}:${ref.line}${tag}`)
+      console.log(`    ${pipe}   ${c.gray('→')} ${ref.file}:${ref.line}${tag}`)
     }
+  })
+
+  console.log(`${c.bold(c.yellow(`TODO  (${todo.length})`))}\n${c.gray(light)}`)
+  if (todo.length === 0) {
+    console.log(c.gray('  (none)\n'))
+  } else {
+    renderBucket(todo, (id, branch, pipe) => {
+      const refs = coverage.get(id)!
+      const marker = refs.length === 0 ? c.yellow('…') : c.yellow('◐')
+      console.log(`    ${branch} ${marker} ${c.yellow(behaviors[id].scenario)}  ${c.gray(id)}  ${c.gray('@todo')}`)
+      if (refs.length === 0) {
+        console.log(`    ${pipe}   ${c.gray('spec:')} ${behaviors[id].file}:${behaviors[id].line}`)
+      } else {
+        for (const ref of refs) console.log(`    ${pipe}   ${c.gray('→')} ${ref.file}:${ref.line} ${c.gray('[stub]')}`)
+      }
+    })
   }
 
-  console.log(`\n${c.bold(`MISSING  (${missing.length})`)}\n${c.gray(light)}`)
+  console.log(`${c.bold(`MISSING  (${missing.length})`)}\n${c.gray(light)}`)
   if (missing.length === 0) {
-    console.log(c.gray('  (none)'))
+    console.log(c.gray('  (none)\n'))
   } else {
-    for (const id of missing) {
-      console.log(`  ${c.red('✗')} ${c.red(id)}`)
-      console.log(`    ${c.gray(behaviors[id].scenario)}`)
-      console.log(`    ${c.gray('spec:')} ${behaviors[id].file}:${behaviors[id].line}`)
-    }
+    renderBucket(missing, (id, branch, _pipe) => {
+      console.log(`    ${branch} ${c.red('✗')} ${c.red(behaviors[id].scenario)}  ${c.gray(id)}  ${c.gray(`:${behaviors[id].line}`)}`)
+    })
   }
 
   console.log(`\n${c.bold(`ORPHANED REFS  (${orphans.length})`)}\n${c.gray(light)}`)
@@ -474,8 +551,9 @@ function runCoverage(print = true): boolean {
   }
 
   const pctColor = pct === 100 ? c.green : pct >= 80 ? c.yellow : c.red
-  const summary  = `Coverage: ${covered.length}/${expectedIds.size} (${pct}%)  |  ${orphans.length} orphaned ref(s)`
-  console.log(`\n${c.bold(heavy)}\n  ${pctColor(c.bold(summary))}\n${c.bold(heavy)}\n`)
+  const todoNote = todo.length > 0 ? `  |  ${c.yellow(`${todo.length} todo`)}` : ''
+  const summary  = `Coverage: ${covered.length}/${denom} (${pct}%)  |  ${orphans.length} orphaned ref(s)`
+  console.log(`\n${c.bold(heavy)}\n  ${pctColor(c.bold(summary))}${todoNote}\n${c.bold(heavy)}\n`)
 
   return missing.length === 0 && orphans.length === 0
 }

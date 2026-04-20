@@ -630,6 +630,7 @@ export default function WarpView({
             expanded={scenesExpanded}
             onSceneClick={onSeek}
             onSceneHover={setHoveredScene}
+            playhead={playhead}
           />
         }
         throughlines={scenes}

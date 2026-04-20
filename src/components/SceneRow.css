@@ -42,6 +42,12 @@
 .scene-row__diamond:active {
   transform: rotate(45deg) scale(0.9);
 }
+.scene-row__diamond--active {
+  background: hsl(48, 100%, 78%);
+  border-color: hsl(48, 100%, 88%);
+  box-shadow: 0 0 8px hsla(48, 100%, 72%, 0.95), 0 0 2px hsla(48, 100%, 88%, 1);
+  transform: rotate(45deg) scale(1.25);
+}
 
 .scene-row__label {
   font-family: var(--font-family);
