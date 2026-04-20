@@ -5,6 +5,7 @@ import SceneRow from '../SceneRow'
 import ThinRuler from './ThinRuler'
 import MarkersTrack from './MarkersTrack'
 import BarsTrack from './BarsTrack'
+import BeatsTrack from './BeatsTrack'
 import RegionBand, { type RegionBlock } from './RegionBand'
 import './ThinTimeline.css'
 
@@ -26,6 +27,9 @@ interface ThinTimelineProps {
 
   bpm: number
   beatOffset?: number
+  /** When true, render the thin Beats row. The user opts in per clip via
+   *  the presence of anchors (warp is being used). */
+  showBeats?: boolean
 
   scenes: number[]
   onSceneAdd?: (time: number) => void
@@ -53,7 +57,7 @@ export default function ThinTimeline({
   playhead, onSeek,
   anchors, selectedAnchorIds,
   onAnchorAdd, onAnchorDelete, onAnchorSelect, onAnchorContextMenu,
-  bpm, beatOffset = 0,
+  bpm, beatOffset = 0, showBeats = false,
   scenes, onSceneAdd, onSceneDelete,
   regions, regionsOutput,
   onRegionSelect, onRegionContextMenu,
@@ -154,6 +158,16 @@ export default function ThinTimeline({
         beatOffset={beatOffset}
         onSeek={onSeek}
       />
+
+      {showBeats && (
+        <BeatsTrack
+          view={view}
+          duration={duration}
+          bpm={bpm}
+          beatOffset={beatOffset}
+          onSeek={onSeek}
+        />
+      )}
 
       {regionsOutput && regionsOutput.length > 0 && (
         <RegionBand

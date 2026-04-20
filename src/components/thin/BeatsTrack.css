@@ -1,0 +1,26 @@
+.thin-beat {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  padding: 0;
+  transform: translateX(-50%);
+  background: hsl(213, 60%, 55%);
+  border: none;
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 0.08s, width 0.08s, background 0.08s;
+}
+
+.thin-beat:hover {
+  opacity: 1;
+  background: hsl(213, 80%, 70%);
+}
+
+.thin-beat--downbeat {
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  background: hsl(213, 85%, 70%);
+  opacity: 1;
+}

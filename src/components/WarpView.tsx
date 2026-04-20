@@ -660,6 +660,7 @@ export default function WarpView({
           onAnchorContextMenu={handleAnchorContextMenu}
           bpm={bpm}
           beatOffset={beatOffset}
+          showBeats={origAnchors.length > 0}
           scenes={scenes}
           onSceneAdd={onSceneAdd}
           onSceneDelete={onSceneDelete}

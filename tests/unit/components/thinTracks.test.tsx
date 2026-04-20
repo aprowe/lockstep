@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { cleanup, fireEvent, render } from '@testing-library/react/pure'
 import MarkersTrack from '../../../src/components/thin/MarkersTrack'
 import BarsTrack from '../../../src/components/thin/BarsTrack'
+import BeatsTrack from '../../../src/components/thin/BeatsTrack'
 import RegionBand from '../../../src/components/thin/RegionBand'
 
 const VIEW = { start: 0, end: 100 }
@@ -109,6 +110,34 @@ describe('thin tracks', () => {
         <BarsTrack view={{ start: 0, end: 400 }} duration={400} bpm={120} />
       )
       expect(container.querySelectorAll('.thin-bar').length).toBe(0)
+    })
+  })
+
+  describe('BeatsTrack', () => {
+    it('renders a beat per 60/bpm seconds', () => {
+      // bpm 120 → 0.5s/beat. View [0..5s] → ~10 beats visible.
+      const { container } = render(
+        <BeatsTrack view={{ start: 0, end: 5 }} duration={5} bpm={120} />
+      )
+      const beats = container.querySelectorAll('.thin-beat')
+      expect(beats.length).toBeGreaterThanOrEqual(8)
+      expect(beats.length).toBeLessThanOrEqual(12)
+    })
+
+    it('marks every 4th beat as a downbeat', () => {
+      const { container } = render(
+        <BeatsTrack view={{ start: 0, end: 5 }} duration={5} bpm={120} />
+      )
+      const downbeats = container.querySelectorAll('.thin-beat--downbeat')
+      expect(downbeats.length).toBeGreaterThanOrEqual(2)
+    })
+
+    it('hides beats entirely when view is too wide', () => {
+      // bpm 120 → 0.5s/beat; 1000s view → 2000 beats > threshold.
+      const { container } = render(
+        <BeatsTrack view={{ start: 0, end: 1000 }} duration={1000} bpm={120} />
+      )
+      expect(container.querySelectorAll('.thin-beat').length).toBe(0)
     })
   })
 
