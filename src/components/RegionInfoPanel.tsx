@@ -18,6 +18,8 @@ interface RegionInfoPanelProps {
   onStartAtChange?: (origTime: number | null) => void
   /** Called when lock state changes */
   onLockChange?: (lock: 'bpm' | 'beats', lockedBeats?: number) => void
+  /** Called when the trigger-mode toggle flips */
+  onTriggerModeChange?: (v: boolean) => void
   /** Called when user clicks Detect BPM */
   onBpmDetect?: () => void
   detectingBpm?: boolean
@@ -49,6 +51,7 @@ export default function RegionInfoPanel({
   beatZeroOrigTime,
   onStartAtChange,
   onLockChange,
+  onTriggerModeChange,
   onBpmDetect,
   detectingBpm,
 }: RegionInfoPanelProps) {
@@ -345,6 +348,24 @@ export default function RegionInfoPanel({
               )}
             </div>
           </>
+        )}
+
+        {/* Trigger mode — per-clip toggle; when on, source plays 1.0x and is
+            truncated or freeze-padded to fill the beat-space interval. */}
+        {activeRegion && onTriggerModeChange && (
+          <div className="rip__row">
+            <span className="rip__label">Trigger</span>
+            <label className="rip__value" style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={!!activeRegion.triggerMode}
+                onChange={e => onTriggerModeChange(e.target.checked)}
+              />
+              <span style={{ color: 'var(--fg-3)', fontSize: 'var(--t-sm)' }}>
+                1.0x playback (no time-warp)
+              </span>
+            </label>
+          </div>
         )}
 
         {/* Start at — only for actual clips, not Full Video */}

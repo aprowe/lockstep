@@ -72,6 +72,9 @@ export interface Region {
   lock?: 'bpm' | 'beats'
   /** Snapshot of beat count when lock='beats' (used to derive BPM on resize) */
   lockedBeats?: number
+  /** When true, export plays each anchor interval at 1.0x (truncating source or
+   *  padding with a freeze-frame) instead of time-warping. No frame interp. */
+  triggerMode?: boolean
 }
 
 /** Multi-selection state for markers */

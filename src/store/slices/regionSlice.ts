@@ -87,6 +87,10 @@ const regionSlice = createSlice({
         if (action.payload.maxStretch !== undefined) r.maxStretch = action.payload.maxStretch
       }
     },
+    updateRegionTriggerMode(state, action: PayloadAction<{ id: string; triggerMode: boolean }>) {
+      const r = state.regions.find(r => r.id === action.payload.id)
+      if (r) r.triggerMode = action.payload.triggerMode
+    },
   },
 })
 
@@ -101,6 +105,7 @@ export const {
   renameRegion,
   updateRegionBpm,
   updateRegionStretch,
+  updateRegionTriggerMode,
 } = regionSlice.actions
 
 export default regionSlice.reducer

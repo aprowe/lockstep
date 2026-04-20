@@ -27,6 +27,7 @@ import {
   updateRegionInOut as updateRegionInOutAction,
   updateRegionBeatTimes as updateRegionBeatTimesAction,
   updateRegionLock as updateRegionLockAction,
+  updateRegionTriggerMode as updateRegionTriggerModeAction,
   renameRegion as renameRegionAction,
 } from './store/slices/regionSlice'
 import {
@@ -502,6 +503,9 @@ export default function App() {
                   }}
                   onLockChange={(lock, lockedBeats) => {
                     if (activeRegionId) updateRegionLock(activeRegionId, lock, lockedBeats)
+                  }}
+                  onTriggerModeChange={(v) => {
+                    if (activeRegionId) dispatch(updateRegionTriggerModeAction({ id: activeRegionId, triggerMode: v }))
                   }}
                   onBpmDetect={handleBpmDetect}
                   detectingBpm={detectingBpm}

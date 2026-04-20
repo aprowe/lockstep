@@ -176,6 +176,8 @@ pub struct WarpRequest {
     pub interp_method: Option<String>,
     #[serde(default)]
     pub no_smooth: bool,
+    #[serde(default)]
+    pub trigger_mode: bool,
 }
 
 #[tauri::command]
@@ -211,6 +213,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
             interp_fps: req.interp_fps,
             interp_method: InterpMethod::from_str(req.interp_method.as_deref()),
             no_smooth: req.no_smooth,
+            trigger_mode: req.trigger_mode,
         };
 
         let result = tokio::task::spawn_blocking(move || {

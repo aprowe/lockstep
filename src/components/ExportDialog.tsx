@@ -15,6 +15,7 @@ interface ExportJob {
   clipOut: number | null
   bpm: number
   addToEnd: boolean
+  triggerMode?: boolean
 }
 
 interface ExportDialogProps {
@@ -214,6 +215,7 @@ export default function ExportDialog({
         clipOut: activeRegion?.outPoint ?? null,
         bpm: activeRegion?.bpm ?? bpm,
         addToEnd: activeRegion?.addToEnd ?? addToEnd,
+        triggerMode: activeRegion?.triggerMode ?? false,
       }]
     }
     const list = mode === 'all' ? regions : regions.filter(r => selectedRegionIds.has(r.id))
@@ -232,6 +234,7 @@ export default function ExportDialog({
       clipOut: r.outPoint,
       bpm: r.bpm,
       addToEnd: r.addToEnd,
+      triggerMode: r.triggerMode ?? false,
     }))
   }
 

@@ -19,6 +19,9 @@ export interface WarpRequest {
   interp_fps?: number | null
   /** "minterpolate" (default) | "rife". Only consulted when interp_fps is set. */
   interp_method?: 'minterpolate' | 'rife' | null
+  /** When true, play each anchor interval at 1.0x (truncate or freeze-pad)
+   *  instead of time-warping. Forces interp_fps=null on the backend. */
+  trigger_mode?: boolean
 }
 
 export interface WarpProgressPayload {

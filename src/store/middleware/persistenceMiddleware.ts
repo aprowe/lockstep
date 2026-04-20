@@ -34,6 +34,7 @@ import {
   renameRegion,
   updateRegionBpm,
   updateRegionStretch,
+  updateRegionTriggerMode,
 } from '../slices/regionSlice'
 import { setCuts as setScenes } from '../slices/sceneSlice'
 
@@ -51,7 +52,7 @@ const shouldSave = isAnyOf(
   // Region state changes
   setRegions, addRegion, deleteRegion,
   updateRegionInOut, updateRegionBeatTimes, updateRegionLock,
-  renameRegion, updateRegionBpm, updateRegionStretch,
+  renameRegion, updateRegionBpm, updateRegionStretch, updateRegionTriggerMode,
   // Scene detection results
   setScenes,
 )

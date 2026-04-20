@@ -35,6 +35,8 @@ struct Region {
     bpm: f64,
     #[serde(rename = "addToEnd")]
     add_to_end: Option<bool>,
+    #[serde(rename = "triggerMode")]
+    trigger_mode: Option<bool>,
 }
 
 #[derive(serde::Deserialize)]
@@ -58,6 +60,7 @@ fn main() {
     let mut interp_fps: Option<u32> = None;
     let mut interp_method: InterpMethod = InterpMethod::Minterpolate;
     let mut no_smooth = false;
+    let mut trigger_override: Option<bool> = None;
 
     let mut i = 1;
     while i < args.len() {
@@ -84,6 +87,8 @@ fn main() {
                 interp_method = InterpMethod::from_str(args.get(i).map(|s| s.as_str()));
             }
             "--no-smooth" => no_smooth = true,
+            "--trigger" => trigger_override = Some(true),
+            "--no-trigger" => trigger_override = Some(false),
             "--help" | "-h" => { print_usage(); return; }
             arg if arg.starts_with('-') => {
                 eprintln!("error: unknown flag '{arg}'");
@@ -155,6 +160,7 @@ fn main() {
         interp_fps,
         interp_method,
         no_smooth,
+        trigger_override,
     };
 
     // If -o ends with .mp4, it's a single-file output; otherwise it's a directory for batch
@@ -206,9 +212,22 @@ struct BaseOpts {
     interp_fps: Option<u32>,
     interp_method: InterpMethod,
     no_smooth: bool,
+    /// CLI-level override (`--trigger` / `--no-trigger`); wins over the region's
+    /// JSON `triggerMode` when set.
+    trigger_override: Option<bool>,
 }
 
 fn build_opts(base: &BaseOpts, region: Option<&Region>, dr: &DefaultRegion) -> WarpOptions {
+    let trigger_mode = base
+        .trigger_override
+        .or(region.and_then(|r| r.trigger_mode))
+        .unwrap_or(false);
+    // Trigger mode plays clips at 1.0x — no frame interpolation makes sense.
+    let (interp_fps, interp_method) = if trigger_mode {
+        (None, InterpMethod::Minterpolate)
+    } else {
+        (base.interp_fps, base.interp_method)
+    };
     WarpOptions {
         orig_times: base.orig_times.clone(),
         beat_times: base.beat_times.clone(),
@@ -221,9 +240,10 @@ fn build_opts(base: &BaseOpts, region: Option<&Region>, dr: &DefaultRegion) -> W
         fade_at_loop: base.fade_at_loop,
         clip_in: region.map(|r| r.in_point),
         clip_out: region.map(|r| r.out_point),
-        interp_fps: base.interp_fps,
-        interp_method: base.interp_method,
+        interp_fps,
+        interp_method,
         no_smooth: base.no_smooth,
+        trigger_mode,
     }
 }
 
@@ -295,4 +315,6 @@ fn print_usage() {
     eprintln!("  --fps <n>              output at constant <n> fps with frame interpolation");
     eprintln!("  --interp-method <m>    interpolation method: minterpolate (default) | rife");
     eprintln!("  --no-smooth            skip PCHIP smoothing; use raw linear time map (debug)");
+    eprintln!("  --trigger              play anchors at 1.0x with freeze-pad (no time-warp)");
+    eprintln!("  --no-trigger           force warp mode even if the region has triggerMode=true");
 }

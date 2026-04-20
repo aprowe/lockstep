@@ -104,7 +104,10 @@ where
     let clip_start = opts.clip_in.unwrap_or(0.0).max(0.0);
     let clip_end = opts.clip_out.unwrap_or(duration).min(duration);
 
-    if opts.no_smooth {
+    // Trigger mode is raw 1.0x playback at anchor points — PCHIP smoothing +
+    // RIFE both assume a densified, stretchable time map and would fight it.
+    let smooth = !opts.no_smooth && !opts.trigger_mode;
+    if !smooth {
         eprintln!("[warp] PCHIP smoothing disabled; using raw piecewise-linear time map");
     }
     let time_map = build_time_map(
@@ -112,14 +115,14 @@ where
         &opts.beat_times,
         clip_start,
         clip_end,
-        !opts.no_smooth,
+        smooth,
     );
 
     // ── Stage 2: Segments ──
     let tmp_dir = TempDir::new().map_err(|e| e.to_string())?;
     let tmp_path = tmp_dir.path();
 
-    let plans = plan_segments(&time_map);
+    let plans = plan_segments(&time_map, opts.trigger_mode);
     let segment_files = encode_segments(
         input_path,
         &plans,
@@ -133,8 +136,12 @@ where
     concat_segments(&segment_files, tmp_path, output_path, progress)?;
 
     // ── Stage 4 (optional): warp-aware RIFE, replacing the video track ──
-    if let (Some(fps), InterpMethod::Rife) = (opts.interp_fps, opts.interp_method) {
-        apply_warp_aware_rife(input_path, &time_map, fps, output_path, tmp_path, progress)?;
+    // Skipped in trigger mode: 1.0x playback doesn't benefit from RIFE and the
+    // freeze-pads would confuse the warp-aware pair selection.
+    if !opts.trigger_mode {
+        if let (Some(fps), InterpMethod::Rife) = (opts.interp_fps, opts.interp_method) {
+            apply_warp_aware_rife(input_path, &time_map, fps, output_path, tmp_path, progress)?;
+        }
     }
 
     // ── Stage 5: Post-processing ──

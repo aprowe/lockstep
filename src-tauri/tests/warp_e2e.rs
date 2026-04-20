@@ -85,6 +85,7 @@ fn warp_opts(interp_fps: Option<u32>) -> WarpOptions {
         interp_fps,
         interp_method: Default::default(),
         no_smooth: false,
+        trigger_mode: false,
     }
 }
 

@@ -7,6 +7,7 @@ export interface ExportJobInput {
   clipOut: number | null
   bpm: number
   addToEnd: boolean
+  triggerMode?: boolean
 }
 
 export interface BuildWarpRequestInput {
@@ -38,6 +39,7 @@ export function buildWarpRequest(input: BuildWarpRequestInput): WarpRequest {
         }))
     : []
 
+  const triggerMode = !!job.triggerMode
   return {
     path: videoPath,
     orig_times: pairs.map(p => p.orig),
@@ -51,7 +53,9 @@ export function buildWarpRequest(input: BuildWarpRequestInput): WarpRequest {
     normalize_bpm: normalizeBpm,
     clip_in: job.clipIn ?? null,
     clip_out: job.clipOut ?? null,
-    interp_fps: interpolateFrames ? Math.max(1, Math.round(interpFps)) : null,
-    interp_method: interpolateFrames ? interpMethod : null,
+    // Trigger mode plays at 1.0x; frame interpolation makes no sense there.
+    interp_fps: !triggerMode && interpolateFrames ? Math.max(1, Math.round(interpFps)) : null,
+    interp_method: !triggerMode && interpolateFrames ? interpMethod : null,
+    trigger_mode: triggerMode,
   }
 }

@@ -45,4 +45,10 @@ pub struct WarpOptions {
     /// When true, skip PCHIP smoothing and use the raw piecewise-linear time map.
     /// Useful for debugging RIFE pair artefacts caused by near-flat densified regions.
     pub no_smooth: bool,
+    /// "No-warp" mode: instead of time-stretching each source interval to its
+    /// beat-space duration, play the source at 1.0x from each anchor's orig_time
+    /// until the next trigger fires. Source is truncated if the output interval
+    /// is shorter, or extended with a freeze-frame + silence pad if longer.
+    /// Implies `no_smooth`; incompatible with RIFE (caller must not set that).
+    pub trigger_mode: bool,
 }
