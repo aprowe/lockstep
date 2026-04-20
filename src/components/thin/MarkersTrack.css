@@ -1,0 +1,28 @@
+.thin-row--markers .thin-row__body {
+  cursor: copy;
+}
+
+.thin-marker {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 3px;
+  padding: 0;
+  transform: translateX(-50%);
+  background: hsl(195, 75%, 60%);
+  border: none;
+  border-radius: 1px;
+  cursor: pointer;
+  transition: background 0.08s, box-shadow 0.08s, transform 0.08s;
+}
+
+.thin-marker:hover {
+  background: hsl(195, 95%, 72%);
+  box-shadow: 0 0 4px hsla(195, 95%, 70%, 0.85);
+}
+
+.thin-marker--selected {
+  background: hsl(48, 100%, 70%);
+  box-shadow: 0 0 6px hsla(48, 100%, 65%, 0.9);
+  transform: translateX(-50%) scaleX(1.4);
+}

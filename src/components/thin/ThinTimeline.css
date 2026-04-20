@@ -1,0 +1,45 @@
+.thin-timeline {
+  position: relative;
+}
+
+/* Scene row wrapper uses the same rail convention as TrackRow since the
+ * existing SceneRow manages its own inner layout. */
+.thin-timeline__scene-wrapper {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  border-bottom: 1px solid var(--border);
+}
+
+.thin-timeline__scene-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.thin-row__rail--inline {
+  height: auto;
+  min-height: var(--thin-row-h);
+  align-self: stretch;
+}
+
+.thin-timeline__playhead,
+.thin-timeline__hover {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.thin-timeline__playhead {
+  background: hsl(0, 90%, 65%);
+  box-shadow: 0 0 4px hsla(0, 90%, 65%, 0.8);
+}
+
+.thin-timeline__hover {
+  width: 1px;
+  background: var(--fg-4);
+  opacity: 0.5;
+}

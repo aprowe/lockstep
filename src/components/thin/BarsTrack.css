@@ -1,0 +1,27 @@
+.thin-bar {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 1px;
+  padding: 0;
+  transform: translateX(-50%);
+  background: var(--fg-4);
+  border: none;
+  opacity: 0.7;
+  cursor: pointer;
+  transition: background 0.08s, opacity 0.08s;
+}
+
+.thin-bar:hover {
+  opacity: 1;
+  background: var(--fg-2);
+  width: 2px;
+}
+
+.thin-bar--major {
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  background: var(--fg-2);
+  opacity: 1;
+}

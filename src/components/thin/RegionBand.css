@@ -1,0 +1,39 @@
+/* Region band rows: two short rows (input + output) stacked together. Each
+ * row reuses the .clip-overlay--color-N variables from Timeline.css so regions
+ * keep a consistent color identity between the old and new layouts.
+ */
+
+.thin-row--region-input,
+.thin-row--region-output {
+  height: calc(14px * var(--ui-scale));
+}
+
+.thin-row--region-input .thin-row__body,
+.thin-row--region-output .thin-row__body {
+  background: var(--bg-2);
+}
+
+.thin-region {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  background: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.55);
+  border: 1px solid hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.9);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: filter 0.08s, box-shadow 0.08s;
+}
+
+.thin-region:hover {
+  filter: brightness(1.15);
+}
+
+.thin-region--active {
+  border-color: hsl(48, 100%, 78%);
+  box-shadow: 0 0 4px hsla(48, 100%, 70%, 0.85);
+}
+
+/* Output band tints slightly darker to visually distinguish from input. */
+.thin-row--region-output .thin-region {
+  background: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.35);
+}

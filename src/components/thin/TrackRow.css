@@ -1,0 +1,50 @@
+/* Thin per-type timeline rows. Used by ThinTimeline as the base unit for
+ * every narrow track (scenes, markers, bars, region band, ruler, ...).
+ * Rail width stays in sync with ThinTimeline so rows align with the minimap.
+ */
+
+.thin-timeline {
+  --thin-rail-w: 64px;
+  --thin-row-h: calc(18px * var(--ui-scale));
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background: var(--bg-2);
+  user-select: none;
+}
+
+.thin-row {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  height: var(--thin-row-h);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-3);
+  flex-shrink: 0;
+}
+
+.thin-row__rail {
+  width: var(--thin-rail-w);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 var(--sp-3);
+  font-family: var(--font-family);
+  font-size: calc(9px * var(--ui-scale));
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+  background: var(--bg-2);
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.thin-row__body {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  cursor: default;
+}

@@ -4,6 +4,8 @@ import WarpConnector from './WarpConnector'
 import SpeedStrip from './SpeedStrip'
 import SceneRow from './SceneRow'
 import ContextMenu from './ContextMenu'
+import ThinTimeline from './thin/ThinTimeline'
+import type { RegionBlock } from './thin/RegionBand'
 import type { ContextMenuState } from './ContextMenu'
 import {
   buildSegments,
@@ -86,6 +88,7 @@ export default function WarpView({
   const playhead = useAppSelector(s => s.warp.playhead)
   const gridDiv = useAppSelector(s => s.ui.gridDiv)
   const warpCollapsed = useAppSelector(s => s.ui.warpCollapsed)
+  const thinLayout = useAppSelector(s => s.ui.thinLayout)
   const duration = useAppSelector(s => s.video.video?.duration ?? 60)
 
   const activeRegion = useAppSelector(selectActiveRegion)
@@ -582,6 +585,51 @@ export default function WarpView({
     })
   }, [duration, clipIn, clipOut, origAnchors, onClipOverlayCreate, beat, dispatch, reduxView, scenes])
 
+  // ── Thin-layout region mapping ────────────────────────────────────────────
+  const thinRegions: RegionBlock[] = useMemo(
+    () => (clipOverlays ?? []).map(c => ({
+      id: c.id,
+      inPoint: c.inPoint,
+      outPoint: c.outPoint,
+      colorIndex: c.colorIndex,
+      active: c.active,
+      label: c.name,
+    })),
+    [clipOverlays],
+  )
+
+  const thinRegionsOut: RegionBlock[] = useMemo(
+    () => (beatClipOverlays ?? []).map(c => ({
+      id: c.id,
+      inPoint: c.inPoint,
+      outPoint: c.outPoint,
+      colorIndex: c.colorIndex,
+      active: c.active,
+      label: c.name,
+    })),
+    [beatClipOverlays],
+  )
+
+  const handleThinAnchorAdd = useCallback((time: number) => {
+    const clamped = Math.max(0, Math.min(duration, time))
+    dispatch(setOrigAnchorsFromTimeline([...origAnchors, { id: newAnchorId(), time: clamped }]))
+  }, [duration, origAnchors, dispatch])
+
+  const handleThinAnchorDelete = useCallback((id: number) => {
+    dispatch(removeAnchors([id]))
+  }, [dispatch])
+
+  const handleThinAnchorSelect = useCallback((id: number, additive: boolean) => {
+    setSelectionOrigin('orig')
+    if (additive) {
+      const next = new Set(selectedIds)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      dispatch(setSelectedIdsAction([...next]))
+    } else {
+      dispatch(setSelectedIdsAction([id]))
+    }
+  }, [dispatch, selectedIds])
+
   // ── Render ────────────────────────────────────────────────────────────────
   const warpCursor = panning
     ? { cursor: 'grabbing' }
@@ -596,6 +644,31 @@ export default function WarpView({
       onMouseLeave={() => setMouseOver(false)}
       onMouseDown={e => { if (e.button === 1) e.preventDefault() }}
     >
+      {thinLayout ? (
+        <ThinTimeline
+          duration={duration}
+          view={view}
+          onViewChange={handleViewChange}
+          maxDuration={maxDuration}
+          playhead={playhead}
+          onSeek={onSeek}
+          anchors={origAnchors}
+          selectedAnchorIds={selectedIds}
+          onAnchorAdd={handleThinAnchorAdd}
+          onAnchorDelete={handleThinAnchorDelete}
+          onAnchorSelect={handleThinAnchorSelect}
+          onAnchorContextMenu={handleAnchorContextMenu}
+          bpm={bpm}
+          beatOffset={beatOffset}
+          scenes={scenes}
+          onSceneAdd={onSceneAdd}
+          onSceneDelete={onSceneDelete}
+          regions={thinRegions}
+          regionsOutput={thinRegionsOut}
+          onRegionSelect={onClipOverlaySelect}
+          onRegionContextMenu={onClipOverlayContextMenu}
+        />
+      ) : (
       <Timeline
         duration={duration}
         bpm={bpm}
@@ -673,6 +746,7 @@ export default function WarpView({
           ),
         }}
       />
+      )}
       {warpCollapsed ? null : <><WarpConnector
         ref={connectorRef}
         segments={segments}
