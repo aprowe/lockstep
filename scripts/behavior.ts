@@ -23,9 +23,11 @@ import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync } from 
 import { createHash } from 'node:crypto'
 import { resolve, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parse as parseYaml } from 'yaml'
 
 const ROOT         = resolve(fileURLToPath(import.meta.url), '..', '..')
 const FEATURES_DIR = join(ROOT, 'spec', 'features')
+const DEFS_PATH    = join(ROOT, 'spec', 'defs.yaml')
 const TESTS_DIR    = join(ROOT, 'tests')
 const RUST_TESTS_DIR = join(ROOT, 'src-tauri', 'tests')
 const GENERATED    = join(ROOT, 'spec', 'generated')
@@ -79,6 +81,99 @@ function shortHash(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex').slice(0, 8)
 }
 
+// ─── defs.yaml (glossary referenced from .feature files) ─────────────────────
+//
+// Features reference glossary entries using bracket syntax: `[input ruler]`.
+// Each referenced def's text is folded into the scenario hash, so editing a
+// def invalidates every scenario linked to it (directly or transitively via
+// `$key` tokens inside the def text). Tests pinned to the old hash break at
+// the behaviors check, prompting a review.
+
+interface DefEntry {
+  /** Canonical (normalized) key. */
+  key: string
+  /** The first original spelling seen in defs.yaml. */
+  original: string
+  /** The def body, trimmed. */
+  def: string
+}
+
+function normalizeKey(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+}
+
+function loadDefs(): Map<string, DefEntry> {
+  const defs = new Map<string, DefEntry>()
+  if (!existsSync(DEFS_PATH)) return defs
+  const parsed = parseYaml(readFileSync(DEFS_PATH, 'utf8')) as unknown
+
+  const walk = (entries: unknown) => {
+    if (!Array.isArray(entries)) return
+    for (const entry of entries) {
+      if (!entry || typeof entry !== 'object') continue
+      const e = entry as Record<string, unknown>
+      const raw = e.key
+      const body = typeof e.def === 'string' ? e.def.trim().replace(/\s+/g, ' ') : ''
+      const keys: string[] = Array.isArray(raw)
+        ? raw.filter((k): k is string => typeof k === 'string')
+        : (typeof raw === 'string' ? [raw] : [])
+      for (const k of keys) {
+        const canon = normalizeKey(k)
+        if (!canon) continue
+        if (defs.has(canon)) {
+          console.warn(`  WARN: duplicate def key "${canon}" (from "${k}")`)
+        }
+        defs.set(canon, { key: canon, original: k.trim(), def: body })
+      }
+      if ('sub' in e) walk(e.sub)
+    }
+  }
+
+  walk((parsed as Record<string, unknown>)?.elements)
+  return defs
+}
+
+/** Extract all `[key]` references from a chunk of feature text. */
+function extractRefs(text: string): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  const re = /\[([^\]\n]+)\]/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    const canon = normalizeKey(m[1])
+    if (!canon || seen.has(canon)) continue
+    seen.add(canon)
+    out.push(canon)
+  }
+  return out
+}
+
+/**
+ * Given a set of directly-referenced def keys, return the transitive closure
+ * via `$key` tokens inside def bodies. Sorted for stable hashing. Unresolved
+ * keys are silently dropped here and surfaced separately by the caller.
+ */
+function resolveDefClosure(directKeys: string[], defs: Map<string, DefEntry>): DefEntry[] {
+  const visited = new Set<string>()
+  const out: DefEntry[] = []
+  const queue = [...directKeys]
+  while (queue.length > 0) {
+    const k = queue.shift()!
+    if (visited.has(k)) continue
+    visited.add(k)
+    const d = defs.get(k)
+    if (!d) continue
+    out.push(d)
+    const tokens = d.def.matchAll(/\$([A-Za-z0-9_]+)/g)
+    for (const tm of tokens) {
+      const canon = normalizeKey(tm[1])
+      if (!visited.has(canon)) queue.push(canon)
+    }
+  }
+  out.sort((a, b) => a.key.localeCompare(b.key))
+  return out
+}
+
 // ─── parse ────────────────────────────────────────────────────────────────────
 
 interface BehaviorEntry {
@@ -88,6 +183,10 @@ interface BehaviorEntry {
   steps: string[]
   file: string
   line: number
+  /** Canonical keys of glossary defs referenced directly by this scenario. */
+  defs?: string[]
+  /** `[key]` refs that didn't resolve against defs.yaml. */
+  unresolvedRefs?: string[]
   /** Optional test file hints (from `# @test <path>` comments before the scenario) */
   tests?: string[]
   /** Optional AI/human hints (from `# @hint <text>` comments before the scenario) */
@@ -99,7 +198,11 @@ const SCENARIO_RE = /^\s*Scenario(\s+Outline)?\s*:/i
 const STEP_RE     = /^\s*(Given|When|Then|And|But)\s*:?\s+/i
 const EXAMPLES_RE = /^\s*Examples\s*:/i
 
-function parseFeatureFile(content: string, relPath: string): Record<string, BehaviorEntry> {
+function parseFeatureFile(
+  content: string,
+  relPath: string,
+  defs: Map<string, DefEntry>,
+): Record<string, BehaviorEntry> {
   const lines       = content.split('\n')
   const behaviors: Record<string, BehaviorEntry> = {}
   let featureTitle  = ''
@@ -118,14 +221,27 @@ function parseFeatureFile(content: string, relPath: string): Record<string, Beha
 
   const flush = () => {
     if (!scenarioTitle || steps.length === 0) return
+
+    // Resolve [key] references in the scenario. The transitive closure of def
+    // text feeds the hash so that editing ANY linked def bumps the id.
+    const refSource = [scenarioTitle, ...steps, ...exampleRows].join('\n')
+    const directRefs = extractRefs(refSource)
+    const resolved = resolveDefClosure(directRefs, defs)
+    const resolvedKeys = new Set(resolved.map(d => d.key))
+    const directResolved = directRefs.filter(k => resolvedKeys.has(k)).sort()
+    const unresolved = directRefs.filter(k => !defs.has(k)).sort()
+
     const hashInput = [
       scenarioTitle.toLowerCase().trim(),
       normalizeSteps(steps),
       ...exampleRows,
+      ...resolved.map(d => `def:${d.key}:${d.def}`),
     ].join('\n')
     const id = `${toSlug(featureTitle)}::${shortHash(hashInput)}`
     if (behaviors[id]) console.warn(`  WARN: ID collision in ${relPath}: ${id}`)
     const entry: BehaviorEntry = { feature: featureTitle, scenario: scenarioTitle, isOutline, steps: steps.map(s => s.trim()), file: relPath, line: scenarioLine }
+    if (directResolved.length > 0) entry.defs = directResolved
+    if (unresolved.length > 0) entry.unresolvedRefs = unresolved
     if (scenarioTests.length > 0) entry.tests = scenarioTests
     if (scenarioHints.length > 0) entry.hints = scenarioHints
     behaviors[id] = entry
@@ -176,10 +292,12 @@ function runParse() {
   const all: Record<string, BehaviorEntry> = {}
   let collisions = 0
 
+  const defs = loadDefs()
+
   for (const file of findFiles(FEATURES_DIR, '.feature')) {
     const content = readFileSync(file, 'utf8')
     const rel     = relative(ROOT, file).replace(/\\/g, '/')
-    for (const [id, entry] of Object.entries(parseFeatureFile(content, rel))) {
+    for (const [id, entry] of Object.entries(parseFeatureFile(content, rel, defs))) {
       if (all[id]) { console.warn(`WARN: cross-file collision: ${id}`); collisions++ }
       all[id] = entry
     }
@@ -190,12 +308,27 @@ function runParse() {
 
   const count  = Object.keys(all).length
   const outRel = relative(ROOT, REGISTRY).replace(/\\/g, '/')
+  const defsRel = relative(ROOT, DEFS_PATH).replace(/\\/g, '/')
+  const defsNote = defs.size > 0
+    ? `${c.gray('(')}${defs.size} def${defs.size !== 1 ? 's' : ''} from ${c.cyan(defsRel)}${c.gray(')')}`
+    : c.gray(`(no defs loaded — ${defsRel} missing)`)
   console.log(`\n${c.bold(`Wrote ${count} behavior${count !== 1 ? 's' : ''}`)}`
-    + ` ${c.gray('→')} ${c.cyan(outRel)}\n`)
+    + ` ${c.gray('→')} ${c.cyan(outRel)} ${defsNote}\n`)
   for (const [id, e] of Object.entries(all)) {
     const tag = e.isOutline ? c.gray(' [outline]') : ''
     console.log(`  ${c.cyan(id)}${tag}`)
     console.log(`  ${c.gray(e.scenario)}`)
+    if (e.defs && e.defs.length > 0) {
+      console.log(`    ${c.gray('defs:')} ${e.defs.map(k => c.yellow(k)).join(c.gray(', '))}`)
+    }
+    if (e.unresolvedRefs && e.unresolvedRefs.length > 0) {
+      console.log(`    ${c.red('unresolved:')} ${e.unresolvedRefs.map(k => c.red(`[${k}]`)).join(' ')}`)
+    }
+  }
+
+  const unresolvedCount = Object.values(all).reduce((n, e) => n + (e.unresolvedRefs?.length ?? 0), 0)
+  if (unresolvedCount > 0) {
+    console.warn(c.yellow(`\n${unresolvedCount} unresolved [ref]${unresolvedCount !== 1 ? 's' : ''} — add entries to ${defsRel} to link them.`))
   }
 
   if (collisions > 0) { console.error(c.red(`\n${collisions} ID collision(s).`)); process.exit(1) }

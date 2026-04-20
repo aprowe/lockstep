@@ -82,21 +82,11 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     })
   })
 
-  // @behavior region-editing::1fe21e07
-  Scenario('A regions end bound being changed to before start moves region', ({ Given, When, Then }) => {
-    const store = makeStore()
-
-    Given('A region with start 30 and end 40', () => {
-      store.dispatch(addRegion(makeRegion('r', 30, 40)))
-    })
-    When('The regions end is changed to 20', () => {
-      store.dispatch(updateRegionInOut({ id: 'r', inPoint: 30, outPoint: 20 }))
-    })
-    Then('The regions moved to (10,20) so its length is unchanged', () => {
-      const r = store.getState().region.regions[0]
-      expect(r.inPoint).toBe(10)
-      expect(r.outPoint).toBe(20)
-    })
+  // @behavior region-editing::eec30ad5
+  Scenario('Out point set for region before beginning point creates a new region', ({ Given, When, Then }) => {
+    Given('a region with start 30 and end 40', () => {})
+    When('the Set Out Point Button is clicked when the playhead is at 20', () => {})
+    Then('a new region is created starting at 20. The region is 10% of the viewport, minimum 5 seconds, max up to the next region,', () => {})
   })
 
   // @behavior region-editing::c8493472

@@ -1,0 +1,61 @@
+
+elements:
+  - key: a video is loaded
+    def: a video exists as the prmiary focus of the application
+      when it has been "loaded" it has been voluntarily opted into becoming that focus.
+
+  - key: warp_stack
+    def: The warp stack is the stack of time-domain UI elements (layers) that are horizontal and scroll with the viewport
+
+    sub:
+    - key: input_ruler
+      def: the input ruler is a minor horizontal layer in the $warp_stack. Its primary function is to show the time elapsed in the video,
+        and to provide a visual reference for the position of the playhead.
+
+    - key: input_timeline
+      def: the input timeline is an major horizontal layer in the $warp_stack. 
+        Its primary function is to show regions and markers and provide a general working space for markers and clips
+        it corresponds to the original timeline of the video, and is the basis for all warping operations.
+
+    - key: scene_strip
+      def: The scene strip is a minor horizontal layer in the $warp_stack. Its primary function is to show the scenes changes of the video, which are automatically detected by the application. 
+        It provides a visual reference for the structure of the video, and can be used to quickly navigate to different scenes.
+
+    - key: warp_connector
+      def: The warp connector is a minor horizontal layer in the $warp_stack. Its primary function is to show the relationship between the input timeline and the output timeline.
+
+    - key: output_timeline
+      def: the output timeline is an major horizontal layer in the $warp_stack. 
+        Its primary function is to show regions and markers and provide a general working space for markers and clips
+        It corresponds to the warped timeline of the video, and is the basis for all warping operations.
+    
+    - key: output_ruler
+      def: the output ruler is a minor horizontal layer in the $warp_stack. Its primary function is to show the beat grid, 
+        similar to the input ruler, but it is in BPM time
+
+    - key: speed_strip
+      def: the speed strip is a minor horizontal layer in the $warp_stack.
+        Its primary function is to show the speed of the video for each segment created by warp markers
+
+  - key: region
+    def: a region is a user designated section of the video.
+      It contains an start point and an end point that correspond to the start and end of the region.
+      It also contains an out start point and an out end point that correspond to the start and end of the region when it is warped.
+      
+    sub:
+      - key: in_point
+        def: the in point is the start of a region.
+
+      - key: out_point
+        def: the out point is the end of a region.
+
+      - key: in_start_point
+        def: the in start point is the end of a region when it is warped.
+
+      - key: out_start_point
+        def: the out start point is the start of a region when it is warped.
+
+  - key: ["scrub", "scrubbing", "scrubbed"]
+    def: Scrubbing requires the mouse to be clicked inside the UI area, the mouse moved horizontally while mouse button stays down. It does not matter if the mouse leaves
+      the initial UI area, as long as the mouse button is still down. 
+    
