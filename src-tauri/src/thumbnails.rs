@@ -129,6 +129,53 @@ fn scan_ready(cache_dir: &PathBuf) -> HashSet<i64> {
     out
 }
 
+/// Score any frame by which tier of interest it falls into. Lower = higher
+/// priority. Tiers (in order): playhead window → marker → region boundary →
+/// region interior → scene marker → viewport → nothing.
+///
+/// Used for both computation (by `candidate_frames` generating seed points in
+/// these tiers) and retention (by `evict_overflow` scoring ready frames so the
+/// least-wanted ones are dropped first). Keeping both paths on the same tier
+/// scale means a fully thumbnailed region won't get wiped so a random outside
+/// frame can stay.
+fn frame_priority(ctx: &PriorityContext, frame: i64) -> f64 {
+    let ph = ctx.playhead_frame;
+    let dist_ph = (frame - ph).abs() as f64;
+    let tiebreak = dist_ph * 0.0001;
+
+    if (frame - ph).abs() <= PLAYHEAD_WINDOW {
+        return dist_ph * 0.1;
+    }
+
+    for &m in &ctx.marker_frames {
+        if (frame - m).abs() <= 1 {
+            return 5.0 + tiebreak;
+        }
+    }
+
+    for &(in_f, out_f) in &ctx.region_frames {
+        if frame >= in_f && frame <= out_f {
+            if (frame - in_f).abs() <= 1 || (frame - out_f).abs() <= 1 {
+                return 10.0 + tiebreak;
+            }
+            return 20.0 + tiebreak;
+        }
+    }
+
+    for &s in &ctx.scene_frames {
+        if (frame - s).abs() <= 1 {
+            return 30.0 + tiebreak;
+        }
+    }
+
+    let (vs, ve) = ctx.viewport_frames;
+    if frame >= vs && frame <= ve {
+        return 100.0 + tiebreak;
+    }
+
+    1000.0 + tiebreak
+}
+
 /// Compute the set of frames worth having, each with a score (lower = higher
 /// priority). The candidate list is intentionally small — a few hundred frames
 /// at most — so the scheduler can sort on every kick without cost.
@@ -210,20 +257,20 @@ fn pick_next(st: &VideoState) -> Option<i64> {
     None
 }
 
-/// Try to evict ready frames to stay under the per-video cache cap. Drops
-/// frames with the lowest priority under the current context — i.e. those
-/// furthest from anything the user cares about.
+/// Try to evict ready frames to stay under the per-video cache cap. Scores
+/// each ready frame with the same tier logic that drives extraction, so a
+/// frame inside a region beats a random outside frame even if the outside one
+/// is closer to the playhead.
 fn evict_overflow(st: &mut VideoState) {
     if st.ready.len() <= st.max_cached_frames {
         return;
     }
-    let ph = st.context.playhead_frame;
     let mut scored: Vec<(i64, f64)> = st
         .ready
         .iter()
-        .map(|&f| (f, (f - ph).abs() as f64))
+        .map(|&f| (f, frame_priority(&st.context, f)))
         .collect();
-    // Largest distance first — those are the first to go.
+    // Highest score first — those are the least wanted, so drop them first.
     scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     let excess = st.ready.len() - st.max_cached_frames;
     for (f, _) in scored.into_iter().take(excess) {
@@ -547,5 +594,54 @@ mod tests {
         for (f, _) in &cands {
             assert!(*f >= 0 && *f <= 10, "frame {f} out of [0,10]");
         }
+    }
+
+    #[test]
+    fn frame_priority_tiers_order_correctly() {
+        // Playhead at 0, region [500, 600], viewport [0, 10000]. Frame 550
+        // (inside region, far from playhead) should outrank frame 2000 (just
+        // in viewport, also far from playhead).
+        let ctx = PriorityContext {
+            playhead_frame: 0,
+            region_frames: vec![(500, 600)],
+            viewport_frames: (0, 10000),
+            ..Default::default()
+        };
+        let in_region = frame_priority(&ctx, 550);
+        let outside_region = frame_priority(&ctx, 2000);
+        assert!(
+            in_region < outside_region,
+            "region frame ({in_region}) should outrank viewport-only frame ({outside_region})"
+        );
+        // And a frame outside everything is worst of all.
+        let ctx_no_vp = PriorityContext {
+            playhead_frame: 0,
+            region_frames: vec![(500, 600)],
+            viewport_frames: (0, 100),
+            ..Default::default()
+        };
+        let nowhere = frame_priority(&ctx_no_vp, 5000);
+        assert!(nowhere > 500.0);
+    }
+
+    #[test]
+    fn eviction_prefers_dropping_outside_frames() {
+        // Build a context where some ready frames are inside a region and
+        // others are nowhere. The outside ones must be evicted first, even
+        // though some of them are closer to the playhead.
+        let ctx = PriorityContext {
+            playhead_frame: 1000,
+            region_frames: vec![(2000, 2100)],
+            viewport_frames: (0, 3000),
+            ..Default::default()
+        };
+        // Score a frame inside the region vs an outside frame *closer to*
+        // the playhead. The region frame should still win.
+        let inside = frame_priority(&ctx, 2050);
+        let closer_outside = frame_priority(&ctx, 1500);
+        assert!(
+            inside < closer_outside,
+            "region-interior ({inside}) should beat closer viewport-only ({closer_outside})"
+        );
     }
 }
