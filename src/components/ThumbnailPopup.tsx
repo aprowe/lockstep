@@ -24,10 +24,11 @@ export function ThumbnailHoverProvider({ children }: { children: ReactNode }) {
   return <ThumbnailHoverContext.Provider value={value}>{children}</ThumbnailHoverContext.Provider>
 }
 
+const NOOP_SET: (h: HoverState | null) => void = () => {}
+
 export function useSetThumbnailHover() {
   const ctx = useContext(ThumbnailHoverContext)
-  if (!ctx) throw new Error('useSetThumbnailHover must be used within ThumbnailHoverProvider')
-  return ctx.setHovered
+  return ctx?.setHovered ?? NOOP_SET
 }
 
 export default function ThumbnailPopup() {
