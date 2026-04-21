@@ -7,6 +7,7 @@ import {
 } from '../api/thumbnails'
 import { setThumbnail } from '../store/slices/thumbnailsSlice'
 import { setFilmstripHeight } from '../store/slices/uiSlice'
+import { secondsToFrames } from '../utils/time'
 import './Filmstrip.css'
 
 const SLOTS = 7
@@ -73,10 +74,12 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
     const duration = video.duration
     if (fps <= 0 || duration <= 0) return
 
+    const maxFrame = Math.max(0, Math.floor(duration * fps))
     const clampFrame = (t: number) =>
-      Math.max(0, Math.min(Math.floor(duration * fps), Math.floor(t * fps)))
-
-    const playheadFrame = clampFrame(playhead)
+      Math.max(0, Math.min(maxFrame, Math.floor(t * fps)))
+    // Playhead rounds (not floors) so the filmstrip center slot matches the
+    // toolbar frame counter exactly — see thumbnail-scrolling::a02186dc.
+    const playheadFrame = Math.max(0, Math.min(maxFrame, secondsToFrames(playhead, fps)))
     const regionFrames: [number, number][] = regions.map(r => [
       clampFrame(r.inPoint),
       clampFrame(r.outPoint),
@@ -124,7 +127,7 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
     if (!video) return []
     const fps = video.fps
     const maxFrame = Math.max(0, Math.floor(video.duration * fps))
-    const center = Math.max(0, Math.min(maxFrame, Math.floor(playhead * fps)))
+    const center = Math.max(0, Math.min(maxFrame, secondsToFrames(playhead, fps)))
     const markerFrameSet = new Set(origAnchors.map(a => Math.floor(a.time * fps)))
     const half = Math.floor(SLOTS / 2)
     const result: { frame: number; offset: number; inBounds: boolean; hasMarker: boolean }[] = []

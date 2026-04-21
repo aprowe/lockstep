@@ -180,6 +180,22 @@
         {
           "items": [
             {
+              "id": "new-scene",
+              "label": "New Scene"
+            },
+            {
+              "id": "next-scene",
+              "label": "Next Scene"
+            },
+            {
+              "id": "prev-scene",
+              "label": "Prev Scene"
+            }
+          ]
+        },
+        {
+          "items": [
+            {
               "id": "play",
               "label": "Play"
             },
@@ -198,6 +214,10 @@
             {
               "id": "frame-count",
               "label": "Frame Count"
+            },
+            {
+              "id": "beat-count-clip-based",
+              "label": "Beat Count (clip based)"
             }
           ]
         },

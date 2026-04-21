@@ -652,6 +652,22 @@ export default function App() {
                   if (next) setActiveRegionId(next.id)
                 } : undefined}
                 onDeleteRegion={activeRegion ? () => deleteRegion(activeRegion.id) : undefined}
+                onNewScene={videoPath ? () => dispatch(addSceneCutAction({ path: videoPath, cut: playhead })) : undefined}
+                onPrevScene={(filteredSceneCuts.length > 0) ? () => {
+                  const prev = [...filteredSceneCuts].sort((a, b) => a - b).filter(t => t < playhead - 0.001).pop()
+                  if (prev !== undefined) playerRef.current?.seek(prev)
+                } : undefined}
+                onNextScene={(filteredSceneCuts.length > 0) ? () => {
+                  const next = [...filteredSceneCuts].sort((a, b) => a - b).find(t => t > playhead + 0.001)
+                  if (next !== undefined) playerRef.current?.seek(next)
+                } : undefined}
+                clipBeatCount={activeRegion ? (() => {
+                  const bpm = warpData?.bpm ?? 0
+                  if (bpm <= 0) return null
+                  const beat = 60 / bpm
+                  const beatSpan = (activeRegion.outBeatTime ?? activeRegion.outPoint) - (activeRegion.inBeatTime ?? activeRegion.inPoint)
+                  return beatSpan / beat
+                })() : null}
               />
 
               <div

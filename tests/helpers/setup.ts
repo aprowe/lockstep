@@ -11,6 +11,9 @@ import uiReducer from '../../src/store/slices/uiSlice'
 import warpReducer from '../../src/store/slices/warpSlice'
 import regionReducer from '../../src/store/slices/regionSlice'
 import historyReducer from '../../src/store/slices/historySlice'
+import sceneReducer from '../../src/store/slices/sceneSlice'
+import thumbnailsReducer from '../../src/store/slices/thumbnailsSlice'
+import settingsReducer from '../../src/store/slices/settingsSlice'
 import { persistenceMiddleware } from '../../src/store/middleware/persistenceMiddleware'
 import { historyMiddleware } from '../../src/store/middleware/historyMiddleware'
 import type { VideoInfo, SavedVideoState } from '../../src/types'
@@ -23,6 +26,9 @@ export function makeStore() {
       warp: warpReducer,
       region: regionReducer,
       history: historyReducer,
+      scene: sceneReducer,
+      thumbnails: thumbnailsReducer,
+      settings: settingsReducer,
     },
     middleware: (getDefault) =>
       getDefault()

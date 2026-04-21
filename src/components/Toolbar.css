@@ -139,6 +139,14 @@
 }
 .tb-time__frames:hover { color: #b5a898; }
 
+.tb-time__beats {
+  color: #7a6e62;
+  font-size: 10px;
+  margin-left: 8px;
+  padding-left: 8px;
+  border-left: 1px solid #2c2720;
+}
+
 .tb-time__frames-input {
   width: 56px;
   margin-left: 8px;

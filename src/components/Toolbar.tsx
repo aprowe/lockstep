@@ -49,12 +49,17 @@ interface ToolbarProps {
   onJumpRegionStart?: () => void
   onJumpRegionEnd?: () => void
   onDeleteRegion?: () => void
+  onNewScene?: () => void
+  onPrevScene?: () => void
+  onNextScene?: () => void
+  clipBeatCount?: number | null
 }
 
 export default function Toolbar({
   playerRef, duration, fps, playing, currentTime,
   onMark, onJumpPrev, onJumpNext, onZoomToRegion, onSetIn, onSetOut,
   gridDiv, onGridDivChange, onNewRegion, onPrevRegion, onNextRegion, onJumpRegionStart, onJumpRegionEnd, onDeleteRegion,
+  onNewScene, onPrevScene, onNextScene, clipBeatCount,
 }: ToolbarProps) {
   const [speed, setSpeed] = useState(1)
   const [editingFrame, setEditingFrame] = useState(false)
@@ -137,6 +142,30 @@ export default function Toolbar({
             </svg>
           </button>
         </div>
+
+        <div data-layout-sep className="tb-sep" />
+
+        <div className="tb-group">
+          <button data-layout-id="new-scene" className="tb-btn tb-btn--scene" onClick={onNewScene} disabled={!onNewScene} title="New scene marker at playhead">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2l4 10-4 10-4-10z"/>
+            </svg>
+          </button>
+          <div className="tb-pair">
+            <button data-layout-id="next-scene" className="tb-btn" onClick={onNextScene} disabled={!onNextScene} title="Next scene marker">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 3l7 9-7 9z"/>
+                <path d="M5 4v16" stroke="currentColor" strokeWidth="2" fill="none"/>
+              </svg>
+            </button>
+            <button data-layout-id="prev-scene" className="tb-btn" onClick={onPrevScene} disabled={!onPrevScene} title="Previous scene marker">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14 3l-7 9 7 9z"/>
+                <path d="M19 4v16" stroke="currentColor" strokeWidth="2" fill="none"/>
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
 
       <div data-layout-sep className="tb-sep-implicit" />
@@ -193,6 +222,15 @@ export default function Toolbar({
               {formatFrames(currentTime, fps)}
             </span>
           )}
+          <span
+            data-layout-id="beat-count-clip-based"
+            className="tb-time__beats"
+            title={clipBeatCount != null ? 'Total beats in active clip' : 'No active clip'}
+          >
+            {clipBeatCount != null && clipBeatCount > 0
+              ? `${clipBeatCount.toFixed(1)}b`
+              : '—b'}
+          </span>
         </div>
       </div>
 

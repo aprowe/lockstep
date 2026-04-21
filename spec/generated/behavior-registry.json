@@ -569,6 +569,23 @@
         "scrubbed"
       ]
     },
+    "thumbnail-scrolling::a02186dc": {
+      "feature": "Thumbnail scrolling",
+      "scenario": "Filmstrip center slot equals the toolbar frame counter",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "When the playhead is at a time whose frame conversion is ambiguous due to floating-point error",
+        "Then the center slot of the filmstrip shows exactly the frame displayed by the toolbar frame counter",
+        "And the slot immediately right of center shows that frame plus one",
+        "And the slot immediately left of center shows that frame minus one"
+      ],
+      "file": "spec/features/thumbnails.feature",
+      "line": 23,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
     "thumbnail-scrolling::76f18ec6": {
       "feature": "Thumbnail scrolling",
       "scenario": "Missing thumbnails show a placeholder",
@@ -579,7 +596,7 @@
         "Then a placeholder is shown in its place until the real thumbnail is available"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 23
+      "line": 30
     },
     "thumbnail-scrolling::10c1de68": {
       "feature": "Thumbnail scrolling",
@@ -593,7 +610,7 @@
         "Then a thumbnail of the frame at that scene change appears in a popup"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 28,
+      "line": 35,
       "defs": [
         "a video is loaded",
         "scene strip"
@@ -610,7 +627,7 @@
         "Then a thumbnail of each scene marker's frame is shown inline inside the scene strip"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 35,
+      "line": 42,
       "defs": [
         "a video is loaded",
         "scene strip"
