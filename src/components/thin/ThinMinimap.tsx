@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import type { Anchor, View } from '../../types'
 import type { RegionBlock } from './RegionBand'
-import '../Timeline.css'
+import './ThinMinimap.css'
 
 interface ThinMinimapProps {
   duration: number

@@ -10,6 +10,7 @@ export interface ThumbnailPriorityRequest {
   regionFrames: [number, number][]
   markerFrames: number[]
   sceneFrames: number[]
+  stripFrames?: number[]
   viewportFrames: [number, number]
   thumbWidth?: number
   maxCachedFrames?: number
@@ -27,6 +28,7 @@ export function setThumbnailPriority(r: ThumbnailPriorityRequest): Promise<void>
       region_frames: r.regionFrames,
       marker_frames: r.markerFrames,
       scene_frames: r.sceneFrames,
+      strip_frames: r.stripFrames ?? [],
       viewport_frames: r.viewportFrames,
       thumb_width: r.thumbWidth,
       max_cached_frames: r.maxCachedFrames,

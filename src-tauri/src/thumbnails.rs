@@ -36,6 +36,10 @@ struct PriorityContext {
     region_frames: Vec<(i64, i64)>,
     marker_frames: Vec<i64>,
     scene_frames: Vec<i64>,
+    /// Dense frame requests from UI features (e.g. the thumbnail strip track).
+    /// Ranked above viewport-fill but below scene/region/marker so user-placed
+    /// points still get thumbnails first.
+    strip_frames: Vec<i64>,
     viewport_frames: (i64, i64),
 }
 
@@ -78,6 +82,8 @@ pub struct PriorityRequest {
     pub marker_frames: Vec<i64>,
     #[serde(default)]
     pub scene_frames: Vec<i64>,
+    #[serde(default)]
+    pub strip_frames: Vec<i64>,
     pub viewport_frames: (i64, i64),
     /// Output width for extracted thumbnails. Changing this invalidates the
     /// existing cache for this video (entries at a different size get wiped).
@@ -168,6 +174,12 @@ fn frame_priority(ctx: &PriorityContext, frame: i64) -> f64 {
         }
     }
 
+    for &s in &ctx.strip_frames {
+        if (frame - s).abs() <= 1 {
+            return 50.0 + tiebreak;
+        }
+    }
+
     let (vs, ve) = ctx.viewport_frames;
     if frame >= vs && frame <= ve {
         return 100.0 + tiebreak;
@@ -225,6 +237,13 @@ fn candidate_frames(ctx: &PriorityContext, max_frame: i64) -> Vec<(i64, f64)> {
     for &f in &ctx.scene_frames {
         let f = clamp(f);
         out.push((f, 30.0 + (f - ph).abs() as f64 * 0.0001));
+    }
+
+    // Strip frames — dense grid requested by UI feature like the thumbnail
+    // strip track. Ranked below scenes but above viewport fill.
+    for &f in &ctx.strip_frames {
+        let f = clamp(f);
+        out.push((f, 50.0 + (f - ph).abs() as f64 * 0.0001));
     }
 
     // Viewport samples — lowest priority, background fill.
@@ -481,6 +500,7 @@ pub async fn set_thumbnail_priority<R: Runtime>(
             region_frames: req.region_frames,
             marker_frames: req.marker_frames,
             scene_frames: req.scene_frames,
+            strip_frames: req.strip_frames,
             viewport_frames: req.viewport_frames,
         };
         evict_overflow(&mut st);
@@ -560,6 +580,7 @@ mod tests {
             scene_frames: vec![200],
             region_frames: vec![(300, 400)],
             viewport_frames: (0, 1000),
+            ..Default::default()
         };
         let cands = candidate_frames(&ctx, 1000);
         // First candidate should be the playhead itself.

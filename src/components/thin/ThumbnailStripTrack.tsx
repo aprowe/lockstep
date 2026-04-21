@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
-import { useAppSelector } from '../../store/hooks'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import { setStripFrames } from '../../store/slices/thumbnailsSlice'
 import type { View } from '../../types'
 import { timeToViewPct } from '../../utils/view'
 import TrackRow from './TrackRow'
@@ -21,19 +22,24 @@ interface Strip {
   end: number
 }
 
+interface StripLayout extends Strip {
+  slots: { t: number; frame: number }[]
+}
+
 /**
  * Narrow row that lays out connected thumbnails between consecutive scene
  * markers. Each strip starts at a scene (or the timeline origin when no scene
  * precedes) and ends at the next scene (or duration). Thumbnails are sized
  * square to the row height and sampled at regular intervals across the strip.
  *
- * Uses whatever thumbnails the backend has cached. Missing frames render as
- * placeholders — no new priority signal is sent, so the component relies on
- * the viewport-sampling the Filmstrip already primes.
+ * Publishes its visible slot frames to the thumbnails slice so the Filmstrip's
+ * priority push includes them in the backend request — otherwise viewport
+ * sampling alone isn't dense enough to fill a strip.
  */
 export default function ThumbnailStripTrack({
   scenes, duration, view, label = 'Thumbs', thumbSize = 18, onSeek,
 }: ThumbnailStripTrackProps) {
+  const dispatch = useAppDispatch()
   const video = useAppSelector(s => s.video.video)
   const thumbPaths = useAppSelector(s =>
     video ? s.thumbnails.pathsByHashAndFrame[video.fileHash] ?? {} : {},
@@ -71,40 +77,79 @@ export default function ThumbnailStripTrack({
 
   const viewSpan = view.end - view.start
   const pxPerSec = bodyWidth > 0 && viewSpan > 0 ? bodyWidth / viewSpan : 0
+  const fps = video?.fps ?? 0
 
-  const thumbSrc = useCallback((t: number): string | null => {
-    if (!video || video.fps <= 0) return null
-    const frame = Math.floor(t * video.fps)
+  // Lay out slots only for strips that intersect the viewport. Off-screen
+  // strips contribute nothing to render and nothing to the priority push.
+  const visibleStrips = useMemo<StripLayout[]>(() => {
+    if (pxPerSec <= 0 || fps <= 0) return []
+    const out: StripLayout[] = []
+    for (const s of strips) {
+      if (s.end <= view.start || s.start >= view.end) continue
+      const stripPx = (s.end - s.start) * pxPerSec
+      const count = Math.max(1, Math.floor(stripPx / thumbSize))
+      const slotSec = (s.end - s.start) / count
+      const slots: { t: number; frame: number }[] = []
+      for (let k = 0; k < count; k++) {
+        const t = s.start + (k + 0.5) * slotSec
+        slots.push({ t, frame: Math.floor(t * fps) })
+      }
+      out.push({ ...s, slots })
+    }
+    return out
+  }, [strips, pxPerSec, fps, thumbSize, view.start, view.end])
+
+  // Publish visible slot frames to the store so Filmstrip's priority push can
+  // include them in the request to the backend renderer.
+  useEffect(() => {
+    if (!video) return
+    const fileHash = video.fileHash
+    const frames: number[] = []
+    const seen = new Set<number>()
+    for (const s of visibleStrips) {
+      for (const slot of s.slots) {
+        if (!seen.has(slot.frame)) {
+          seen.add(slot.frame)
+          frames.push(slot.frame)
+        }
+      }
+    }
+    dispatch(setStripFrames({ fileHash, frames }))
+  }, [dispatch, video, visibleStrips])
+
+  // On unmount (e.g. user toggles the strip off), drop our priority claim so
+  // the backend stops rendering strip frames for this video.
+  const hashRef = useRef<string | null>(null)
+  hashRef.current = video?.fileHash ?? null
+  useEffect(() => () => {
+    const h = hashRef.current
+    if (h) dispatch(setStripFrames({ fileHash: h, frames: [] }))
+  }, [dispatch])
+
+  const thumbSrc = useCallback((frame: number): string | null => {
     const path = thumbPaths[frame]
     return path ? convertFileSrc(path) : null
-  }, [video, thumbPaths])
+  }, [thumbPaths])
 
   return (
     <TrackRow label={label} kind="thumbs">
       <div ref={bodyRef} className="thin-thumbs__body">
-        {pxPerSec > 0 && strips.map((s, i) => {
+        {visibleStrips.map((s, i) => {
           const leftPct = timeToViewPct(s.start, view)
           const rightPct = timeToViewPct(s.end, view)
-          if (rightPct < -1 || leftPct > 101) return null
           const widthPct = rightPct - leftPct
-          const stripPx = Math.max(0, (s.end - s.start) * pxPerSec)
-          const count = Math.max(1, Math.floor(stripPx / thumbSize))
-          const slotSec = (s.end - s.start) / count
-          const slots: { t: number; key: number }[] = []
-          for (let k = 0; k < count; k++) {
-            slots.push({ t: s.start + (k + 0.5) * slotSec, key: k })
-          }
+          const count = s.slots.length
           return (
             <div
               key={i}
               className="thin-thumbs__strip"
               style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
             >
-              {slots.map(({ t, key }) => {
-                const src = thumbSrc(t)
+              {s.slots.map(({ t, frame }, k) => {
+                const src = thumbSrc(frame)
                 return (
                   <button
-                    key={key}
+                    key={k}
                     type="button"
                     className="thin-thumbs__slot"
                     style={{ width: `${100 / count}%` }}
