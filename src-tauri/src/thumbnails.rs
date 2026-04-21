@@ -292,11 +292,35 @@ fn candidate_frames(ctx: &PriorityContext, max_frame: i64) -> Vec<(i64, f64)> {
 }
 
 /// Pick the next frame to extract, if any. Must be called with the state lock held.
+///
+/// When the cache is full, we only pick frames whose score beats the worst
+/// cached frame — otherwise `evict_overflow` would immediately drop the frame
+/// we just extracted, and the next scheduler pass would pick it again. That's
+/// an infinite thrash: the symptom is "N pending, cache full, workers busy
+/// forever, no progress".
 fn pick_next(st: &VideoState) -> Option<i64> {
-    for (f, _) in candidate_frames(&st.context, st.max_frame) {
-        if !st.ready.contains(&f) && !st.in_flight.contains(&f) {
-            return Some(f);
+    let cache_full = st.ready.len() + st.in_flight.len() >= st.max_cached_frames;
+    let worst_cached_score: Option<f64> = if cache_full {
+        st.ready
+            .iter()
+            .map(|&f| frame_priority(&st.context, f))
+            .fold(None::<f64>, |acc, s| Some(acc.map_or(s, |a| a.max(s))))
+    } else {
+        None
+    };
+
+    for (f, score) in candidate_frames(&st.context, st.max_frame) {
+        if st.ready.contains(&f) || st.in_flight.contains(&f) {
+            continue;
         }
+        if let Some(worst) = worst_cached_score {
+            // Strict `>=` so ties also skip — a tied frame would self-evict
+            // 50% of the time (HashSet iteration order is non-deterministic).
+            if score >= worst {
+                continue;
+            }
+        }
+        return Some(f);
     }
     None
 }
@@ -776,6 +800,69 @@ mod tests {
         };
         let nowhere = frame_priority(&ctx_no_vp, 5000);
         assert!(nowhere > 500.0);
+    }
+
+    #[test]
+    fn pick_next_skips_frames_that_would_self_evict() {
+        // Cache is full; every pending candidate scores worse than everything
+        // already cached. Extracting any of them would just evict themselves
+        // on the next `evict_overflow` pass — that's the thrash bug.
+        //
+        // Setup: ctx has 4 scene cuts. Playhead-window candidates (around
+        // frame 0) and the first 3 scenes are already in `ready`. The only
+        // candidate left is scene #4, which scores worse than scene #3.
+        let ctx = PriorityContext {
+            playhead_frame: 0,
+            scene_frames: vec![100, 200, 300, 400],
+            ..Default::default()
+        };
+        let mut ready: HashSet<i64> = (0..=15).collect(); // playhead window
+        for &f in &[100i64, 200, 300] {
+            ready.insert(f);
+        }
+        let st = VideoState {
+            video_path: "x".to_string(),
+            fps: 30.0,
+            max_frame: 1000,
+            cache_dir: PathBuf::from("."),
+            ready,
+            in_flight: HashSet::new(),
+            context: ctx,
+            workers_running: 0,
+            thumb_width: 120,
+            max_cached_frames: 19, // == ready.len(), so cache is full
+        };
+        assert_eq!(pick_next(&st), None, "must not thrash on full cache");
+    }
+
+    #[test]
+    fn pick_next_accepts_strictly_better_frame_when_full() {
+        // Cache is full of scene-tier frames (score ~30). A marker-tier
+        // candidate (~5) shows up — it's strictly better than the worst
+        // cached, so it should win even though the cache is full.
+        let ctx = PriorityContext {
+            playhead_frame: 0,
+            marker_frames: vec![50],
+            scene_frames: vec![100, 200, 300],
+            ..Default::default()
+        };
+        let mut ready: HashSet<i64> = (0..=15).collect();
+        for &f in &[100i64, 200, 300] {
+            ready.insert(f);
+        }
+        let st = VideoState {
+            video_path: "x".to_string(),
+            fps: 30.0,
+            max_frame: 1000,
+            cache_dir: PathBuf::from("."),
+            ready,
+            in_flight: HashSet::new(),
+            context: ctx,
+            workers_running: 0,
+            thumb_width: 120,
+            max_cached_frames: 19,
+        };
+        assert_eq!(pick_next(&st), Some(50));
     }
 
     #[test]
