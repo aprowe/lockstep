@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useRef, useState } from 'react'
+import { forwardRef, useRef } from 'react'
 import type { WarpSegment, View } from '../types'
 import { timeToViewPct } from '../utils/view'
 import './WarpConnector.css'
@@ -22,10 +22,6 @@ interface WarpConnectorProps {
   linkedBoundaries?: boolean[]
   /** For each segment boundary: true = the paired anchor is selected (intensifies the connector line). */
   selectedBoundaries?: boolean[]
-  /** Anchors for lasso selection in the connector area */
-  anchors?: { id: number; time: number }[]
-  /** Called when lasso selection changes */
-  onSelectionChange?: (ids: Set<number>) => void
   /** Label shown in the left-side rail next to the connector. */
   railLabel?: React.ReactNode
 }
@@ -35,42 +31,12 @@ function toView(pct: number, totalDuration: number, view: View): number {
   return timeToViewPct((pct / 100) * totalDuration, view)
 }
 
+// Lasso selection lives in ThinTimeline's root-level handlers so a drag started
+// anywhere (including inside the warp connector) can extend across every track.
+// This component stays a passive renderer — no pointer interaction.
 const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
-  function WarpConnector({ segments, view, origDuration, outputDuration, clipIn, clipOut, beatClipIn, beatClipOut, clipFillColor, boundaryColor, linkedBoundaries, selectedBoundaries, anchors, onSelectionChange, railLabel }, ref) {
-    const lassoRef = useRef<{ startX: number } | null>(null)
-    const [lassoRect, setLassoRect] = useState<{ left: number; width: number } | null>(null)
+  function WarpConnector({ segments, view, origDuration, outputDuration, clipIn, clipOut, beatClipIn, beatClipOut, clipFillColor, boundaryColor, linkedBoundaries, selectedBoundaries, railLabel }, ref) {
     const containerRef = useRef<HTMLDivElement>(null)
-
-    const handlePointerDown = useCallback((e: React.PointerEvent) => {
-      if (e.button !== 0 || e.shiftKey) return // let shift-drag pan through
-      if (!onSelectionChange || !anchors) return
-      e.currentTarget.setPointerCapture(e.pointerId)
-      lassoRef.current = { startX: e.clientX }
-      onSelectionChange(new Set())
-    }, [onSelectionChange, anchors])
-
-    const handlePointerMove = useCallback((e: React.PointerEvent) => {
-      const g = lassoRef.current
-      if (!g || !containerRef.current || !anchors) return
-      const rect = containerRef.current.getBoundingClientRect()
-      const startPct = Math.max(0, Math.min(100, ((g.startX - rect.left) / rect.width) * 100))
-      const currPct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100))
-      const left = Math.min(startPct, currPct)
-      const width = Math.abs(currPct - startPct)
-      setLassoRect({ left, width })
-
-      // Convert % to time and select anchors in range
-      const visibleSpan = view.end - view.start
-      const startTime = view.start + (left / 100) * visibleSpan
-      const endTime = view.start + ((left + width) / 100) * visibleSpan
-      const ids = new Set(anchors.filter(a => a.time >= startTime && a.time <= endTime).map(a => a.id))
-      onSelectionChange?.(ids)
-    }, [anchors, view, onSelectionChange])
-
-    const handlePointerUp = useCallback(() => {
-      lassoRef.current = null
-      setLassoRect(null)
-    }, [])
 
     if (segments.length === 0) {
       return (
@@ -94,10 +60,6 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
         <div
           ref={setRefs}
           className="warp-connector"
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerLeave={handlePointerUp}
         >
         <svg
           width="100%"
@@ -196,12 +158,6 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
           </svg>
         )}
 
-        {lassoRect && (
-          <div
-            className="warp-connector__lasso"
-            style={{ left: `${lassoRect.left}%`, width: `${lassoRect.width}%` }}
-          />
-        )}
         </div>
       </div>
     )

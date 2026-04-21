@@ -135,8 +135,29 @@ export default function ThinTimeline({
   const [hoveredAnchorId, setHoveredAnchorId] = useState<number | null>(null)
   const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null)
   const [hoveredSceneTime, setHoveredSceneTime] = useState<number | null>(null)
-  const [lassoRange, setLassoRange] = useState<{ startPct: number; endPct: number } | null>(null)
-  const lassoRef = useRef<{ startPct: number; startedAdditive: boolean; initialIds: Set<number> } | null>(null)
+  const [lassoRange, setLassoRange] = useState<{
+    /** Horizontal extents in % of the body width (0..1). */
+    startPct: number
+    endPct: number
+    /** Starting section — always included in the vertical span. */
+    startSectionId: string | null
+    /** Section under the pointer right now. Same as start → single-track;
+     *  different → span whole rows from start → current (inclusive). */
+    currentSectionId: string | null
+  } | null>(null)
+  const lassoRef = useRef<{
+    startPct: number
+    startClientX: number
+    startClientY: number
+    startSectionId: string | null
+    startedAdditive: boolean
+    initialIds: Set<number>
+    /** Pointer id captured by root; undefined before drag threshold exceeded. */
+    pointerId?: number
+    /** Has the drag moved far enough to activate the lasso? */
+    active: boolean
+  } | null>(null)
+  const LASSO_DRAG_THRESHOLD = 4 // px
 
   // Through-line visibility toggles. Markers are on by default (existing
   // behavior); regions and scenes show on interaction only unless toggled on.
@@ -350,19 +371,37 @@ export default function ThinTimeline({
     if (target.closest('.thin-region')) return false
     if (target.closest('.thin-timeline__toolbar')) return false
     if (target.closest('.thin-timeline__resizer')) return false
-    if (target.closest('.thin-minimap')) return false
-    if (target.closest('.warp-connector')) return false
+    if (target.closest('.thin-row--minimap')) return false
     if (target.closest('.thumb-queue-debug')) return false
     return true
   }, [])
 
-  const computeLassoIds = useCallback((startPct: number, endPct: number): Set<number> => {
+  /** Return the [data-section] id containing the element at the given client point. */
+  const sectionIdAt = useCallback((clientX: number, clientY: number): string | null => {
+    const root = rootRef.current
+    if (!root) return null
+    const el = document.elementFromPoint(clientX, clientY)
+    if (!(el instanceof Element)) return null
+    const sec = el.closest<HTMLElement>('[data-section]')
+    if (!sec || !root.contains(sec)) return null
+    return sec.dataset.section ?? null
+  }, [])
+
+  /**
+   * Compute which ids are inside the lasso. In single-track mode, only iterate
+   * the pool that track shows (markerin → origAnchors, markerout → beatAnchors).
+   * Warp is the connector row between input and output — both pools contribute
+   * there, same as multi-track mode (sectionId = null).
+   */
+  const computeLassoIds = useCallback((startPct: number, endPct: number, sectionId: string | null): Set<number> => {
     const span = view.end - view.start
     const lo = view.start + Math.min(startPct, endPct) * span
     const hi = view.start + Math.max(startPct, endPct) * span
     const ids = new Set<number>()
-    for (const a of anchors) if (a.time >= lo && a.time <= hi) ids.add(a.id)
-    for (const a of beatAnchors) if (a.time >= lo && a.time <= hi) ids.add(a.id)
+    const wantIn = sectionId === null || sectionId === 'markerin' || sectionId === 'warp'
+    const wantOut = sectionId === null || sectionId === 'markerout' || sectionId === 'warp'
+    if (wantIn) for (const a of anchors) if (a.time >= lo && a.time <= hi) ids.add(a.id)
+    if (wantOut) for (const a of beatAnchors) if (a.time >= lo && a.time <= hi) ids.add(a.id)
     return ids
   }, [anchors, beatAnchors, view.start, view.end])
 
@@ -374,23 +413,58 @@ export default function ThinTimeline({
     if (pct === null) return
     const additive = e.ctrlKey || e.metaKey
     const initialIds = additive ? new Set(selectedAnchorIds) : new Set<number>()
-    lassoRef.current = { startPct: pct, startedAdditive: additive, initialIds }
-    rootRef.current?.setPointerCapture(e.pointerId)
-    setLassoRange({ startPct: pct, endPct: pct })
-    if (!additive) onConnectorSelectionChange?.(new Set())
-  }, [isLassoTarget, bodyPctFromClientX, selectedAnchorIds, onConnectorSelectionChange])
+    const sectionId = sectionIdAt(e.clientX, e.clientY)
+    // NOTE: don't capture the pointer or show a lasso yet — only arm it. If the
+    // user clicks without moving past LASSO_DRAG_THRESHOLD, the click/dblclick
+    // dispatches normally on the target. This matters for double-clicks on
+    // tracks (e.g. scene row) that create a new object at the cursor.
+    lassoRef.current = {
+      startPct: pct,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startSectionId: sectionId,
+      startedAdditive: additive,
+      initialIds,
+      active: false,
+    }
+  }, [isLassoTarget, bodyPctFromClientX, sectionIdAt, selectedAnchorIds])
 
   const onRootPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const g = lassoRef.current
     if (!g) return
     const pct = bodyPctFromClientX(e.clientX)
     if (pct === null) return
-    setLassoRange({ startPct: g.startPct, endPct: pct })
-    const hit = computeLassoIds(g.startPct, pct)
+
+    // Activate once the pointer has moved past the drag threshold. Only then
+    // do we capture the pointer + start drawing the lasso.
+    if (!g.active) {
+      const dx = e.clientX - g.startClientX
+      const dy = e.clientY - g.startClientY
+      if (dx * dx + dy * dy < LASSO_DRAG_THRESHOLD * LASSO_DRAG_THRESHOLD) return
+      g.active = true
+      g.pointerId = e.pointerId
+      rootRef.current?.setPointerCapture(e.pointerId)
+      if (!g.startedAdditive) onConnectorSelectionChange?.(new Set())
+    }
+
+    // Tracks: if pointer is inside the starting section, lasso clips to that
+    // row. Otherwise it expands to cover every whole row between the start
+    // section and the section under the pointer.
+    const here = sectionIdAt(e.clientX, e.clientY)
+    // Single-track selection only when start and current section are the same;
+    // otherwise we select across both marker tracks (null = multi).
+    const selectionSection = (g.startSectionId !== null && here === g.startSectionId) ? g.startSectionId : null
+    setLassoRange({
+      startPct: g.startPct,
+      endPct: pct,
+      startSectionId: g.startSectionId,
+      currentSectionId: here,
+    })
+    const hit = computeLassoIds(g.startPct, pct, selectionSection)
     const merged = new Set(g.initialIds)
     for (const id of hit) merged.add(id)
     onConnectorSelectionChange?.(merged)
-  }, [bodyPctFromClientX, computeLassoIds, onConnectorSelectionChange])
+  }, [bodyPctFromClientX, sectionIdAt, computeLassoIds, onConnectorSelectionChange])
 
   const onRootPointerUp = useCallback(() => {
     if (!lassoRef.current) return
@@ -560,8 +634,6 @@ export default function ThinTimeline({
           boundaryColor={boundaryColor}
           linkedBoundaries={linkedBoundaries}
           selectedBoundaries={selectedBoundaries}
-          anchors={anchors}
-          onSelectionChange={onConnectorSelectionChange}
           railLabel="Warp"
         />
       ),
@@ -650,6 +722,32 @@ export default function ThinTimeline({
           </div>
         </div>
       ),
+    })
+  }
+
+  /**
+   * Translucent region bands rendered in every input/output section — gives
+   * a vertical sense of "this region spans from X to Y" across the whole
+   * timeline, not just in the dedicated clip rows. The warp section renders
+   * its own slanted quadrilateral and is skipped here.
+   */
+  const regionBandsFor = (space: SectionSpace): React.ReactNode => {
+    if (space === 'warp') return null
+    const source = space === 'input' ? regions : (regionsOutput ?? regions)
+    return source.map(r => {
+      const left = timeToViewPct(r.inPoint, view)
+      const right = timeToViewPct(r.outPoint, view)
+      const width = right - left
+      if (width <= 0 || right < -1 || left > 101) return null
+      const colorCls = `clip-overlay--color-${(r.colorIndex ?? 0) % 8}`
+      const cls = `thin-timeline__region-band ${colorCls}${r.active ? ' thin-timeline__region-band--active' : ''}`
+      return (
+        <div
+          key={`rband-${r.id}`}
+          className={cls}
+          style={{ left: `${left}%`, width: `${width}%` }}
+        />
+      )
     })
   }
 
@@ -745,6 +843,7 @@ export default function ThinTimeline({
           >
             {s.node}
             <div className="thin-timeline__through-overlay">
+              {regionBandsFor(s.space)}
               {s.space === 'warp' ? (
                 <svg
                   className="thin-timeline__through-svg"
@@ -876,10 +975,40 @@ export default function ThinTimeline({
       {lassoRange && (() => {
         const lo = Math.min(lassoRange.startPct, lassoRange.endPct) * 100
         const hi = Math.max(lassoRange.startPct, lassoRange.endPct) * 100
+        const root = rootRef.current
+        // Whole-track expansion: the vertical span always starts at the start
+        // section's row. If the pointer is still inside the start section we
+        // stay single-track; otherwise we expand to cover every whole row
+        // between start and current (inclusive).
+        let overlayStyle: React.CSSProperties | undefined
+        const singleTrack = !!lassoRange.startSectionId
+          && lassoRange.currentSectionId === lassoRange.startSectionId
+        if (root && lassoRange.startSectionId) {
+          const startSec = root.querySelector<HTMLElement>(`[data-section="${lassoRange.startSectionId}"]`)
+          const currSec = lassoRange.currentSectionId && lassoRange.currentSectionId !== lassoRange.startSectionId
+            ? root.querySelector<HTMLElement>(`[data-section="${lassoRange.currentSectionId}"]`)
+            : null
+          if (startSec) {
+            const rootRect = root.getBoundingClientRect()
+            const startRect = startSec.getBoundingClientRect()
+            let top = startRect.top
+            let bottom = startRect.bottom
+            if (currSec) {
+              const currRect = currSec.getBoundingClientRect()
+              top = Math.min(top, currRect.top)
+              bottom = Math.max(bottom, currRect.bottom)
+            }
+            overlayStyle = {
+              top: `${top - rootRect.top}px`,
+              height: `${bottom - top}px`,
+              bottom: 'auto',
+            }
+          }
+        }
         return (
-          <div className="thin-timeline__lasso-overlay">
+          <div className="thin-timeline__lasso-overlay" style={overlayStyle}>
             <div
-              className="thin-timeline__lasso"
+              className={`thin-timeline__lasso${singleTrack ? ' thin-timeline__lasso--single' : ' thin-timeline__lasso--rect'}`}
               style={{ left: `${lo}%`, width: `${hi - lo}%` }}
             />
           </div>

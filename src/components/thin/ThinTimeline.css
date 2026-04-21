@@ -192,6 +192,13 @@
   border-right: 1px solid hsla(0, 0%, 100%, 0.35);
 }
 
+/* Multi-track rectangle mode: the overlay's top/height already matches the
+ * drag's vertical extent, so add the top/bottom edges here for the full box. */
+.thin-timeline__lasso--rect {
+  border-top: 1px solid hsla(0, 0%, 100%, 0.35);
+  border-bottom: 1px solid hsla(0, 0%, 100%, 0.35);
+}
+
 /* Through-line overlays — vertical guides at item times that bend across
  * the Warp section. Sit behind interactive content (z-index < markers/regions)
  * so they never block clicks. Positioned at the body area (past the rail).
@@ -212,6 +219,26 @@
   top: 0;
   bottom: 0;
   margin-left: -0.5px;
+}
+
+/* Region bands — translucent background fill spanning each row between a
+ * region's in/out. Colors come from --clip-h/s/l on the .clip-overlay--color-N
+ * class. Sits behind through-lines (z-index 0 here; overlay parent is z=1). */
+.thin-timeline__region-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: hsla(var(--clip-h, 32), var(--clip-s, 70%), var(--clip-l, 52%), 0.08);
+  border-left: 1px solid hsla(var(--clip-h, 32), var(--clip-s, 70%), var(--clip-l, 52%), 0.35);
+  border-right: 1px solid hsla(var(--clip-h, 32), var(--clip-s, 70%), var(--clip-l, 52%), 0.35);
+}
+
+.thin-timeline__region-band--active {
+  background: hsla(var(--clip-h, 32), var(--clip-s, 70%), var(--clip-l, 52%), 0.16);
+  border-left-color: hsla(var(--clip-h, 32), var(--clip-s, 70%), var(--clip-l, 52%), 0.7);
+  border-right-color: hsla(var(--clip-h, 32), var(--clip-s, 70%), var(--clip-l, 52%), 0.7);
 }
 
 /* Anchor lines — default dotted, selected solid, hover in between. */

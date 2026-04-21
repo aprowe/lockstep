@@ -44,7 +44,9 @@ describe('thin tracks', () => {
           onAdd={onAdd}
         />
       )
-      const body = container.querySelector('.thin-markers__body') as HTMLElement
+      // .thin-row__body (from TrackRow) is the real click surface — the inner
+      // .thin-markers__body has no CSS and collapses to 0 height in browsers.
+      const body = container.querySelector('.thin-row__body') as HTMLElement
       stubRect(body, 0, 1000)
       fireEvent.doubleClick(body, { clientX: 400 })
       expect(onAdd).toHaveBeenCalledTimes(1)

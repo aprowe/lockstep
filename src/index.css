@@ -129,6 +129,18 @@ input[type="number"].no-stepper::-webkit-outer-spin-button,
 input[type="number"].no-stepper::-webkit-inner-spin-button { -webkit-appearance: none; }
 input[type="number"].no-stepper { -moz-appearance: textfield; }
 
+/* ── Clip color palette ──────────────────────────────────
+   Sets --clip-h/s/l for a region based on its colorIndex.
+   Must stay in sync with PALETTE in RegionSidebar.tsx. */
+.clip-overlay--color-0 { --clip-h: 0;   --clip-s: 75%; --clip-l: 55%; }
+.clip-overlay--color-1 { --clip-h: 30;  --clip-s: 80%; --clip-l: 52%; }
+.clip-overlay--color-2 { --clip-h: 58;  --clip-s: 80%; --clip-l: 48%; }
+.clip-overlay--color-3 { --clip-h: 115; --clip-s: 65%; --clip-l: 45%; }
+.clip-overlay--color-4 { --clip-h: 183; --clip-s: 65%; --clip-l: 42%; }
+.clip-overlay--color-5 { --clip-h: 213; --clip-s: 70%; --clip-l: 55%; }
+.clip-overlay--color-6 { --clip-h: 270; --clip-s: 60%; --clip-l: 55%; }
+.clip-overlay--color-7 { --clip-h: 305; --clip-s: 65%; --clip-l: 52%; }
+
 /* ── Scrollbars ─────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg-2); }

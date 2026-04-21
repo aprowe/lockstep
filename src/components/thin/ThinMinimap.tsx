@@ -33,6 +33,7 @@ export default function ThinMinimap({
         className="minimap"
         style={{ cursor: 'ew-resize', flex: 1 }}
         onPointerDown={e => {
+          e.stopPropagation()
           e.currentTarget.setPointerCapture(e.pointerId)
           const rect = e.currentTarget.getBoundingClientRect()
           const t = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) * duration
@@ -40,6 +41,7 @@ export default function ThinMinimap({
           onViewChange({ start: t - half, end: t + half })
           drag.current = { lastX: e.clientX, width: rect.width }
         }}
+        onContextMenu={e => { e.stopPropagation(); e.preventDefault() }}
         onPointerMove={e => {
           const g = drag.current
           if (!g || !e.buttons) return

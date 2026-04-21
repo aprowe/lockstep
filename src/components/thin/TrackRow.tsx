@@ -10,6 +10,11 @@ interface TrackRowProps {
   children?: ReactNode
   /** Click on the empty row background. Receives the horizontal pct (0..1). */
   onBackgroundClick?: (pct: number, e: React.MouseEvent<HTMLDivElement>) => void
+  /** Double-click on the empty row background — receives pct (0..1) and the event.
+   * Attaching here (rather than an inner per-track body) means the real click
+   * surface always handles the event, regardless of whether the inner body has
+   * pointer-events: none or collapses to zero height. */
+  onBackgroundDoubleClick?: (pct: number, e: React.MouseEvent<HTMLDivElement>) => void
   /** Right-click on empty background. */
   onBackgroundContextMenu?: (pct: number, x: number, y: number) => void
   /** Pointer-down on empty background — receives pct (0..1) and the event.
@@ -24,7 +29,7 @@ interface TrackRowProps {
  * consistent left rail label column + a time-mapped content area where
  * children absolutely-position via `left: <pct>%`.
  */
-export default function TrackRow({ label, kind, children, onBackgroundClick, onBackgroundContextMenu, onBackgroundPointerDown, style }: TrackRowProps) {
+export default function TrackRow({ label, kind, children, onBackgroundClick, onBackgroundDoubleClick, onBackgroundContextMenu, onBackgroundPointerDown, style }: TrackRowProps) {
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!onBackgroundClick) return
     if (e.target !== e.currentTarget) return
@@ -33,9 +38,21 @@ export default function TrackRow({ label, kind, children, onBackgroundClick, onB
     onBackgroundClick(Math.max(0, Math.min(1, pct)), e)
   }
 
+  // Only fires when propagation reaches us — items rendered inside the row
+  // (markers, regions, etc.) are expected to stopPropagation on their own
+  // dblclick handlers if they want to override background behavior. We then
+  // stopPropagation so ThinTimeline's root handlers don't also fire.
+  const handleDoubleClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!onBackgroundDoubleClick) return
+    e.stopPropagation()
+    const rect = e.currentTarget.getBoundingClientRect()
+    const pct = (e.clientX - rect.left) / rect.width
+    onBackgroundDoubleClick(Math.max(0, Math.min(1, pct)), e)
+  }
+
   const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!onBackgroundContextMenu) return
-    e.preventDefault()
+    e.preventDefault(); e.stopPropagation()
     const rect = e.currentTarget.getBoundingClientRect()
     const pct = (e.clientX - rect.left) / rect.width
     onBackgroundContextMenu(Math.max(0, Math.min(1, pct)), e.clientX, e.clientY)
@@ -55,6 +72,7 @@ export default function TrackRow({ label, kind, children, onBackgroundClick, onB
       <div
         className="thin-row__body"
         onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
         onPointerDown={handlePointerDown}
       >

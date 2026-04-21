@@ -223,33 +223,33 @@ export default function RegionBand({
   }, [onSelect, onSnapHintsChange, flushPending])
 
   const handleBgDoubleClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
+    (pct: number) => {
       if (!onBackgroundAdd) return
-      if (e.target !== e.currentTarget) return
-      const t = xToTime(e.clientX)
+      const t = view.start + pct * (view.end - view.start)
       onBackgroundAdd(t)
     },
-    [onBackgroundAdd, xToTime],
+    [onBackgroundAdd, view.start, view.end],
   )
 
   const handleBgContextMenu = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
+    (pct: number, x: number, y: number) => {
       if (!onBackgroundContextMenu) return
-      if (e.target !== e.currentTarget) return
-      e.preventDefault(); e.stopPropagation()
-      const t = xToTime(e.clientX)
-      onBackgroundContextMenu(t, e.clientX, e.clientY)
+      const t = view.start + pct * (view.end - view.start)
+      onBackgroundContextMenu(t, x, y)
     },
-    [onBackgroundContextMenu, xToTime],
+    [onBackgroundContextMenu, view.start, view.end],
   )
 
   return (
-    <TrackRow label={label ?? (kind === 'input' ? 'Regions' : 'Out')} kind={`region-${kind}`}>
+    <TrackRow
+      label={label ?? (kind === 'input' ? 'Regions' : 'Out')}
+      kind={`region-${kind}`}
+      onBackgroundDoubleClick={handleBgDoubleClick}
+      onBackgroundContextMenu={handleBgContextMenu}
+    >
       <div
         className="thin-region-band__body"
         ref={bodyRef}
-        onDoubleClick={handleBgDoubleClick}
-        onContextMenu={handleBgContextMenu}
       >
         {regions.map(r => {
           if (r.outPoint <= r.inPoint) return null
@@ -271,9 +271,10 @@ export default function RegionBand({
                 onContextMenu(r.id, e.clientX, e.clientY)
               }}
               onDoubleClick={(e) => {
-                if (!onZoom) return
+                // Always stop — otherwise dblclick bubbles up to the TrackRow
+                // background handler and creates a new region at the cursor.
                 e.stopPropagation()
-                onZoom(r.id)
+                if (onZoom) onZoom(r.id)
               }}
               onPointerDown={(e) => onRegionPointerDown(e, r, 'middle')}
               onPointerMove={onRegionPointerMove}

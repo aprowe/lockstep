@@ -105,10 +105,8 @@ export default function MarkersTrack({
     return { snapped: raw + delta, hints }
   }, [view.end, view.start, snapInterval, snapOffset, snapTargets])
 
-  const handleBgDoubleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!onAdd || e.target !== e.currentTarget) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const pct = (e.clientX - rect.left) / rect.width
+  const handleBgDoubleClick = useCallback((pct: number) => {
+    if (!onAdd) return
     const t = view.start + pct * (view.end - view.start)
     if (t >= 0 && t <= duration) onAdd(t)
   }, [onAdd, view.start, view.end, duration])
@@ -153,27 +151,31 @@ export default function MarkersTrack({
     })
   }, [xToTime, trySnap, duration, onAnchorsChange, onSnapHintsChange, onDragTimeChange])
 
-  const onMarkerClick = useCallback((e: React.MouseEvent<HTMLButtonElement>, a: Anchor) => {
-    const wasDragging = dragRef.current?.dragging ?? false
-    dragRef.current = null
-    // Flush any rAF-queued update before clearing drag state.
+  // Pointer-up handles cleanup (flush queued updates, clear snap hints +
+  // drag-time indicators) because `onClick` is suppressed by the browser when
+  // the pointer moved far enough to be considered a drag — leaving hints
+  // stuck on screen. Pointer-up always fires regardless of drag distance.
+  const onMarkerPointerUp = useCallback((_e: React.PointerEvent<HTMLButtonElement>) => {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
       const p = pendingRef.current
       pendingRef.current = null
-      if (p) {
-        onAnchorsChange?.(p.nextAnchors)
-      }
+      if (p) onAnchorsChange?.(p.nextAnchors)
     }
     onSnapHintsChange?.(null)
     onDragTimeChange?.(null)
+  }, [onAnchorsChange, onSnapHintsChange, onDragTimeChange])
+
+  const onMarkerClick = useCallback((e: React.MouseEvent<HTMLButtonElement>, a: Anchor) => {
+    const wasDragging = dragRef.current?.dragging ?? false
+    dragRef.current = null
     if (wasDragging) return
     e.stopPropagation()
     if (e.shiftKey && onDelete) { onDelete(a.id); return }
     onSelect?.(a.id, e.ctrlKey || e.metaKey)
     onSeek?.(a.time)
-  }, [onDelete, onSelect, onSeek, onSnapHintsChange, onDragTimeChange, onAnchorsChange])
+  }, [onDelete, onSelect, onSeek])
 
   const onMarkerDoubleClick = useCallback((e: React.MouseEvent<HTMLButtonElement>, a: Anchor) => {
     e.stopPropagation()
@@ -181,25 +183,24 @@ export default function MarkersTrack({
   }, [onDelete])
 
   const handleBgContextMenu = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
+    (pct: number, x: number, y: number) => {
       if (!onBackgroundContextMenu) return
-      if (e.target !== e.currentTarget) return
-      e.preventDefault(); e.stopPropagation()
-      const rect = e.currentTarget.getBoundingClientRect()
-      const pct = (e.clientX - rect.left) / rect.width
       const t = view.start + pct * (view.end - view.start)
-      onBackgroundContextMenu(t, e.clientX, e.clientY)
+      onBackgroundContextMenu(t, x, y)
     },
     [onBackgroundContextMenu, view.start, view.end],
   )
 
   return (
-    <TrackRow label={label} kind="markers">
+    <TrackRow
+      label={label}
+      kind="markers"
+      onBackgroundDoubleClick={handleBgDoubleClick}
+      onBackgroundContextMenu={handleBgContextMenu}
+    >
       <div
         ref={bodyRef}
         className="thin-markers__body"
-        onDoubleClick={handleBgDoubleClick}
-        onContextMenu={handleBgContextMenu}
       >
         {anchors.map(a => {
           const x = timeToViewPct(a.time, view)
@@ -214,6 +215,8 @@ export default function MarkersTrack({
               title={`Marker @ ${a.time.toFixed(3)}s`}
               onPointerDown={(e) => onMarkerPointerDown(e, a)}
               onPointerMove={onMarkerPointerMove}
+              onPointerUp={onMarkerPointerUp}
+              onPointerCancel={onMarkerPointerUp}
               onClick={(e) => onMarkerClick(e, a)}
               onDoubleClick={(e) => onMarkerDoubleClick(e, a)}
               onMouseEnter={() => onHoverChange?.(a.id)}

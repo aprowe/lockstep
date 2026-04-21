@@ -47,7 +47,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, AfterEachScenario }) => {
       container = r.container
     })
     When('the user right-clicks anywhere in the timeline area', () => {
-      const body = container!.querySelector('.thin-markers__body') as HTMLElement
+      const body = container!.querySelector('.thin-row__body') as HTMLElement
       stubRect(body, 0, 1000)
       fireEvent.contextMenu(body, { clientX: 500, clientY: 10 })
     })
@@ -209,11 +209,14 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, AfterEachScenario }) => {
       const layer = variables.layer
       let body: HTMLElement
       if (layer === 'input_timeline') {
-        body = container!.querySelector('.thin-markers__body') as HTMLElement
+        // .thin-row__body is the real click surface — inner .thin-markers__body
+        // has no CSS and collapses to 0 height.
+        body = container!.querySelector('.thin-row__body') as HTMLElement
       } else if (layer === 'scene_strip') {
         body = container!.querySelector('.scene-row') as HTMLElement
       } else {
-        body = container!.querySelector('.thin-region-band__body') as HTMLElement
+        // Same here — inner .thin-region-band__body has pointer-events: none.
+        body = container!.querySelector('.thin-row__body') as HTMLElement
       }
       stubRect(body, 0, 1000)
       fireEvent.doubleClick(body, { clientX: 400 })
@@ -365,7 +368,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, AfterEachScenario }) => {
     And('the mouse is inside <layer>', () => {
       const layer = variables.layer
       if (layer === 'input_timeline') {
-        bodySelector = '.thin-markers__body'
+        bodySelector = '.thin-row__body'
         const r = render(
           createElement(MarkersTrack, {
             anchors: [], view: VIEW, duration: 100, selectedIds: new Set<number>(),
@@ -382,7 +385,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, AfterEachScenario }) => {
           }),
         ).container
       } else {
-        bodySelector = '.thin-region-band__body'
+        bodySelector = '.thin-row__body'
         const r = render(
           createElement(RegionBand, {
             kind: 'input', regions: [], view: VIEW,
