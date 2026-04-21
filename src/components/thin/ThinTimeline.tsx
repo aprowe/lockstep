@@ -216,6 +216,55 @@ export default function ThinTimeline({
     [],
   )
 
+  // Safety net: any pointer release/cancel anywhere in the window clears
+  // lingering snap hints AND hover state. Individual row components try to
+  // clean up themselves, but state can leak when a hovered/dragged target
+  // unmounts mid-gesture (e.g. view change drops the marker that had pointer
+  // capture, so pointerup/mouseleave never fires). Attaching at window
+  // guarantees cleanup.
+  useEffect(() => {
+    const clearAll = () => {
+      setSnapHintsIn([])
+      setSnapHintsOut([])
+      setHoveredAnchorId(null)
+      setHoveredRegionId(null)
+      setHoveredSceneTime(null)
+    }
+    window.addEventListener('pointerup', clearAll)
+    window.addEventListener('pointercancel', clearAll)
+    window.addEventListener('blur', clearAll)
+    return () => {
+      window.removeEventListener('pointerup', clearAll)
+      window.removeEventListener('pointercancel', clearAll)
+      window.removeEventListener('blur', clearAll)
+    }
+  }, [])
+
+  // Stale-hover sweep: if the hovered anchor/region/scene has disappeared
+  // from the underlying list (view change, filter, etc.), drop the stale id.
+  // Prevents through-lines from being drawn for targets that no longer exist.
+  useEffect(() => {
+    if (hoveredAnchorId !== null) {
+      const stillThere =
+        anchors.some(a => a.id === hoveredAnchorId) ||
+        beatAnchors.some(a => a.id === hoveredAnchorId)
+      if (!stillThere) setHoveredAnchorId(null)
+    }
+  }, [anchors, beatAnchors, hoveredAnchorId])
+  useEffect(() => {
+    if (hoveredRegionId !== null) {
+      const list = regionsOutput ?? regions
+      const inA = regions.some(r => r.id === hoveredRegionId)
+      const inB = list.some(r => r.id === hoveredRegionId)
+      if (!inA && !inB) setHoveredRegionId(null)
+    }
+  }, [regions, regionsOutput, hoveredRegionId])
+  useEffect(() => {
+    if (hoveredSceneTime !== null && !scenes.includes(hoveredSceneTime)) {
+      setHoveredSceneTime(null)
+    }
+  }, [scenes, hoveredSceneTime])
+
   const throughLines = useMemo<ThroughLine[]>(() => {
     const out: ThroughLine[] = []
 
@@ -275,7 +324,9 @@ export default function ThinTimeline({
         out.push({ key: `r-${rid}-out`, inputX: endInX, outputX: endOutX, kind: 'region', style })
       }
     }
-    for (const r of regions) if (r.active) pushRegion(r.id, 'selected')
+    // Active regions don't get automatic through-lines — the band already
+    // shades the span between in/out. Through-lines only on hover or when the
+    // "always show region lines" toggle is on.
     if (hoveredRegionId) pushRegion(hoveredRegionId, 'hover')
     if (alwaysRegions) {
       for (const r of regions) pushRegion(r.id, 'dotted')
@@ -293,12 +344,15 @@ export default function ThinTimeline({
       out.push({ key: `sc-${t}`, inputX, outputX: null, kind: 'scene', style })
     }
 
-    for (const t of snapHintsIn) {
+    // Snap hint times can duplicate (e.g. a marker sitting on a beat grid
+     // position shows up from both sources). Dedupe before rendering or React
+     // complains about duplicate keys.
+    for (const t of new Set(snapHintsIn)) {
       const inputX = timeToViewPct(t, view)
       if (!pairVisible(inputX, null)) continue
       out.push({ key: `snap-in-${t}`, inputX, outputX: null, kind: 'snap', style: 'snap' })
     }
-    for (const t of snapHintsOut) {
+    for (const t of new Set(snapHintsOut)) {
       const outputX = timeToViewPct(t, view)
       if (!pairVisible(null, outputX)) continue
       out.push({ key: `snap-out-${t}`, inputX: null, outputX, kind: 'snap', style: 'snap' })

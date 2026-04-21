@@ -60,6 +60,91 @@ The window-based candidate set is the biggest limitation: no amount of marker sc
 
 ---
 
+## Two marker types: user vs scene
+
+User markers are intentional (1–20, likely to be visited). Scene markers are auto-generated (100s, most never visited) **and** their exact frames are displayed as thumbnails in the scene strip — so a subset of them are on screen right now and their single frames MUST be cached.
+
+### Three-bucket model
+
+Only the playhead window is truly hard-required. Everything else — including visible scene markers — is soft-scored, with weights chosen so the ordering is predictable under any cache size. If the UI shows so many scene thumbnails that they can't all fit, the cache degrades gracefully by keeping the ones closest to the viewport.
+
+1. **Playhead window** `[playhead ± REQ_RADIUS]`: hard required. Small (~7 frames). Always fits.
+2. **Visible scene markers**: soft with a dominating weight. Each gets a score far above anything a user marker or recency could produce, so whenever slots exist they're cached first. When they don't all fit, proximity to the viewport breaks ties.
+3. **User markers + all scene markers + recency**: standard soft score, exactly as optimized by the sandbox.
+
+### Frontend change
+
+Add `visible_scene_frames: Vec<i64>` to `PriorityRequest`. The strip component already knows which scene markers it's rendering; pass that subset explicitly. Keep `scene_frames` for the full list (weak prefetch signal only).
+
+### Scoring
+
+```rust
+// Dominates everything else. 5.0 >> 0.39 + 0.12 + 0.02 = max possible soft score.
+const W_VISIBLE_SCENE: f64 = 5.0;
+
+const W_USER_MARK: f64  = 0.39;
+const W_SCENE_MARK: f64 = 0.02;
+const MARK_RADIUS: f64  = 72.0;
+
+fn frame_score(ctx: &PriorityContext, frame: i64, age_secs: f64) -> f64 {
+    let d = (frame - ctx.playhead_frame).abs() as f64;
+    let mut s = W_DIST * (-d / DIST_FALLOFF).exp()
+              + W_REC  * (-age_secs / REC_TAU_SECS).exp()
+              + W_USER_MARK  * marker_term(&ctx.marker_frames, MARK_RADIUS, frame)
+              + W_SCENE_MARK * marker_term(&ctx.scene_frames,  MARK_RADIUS, frame);
+
+    if ctx.visible_scene_frames.binary_search(&frame).is_ok() {
+        // Normalize proximity by viewport half-width so the ordering of visible
+        // scenes is scale-invariant: at 1x zoom and at 10x zoom, the scene at
+        // the viewport center gets score 1.0 and the one at the viewport edge
+        // gets exp(-1) ≈ 0.37. A huge viewport doesn't deflate the score; it
+        // just means more scenes compete for cache slots.
+        let (vs, ve) = ctx.viewport_frames;
+        let half = ((ve - vs).max(1) as f64) * 0.5;
+        let center = (vs + ve) / 2;
+        let vd = (frame - center).abs() as f64;
+        s += W_VISIBLE_SCENE * (-vd / half).exp();
+    }
+    s
+}
+```
+
+Keep `visible_scene_frames` sorted at the API boundary so the `binary_search` is fast. Every visible scene scores ≥ `W_VISIBLE_SCENE * exp(-1) ≈ 1.84`, which still dominates the max achievable non-visible score (~0.53), so visible scenes always outrank everything else. Within the visible set, closest-to-viewport-center wins.
+
+**Cache-budget degradation.** If the viewport is huge and shows more visible scenes than `max_cached_frames`, not all can be cached — that's physically unavoidable. The scale-invariant proximity term means the ones nearest the viewport center fill first, and the cache fills with a reasonable subset rather than a random slice. The UI shows placeholders for the rest until the user scrolls/zooms to bring them into "near center" range.
+
+**Why no hard requirement.** A hard set that can't fit forces the cache to grow beyond capacity or to silently drop entries — inconsistent. A dominating soft weight guarantees the same outcome when slots exist *and* degrades predictably when they don't.
+
+```rust
+const W_USER_MARK: f64  = 0.39;
+const W_SCENE_MARK: f64 = 0.02;
+const MARK_RADIUS: f64  = 72.0;
+
+fn marker_term(markers: &[i64], radius: f64, frame: i64) -> f64 {
+    markers.iter()
+        .map(|&m| (-((frame - m).abs() as f64) / radius).exp())
+        .fold(0.0_f64, f64::max)
+}
+
+fn frame_score(ctx: &PriorityContext, frame: i64, age_secs: f64) -> f64 {
+    let d = (frame - ctx.playhead_frame).abs() as f64;
+      W_DIST       * (-d / DIST_FALLOFF).exp()
+    + W_REC        * (-age_secs / REC_TAU_SECS).exp()
+    + W_USER_MARK  * marker_term(&ctx.marker_frames, MARK_RADIUS, frame)
+    + W_SCENE_MARK * marker_term(&ctx.scene_frames,  MARK_RADIUS, frame)
+}
+```
+
+**Cost control** — 300 scene markers × candidate union would blow up the candidate set:
+
+1. Cap the candidate set at `max_cached_frames * 3` (score first, truncate).
+2. Precompute nearest-user-marker and nearest-scene-marker distance per candidate with a single sweep — scoring becomes `O(N_cands + N_markers)` instead of `O(N_cands * N_markers)`.
+3. Exclude scene-marker neighborhoods from the *candidate union* entirely; only score them if they're already cached (so an activated scene keeps its slot) or inside the user-marker / required / playhead-distance union. The `W_SCENE_MARK * 0.02` contribution alone doesn't justify adding 43k candidate frames.
+
+Request wiring: `PriorityRequest` already carries `marker_frames` and `scene_frames` separately — no frontend change.
+
+---
+
 ## Proposed implementation
 
 ### 1. Replace `frame_priority`
@@ -90,32 +175,39 @@ fn frame_score(ctx: &PriorityContext, frame: i64, age_secs: f64) -> f64 {
 
 ### 2. Rework `candidate_frames`
 
-The candidate set should be the union of:
+The candidate set is the union of:
 
-- The **required window** `[playhead - REQ_RADIUS, playhead + REQ_RADIUS]` (these must be extracted if not already cached).
-- A **marker window** around each marker: `[m - MARK_RADIUS, m + MARK_RADIUS]` (plus some factor; sandbox used `markRadius=72`, so ~2τ ≈ 144 frames covers most of the exponential mass).
+- **Required frames** (must be extracted if not already cached):
+  - `[playhead - REQ_RADIUS, playhead + REQ_RADIUS]` — playback needs this window.
+  - `visible_scene_frames` — each is a single frame currently rendered in the scene strip.
+- **Soft-score neighborhoods** (to enlarge the eviction pool):
+  - `[m - MARK_RADIUS * 2, m + MARK_RADIUS * 2]` around each **user** marker.
 - Everything currently cached (so the scorer can decide what to keep vs evict).
 
-Then sort by `frame_score` descending and take the top `max_cached_frames`.
+Scene markers **are not** expanded into neighborhoods. 500 × 144 frames would blow up the candidate set. The visible ones are in via `visible_scene_frames`; the rest only influence scoring if a frame is already in the union for another reason.
 
 ```rust
+fn required_frames(ctx: &PriorityContext, max_frame: i64) -> Vec<i64> {
+    let ph = ctx.playhead_frame;
+    let mut out: Vec<i64> = ((ph - REQ_RADIUS).max(0)..=(ph + REQ_RADIUS).min(max_frame)).collect();
+    for &f in &ctx.visible_scene_frames {
+        if f >= 0 && f <= max_frame { out.push(f); }
+    }
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
 fn candidate_frames(st: &VideoState) -> Vec<(i64, f64)> {
     let ctx = &st.context;
-    let ph = ctx.playhead_frame;
     let mut set: HashSet<i64> = HashSet::new();
 
-    // Required window (hard).
-    for f in (ph - REQ_RADIUS).max(0)..=(ph + REQ_RADIUS).min(st.max_frame) {
-        set.insert(f);
-    }
-    // Marker windows. 2 * markRadius covers >85% of the exponential.
+    for f in required_frames(ctx, st.max_frame) { set.insert(f); }
+
     let mr = (MARK_RADIUS * 2.0) as i64;
-    for &m in &ctx.marker_frames {
-        for f in (m - mr).max(0)..=(m + mr).min(st.max_frame) {
-            set.insert(f);
-        }
+    for &m in &ctx.marker_frames {  // user markers only
+        for f in (m - mr).max(0)..=(m + mr).min(st.max_frame) { set.insert(f); }
     }
-    // Keep currently-ready frames in consideration (for eviction scoring).
     for &f in &st.ready { set.insert(f); }
 
     let now = Instant::now();
@@ -126,31 +218,26 @@ fn candidate_frames(st: &VideoState) -> Vec<(i64, f64)> {
                 .unwrap_or(f64::INFINITY);
             (f, frame_score(ctx, f, age))
         })
-        .collect::<Vec<_>>()
-        .into_iter()
         .collect()
 }
 ```
 
 ### 3. Separate "must cache" from "should cache"
 
-The sandbox distinguishes **required** (hard) from **top-K scoring** (soft). Mirror this in the scheduler:
-
 ```rust
 fn pick_next(st: &VideoState) -> Option<i64> {
-    // Priority 1: any frame in the required window that isn't ready/in-flight.
+    // Priority 1: required frames not ready/in-flight. Within this set, prefer
+    // the ones closest to the playhead — the playback window is more urgent than
+    // a scene marker at the end of the strip.
     let ph = st.context.playhead_frame;
-    for r in 0..=REQ_RADIUS {
-        for offset in &[-r, r] {
-            let f = ph + offset;
-            if f < 0 || f > st.max_frame { continue; }
-            if !st.ready.contains(&f) && !st.in_flight.contains(&f) {
-                return Some(f);
-            }
+    let mut req = required_frames(&st.context, st.max_frame);
+    req.sort_by_key(|f| (f - ph).abs());
+    for f in req {
+        if !st.ready.contains(&f) && !st.in_flight.contains(&f) {
+            return Some(f);
         }
     }
-    // Priority 2: highest-scoring soft candidate not ready/in-flight,
-    // within the top-K by score.
+    // Priority 2: highest-scoring soft candidate within top-K.
     let mut cands = candidate_frames(st);
     cands.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
     cands.truncate(st.max_cached_frames);

@@ -41,6 +41,14 @@ type DragState = {
   startX: number
   startY: number
   dragging: boolean
+  /** Snapshot of all dragged markers' ids → starting times. Single-marker drags
+   *  hold one entry; tandem drags (the dragged marker is in `selectedIds`) hold
+   *  every selected marker. */
+  startTimes: Map<number, number>
+  /** Per-marker [min, max] allowable time at the current delta=0 — the
+   *  clamping window derived from non-dragged neighbors. Pre-computed at
+   *  drag start so we don't rebuild it every pointermove. */
+  bounds: Map<number, { min: number; max: number }>
 }
 
 /**
@@ -66,8 +74,18 @@ export default function MarkersTrack({
   // next animation frame.
   const rafRef = useRef<number | null>(null)
   const pendingRef = useRef<{ nextAnchors: Anchor[]; snapped: number; hints: number[] } | null>(null)
+  // On unmount, cancel any scheduled rAF AND clear snap hints / drag-time in
+  // the parent. The component can unmount mid-drag (view change, etc.) —
+  // without this, hints emitted by a prior rAF stay in parent state forever
+  // because no pointerup ever fires on this (now-gone) button.
+  const onSnapHintsChangeRef = useRef(onSnapHintsChange)
+  onSnapHintsChangeRef.current = onSnapHintsChange
+  const onDragTimeChangeRef = useRef(onDragTimeChange)
+  onDragTimeChangeRef.current = onDragTimeChange
   useEffect(() => () => {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+    onSnapHintsChangeRef.current?.(null)
+    onDragTimeChangeRef.current?.(null)
   }, [])
 
   const xToTime = useCallback((clientX: number): number => {
@@ -78,7 +96,7 @@ export default function MarkersTrack({
     return view.start + pct * (view.end - view.start)
   }, [view.start, view.end])
 
-  const trySnap = useCallback((raw: number, excludeId: number): { snapped: number; hints: number[] } => {
+  const trySnap = useCallback((raw: number, excludeIds: Set<number>): { snapped: number; hints: number[] } => {
     const el = bodyRef.current
     if (!el) return { snapped: raw, hints: [] }
     const rect = el.getBoundingClientRect()
@@ -86,7 +104,7 @@ export default function MarkersTrack({
     const hintThresholdSec = pixelsToSeconds(24, rect.width, view.end - view.start)
     const targets: SnapTarget[] = []
     for (const a of anchorsRef.current) {
-      if (a.id === excludeId) continue
+      if (excludeIds.has(a.id)) continue
       targets.push({ time: a.time, source: 'anchor', id: a.id })
     }
     if (snapTargets) for (const t of snapTargets) targets.push({ time: t, source: 'scene' })
@@ -114,8 +132,45 @@ export default function MarkersTrack({
   const onMarkerPointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>, a: Anchor) => {
     if (e.button !== 0) return
     e.currentTarget.setPointerCapture(e.pointerId)
-    dragRef.current = { id: a.id, startX: e.clientX, startY: e.clientY, dragging: false }
-  }, [])
+
+    // Build the set of markers moving together. If the user pressed on a
+    // marker that's part of a multi-selection, the whole selection drags in
+    // tandem; otherwise it's a solo drag.
+    const dragIds = selectedIds.has(a.id) && selectedIds.size > 1
+      ? new Set<number>(selectedIds)
+      : new Set<number>([a.id])
+
+    const startTimes = new Map<number, number>()
+    for (const anch of anchorsRef.current) {
+      if (dragIds.has(anch.id)) startTimes.set(anch.id, anch.time)
+    }
+
+    // Per-marker bounds: each dragged marker is clamped between its nearest
+    // non-dragged neighbors (or 0 / duration at the ends). Precomputed once
+    // so pointermove stays cheap.
+    const EPS = 0.001
+    const nonDragged = anchorsRef.current.filter(x => !dragIds.has(x.id))
+                                         .map(x => x.time)
+                                         .sort((p, q) => p - q)
+    const bounds = new Map<number, { min: number; max: number }>()
+    for (const [id, t] of startTimes) {
+      let lo = 0, hi = duration
+      for (const nt of nonDragged) {
+        if (nt < t && nt > lo) lo = nt
+        if (nt > t && nt < hi) hi = nt
+      }
+      bounds.set(id, { min: lo + EPS, max: hi - EPS })
+    }
+
+    dragRef.current = {
+      id: a.id,
+      startX: e.clientX,
+      startY: e.clientY,
+      dragging: false,
+      startTimes,
+      bounds,
+    }
+  }, [selectedIds, duration])
 
   const onMarkerPointerMove = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
     const d = dragRef.current
@@ -126,17 +181,34 @@ export default function MarkersTrack({
     }
     if (!onAnchorsChange) return
     const raw = xToTime(e.clientX)
-    const EPS = 0.001
-    const sorted = [...anchorsRef.current].sort((a, b) => a.time - b.time)
-    const idx = sorted.findIndex(a => a.id === d.id)
-    const minT = idx > 0 ? sorted[idx - 1].time + EPS : 0
-    const maxT = idx < sorted.length - 1 ? sorted[idx + 1].time - EPS : duration
-    const clamped = Math.max(minT, Math.min(maxT, raw))
-    const snap = trySnap(clamped, d.id)
-    const snapped = Math.max(minT, Math.min(maxT, snap.snapped))
+    const leaderStart = d.startTimes.get(d.id) ?? 0
+
+    // Tandem-delta clamp: the largest & smallest delta that keeps every
+    // dragged marker inside its own bounds window. Apply this to the leader
+    // before snap so we don't snap past a neighbor.
+    let deltaMin = -Infinity, deltaMax = Infinity
+    for (const [id, t] of d.startTimes) {
+      const b = d.bounds.get(id)
+      if (!b) continue
+      deltaMin = Math.max(deltaMin, b.min - t)
+      deltaMax = Math.min(deltaMax, b.max - t)
+    }
+    const rawDelta = raw - leaderStart
+    const clampedDelta = Math.max(deltaMin, Math.min(deltaMax, rawDelta))
+    const leaderClamped = leaderStart + clampedDelta
+    const dragIdSet = new Set<number>(d.startTimes.keys())
+    const snap = trySnap(leaderClamped, dragIdSet)
+    const snappedDelta = Math.max(deltaMin, Math.min(deltaMax, snap.snapped - leaderStart))
+    const snappedLeader = leaderStart + snappedDelta
+
+    const nextAnchors = anchorsRef.current.map(anch => {
+      const s = d.startTimes.get(anch.id)
+      return s !== undefined ? { ...anch, time: s + snappedDelta } : anch
+    })
+
     pendingRef.current = {
-      nextAnchors: anchorsRef.current.map(a => a.id === d.id ? { ...a, time: snapped } : a),
-      snapped,
+      nextAnchors,
+      snapped: snappedLeader,
       hints: snap.hints,
     }
     if (rafRef.current !== null) return
@@ -149,7 +221,7 @@ export default function MarkersTrack({
       onSnapHintsChange?.(p.hints)
       onDragTimeChange?.(p.snapped)
     })
-  }, [xToTime, trySnap, duration, onAnchorsChange, onSnapHintsChange, onDragTimeChange])
+  }, [xToTime, trySnap, onAnchorsChange, onSnapHintsChange, onDragTimeChange])
 
   // Pointer-up handles cleanup (flush queued updates, clear snap hints +
   // drag-time indicators) because `onClick` is suppressed by the browser when
@@ -204,7 +276,12 @@ export default function MarkersTrack({
       >
         {anchors.map(a => {
           const x = timeToViewPct(a.time, view)
-          if (x < -1 || x > 101) return null
+          // Keep any marker being dragged mounted even if it scrolls out of
+          // view — unmounting releases pointer capture and strands any rAF
+          // that was about to fire, which in turn strands snap hints in the
+          // parent's state with no pointerup ever arriving to clear them.
+          const isDragged = dragRef.current?.startTimes.has(a.id) ?? false
+          if (!isDragged && (x < -1 || x > 101)) return null
           const selected = selectedIds.has(a.id)
           return (
             <button

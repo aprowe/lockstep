@@ -126,7 +126,10 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
     const fps = video.fps
     const maxFrame = Math.max(0, Math.floor(video.duration * fps))
     const center = Math.max(0, Math.min(maxFrame, secondsToFrames(playhead, fps)))
-    const markerFrameSet = new Set(origAnchors.map(a => Math.floor(a.time * fps)))
+    // Round (not floor) to match how `center` is derived from `playhead` —
+    // otherwise a marker at time 9.3s (fps=60 → round=558, floor=557) would
+    // light up the 557 slot when the playhead sits on 558.
+    const markerFrameSet = new Set(origAnchors.map(a => secondsToFrames(a.time, fps)))
     const half = Math.floor(SLOTS / 2)
     const result: { frame: number; offset: number; inBounds: boolean; hasMarker: boolean }[] = []
     for (let i = -half; i <= half; i++) {

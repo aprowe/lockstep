@@ -1,4 +1,4 @@
-import { forwardRef, useRef, useImperativeHandle } from 'react'
+import { forwardRef, useRef, useImperativeHandle, useEffect } from 'react'
 import './VideoPlayer.css'
 
 export interface VideoPlayerHandle {
@@ -19,6 +19,12 @@ interface VideoPlayerProps {
   onPlayStateChange?: (playing: boolean) => void
 }
 
+type RVFCMetadata = { mediaTime: number }
+type RVFCVideo = HTMLVideoElement & {
+  requestVideoFrameCallback?(cb: (now: number, metadata: RVFCMetadata) => void): number
+  cancelVideoFrameCallback?(id: number): void
+}
+
 export default forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPlayer(
   { src, duration, onTimeUpdate, onPlayStateChange },
   ref,
@@ -26,25 +32,45 @@ export default forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPla
   const videoRef = useRef<HTMLVideoElement>(null)
   const playingRef = useRef(false)
   const rafRef = useRef<number | null>(null)
+  const rvfcRef = useRef<number | null>(null)
   const onTimeUpdateRef = useRef(onTimeUpdate)
   onTimeUpdateRef.current = onTimeUpdate
   const lastEmittedRef = useRef(0)
 
-  function emit(t: number) {
+  // Some files (B-frames before first I-frame, composition time offsets, edit
+  // lists) have their first painted frame at mediaTime > 0. Treat that offset
+  // as the UI origin so "frame 0" / "0.00s" in the UI maps to the actual first
+  // visible frame. We add it back on every seek. Reset per-src.
+  const startOffsetRef = useRef(0)
+  useEffect(() => { startOffsetRef.current = 0 }, [src])
+
+  function emit(mediaTime: number) {
+    const t = Math.max(0, mediaTime - startOffsetRef.current)
     lastEmittedRef.current = t
     onTimeUpdateRef.current?.(t)
   }
 
-  // Some files (edit-list mp4s, odd duration metadata) fire `pause`/`ended`
-  // with currentTime=0 even though playback was mid-video. In that case the
-  // last raf tick has the real position — don't clobber it with 0.
   function emitIfNotSpuriousZero() {
-    const t = videoRef.current?.currentTime ?? 0
-    if (t === 0 && lastEmittedRef.current > 0.05) return
-    emit(t)
+    const raw = videoRef.current?.currentTime ?? 0
+    if (raw === 0 && lastEmittedRef.current > 0.05) return
+    emit(raw)
   }
 
-  function startRaf() {
+  // Prefer requestVideoFrameCallback when available — its `mediaTime` is the
+  // timestamp of the frame actually presented on screen, which is typically
+  // 1-3 frames behind `video.currentTime` during playback.
+  function startTracking() {
+    const v = videoRef.current as RVFCVideo | null
+    if (!v) return
+    if (typeof v.requestVideoFrameCallback === 'function') {
+      const tick = (_now: number, metadata: RVFCMetadata) => {
+        if (!playingRef.current) { rvfcRef.current = null; return }
+        emit(metadata.mediaTime)
+        rvfcRef.current = v.requestVideoFrameCallback!(tick)
+      }
+      rvfcRef.current = v.requestVideoFrameCallback(tick)
+      return
+    }
     if (rafRef.current !== null) return
     const tick = () => {
       if (!playingRef.current) { rafRef.current = null; return }
@@ -54,13 +80,38 @@ export default forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPla
     rafRef.current = requestAnimationFrame(tick)
   }
 
-  function stopRaf() {
+  function stopTracking() {
+    const v = videoRef.current as RVFCVideo | null
+    if (rvfcRef.current !== null && v?.cancelVideoFrameCallback) {
+      v.cancelVideoFrameCallback(rvfcRef.current)
+      rvfcRef.current = null
+    }
     if (rafRef.current !== null) { cancelAnimationFrame(rafRef.current); rafRef.current = null }
+  }
+
+  // Detect the start offset once per src by scheduling a one-shot rVFC on
+  // load — the first painted frame's mediaTime is our origin.
+  function detectStartOffset() {
+    const v = videoRef.current as RVFCVideo | null
+    if (!v) return
+    if (typeof v.requestVideoFrameCallback === 'function') {
+      v.requestVideoFrameCallback((_now, meta) => {
+        if (meta.mediaTime > 0 && startOffsetRef.current === 0) {
+          startOffsetRef.current = meta.mediaTime
+          // Re-emit so downstream UI snaps from "2f" to "0f" without the user
+          // having to seek.
+          emit(meta.mediaTime)
+        }
+      })
+    }
   }
 
   useImperativeHandle(ref, () => ({
     seek(time: number) {
-      if (videoRef.current) videoRef.current.currentTime = Math.max(0, Math.min(duration, time))
+      if (videoRef.current) {
+        const target = Math.max(0, Math.min(duration, time)) + startOffsetRef.current
+        videoRef.current.currentTime = target
+      }
     },
     play() { videoRef.current?.play() },
     pause() { videoRef.current?.pause() },
@@ -72,7 +123,9 @@ export default forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPla
     setPlaybackRate(rate: number) {
       if (videoRef.current) videoRef.current.playbackRate = rate
     },
-    get currentTime() { return videoRef.current?.currentTime ?? 0 },
+    get currentTime() {
+      return Math.max(0, (videoRef.current?.currentTime ?? 0) - startOffsetRef.current)
+    },
     get playing() { return playingRef.current },
     get videoElement() { return videoRef.current },
   }))
@@ -83,21 +136,22 @@ export default forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPla
         ref={videoRef}
         src={src}
         className="video-player__video"
+        onLoadedMetadata={detectStartOffset}
         onPlay={() => {
           playingRef.current = true
           onPlayStateChange?.(true)
-          startRaf()
+          startTracking()
         }}
         onPause={() => {
           playingRef.current = false
           onPlayStateChange?.(false)
-          stopRaf()
+          stopTracking()
           emitIfNotSpuriousZero()
         }}
         onEnded={() => {
           playingRef.current = false
           onPlayStateChange?.(false)
-          stopRaf()
+          stopTracking()
           emitIfNotSpuriousZero()
         }}
         onSeeked={() => {

@@ -90,8 +90,15 @@ export default function RegionBand({
     })
   }, [flushPending])
 
+  // On unmount, cancel any scheduled rAF AND clear hints in the parent. The
+  // component can unmount mid-drag (e.g. user changes view while dragging a
+  // handle) — without this, hints emitted by the last rAF remain in parent
+  // state indefinitely because no pointerup ever fires on this component.
+  const onSnapHintsChangeRef = useRef(onSnapHintsChange)
+  onSnapHintsChangeRef.current = onSnapHintsChange
   useEffect(() => () => {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+    onSnapHintsChangeRef.current?.(null)
   }, [])
 
   const xToTime = useCallback((clientX: number): number => {
@@ -275,7 +282,12 @@ export default function RegionBand({
           if (r.outPoint <= r.inPoint) return null
           const left = timeToViewPct(r.inPoint, view)
           const right = timeToViewPct(r.outPoint, view)
-          if (right < -1 || left > 101) return null
+          // Keep the region being dragged mounted even if it scrolls out of
+          // view — unmount would release pointer capture and strand the rAF,
+          // leaving snap hints stuck in the parent until the next pointerup.
+          const g = gestureRef.current
+          const isDragged = g !== null && g.id === r.id
+          if (!isDragged && (right < -1 || left > 101)) return null
           const width = Math.max(0.5, right - left)
           return (
             <div
