@@ -1,0 +1,61 @@
+.thin-row--thumbs .thin-row__body {
+  background: var(--bg-2);
+}
+
+.thin-thumbs__body {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.thin-thumbs__strip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--accent, #4e8cff);
+  border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  box-sizing: border-box;
+}
+
+.thin-thumbs__slot {
+  height: 100%;
+  flex-shrink: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: var(--bg-3);
+  cursor: pointer;
+  overflow: hidden;
+  display: block;
+}
+
+.thin-thumbs__slot:hover {
+  outline: 1px solid var(--fg-3);
+  outline-offset: -1px;
+}
+
+.thin-thumbs__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+.thin-thumbs__placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    135deg,
+    var(--bg-3) 0%,
+    color-mix(in srgb, var(--bg-3) 70%, var(--bg-2)) 50%,
+    var(--bg-3) 100%
+  );
+  opacity: 0.6;
+}

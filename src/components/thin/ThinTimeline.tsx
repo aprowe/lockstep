@@ -10,6 +10,7 @@ import MarkersTrack from './MarkersTrack'
 import BarsTrack from './BarsTrack'
 import BeatsTrack from './BeatsTrack'
 import RegionBand, { type RegionBlock } from './RegionBand'
+import ThumbnailStripTrack from './ThumbnailStripTrack'
 import './ThinTimeline.css'
 
 interface ThinTimelineProps {
@@ -81,7 +82,7 @@ interface ThinTimelineProps {
 }
 
 const DEFAULT_FLEX: Record<string, number> = {
-  time: 1, clipin: 1, scenes: 1, markerin: 1,
+  time: 1, clipin: 1, scenes: 1, thumbs: 1, markerin: 1,
   warp: 1, markerout: 1, clipout: 1, beat: 1, speed: 1,
 }
 
@@ -130,6 +131,7 @@ export default function ThinTimeline({
   const [alwaysAnchors, setAlwaysAnchors] = useState(true)
   const [alwaysRegions, setAlwaysRegions] = useState(false)
   const [alwaysScenes, setAlwaysScenes] = useState(false)
+  const [thumbStripEnabled, setThumbStripEnabled] = useState(false)
   // Playhead-follows-drag: when on, dragging a marker moves the playhead too.
   const [followDrag, setFollowDrag] = useState(false)
 
@@ -385,6 +387,20 @@ export default function ThinTimeline({
       </div>
     ),
   })
+  if (thumbStripEnabled) {
+    sections.push({
+      id: 'thumbs',
+      space: 'input',
+      node: (
+        <ThumbnailStripTrack
+          scenes={scenes}
+          duration={duration}
+          view={view}
+          onSeek={onSeek}
+        />
+      ),
+    })
+  }
   sections.push({
     id: 'markerin',
     space: 'input',
@@ -685,6 +701,19 @@ export default function ThinTimeline({
           <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M8 1 L8 15" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" />
             <path d="M8 5 L11 8 L8 11 L5 8 Z" fill="currentColor" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className={`thin-toolbar__btn${thumbStripEnabled ? ' thin-toolbar__btn--active' : ''}`}
+          onClick={() => setThumbStripEnabled(v => !v)}
+          title="Show a thumbnail strip between scene markers"
+          aria-pressed={thumbStripEnabled}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="1" y="5" width="4" height="6" fill="none" stroke="currentColor" strokeWidth="1" />
+            <rect x="6" y="5" width="4" height="6" fill="none" stroke="currentColor" strokeWidth="1" />
+            <rect x="11" y="5" width="4" height="6" fill="none" stroke="currentColor" strokeWidth="1" />
           </svg>
         </button>
 
