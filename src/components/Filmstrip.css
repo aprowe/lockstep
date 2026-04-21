@@ -39,8 +39,7 @@
 
 .filmstrip__slot {
   flex: 0 0 auto;
-  height: 72%;
-  aspect-ratio: 16 / 9;
+  height: 100%;
   background: var(--bg-2);
   border: 1px solid var(--border);
   border-radius: 2px;
@@ -48,7 +47,8 @@
   cursor: pointer;
   overflow: hidden;
   position: relative;
-  transition: border-color 0.1s, height 0.1s;
+  transition: border-color 0.1s;
+  box-sizing: border-box;
 }
 
 .filmstrip__slot:hover:not(:disabled) {
@@ -61,7 +61,6 @@
 }
 
 .filmstrip__slot--center {
-  height: 100%;
   border-width: 2px;
   border-color: var(--accent-2);
   box-shadow: 0 0 8px rgba(var(--accent-2-rgb), 0.55);

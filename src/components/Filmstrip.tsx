@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import {
@@ -9,8 +9,14 @@ import { setThumbnail } from '../store/slices/thumbnailsSlice'
 import { setFilmstripHeight } from '../store/slices/uiSlice'
 import './Filmstrip.css'
 
-const SLOTS = 7
 const PUSH_DEBOUNCE_MS = 120
+const SLOT_GAP_PX = 4
+const SLOT_V_PADDING_PX = 8 // 4px top + 4px bottom from .filmstrip
+const MAX_SLOTS = 31
+/** Seconds between neighboring thumbnails — gives the filmstrip a motion
+ *  preview rather than a row of near-identical frames. The center slot is
+ *  always the exact playhead frame. */
+const STEP_SECONDS = 0.25
 
 interface FilmstripProps {
   onSeekFrame?: (frame: number) => void
@@ -115,16 +121,55 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
     return () => clearTimeout(timer)
   }, [video, playhead, origAnchors, regions, scenes, stripFrames, view, thumbWidth, maxCachedFrames])
 
+  const filmstripRef = useRef<HTMLDivElement>(null)
+  const [filmstripWidth, setFilmstripWidth] = useState(0)
+  useEffect(() => {
+    const el = filmstripRef.current
+    if (!el) return
+    const ro = new ResizeObserver(entries => {
+      for (const e of entries) setFilmstripWidth(e.contentRect.width)
+    })
+    ro.observe(el)
+    setFilmstripWidth(el.getBoundingClientRect().width)
+    return () => ro.disconnect()
+  }, [])
+
+  // Aspect captured from the first thumbnail that loads; 16/9 default.
+  const [aspect, setAspect] = useState(16 / 9)
+  const aspectCapturedRef = useRef(false)
+  useEffect(() => { aspectCapturedRef.current = false }, [video?.fileHash])
+  const handleImgLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    if (aspectCapturedRef.current) return
+    const { naturalWidth: w, naturalHeight: h } = e.currentTarget
+    if (w > 0 && h > 0) {
+      aspectCapturedRef.current = true
+      setAspect(w / h)
+    }
+  }, [])
+
+  const slotHeightPx = Math.max(0, stripHeight - SLOT_V_PADDING_PX)
+  const slotWidthPx = slotHeightPx * aspect
+
   const slots = useMemo(() => {
-    if (!video) return []
+    if (!video || filmstripWidth <= 0 || slotWidthPx <= 0) return []
     const fps = video.fps
     const maxFrame = Math.max(0, Math.floor(video.duration * fps))
     const center = Math.max(0, Math.min(maxFrame, Math.floor(playhead * fps)))
     const markerFrameSet = new Set(origAnchors.map(a => Math.floor(a.time * fps)))
-    const half = Math.floor(SLOTS / 2)
+
+    // How many slots fit side-by-side in the available width, rounded to odd
+    // so the center slot truly sits at the middle.
+    const perSlot = slotWidthPx + SLOT_GAP_PX
+    let count = Math.max(1, Math.floor((filmstripWidth + SLOT_GAP_PX) / perSlot))
+    count = Math.min(MAX_SLOTS, count)
+    if (count % 2 === 0) count -= 1
+    if (count < 1) count = 1
+
+    const stepFrames = Math.max(1, Math.round(STEP_SECONDS * fps))
+    const half = Math.floor(count / 2)
     const result: { frame: number; offset: number; inBounds: boolean; hasMarker: boolean }[] = []
     for (let i = -half; i <= half; i++) {
-      const frame = center + i
+      const frame = center + i * stepFrames
       result.push({
         frame,
         offset: i,
@@ -133,7 +178,7 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
       })
     }
     return result
-  }, [video, playhead, origAnchors])
+  }, [video, playhead, origAnchors, filmstripWidth, slotWidthPx])
 
   const resizeStart = useRef<{ y: number; h: number } | null>(null)
   const handleResizeDown = useCallback(
@@ -166,7 +211,7 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
         role="separator"
         aria-label="Resize filmstrip"
       />
-      <div className="filmstrip" role="group" aria-label="Thumbnail filmstrip">
+      <div ref={filmstripRef} className="filmstrip" role="group" aria-label="Thumbnail filmstrip">
         {slots.map(({ frame, offset, inBounds, hasMarker }) => {
           const path = inBounds ? thumbPaths[frame] : undefined
           const src = path ? convertFileSrc(path) : null
@@ -182,12 +227,19 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
             <button
               key={offset}
               className={classes}
+              style={{ width: `${slotWidthPx}px` }}
               disabled={!inBounds}
               onClick={() => inBounds && onSeekFrame?.(frame)}
               title={inBounds ? `Frame ${frame}` : ''}
             >
               {src ? (
-                <img className="filmstrip__img" src={src} alt="" draggable={false} />
+                <img
+                  className="filmstrip__img"
+                  src={src}
+                  alt=""
+                  draggable={false}
+                  onLoad={handleImgLoad}
+                />
               ) : (
                 <div className="filmstrip__placeholder" />
               )}
