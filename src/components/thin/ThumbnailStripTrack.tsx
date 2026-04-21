@@ -12,8 +12,8 @@ interface ThumbnailStripTrackProps {
   duration: number
   view: View
   label?: string
-  /** Pixel height of a thumbnail — also used as its width for square slots. */
-  thumbSize?: number
+  /** Pixel height of the row; thumbnail width = height × video aspect. */
+  rowHeight?: number
   onSeek?: (time: number) => void
 }
 
@@ -37,7 +37,7 @@ interface StripLayout extends Strip {
  * sampling alone isn't dense enough to fill a strip.
  */
 export default function ThumbnailStripTrack({
-  scenes, duration, view, label = 'Thumbs', thumbSize = 18, onSeek,
+  scenes, duration, view, label = 'Thumbs', rowHeight = 18, onSeek,
 }: ThumbnailStripTrackProps) {
   const dispatch = useAppDispatch()
   const video = useAppSelector(s => s.video.video)
@@ -47,6 +47,10 @@ export default function ThumbnailStripTrack({
 
   const bodyRef = useRef<HTMLDivElement>(null)
   const [bodyWidth, setBodyWidth] = useState(0)
+  // Aspect = width / height. Default 16/9 until the first thumbnail loads and
+  // reports its natural dimensions.
+  const [aspect, setAspect] = useState(16 / 9)
+  const thumbPx = rowHeight * aspect
 
   useEffect(() => {
     const el = bodyRef.current
@@ -87,7 +91,7 @@ export default function ThumbnailStripTrack({
     for (const s of strips) {
       if (s.end <= view.start || s.start >= view.end) continue
       const stripPx = (s.end - s.start) * pxPerSec
-      const count = Math.max(1, Math.floor(stripPx / thumbSize))
+      const count = Math.max(1, Math.floor(stripPx / thumbPx))
       const slotSec = (s.end - s.start) / count
       const slots: { t: number; frame: number }[] = []
       for (let k = 0; k < count; k++) {
@@ -97,7 +101,7 @@ export default function ThumbnailStripTrack({
       out.push({ ...s, slots })
     }
     return out
-  }, [strips, pxPerSec, fps, thumbSize, view.start, view.end])
+  }, [strips, pxPerSec, fps, thumbPx, view.start, view.end])
 
   // Publish visible slot frames to the store so Filmstrip's priority push can
   // include them in the request to the backend renderer.
@@ -131,6 +135,19 @@ export default function ThumbnailStripTrack({
     return path ? convertFileSrc(path) : null
   }, [thumbPaths])
 
+  const aspectCapturedRef = useRef(false)
+  useEffect(() => {
+    aspectCapturedRef.current = false
+  }, [video?.fileHash])
+  const handleImgLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    if (aspectCapturedRef.current) return
+    const { naturalWidth: w, naturalHeight: h } = e.currentTarget
+    if (w > 0 && h > 0) {
+      aspectCapturedRef.current = true
+      setAspect(w / h)
+    }
+  }, [])
+
   return (
     <TrackRow label={label} kind="thumbs">
       <div ref={bodyRef} className="thin-thumbs__body">
@@ -162,6 +179,7 @@ export default function ThumbnailStripTrack({
                         src={src}
                         alt=""
                         draggable={false}
+                        onLoad={handleImgLoad}
                       />
                     ) : (
                       <div className="thin-thumbs__placeholder" />
