@@ -26,9 +26,9 @@ function defaultDeps() {
     redo: noop,
     selectAll: noop,
     deselect: noop,
-    zoomIn: noop,
-    zoomOut: noop,
-    zoomToFit: noop,
+    increaseUiScale: noop,
+    decreaseUiScale: noop,
+    resetUiScale: noop,
   }
 }
 

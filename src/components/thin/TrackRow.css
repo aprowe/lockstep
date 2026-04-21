@@ -4,7 +4,7 @@
  */
 
 .thin-timeline {
-  --thin-rail-w: 64px;
+  --thin-rail-w: calc(64px * var(--ui-scale));
   --thin-row-h: calc(18px * var(--ui-scale));
   display: flex;
   flex-direction: column;

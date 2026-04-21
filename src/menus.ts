@@ -63,19 +63,18 @@ export function buildEditMenu(d: EditMenuDeps): MenuDef {
 }
 
 interface ViewMenuDeps {
-  video: VideoInfo | null
-  zoomIn: () => void
-  zoomOut: () => void
-  zoomToFit: () => void
+  increaseUiScale: () => void
+  decreaseUiScale: () => void
+  resetUiScale: () => void
 }
 
 export function buildViewMenu(d: ViewMenuDeps): MenuDef {
   return {
     label: 'View',
     items: [
-      { label: 'Zoom In',     shortcut: 'Ctrl+=', action: d.zoomIn,    disabled: !d.video },
-      { label: 'Zoom Out',    shortcut: 'Ctrl+-', action: d.zoomOut,   disabled: !d.video },
-      { label: 'Zoom to Fit', shortcut: 'Ctrl+0', action: d.zoomToFit, disabled: !d.video },
+      { label: 'Increase UI Scale', shortcut: 'Ctrl+=', action: d.increaseUiScale },
+      { label: 'Decrease UI Scale', shortcut: 'Ctrl+-', action: d.decreaseUiScale },
+      { label: 'Reset UI Scale',    shortcut: 'Ctrl+0', action: d.resetUiScale },
     ],
   }
 }

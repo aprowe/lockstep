@@ -11,6 +11,7 @@ import Toolbar from './components/Toolbar'
 import MenuBar from './components/MenuBar'
 import type { MenuDef } from './components/MenuBar'
 import { buildFileMenu, buildEditMenu, buildViewMenu } from './menus'
+import { stepUiScale, resetUiScale, UI_SCALE_STEP } from './uiScale'
 import { calcZoomToRegion, calcNewRegionBoundsFromScenes, calcNewRegionBoundsUpToNext, ensureTimeInView } from './utils/view'
 import type { View } from './types'
 import VideoFolderSidebar from './components/VideoFolderSidebar'
@@ -383,23 +384,10 @@ export default function App() {
   }), [video, anchorCount])
 
   const viewMenu: MenuDef = useMemo(() => buildViewMenu({
-    video,
-    zoomIn: () => {
-      const v = store.getState().ui.view
-      const mid = (v.start + v.end) / 2
-      const span = (v.end - v.start) / 1.5
-      dispatch(setViewAction({ start: mid - span / 2, end: mid + span / 2 }))
-    },
-    zoomOut: () => {
-      const v = store.getState().ui.view
-      const mid = (v.start + v.end) / 2
-      const span = (v.end - v.start) * 1.5
-      dispatch(setViewAction({ start: mid - span / 2, end: mid + span / 2 }))
-    },
-    zoomToFit: () => {
-      dispatch(setViewAction({ start: 0, end: video?.duration ?? 60 }))
-    },
-  }), [video])
+    increaseUiScale: () => stepUiScale(UI_SCALE_STEP),
+    decreaseUiScale: () => stepUiScale(-UI_SCALE_STEP),
+    resetUiScale: () => resetUiScale(),
+  }), [])
 
   const canExport = !!video
 

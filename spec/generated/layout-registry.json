@@ -113,16 +113,16 @@
         {
           "items": [
             {
-              "id": "zoom-in",
-              "label": "Zoom In"
+              "id": "increase-ui-scale",
+              "label": "Increase UI Scale"
             },
             {
-              "id": "zoom-out",
-              "label": "Zoom Out"
+              "id": "decrease-ui-scale",
+              "label": "Decrease UI Scale"
             },
             {
-              "id": "zoom-to-fit",
-              "label": "Zoom to Fit"
+              "id": "reset-ui-scale",
+              "label": "Reset UI Scale"
             }
           ]
         }

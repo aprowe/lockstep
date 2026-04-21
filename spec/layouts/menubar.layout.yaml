@@ -49,6 +49,6 @@ id: view-menu
 name: View menu
 
 groups:
-  - - Zoom In
-    - Zoom Out
-    - Zoom to Fit
+  - - Increase UI Scale
+    - Decrease UI Scale
+    - Reset UI Scale
