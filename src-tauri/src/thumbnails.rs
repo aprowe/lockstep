@@ -5,10 +5,11 @@
 //! it with a hybrid input/output seek, writes it to the app's thumbnail cache,
 //! and emits `thumbnail-ready` so the frontend can load it from disk.
 //!
-//! The frontend calls `set_thumbnail_priority` whenever the playhead, markers,
-//! regions, scenes, or viewport move. That replaces the priority context for
-//! that file; anything already in-flight continues, anything queued but not
-//! started is effectively re-prioritized on the next scheduler pass.
+//! Current (simplified) priority = proximity to playhead + LRU eviction keyed
+//! on when the playhead was last near a given frame. The tier-based scoring
+//! for markers/regions/scenes/viewport is commented out below — leave the
+//! request fields intact so the frontend keeps compiling, but the backend
+//! ignores everything except `playhead_frame`.
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -33,24 +34,31 @@ use crate::ffmpeg::find_bin;
 const MAX_WORKERS: u32 = 3;
 const DEFAULT_MAX_CACHED_FRAMES: usize = 2000;
 const DEFAULT_THUMB_WIDTH: u32 = 120;
+/// Window (in frames, each side of playhead) where extraction runs at
+/// normal Windows priority instead of BELOW_NORMAL.
 const PLAYHEAD_WINDOW: i64 = 15;
-const VIEWPORT_SAMPLES: i64 = 40;
+/// How far around the playhead to generate candidate frames. Kept well
+/// below `max_cached_frames` so the other half of the cache retains
+/// "recently seen" history instead of getting evicted by fresh candidates
+/// — that was the root cause of the worker-spin-forever bug.
+fn candidate_window(max_cached: usize) -> i64 {
+    ((max_cached as i64) / 4).clamp(60, 400)
+}
+// const VIEWPORT_SAMPLES: i64 = 40;
+// const RECENT_PLAYHEAD_HISTORY: usize = 4;
 
 #[derive(Clone, Default, Debug)]
 struct PriorityContext {
     playhead_frame: i64,
-    region_frames: Vec<(i64, i64)>,
-    marker_frames: Vec<i64>,
-    scene_frames: Vec<i64>,
-    /// Dense frame requests from UI features (e.g. the thumbnail strip track).
-    /// Ranked above viewport-fill but below scene/region/marker so user-placed
-    /// points still get thumbnails first.
-    strip_frames: Vec<i64>,
-    viewport_frames: (i64, i64),
-    /// Hover preview frames — the frames under the user's cursor on the
-    /// timeline. Lowest priority on purpose: workers only get to these when
-    /// literally everything else is already satisfied.
-    hover_frames: Vec<i64>,
+    // Tier signals are currently unused — simplified to playhead-only + LRU.
+    // Kept so the frontend request shape + tests still compile.
+    #[allow(dead_code)] recent_playheads: Vec<i64>,
+    #[allow(dead_code)] region_frames: Vec<(i64, i64)>,
+    #[allow(dead_code)] marker_frames: Vec<i64>,
+    #[allow(dead_code)] scene_frames: Vec<i64>,
+    #[allow(dead_code)] strip_frames: Vec<i64>,
+    #[allow(dead_code)] viewport_frames: (i64, i64),
+    #[allow(dead_code)] hover_frames: Vec<i64>,
 }
 
 struct VideoState {
@@ -64,6 +72,11 @@ struct VideoState {
     workers_running: u32,
     thumb_width: u32,
     max_cached_frames: usize,
+    /// LRU tracking. Monotonic counter bumped every priority update + on
+    /// each new ready frame. `frame_touched[f]` is the value it had the
+    /// last time the playhead was within candidate_window of `f`.
+    frame_touched: HashMap<i64, u64>,
+    touch_counter: u64,
 }
 
 #[derive(Default)]
@@ -147,204 +160,115 @@ fn scan_ready(cache_dir: &PathBuf) -> HashSet<i64> {
     out
 }
 
-/// Score any frame by which tier of interest it falls into. Lower = higher
-/// priority. Tiers (in order): playhead window → marker → region boundary →
-/// region interior → scene marker → viewport → nothing.
+/// Score any frame by distance to the playhead (lower = higher priority).
 ///
-/// Used for both computation (by `candidate_frames` generating seed points in
-/// these tiers) and retention (by `evict_overflow` scoring ready frames so the
-/// least-wanted ones are dropped first). Keeping both paths on the same tier
-/// scale means a fully thumbnailed region won't get wiped so a random outside
-/// frame can stay.
+/// Simplified from the old tier-based scoring (markers / regions / scenes /
+/// viewport). Bring those back by restoring the code below the early return
+/// if we want tier-aware priority again.
 fn frame_priority(ctx: &PriorityContext, frame: i64) -> f64 {
-    let ph = ctx.playhead_frame;
-    let dist_ph = (frame - ph).abs() as f64;
-    let tiebreak = dist_ph * 0.0001;
+    (frame - ctx.playhead_frame).abs() as f64
 
-    if (frame - ph).abs() <= PLAYHEAD_WINDOW {
-        return dist_ph * 0.1;
-    }
-
-    for &m in &ctx.marker_frames {
-        if (frame - m).abs() <= 1 {
-            return 5.0 + tiebreak;
-        }
-    }
-
-    for &(in_f, out_f) in &ctx.region_frames {
-        if frame >= in_f && frame <= out_f {
-            if (frame - in_f).abs() <= 1 || (frame - out_f).abs() <= 1 {
-                return 10.0 + tiebreak;
-            }
-            return 20.0 + tiebreak;
-        }
-    }
-
-    for &s in &ctx.scene_frames {
-        if (frame - s).abs() <= 1 {
-            return 30.0 + tiebreak;
-        }
-    }
-
-    for &s in &ctx.strip_frames {
-        if (frame - s).abs() <= 1 {
-            return 50.0 + tiebreak;
-        }
-    }
-
-    let (vs, ve) = ctx.viewport_frames;
-    if frame >= vs && frame <= ve {
-        return 100.0 + tiebreak;
-    }
-
-    for &h in &ctx.hover_frames {
-        if (frame - h).abs() <= 1 {
-            return 500.0 + tiebreak;
-        }
-    }
-
-    1000.0 + tiebreak
+    // --- disabled tier logic, kept for reference ---
+    // let ph = ctx.playhead_frame;
+    // let dist_ph = (frame - ph).abs() as f64;
+    // let tiebreak = dist_ph * 0.0001;
+    // if (frame - ph).abs() <= PLAYHEAD_WINDOW { return dist_ph * 0.1; }
+    // for &m in &ctx.marker_frames {
+    //     if (frame - m).abs() <= 1 { return 5.0 + tiebreak; }
+    // }
+    // for &(in_f, out_f) in &ctx.region_frames {
+    //     if frame >= in_f && frame <= out_f {
+    //         if (frame - in_f).abs() <= 1 || (frame - out_f).abs() <= 1 {
+    //             return 10.0 + tiebreak;
+    //         }
+    //         return 20.0 + tiebreak;
+    //     }
+    // }
+    // for &s in &ctx.scene_frames {
+    //     if (frame - s).abs() <= 1 { return 30.0 + tiebreak; }
+    // }
+    // for &s in &ctx.strip_frames {
+    //     if (frame - s).abs() <= 1 { return 50.0 + tiebreak; }
+    // }
+    // let (vs, ve) = ctx.viewport_frames;
+    // if frame >= vs && frame <= ve { return 100.0 + tiebreak; }
+    // for &h in &ctx.hover_frames {
+    //     if (frame - h).abs() <= 1 { return 500.0 + tiebreak; }
+    // }
+    // 1000.0 + tiebreak
 }
 
-/// Compute the set of frames worth having, each with a score (lower = higher
-/// priority). The candidate list is intentionally small — a few hundred frames
-/// at most — so the scheduler can sort on every kick without cost.
-fn candidate_frames(ctx: &PriorityContext, max_frame: i64) -> Vec<(i64, f64)> {
-    let mut out: Vec<(i64, f64)> = Vec::new();
-    let clamp = |f: i64| f.clamp(0, max_frame);
+/// Candidate frames = everything within ±candidate_window(max_cached) of the
+/// playhead, sorted by distance (closest first).
+fn candidate_frames(ctx: &PriorityContext, max_frame: i64, max_cached: usize) -> Vec<(i64, f64)> {
     let ph = ctx.playhead_frame;
-
-    // Playhead window — immediate neighbors rank before anything else.
-    for offset in 0..=PLAYHEAD_WINDOW {
-        for sign in [1i64, -1i64] {
-            if offset == 0 && sign == -1 {
-                continue;
-            }
-            let f = ph + sign * offset;
-            if f < 0 || f > max_frame {
-                continue;
-            }
-            out.push((f, offset as f64 * 0.1));
-        }
-    }
-
-    // Markers — user-placed, so just after the playhead window.
-    for &f in &ctx.marker_frames {
-        let f = clamp(f);
-        out.push((f, 5.0 + (f - ph).abs() as f64 * 0.0001));
-    }
-
-    // Region boundaries + sparse interior samples.
-    for &(in_f, out_f) in &ctx.region_frames {
-        let in_f = clamp(in_f);
-        let out_f = clamp(out_f);
-        if out_f <= in_f {
-            continue;
-        }
-        out.push((in_f, 10.0));
-        out.push((out_f, 10.0));
-        let step = ((out_f - in_f) / 10).max(1);
-        let mut f = in_f;
-        while f < out_f {
-            out.push((f, 20.0));
-            f += step;
-        }
-    }
-
-    // Scene markers.
-    for &f in &ctx.scene_frames {
-        let f = clamp(f);
-        out.push((f, 30.0 + (f - ph).abs() as f64 * 0.0001));
-    }
-
-    // Strip frames — dense grid requested by UI feature like the thumbnail
-    // strip track. Ranked below scenes but above viewport fill.
-    for &f in &ctx.strip_frames {
-        let f = clamp(f);
-        out.push((f, 50.0 + (f - ph).abs() as f64 * 0.0001));
-    }
-
-    // Viewport samples — background fill.
-    let (vs, ve) = ctx.viewport_frames;
-    let vs = clamp(vs);
-    let ve = clamp(ve);
-    if ve > vs {
-        let step = ((ve - vs) / VIEWPORT_SAMPLES).max(1);
-        let mut f = vs;
-        while f < ve {
-            out.push((f, 100.0));
-            f += step;
-        }
-    }
-
-    // Hover frames — absolute-lowest real tier. Workers only pull these when
-    // nothing higher-priority is pending.
-    for &f in &ctx.hover_frames {
-        let f = clamp(f);
-        out.push((f, 500.0 + (f - ph).abs() as f64 * 0.0001));
-    }
-
-    // Dedupe by frame, keeping the lowest score.
-    out.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal)));
-    out.dedup_by_key(|x| x.0);
+    let win = candidate_window(max_cached);
+    let lo = (ph - win).max(0);
+    let hi = (ph + win).min(max_frame);
+    if hi < lo { return Vec::new(); }
+    let mut out: Vec<(i64, f64)> = (lo..=hi)
+        .map(|f| (f, (f - ph).abs() as f64))
+        .collect();
     out.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
     out
 }
 
-/// Pick the next frame to extract, if any. Must be called with the state lock held.
-///
-/// When the cache is full, we only pick frames whose score beats the worst
-/// cached frame — otherwise `evict_overflow` would immediately drop the frame
-/// we just extracted, and the next scheduler pass would pick it again. That's
-/// an infinite thrash: the symptom is "N pending, cache full, workers busy
-/// forever, no progress".
+/// Pick the next frame to extract — closest to the playhead that isn't
+/// already cached or in flight. With LRU eviction + touching-on-extract,
+/// a newly extracted frame is always MRU, so self-evict thrashing can't
+/// happen: no need for the old cache-full score guard.
 fn pick_next(st: &VideoState) -> Option<i64> {
-    let cache_full = st.ready.len() + st.in_flight.len() >= st.max_cached_frames;
-    let worst_cached_score: Option<f64> = if cache_full {
-        st.ready
-            .iter()
-            .map(|&f| frame_priority(&st.context, f))
-            .fold(None::<f64>, |acc, s| Some(acc.map_or(s, |a| a.max(s))))
-    } else {
-        None
-    };
-
-    for (f, score) in candidate_frames(&st.context, st.max_frame) {
-        if st.ready.contains(&f) || st.in_flight.contains(&f) {
-            continue;
-        }
-        if let Some(worst) = worst_cached_score {
-            // Strict `>=` so ties also skip — a tied frame would self-evict
-            // 50% of the time (HashSet iteration order is non-deterministic).
-            if score >= worst {
-                continue;
-            }
-        }
+    for (f, _) in candidate_frames(&st.context, st.max_frame, st.max_cached_frames) {
+        if st.ready.contains(&f) || st.in_flight.contains(&f) { continue; }
         return Some(f);
     }
     None
 }
 
-/// Try to evict ready frames to stay under the per-video cache cap. Scores
-/// each ready frame with the same tier logic that drives extraction, so a
-/// frame inside a region beats a random outside frame even if the outside one
-/// is closer to the playhead.
+/// Evict ready frames to stay under the per-video cache cap. LRU: drop the
+/// frames that haven't been near the playhead for the longest. Ties broken
+/// by distance to the current playhead (drop farther first) so eviction is
+/// deterministic even on a fresh cache where nothing's touched yet.
 fn evict_overflow(st: &mut VideoState) {
     if st.ready.len() <= st.max_cached_frames {
         return;
     }
-    let mut scored: Vec<(i64, f64)> = st
+    let ph = st.context.playhead_frame;
+    let mut scored: Vec<(i64, u64, i64)> = st
         .ready
         .iter()
-        .map(|&f| (f, frame_priority(&st.context, f)))
+        .map(|&f| (f, *st.frame_touched.get(&f).unwrap_or(&0), (f - ph).abs()))
         .collect();
-    // Highest score first — those are the least wanted, so drop them first.
-    scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    // Oldest touch first; if tied, farther from playhead first.
+    scored.sort_by(|a, b| a.1.cmp(&b.1).then(b.2.cmp(&a.2)));
     let excess = st.ready.len() - st.max_cached_frames;
-    for (f, _) in scored.into_iter().take(excess) {
+    let dropped: Vec<i64> = scored.iter().take(excess).map(|(f, _, _)| *f).collect();
+    for (f, _, _) in scored.into_iter().take(excess) {
         let p = thumb_path(&st.cache_dir, f);
         let _ = std::fs::remove_file(&p);
         st.ready.remove(&f);
+        st.frame_touched.remove(&f);
+    }
+    eprintln!(
+        "[thumb] evict {} frame(s): {:?}{}",
+        dropped.len(),
+        &dropped[..dropped.len().min(8)],
+        if dropped.len() > 8 { " …" } else { "" },
+    );
+}
+
+/// Mark every ready frame within the candidate window as "just used".
+/// Called on every priority update so frames near the moving playhead
+/// keep getting their LRU timestamps refreshed.
+fn touch_near_playhead(st: &mut VideoState) {
+    st.touch_counter += 1;
+    let t = st.touch_counter;
+    let ph = st.context.playhead_frame;
+    let win = candidate_window(st.max_cached_frames);
+    for &f in st.ready.iter() {
+        if (f - ph).abs() <= win {
+            st.frame_touched.insert(f, t);
+        }
     }
 }
 
@@ -361,6 +285,7 @@ fn purge_video_cache(st: &mut VideoState) {
         }
     }
     st.ready.clear();
+    st.frame_touched.clear();
 }
 
 fn frame_to_time(frame: i64, fps: f64) -> f64 {
@@ -405,6 +330,14 @@ fn extract_frame(
     ])
     .stdout(Stdio::null())
     .stderr(Stdio::piped());
+
+    // Dev-time tracing: one line per extraction so we can see the worker loop
+    // in the terminal and spot repeat-offender frames (thrashing symptom).
+    let pri = if high_priority { "HIGH" } else { "low " };
+    eprintln!(
+        "[thumb] {pri} extract t={time:.3}s w={width} -> {}",
+        out_path.file_name().and_then(|s| s.to_str()).unwrap_or("?")
+    );
 
     // Background thumb workers run at BELOW_NORMAL so a long queue can't fight
     // the UI thread / scene detection for CPU. Playhead-window frames keep
@@ -451,6 +384,13 @@ fn schedule<R: Runtime>(
                 return;
             }
             let Some(frame) = pick_next(&st) else {
+                eprintln!(
+                    "[thumb] idle ready={} in_flight={} workers={} cap={}",
+                    st.ready.len(),
+                    st.in_flight.len(),
+                    st.workers_running,
+                    st.max_cached_frames,
+                );
                 return;
             };
             st.in_flight.insert(frame);
@@ -460,6 +400,13 @@ fn schedule<R: Runtime>(
             let width = st.thumb_width;
             let playhead = st.context.playhead_frame;
             let out_path = thumb_path(&st.cache_dir, frame);
+            eprintln!(
+                "[thumb] pick frame={} ready={} in_flight={} workers={}",
+                frame,
+                st.ready.len(),
+                st.in_flight.len(),
+                st.workers_running,
+            );
             Some((frame, video_path, fps, width, playhead, out_path))
         };
 
@@ -490,6 +437,12 @@ fn schedule<R: Runtime>(
                 st.in_flight.remove(&frame);
                 if success {
                     st.ready.insert(frame);
+                    // Freshly extracted frames are MRU by definition — seed
+                    // their touch counter so LRU eviction won't immediately
+                    // drop them on the same pass.
+                    st.touch_counter += 1;
+                    let t = st.touch_counter;
+                    st.frame_touched.insert(frame, t);
                     evict_overflow(&mut st);
                 }
             }
@@ -545,6 +498,8 @@ pub async fn set_thumbnail_priority<R: Runtime>(
                     workers_running: 0,
                     thumb_width,
                     max_cached_frames,
+                    frame_touched: HashMap::new(),
+                    touch_counter: 0,
                 }))
             })
             .clone()
@@ -566,6 +521,8 @@ pub async fn set_thumbnail_priority<R: Runtime>(
         st.max_cached_frames = max_cached_frames;
         st.context = PriorityContext {
             playhead_frame: req.playhead_frame,
+            // Tier signals received but unused — LRU scoring ignores them.
+            recent_playheads: Vec::new(),
             region_frames: req.region_frames,
             marker_frames: req.marker_frames,
             scene_frames: req.scene_frames,
@@ -573,6 +530,9 @@ pub async fn set_thumbnail_priority<R: Runtime>(
             viewport_frames: req.viewport_frames,
             hover_frames: req.hover_frames,
         };
+        // Refresh LRU timestamps for cached frames near the new playhead,
+        // then evict oldest first to make room for whatever's queued.
+        touch_near_playhead(&mut st);
         evict_overflow(&mut st);
     }
 
@@ -600,16 +560,15 @@ pub struct QueueStats {
     pub tiers: Vec<QueueTierStats>,
 }
 
+/// Score → tier label. Scoring is now plain distance-to-playhead, so the
+/// former marker/region/scene/viewport tiers don't apply. Buckets are
+/// distance bands instead.
 fn tier_name(score: f64) -> &'static str {
-    if score < 5.0 { "playhead" }
-    else if score < 10.0 { "markers" }
-    else if score < 20.0 { "region_edges" }
-    else if score < 30.0 { "region_interior" }
-    else if score < 50.0 { "scenes" }
-    else if score < 100.0 { "strip" }
-    else if score < 500.0 { "viewport" }
-    else if score < 1000.0 { "hover" }
-    else { "other" }
+    let d = score as i64;
+    if d <= PLAYHEAD_WINDOW { "playhead" }
+    else if d <= 120 { "near" }        // ~4s @ 30fps
+    else if d <= 600 { "mid" }         // ~20s @ 30fps
+    else { "far" }
 }
 
 #[tauri::command]
@@ -625,12 +584,9 @@ pub async fn get_thumbnail_queue_stats(
         }
     };
     let st = entry.lock().unwrap();
-    let cands = candidate_frames(&st.context, st.max_frame);
+    let cands = candidate_frames(&st.context, st.max_frame, st.max_cached_frames);
 
-    let order = [
-        "playhead", "markers", "region_edges", "region_interior",
-        "scenes", "strip", "viewport", "hover", "other",
-    ];
+    let order = ["playhead", "near", "mid", "far"];
     let mut by_name: std::collections::HashMap<&'static str, QueueTierStats> =
         std::collections::HashMap::new();
     for name in order.iter() {
@@ -729,6 +685,23 @@ pub async fn clear_all_thumbnails<R: Runtime>(
 mod tests {
     use super::*;
 
+    fn make_state(playhead: i64, ready: HashSet<i64>, cap: usize) -> VideoState {
+        VideoState {
+            video_path: "x".to_string(),
+            fps: 30.0,
+            max_frame: 1_000_000,
+            cache_dir: PathBuf::from("."),
+            ready,
+            in_flight: HashSet::new(),
+            context: PriorityContext { playhead_frame: playhead, ..Default::default() },
+            workers_running: 0,
+            thumb_width: 120,
+            max_cached_frames: cap,
+            frame_touched: HashMap::new(),
+            touch_counter: 0,
+        }
+    }
+
     #[test]
     fn playhead_window_is_highest_priority() {
         let ctx = PriorityContext {
@@ -739,7 +712,7 @@ mod tests {
             viewport_frames: (0, 1000),
             ..Default::default()
         };
-        let cands = candidate_frames(&ctx, 1000);
+        let cands = candidate_frames(&ctx, 1000, 200);
         // First candidate should be the playhead itself.
         assert_eq!(cands[0].0, 100);
         // Frames right next to the playhead come before far-away markers.
@@ -749,140 +722,63 @@ mod tests {
     }
 
     #[test]
-    fn dedupe_keeps_best_score() {
-        let ctx = PriorityContext {
-            playhead_frame: 100,
-            marker_frames: vec![100],
-            ..Default::default()
-        };
-        let cands = candidate_frames(&ctx, 1000);
-        let hits: Vec<_> = cands.iter().filter(|(f, _)| *f == 100).collect();
-        assert_eq!(hits.len(), 1);
-        // Score 0.0 from the playhead beats 5.0 from the marker.
-        assert!(hits[0].1 < 1.0);
-    }
-
-    #[test]
     fn candidates_respect_max_frame() {
-        let ctx = PriorityContext {
-            playhead_frame: 5,
-            ..Default::default()
-        };
-        let cands = candidate_frames(&ctx, 10);
+        let ctx = PriorityContext { playhead_frame: 5, ..Default::default() };
+        let cands = candidate_frames(&ctx, 10, 200);
         for (f, _) in &cands {
             assert!(*f >= 0 && *f <= 10, "frame {f} out of [0,10]");
         }
     }
 
     #[test]
-    fn frame_priority_tiers_order_correctly() {
-        // Playhead at 0, region [500, 600], viewport [0, 10000]. Frame 550
-        // (inside region, far from playhead) should outrank frame 2000 (just
-        // in viewport, also far from playhead).
-        let ctx = PriorityContext {
-            playhead_frame: 0,
-            region_frames: vec![(500, 600)],
-            viewport_frames: (0, 10000),
-            ..Default::default()
-        };
-        let in_region = frame_priority(&ctx, 550);
-        let outside_region = frame_priority(&ctx, 2000);
+    fn pick_next_returns_closest_uncached() {
+        // Playhead at 500. Frames 495-505 already cached. Expect the closest
+        // uncached neighbour (494 or 506, either is distance 6).
+        let ready: HashSet<i64> = (495..=505).collect();
+        let st = make_state(500, ready, 100);
+        let picked = pick_next(&st).unwrap();
         assert!(
-            in_region < outside_region,
-            "region frame ({in_region}) should outrank viewport-only frame ({outside_region})"
+            (picked - 500).abs() == 6,
+            "expected closest uncached (dist 6), got {picked}"
         );
-        // And a frame outside everything is worst of all.
-        let ctx_no_vp = PriorityContext {
-            playhead_frame: 0,
-            region_frames: vec![(500, 600)],
-            viewport_frames: (0, 100),
-            ..Default::default()
-        };
-        let nowhere = frame_priority(&ctx_no_vp, 5000);
-        assert!(nowhere > 500.0);
     }
 
     #[test]
-    fn pick_next_skips_frames_that_would_self_evict() {
-        // Cache is full; every pending candidate scores worse than everything
-        // already cached. Extracting any of them would just evict themselves
-        // on the next `evict_overflow` pass — that's the thrash bug.
-        //
-        // Setup: ctx has 4 scene cuts. Playhead-window candidates (around
-        // frame 0) and the first 3 scenes are already in `ready`. The only
-        // candidate left is scene #4, which scores worse than scene #3.
-        let ctx = PriorityContext {
-            playhead_frame: 0,
-            scene_frames: vec![100, 200, 300, 400],
-            ..Default::default()
-        };
-        let mut ready: HashSet<i64> = (0..=15).collect(); // playhead window
-        for &f in &[100i64, 200, 300] {
-            ready.insert(f);
-        }
-        let st = VideoState {
-            video_path: "x".to_string(),
-            fps: 30.0,
-            max_frame: 1000,
-            cache_dir: PathBuf::from("."),
-            ready,
-            in_flight: HashSet::new(),
-            context: ctx,
-            workers_running: 0,
-            thumb_width: 120,
-            max_cached_frames: 19, // == ready.len(), so cache is full
-        };
-        assert_eq!(pick_next(&st), None, "must not thrash on full cache");
+    fn evict_overflow_drops_oldest_touched_first() {
+        // Four cached frames, all same distance to playhead (none). Touch
+        // counters differ — evict_overflow should drop the one with the
+        // lowest counter.
+        let ready: HashSet<i64> = [100i64, 200, 300, 400].into_iter().collect();
+        let mut st = make_state(250, ready, 3);
+        st.frame_touched.insert(100, 1);
+        st.frame_touched.insert(200, 4);
+        st.frame_touched.insert(300, 3);
+        st.frame_touched.insert(400, 2);
+        evict_overflow(&mut st);
+        assert_eq!(st.ready.len(), 3);
+        assert!(!st.ready.contains(&100), "frame 100 (oldest) should be gone");
     }
 
     #[test]
-    fn pick_next_accepts_strictly_better_frame_when_full() {
-        // Cache is full of scene-tier frames (score ~30). A marker-tier
-        // candidate (~5) shows up — it's strictly better than the worst
-        // cached, so it should win even though the cache is full.
-        let ctx = PriorityContext {
-            playhead_frame: 0,
-            marker_frames: vec![50],
-            scene_frames: vec![100, 200, 300],
-            ..Default::default()
-        };
-        let mut ready: HashSet<i64> = (0..=15).collect();
-        for &f in &[100i64, 200, 300] {
-            ready.insert(f);
-        }
-        let st = VideoState {
-            video_path: "x".to_string(),
-            fps: 30.0,
-            max_frame: 1000,
-            cache_dir: PathBuf::from("."),
-            ready,
-            in_flight: HashSet::new(),
-            context: ctx,
-            workers_running: 0,
-            thumb_width: 120,
-            max_cached_frames: 19,
-        };
-        assert_eq!(pick_next(&st), Some(50));
+    fn evict_overflow_tiebreak_drops_farther() {
+        // All frames tied on touch counter (fresh cache). Tiebreak should
+        // prefer dropping the one farther from the playhead.
+        let ready: HashSet<i64> = [450i64, 900].into_iter().collect();
+        let mut st = make_state(500, ready, 1);
+        // Both untouched => both default to 0; farther wins tiebreak.
+        evict_overflow(&mut st);
+        assert_eq!(st.ready.len(), 1);
+        assert!(st.ready.contains(&450), "closer frame (dist 50) should survive");
     }
 
     #[test]
-    fn eviction_prefers_dropping_outside_frames() {
-        // Build a context where some ready frames are inside a region and
-        // others are nowhere. The outside ones must be evicted first, even
-        // though some of them are closer to the playhead.
-        let ctx = PriorityContext {
-            playhead_frame: 1000,
-            region_frames: vec![(2000, 2100)],
-            viewport_frames: (0, 3000),
-            ..Default::default()
-        };
-        // Score a frame inside the region vs an outside frame *closer to*
-        // the playhead. The region frame should still win.
-        let inside = frame_priority(&ctx, 2050);
-        let closer_outside = frame_priority(&ctx, 1500);
-        assert!(
-            inside < closer_outside,
-            "region-interior ({inside}) should beat closer viewport-only ({closer_outside})"
-        );
+    fn touch_near_playhead_refreshes_only_in_window() {
+        let ready: HashSet<i64> = [500i64, 5_000_000].into_iter().collect();
+        let mut st = make_state(500, ready, 1000);
+        touch_near_playhead(&mut st);
+        let t_near = st.frame_touched.get(&500).copied().unwrap_or(0);
+        let t_far = st.frame_touched.get(&5_000_000).copied().unwrap_or(0);
+        assert!(t_near > 0);
+        assert_eq!(t_far, 0, "frame outside candidate_window should not be touched");
     }
 }

@@ -206,21 +206,41 @@ export default function RegionBand({
     scheduleFlush()
   }, [xToTime, trySnap, trySnapMove, onResize, onMove, regions, scheduleFlush])
 
-  const onRegionPointerUp = useCallback((_e: React.PointerEvent<HTMLDivElement>, r: RegionBlock) => {
-    const g = gestureRef.current
+  const endGesture = useCallback(() => {
     gestureRef.current = null
-    // Flush any queued rAF update so the final position is committed even if
-    // the last move event hasn't yet been painted.
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
       flushPending()
     }
+    pendingHintsRef.current = null
     onSnapHintsChange?.(null)
+  }, [flushPending, onSnapHintsChange])
+
+  const onRegionPointerUp = useCallback((_e: React.PointerEvent<HTMLDivElement>, r: RegionBlock) => {
+    const g = gestureRef.current
+    endGesture()
     if (g?.type === 'potential') {
       onSelect?.(r.id)
     }
-  }, [onSelect, onSnapHintsChange, flushPending])
+  }, [onSelect, endGesture])
+
+  const onRegionPointerCancel = useCallback(() => {
+    endGesture()
+  }, [endGesture])
+
+  useEffect(() => {
+    const win = (e: PointerEvent) => {
+      if (gestureRef.current) endGesture()
+      else if (e.type === 'pointerup') onSnapHintsChange?.(null)
+    }
+    window.addEventListener('pointerup', win)
+    window.addEventListener('pointercancel', win)
+    return () => {
+      window.removeEventListener('pointerup', win)
+      window.removeEventListener('pointercancel', win)
+    }
+  }, [endGesture, onSnapHintsChange])
 
   const handleBgDoubleClick = useCallback(
     (pct: number) => {
@@ -279,6 +299,7 @@ export default function RegionBand({
               onPointerDown={(e) => onRegionPointerDown(e, r, 'middle')}
               onPointerMove={onRegionPointerMove}
               onPointerUp={(e) => onRegionPointerUp(e, r)}
+              onPointerCancel={onRegionPointerCancel}
             >
               {r.label && !hideLabels && <span className="thin-region__label">{r.label}</span>}
               {onResize && (
@@ -289,6 +310,7 @@ export default function RegionBand({
                     onPointerDown={(e) => onRegionPointerDown(e, r, 'left')}
                     onPointerMove={onRegionPointerMove}
                     onPointerUp={(e) => onRegionPointerUp(e, r)}
+                    onPointerCancel={onRegionPointerCancel}
                   />
                   <div
                     className="thin-region__handle thin-region__handle--r"
@@ -296,6 +318,7 @@ export default function RegionBand({
                     onPointerDown={(e) => onRegionPointerDown(e, r, 'right')}
                     onPointerMove={onRegionPointerMove}
                     onPointerUp={(e) => onRegionPointerUp(e, r)}
+                    onPointerCancel={onRegionPointerCancel}
                   />
                 </>
               )}

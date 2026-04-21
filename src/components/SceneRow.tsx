@@ -1,6 +1,7 @@
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { useAppSelector } from '../store/hooks'
+import { selectThumbnailPathsFor } from '../store/slices/thumbnailsSlice'
 import type { View } from '../types'
 import { timeToViewPct } from '../utils/view'
 import { useSetThumbnailHover } from './ThumbnailPopup'
@@ -37,26 +38,33 @@ export default function SceneRow({
   onSceneDelete, onSceneAdd, onSceneContextMenu, onBackgroundContextMenu,
 }: SceneRowProps) {
   const video = useAppSelector(s => s.video.video)
-  const thumbPaths = useAppSelector(s =>
-    video ? s.thumbnails.pathsByHashAndFrame[video.fileHash] ?? {} : {},
-  )
+  const thumbPaths = useAppSelector(selectThumbnailPathsFor(video?.fileHash))
   const setThumbnailHover = useSetThumbnailHover()
 
-  const thumbSrc = (t: number): string | null => {
-    if (!video || video.fps <= 0) return null
-    const frame = Math.floor(t * video.fps)
-    const path = thumbPaths[frame]
-    return path ? convertFileSrc(path) : null
-  }
+  // Precompute the per-scene inline thumbnail URLs only when expanded. Without
+  // this, convertFileSrc runs N times per render (N = scene count), and the
+  // render runs on every playhead tick during playback.
+  const inlineSrcs = useMemo<(string | null)[]>(() => {
+    if (!expanded || !video || video.fps <= 0) return []
+    return scenes.map(t => {
+      const path = thumbPaths[Math.floor(t * video.fps)]
+      return path ? convertFileSrc(path) : null
+    })
+  }, [expanded, scenes, thumbPaths, video])
 
-  let activeIdx = -1
-  if (playhead !== undefined) {
+  // Active-scene index: the scene closest to the current playhead (within
+  // one video frame). Memoized so repeated playhead ticks that don't cross
+  // a scene boundary don't force a full recomputation.
+  const activeIdx = useMemo(() => {
+    if (playhead === undefined) return -1
+    let best = -1
     let bestDist = PLAYHEAD_MATCH_TOLERANCE
     for (let i = 0; i < scenes.length; i++) {
       const d = Math.abs(scenes[i] - playhead)
-      if (d <= bestDist) { bestDist = d; activeIdx = i }
+      if (d <= bestDist) { bestDist = d; best = i }
     }
-  }
+    return best
+  }, [scenes, playhead])
 
   // Diamond hover — fires onSceneHover always; popup only in collapsed mode
   // (expanded mode already shows the thumbnail inline).
@@ -113,7 +121,7 @@ export default function SceneRow({
         const x = timeToViewPct(t, view)
         if (x < -2 || x > 102) return null
         const active = i === activeIdx
-        const inlineSrc = expanded ? thumbSrc(t) : null
+        const inlineSrc = expanded ? inlineSrcs[i] ?? null : null
         return (
           <div key={i} className="scene-row__marker" style={{ left: `${x}%` }}>
             <button

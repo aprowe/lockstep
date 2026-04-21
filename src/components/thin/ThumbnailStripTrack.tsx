@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
-import { setStripFrames } from '../../store/slices/thumbnailsSlice'
+import { setStripFrames, selectThumbnailPathsFor } from '../../store/slices/thumbnailsSlice'
 import type { View } from '../../types'
 import { timeToViewPct } from '../../utils/view'
 import TrackRow from './TrackRow'
@@ -25,9 +25,7 @@ export default function ThumbnailStripTrack({
 }: ThumbnailStripTrackProps) {
   const dispatch = useAppDispatch()
   const video = useAppSelector(s => s.video.video)
-  const thumbPaths = useAppSelector(s =>
-    video ? s.thumbnails.pathsByHashAndFrame[video.fileHash] ?? {} : {},
-  )
+  const thumbPaths = useAppSelector(selectThumbnailPathsFor(video?.fileHash))
 
   const [aspect, setAspect] = useState(16 / 9)
   const aspectCapturedRef = useRef(false)

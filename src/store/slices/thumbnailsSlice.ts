@@ -48,3 +48,21 @@ const thumbnailsSlice = createSlice({
 
 export const { setThumbnail, clearForHash, setStripFrames, setHoverFrames } = thumbnailsSlice.actions
 export default thumbnailsSlice.reducer
+
+/**
+ * Stable empty-paths reference. Selectors that fall back to `{}` inline
+ * create a fresh object on every call, which defeats the `useSelector`
+ * reference-equality check and re-renders subscribers on every store
+ * update. Share this sentinel instead.
+ */
+export const EMPTY_FRAME_PATHS: Readonly<Record<number, string>> = Object.freeze({})
+
+/** Thumbnails map for a given file hash, or a stable empty object. */
+export function selectThumbnailPathsFor(
+  hash: string | null | undefined,
+): (state: { thumbnails: ThumbnailsState }) => Record<number, string> {
+  return state => {
+    if (!hash) return EMPTY_FRAME_PATHS as Record<number, string>
+    return state.thumbnails.pathsByHashAndFrame[hash] ?? (EMPTY_FRAME_PATHS as Record<number, string>)
+  }
+}

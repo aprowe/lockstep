@@ -5,7 +5,7 @@ import {
   listenThumbnailReady,
   setThumbnailPriority,
 } from '../api/thumbnails'
-import { setThumbnail } from '../store/slices/thumbnailsSlice'
+import { setThumbnail, selectThumbnailPathsFor } from '../store/slices/thumbnailsSlice'
 import { setFilmstripHeight } from '../store/slices/uiSlice'
 import { secondsToFrames } from '../utils/time'
 import './Filmstrip.css'
@@ -31,9 +31,7 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
   const scenes = useAppSelector(s =>
     video ? s.scene.cutsByPath[video.path] ?? [] : [],
   )
-  const thumbPaths = useAppSelector(s =>
-    video ? s.thumbnails.pathsByHashAndFrame[video.fileHash] ?? {} : {},
-  )
+  const thumbPaths = useAppSelector(selectThumbnailPathsFor(video?.fileHash))
   const stripFrames = useAppSelector(s =>
     video ? s.thumbnails.stripFramesByHash[video.fileHash] ?? [] : [],
   )

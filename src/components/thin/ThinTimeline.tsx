@@ -219,6 +219,19 @@ export default function ThinTimeline({
   const throughLines = useMemo<ThroughLine[]>(() => {
     const out: ThroughLine[] = []
 
+    // Viewport cull. Drop lines whose endpoints are both off the same side
+    // of the visible pct range — a slanted line with one end well to the
+    // left and the other well to the right still crosses the viewport.
+    const BOUND = 2
+    const pairVisible = (inX: number | null, outX: number | null): boolean => {
+      if (inX === null && outX === null) return false
+      if (inX === null) return outX! >= -BOUND && outX! <= 100 + BOUND
+      if (outX === null) return inX >= -BOUND && inX <= 100 + BOUND
+      if (inX < -BOUND && outX < -BOUND) return false
+      if (inX > 100 + BOUND && outX > 100 + BOUND) return false
+      return true
+    }
+
     const origById = new Map(anchors.map(a => [a.id, a.time]))
     const beatById = new Map(beatAnchors.map(a => [a.id, a.time]))
     const anchorIds = new Set<number>([...origById.keys(), ...beatById.keys()])
@@ -228,10 +241,13 @@ export default function ThinTimeline({
       if (!selected && !hovered && !alwaysAnchors) continue
       const inT = origById.get(id)
       const outT = beatById.get(id)
+      const inputX = inT !== undefined ? timeToViewPct(inT, view) : null
+      const outputX = outT !== undefined ? timeToViewPct(outT, view) : null
+      if (!pairVisible(inputX, outputX)) continue
       out.push({
         key: `a-${id}`,
-        inputX: inT !== undefined ? timeToViewPct(inT, view) : null,
-        outputX: outT !== undefined ? timeToViewPct(outT, view) : null,
+        inputX,
+        outputX,
         kind: 'anchor',
         style: selected ? 'selected' : hovered ? 'hover' : 'dotted',
       })
@@ -248,20 +264,16 @@ export default function ThinTimeline({
       const inEnd = rIn?.outPoint ?? rOut!.outPoint
       const outStart = rOut?.inPoint ?? inStart
       const outEnd = rOut?.outPoint ?? inEnd
-      out.push({
-        key: `r-${rid}-in`,
-        inputX: timeToViewPct(inStart, view),
-        outputX: timeToViewPct(outStart, view),
-        kind: 'region',
-        style,
-      })
-      out.push({
-        key: `r-${rid}-out`,
-        inputX: timeToViewPct(inEnd, view),
-        outputX: timeToViewPct(outEnd, view),
-        kind: 'region',
-        style,
-      })
+      const startInX = timeToViewPct(inStart, view)
+      const startOutX = timeToViewPct(outStart, view)
+      const endInX = timeToViewPct(inEnd, view)
+      const endOutX = timeToViewPct(outEnd, view)
+      if (pairVisible(startInX, startOutX)) {
+        out.push({ key: `r-${rid}-in`, inputX: startInX, outputX: startOutX, kind: 'region', style })
+      }
+      if (pairVisible(endInX, endOutX)) {
+        out.push({ key: `r-${rid}-out`, inputX: endInX, outputX: endOutX, kind: 'region', style })
+      }
     }
     for (const r of regions) if (r.active) pushRegion(r.id, 'selected')
     if (hoveredRegionId) pushRegion(hoveredRegionId, 'hover')
@@ -275,33 +287,21 @@ export default function ThinTimeline({
     if (alwaysScenes) for (const s of scenes) scenesToShow.add(s)
     if (hoveredSceneTime !== null) scenesToShow.add(hoveredSceneTime)
     for (const t of scenesToShow) {
+      const inputX = timeToViewPct(t, view)
+      if (!pairVisible(inputX, null)) continue
       const style: ThroughStyle = hoveredSceneTime === t ? 'hover' : 'dotted'
-      out.push({
-        key: `sc-${t}`,
-        inputX: timeToViewPct(t, view),
-        outputX: null,
-        kind: 'scene',
-        style,
-      })
+      out.push({ key: `sc-${t}`, inputX, outputX: null, kind: 'scene', style })
     }
 
     for (const t of snapHintsIn) {
-      out.push({
-        key: `snap-in-${t}`,
-        inputX: timeToViewPct(t, view),
-        outputX: null,
-        kind: 'snap',
-        style: 'snap',
-      })
+      const inputX = timeToViewPct(t, view)
+      if (!pairVisible(inputX, null)) continue
+      out.push({ key: `snap-in-${t}`, inputX, outputX: null, kind: 'snap', style: 'snap' })
     }
     for (const t of snapHintsOut) {
-      out.push({
-        key: `snap-out-${t}`,
-        inputX: null,
-        outputX: timeToViewPct(t, view),
-        kind: 'snap',
-        style: 'snap',
-      })
+      const outputX = timeToViewPct(t, view)
+      if (!pairVisible(null, outputX)) continue
+      out.push({ key: `snap-out-${t}`, inputX: null, outputX, kind: 'snap', style: 'snap' })
     }
 
     return out
@@ -383,6 +383,11 @@ export default function ThinTimeline({
     if (target.closest('.thin-timeline__resizer')) return false
     if (target.closest('.thin-row--minimap')) return false
     if (target.closest('.thumb-queue-debug')) return false
+    const section = target.closest('[data-section]') as HTMLElement | null
+    if (section) {
+      const id = section.dataset.section
+      if (id === 'time' || id === 'beat') return false
+    }
     return true
   }, [])
 
@@ -542,28 +547,6 @@ export default function ThinTimeline({
     ),
   })
   sections.push({
-    id: 'clipin',
-    space: 'input',
-    node: (
-      <RegionBand
-        label="Clip In"
-        kind="input"
-        regions={regions}
-        view={view}
-        snapTargets={snapTargetsInput}
-        onSelect={onRegionSelect}
-        onContextMenu={onRegionContextMenu}
-        onResize={onRegionResize}
-        onMove={onRegionMove}
-        onZoom={onRegionZoom}
-        onHoverChange={setHoveredRegionId}
-        onSnapHintsChange={onInSnapHints}
-        onBackgroundAdd={onRegionAdd}
-        onBackgroundContextMenu={onTimelineContextMenu}
-      />
-    ),
-  })
-  sections.push({
     id: 'scenes',
     space: 'input',
     node: (
@@ -600,6 +583,28 @@ export default function ThinTimeline({
       ),
     })
   }
+  sections.push({
+    id: 'clipin',
+    space: 'input',
+    node: (
+      <RegionBand
+        label="Clip In"
+        kind="input"
+        regions={regions}
+        view={view}
+        snapTargets={snapTargetsInput}
+        onSelect={onRegionSelect}
+        onContextMenu={onRegionContextMenu}
+        onResize={onRegionResize}
+        onMove={onRegionMove}
+        onZoom={onRegionZoom}
+        onHoverChange={setHoveredRegionId}
+        onSnapHintsChange={onInSnapHints}
+        onBackgroundAdd={onRegionAdd}
+        onBackgroundContextMenu={onTimelineContextMenu}
+      />
+    ),
+  })
   sections.push({
     id: 'markerin',
     space: 'input',
@@ -736,29 +741,26 @@ export default function ThinTimeline({
   }
 
   /**
-   * Translucent region bands rendered in every input/output section — gives
-   * a vertical sense of "this region spans from X to Y" across the whole
-   * timeline, not just in the dedicated clip rows. The warp section renders
-   * its own slanted quadrilateral and is skipped here.
+   * Translucent band showing the active clip's in→out range. Only rendered
+   * on the rows that sit vertically between the clip-in and clip-out rows
+   * (markerin / markerout). The warp section draws its own slanted quad.
    */
-  const regionBandsFor = (space: SectionSpace): React.ReactNode => {
-    if (space === 'warp') return null
-    const source = space === 'input' ? regions : (regionsOutput ?? regions)
-    return source.map(r => {
-      const left = timeToViewPct(r.inPoint, view)
-      const right = timeToViewPct(r.outPoint, view)
-      const width = right - left
-      if (width <= 0 || right < -1 || left > 101) return null
-      const colorCls = `clip-overlay--color-${(r.colorIndex ?? 0) % 8}`
-      const cls = `thin-timeline__region-band ${colorCls}${r.active ? ' thin-timeline__region-band--active' : ''}`
-      return (
-        <div
-          key={`rband-${r.id}`}
-          className={cls}
-          style={{ left: `${left}%`, width: `${width}%` }}
-        />
-      )
-    })
+  const regionBandsFor = (space: SectionSpace, sectionId: string): React.ReactNode => {
+    if (sectionId !== 'markerin' && sectionId !== 'markerout') return null
+    const active = (space === 'input' ? regions : (regionsOutput ?? regions)).find(r => r.active)
+    if (!active) return null
+    const left = timeToViewPct(active.inPoint, view)
+    const right = timeToViewPct(active.outPoint, view)
+    const width = right - left
+    if (width <= 0 || right < -1 || left > 101) return null
+    const colorCls = `clip-overlay--color-${(active.colorIndex ?? 0) % 8}`
+    return (
+      <div
+        key={`rband-${active.id}`}
+        className={`thin-timeline__region-band ${colorCls}`}
+        style={{ left: `${left}%`, width: `${width}%` }}
+      />
+    )
   }
 
   const renderThroughLine = (tl: ThroughLine, space: SectionSpace) => {
@@ -852,7 +854,7 @@ export default function ThinTimeline({
           >
             {s.node}
             <div className="thin-timeline__through-overlay">
-              {regionBandsFor(s.space)}
+              {regionBandsFor(s.space, s.id)}
               {s.space === 'warp' ? (
                 <svg
                   className="thin-timeline__through-svg"

@@ -230,15 +230,9 @@
   bottom: 0;
   z-index: 0;
   pointer-events: none;
-  background: hsla(var(--clip-h, 32), var(--clip-s, 70%), var(--clip-l, 52%), 0.08);
-  border-left: 1px solid hsla(var(--clip-h, 32), var(--clip-s, 70%), var(--clip-l, 52%), 0.35);
-  border-right: 1px solid hsla(var(--clip-h, 32), var(--clip-s, 70%), var(--clip-l, 52%), 0.35);
-}
-
-.thin-timeline__region-band--active {
-  background: hsla(var(--clip-h, 32), var(--clip-s, 70%), var(--clip-l, 52%), 0.16);
-  border-left-color: hsla(var(--clip-h, 32), var(--clip-s, 70%), var(--clip-l, 52%), 0.7);
-  border-right-color: hsla(var(--clip-h, 32), var(--clip-s, 70%), var(--clip-l, 52%), 0.7);
+  background: hsla(var(--clip-h, 32), var(--clip-s, 70%), var(--clip-l, 52%), 0.04);
+  border-left: 1px solid hsla(var(--clip-h, 32), var(--clip-s, 70%), var(--clip-l, 52%), 0.25);
+  border-right: 1px solid hsla(var(--clip-h, 32), var(--clip-s, 70%), var(--clip-l, 52%), 0.25);
 }
 
 /* Anchor lines — default dotted, selected solid, hover in between. */

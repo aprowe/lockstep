@@ -262,6 +262,16 @@ export default function WarpView({
     [sortedBeat],
   )
 
+  const snapTargetsInput = useMemo(
+    () => [...scenes, ...origAnchors.map(a => a.time)],
+    [scenes, origAnchors],
+  )
+  const snapTargetsOutput = useMemo(() => {
+    const beatTimes = quantAnchors.map(a => a.time)
+    if (clipIn === undefined) return beatTimes
+    return [...beatTimes, beatClipIn ?? 0, beatClipOut ?? outputDuration]
+  }, [quantAnchors, clipIn, beatClipIn, beatClipOut, outputDuration])
+
   const linkedBoundaries = useMemo(
     () => segmentAnchors.map(a => a.id < 0 || linkedAnchorIds.has(a.id)),
     [segmentAnchors, linkedAnchorIds],
@@ -581,8 +591,8 @@ export default function WarpView({
         snapInterval={beat / gridDiv}
         snapOffset={beatOffset}
         gridDiv={gridDiv}
-        snapTargetsInput={scenes}
-        snapTargetsOutput={clipIn !== undefined ? [beatClipIn ?? 0, beatClipOut ?? outputDuration] : undefined}
+        snapTargetsInput={snapTargetsInput}
+        snapTargetsOutput={snapTargetsOutput}
         bpm={bpm}
         beatOffset={beatOffset}
         scenes={scenes}

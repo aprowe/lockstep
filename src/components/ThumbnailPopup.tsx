@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { useAppSelector } from '../store/hooks'
+import { selectThumbnailPathsFor } from '../store/slices/thumbnailsSlice'
 import './ThumbnailPopup.css'
 
 interface HoverState {
@@ -34,9 +35,7 @@ export function useSetThumbnailHover() {
 export default function ThumbnailPopup() {
   const ctx = useContext(ThumbnailHoverContext)
   const video = useAppSelector(s => s.video.video)
-  const thumbPaths = useAppSelector(s =>
-    video ? s.thumbnails.pathsByHashAndFrame[video.fileHash] ?? {} : {},
-  )
+  const thumbPaths = useAppSelector(selectThumbnailPathsFor(video?.fileHash))
   if (!ctx || !ctx.hovered || !video || video.fps <= 0) return null
   const { hovered } = ctx
   const frame = Math.floor(hovered.time * video.fps)
