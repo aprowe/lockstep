@@ -130,3 +130,24 @@ export async function readJsonSidecarForVideo(jsonPath: string): Promise<JsonFil
   const raw = await invoke<{ json_content: string; video_path: string }>('read_json_sidecar_for_video', { jsonPath })
   return { jsonContent: raw.json_content, videoPath: raw.video_path }
 }
+
+// ── LosslessCut (.llc) project import ────────────────────────────────────────
+
+export interface LlcSegment {
+  start: number
+  end: number
+  name: string
+}
+
+export interface LlcProject {
+  videoPath: string
+  cutSegments: LlcSegment[]
+}
+
+/** Parse a LosslessCut .llc project file (JSON5) and resolve its referenced video. */
+export async function loadLlcProject(llcPath: string): Promise<LlcProject> {
+  const raw = await invoke<{ video_path: string; cut_segments: LlcSegment[] }>(
+    'load_llc_project', { llcPath },
+  )
+  return { videoPath: raw.video_path, cutSegments: raw.cut_segments }
+}

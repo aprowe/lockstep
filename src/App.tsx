@@ -91,6 +91,9 @@ function hasVideoExt(p: string) {
 function hasJsonExt(p: string) {
   return p.split('.').pop()?.toLowerCase() === 'json'
 }
+function hasLlcExt(p: string) {
+  return p.split('.').pop()?.toLowerCase() === 'llc'
+}
 
 // ── Layout constants ─────────────────────────────────────────────────────────
 
@@ -237,6 +240,14 @@ export default function App() {
           const firstVideo = paths.find(hasVideoExt)
           if (firstVideo) {
             await selectVideo(firstVideo)
+            return
+          }
+          // If a LosslessCut .llc project is dropped, import it: load the
+          // referenced video and populate regions from cutSegments.
+          const firstLlc = paths.find(hasLlcExt)
+          if (firstLlc) {
+            const { openLlcProjectThunk } = await import('./store/thunks/videoThunks')
+            await dispatch(openLlcProjectThunk(firstLlc))
             return
           }
           // If a .json sidecar is dropped, find its sibling video and load both

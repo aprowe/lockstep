@@ -32,6 +32,7 @@ pub fn run() {
             commands::delete_video_sidecar,
             commands::open_json_file,
             commands::read_json_sidecar_for_video,
+            commands::load_llc_project,
             commands::start_scene_detection,
             storage::save_video_state,
             storage::load_video_state,

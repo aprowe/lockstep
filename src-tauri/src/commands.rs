@@ -577,6 +577,80 @@ pub async fn read_json_sidecar_for_video(json_path: String) -> Result<JsonFileRe
     Err(format!("No video file found for '{stem}' in the same folder"))
 }
 
+// ── LosslessCut (.llc) project import ─────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+pub struct LlcSegment {
+    pub start: f64,
+    pub end: f64,
+    pub name: String,
+}
+
+#[derive(serde::Serialize)]
+pub struct LlcProject {
+    pub video_path: String,
+    pub cut_segments: Vec<LlcSegment>,
+}
+
+#[derive(serde::Deserialize)]
+struct LlcRaw {
+    #[serde(rename = "mediaFileName")]
+    media_file_name: Option<String>,
+    #[serde(rename = "cutSegments", default)]
+    cut_segments: Vec<LlcRawSegment>,
+}
+
+#[derive(serde::Deserialize)]
+struct LlcRawSegment {
+    #[serde(default)]
+    start: Option<f64>,
+    #[serde(default)]
+    end: Option<f64>,
+    #[serde(default)]
+    name: Option<String>,
+}
+
+/// Read a LosslessCut project file (.llc — JSON5), resolve its referenced
+/// media file relative to the project file's directory, and return the
+/// video path + converted cut segments. The caller maps segments to regions
+/// on the TS side; no .llc state is persisted.
+#[tauri::command]
+pub async fn load_llc_project(llc_path: String) -> Result<LlcProject, String> {
+    let path = std::path::Path::new(&llc_path);
+    let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let raw: LlcRaw = json5::from_str(&content).map_err(|e| format!("Parse .llc: {}", e))?;
+
+    let media = raw
+        .media_file_name
+        .ok_or_else(|| "Missing mediaFileName in .llc file".to_string())?;
+    let parent = path.parent().unwrap_or(std::path::Path::new("."));
+    let video = parent.join(&media);
+    if !video.exists() {
+        return Err(format!(
+            "Referenced video not found: {}",
+            video.display()
+        ));
+    }
+
+    let cut_segments = raw
+        .cut_segments
+        .into_iter()
+        .filter_map(|s| match (s.start, s.end) {
+            (Some(start), Some(end)) if end > start => Some(LlcSegment {
+                start,
+                end,
+                name: s.name.unwrap_or_default(),
+            }),
+            _ => None,
+        })
+        .collect();
+
+    Ok(LlcProject {
+        video_path: video.to_string_lossy().to_string(),
+        cut_segments,
+    })
+}
+
 // ── Scene Detection ──────────────────────────────────────────────────────────
 
 #[derive(serde::Deserialize)]

@@ -3,7 +3,7 @@ import type { RootState } from '../store'
 import type { SavedVideoState, Region } from '../../types'
 import { openVideo, openFolder, loadVideoFromPath, listFolderVideos } from '../../api/video'
 import { saveVideoState, loadVideoState, getFileHash } from '../../api/storage'
-import { checkVideoSidecar, deleteVideoSidecar, openJsonFile as openJsonFileApi, readJsonSidecarForVideo } from '../../api/warp'
+import { checkVideoSidecar, deleteVideoSidecar, openJsonFile as openJsonFileApi, readJsonSidecarForVideo, loadLlcProject } from '../../api/warp'
 import { setVideo, clearVideo, setFolderVideos, setMarkerCount, setMarkersLoaded, setDetectingBpm } from '../slices/videoSlice'
 import { loadAnchors, clearAnchors, setBpm, setMinStretch, setMaxStretch, setLoopBeats, setTrimToLoop, setAddToEnd, setGlobalMarkers, setPlayhead, bumpAnchorIdCounter } from '../slices/warpSlice'
 import { setRegions, setActiveRegionId } from '../slices/regionSlice'
@@ -207,6 +207,57 @@ export const openJsonFileThunk = createAsyncThunk(
       applyLoadedState(dispatch, state, info.path, preLoadEntry)
     } catch (e: any) {
       console.error('Failed to open JSON file:', e)
+    }
+  },
+)
+
+/**
+ * Load a LosslessCut (.llc) project — parse it, load the referenced video,
+ * then overwrite the region list with the file's cutSegments. No .llc state
+ * is persisted on our side; the regions flow into the normal sidecar on
+ * subsequent edits.
+ */
+export const openLlcProjectThunk = createAsyncThunk(
+  'video/openLlcProject',
+  async (llcPath: string, { dispatch, getState }) => {
+    try {
+      const { videoPath, cutSegments } = await loadLlcProject(llcPath)
+      const { warp } = (getState() as RootState)
+      const preLoadEntry: HistoryEntry = {
+        origAnchors: warp.origAnchors,
+        beatAnchors: warp.beatAnchors,
+        linkedBeatIds: warp.linkedBeatIds,
+        beatZeroId: warp.beatZeroId,
+      }
+      const info = await loadVideoFromPath(videoPath)
+      dispatch(setVideo(info))
+      dispatch(setView({ start: 0, end: info.duration }))
+      dispatch(clearAnchors())
+      dispatch(setPlayhead(0))
+      dispatch(setActiveRegionId(null))
+      dispatch(setMarkersLoaded(false))
+
+      // Apply any pre-existing sidecar state first (so the user keeps their
+      // anchors / default-region settings), then override regions with the
+      // .llc segments.
+      const savedState = await loadMarkersForVideo(info.path, info.fileHash)
+      applyLoadedState(dispatch, savedState, info.path, preLoadEntry)
+
+      const bpm = (getState() as RootState).warp.bpm
+      const regions: Region[] = cutSegments.map((s, i) => ({
+        id: `region_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 5)}`,
+        name: s.name || `Clip ${i + 1}`,
+        inPoint: s.start,
+        outPoint: s.end,
+        bpm,
+        minStretch: 0.5,
+        maxStretch: 2.0,
+        addToEnd: false,
+      }))
+      dispatch(setRegions(regions))
+      dispatch(setActiveRegionId(null))
+    } catch (e: any) {
+      console.error('Failed to open .llc project:', e)
     }
   },
 )
