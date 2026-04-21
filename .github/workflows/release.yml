@@ -12,7 +12,15 @@ jobs:
   release:
     permissions:
       contents: write
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.platform }}
 
     steps:
       - uses: actions/checkout@v4
@@ -25,12 +33,16 @@ jobs:
       - run: npm ci
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
+          key: ${{ matrix.target }}
 
-      - name: Download FFmpeg binaries (static, BtbN)
+      - name: Download FFmpeg binaries — Windows (BtbN static)
+        if: matrix.platform == 'windows-latest'
         shell: bash
         run: |
           # BtbN builds are statically linked — they don't depend on MSVC
@@ -44,18 +56,40 @@ jobs:
           cp "$FF_DIR/ffmpeg.exe" src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
           cp "$FF_DIR/ffprobe.exe" src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe
 
-      - name: Download rife-ncnn-vulkan
+      - name: Download rife-ncnn-vulkan — Windows
+        if: matrix.platform == 'windows-latest'
         shell: bash
         run: |
           mkdir -p src-tauri/binaries
           curl -L "https://github.com/nihui/rife-ncnn-vulkan/releases/download/20221029/rife-ncnn-vulkan-20221029-windows.zip" -o rife.zip
           unzip rife.zip -d rife_out
-          # The zip extracts to a versioned directory; find it.
           RIFE_DIR=$(find rife_out -maxdepth 1 -type d -name "rife-ncnn-vulkan-*" | head -n1)
           cp "$RIFE_DIR/rife-ncnn-vulkan.exe" src-tauri/binaries/rife-ncnn-vulkan-x86_64-pc-windows-msvc.exe
-          # Ship only the v4.6 model dir (matches the bundle resources glob).
           mkdir -p src-tauri/binaries/rife-v4.6
           cp "$RIFE_DIR/rife-v4.6/flownet.bin" src-tauri/binaries/rife-v4.6/
+          cp "$RIFE_DIR/rife-v4.6/flownet.param" src-tauri/binaries/rife-v4.6/
+
+      - name: Install FFmpeg — macOS (homebrew)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          brew install ffmpeg
+          mkdir -p src-tauri/binaries
+          cp "$(brew --prefix)/bin/ffmpeg"  src-tauri/binaries/ffmpeg-${{ matrix.target }}
+          cp "$(brew --prefix)/bin/ffprobe" src-tauri/binaries/ffprobe-${{ matrix.target }}
+          chmod +x src-tauri/binaries/ffmpeg-${{ matrix.target }}
+          chmod +x src-tauri/binaries/ffprobe-${{ matrix.target }}
+
+      - name: Download rife-ncnn-vulkan — macOS
+        if: matrix.platform == 'macos-latest'
+        run: |
+          mkdir -p src-tauri/binaries
+          curl -L "https://github.com/nihui/rife-ncnn-vulkan/releases/download/20221029/rife-ncnn-vulkan-20221029-macos.zip" -o rife.zip
+          unzip rife.zip -d rife_out
+          RIFE_DIR=$(find rife_out -maxdepth 1 -type d -name "rife-ncnn-vulkan-*" | head -n1)
+          cp "$RIFE_DIR/rife-ncnn-vulkan" src-tauri/binaries/rife-ncnn-vulkan-${{ matrix.target }}
+          chmod +x src-tauri/binaries/rife-ncnn-vulkan-${{ matrix.target }}
+          mkdir -p src-tauri/binaries/rife-v4.6
+          cp "$RIFE_DIR/rife-v4.6/flownet.bin"   src-tauri/binaries/rife-v4.6/
           cp "$RIFE_DIR/rife-v4.6/flownet.param" src-tauri/binaries/rife-v4.6/
 
       - uses: tauri-apps/tauri-action@v0
@@ -68,3 +102,4 @@ jobs:
             See the assets below to download and install Lockstep.
           releaseDraft: false
           prerelease: false
+          args: --target ${{ matrix.target }}
