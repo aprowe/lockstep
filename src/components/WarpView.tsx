@@ -676,10 +676,17 @@ export default function WarpView({
           onAnchorDelete={handleThinAnchorDelete}
           onAnchorSelect={handleThinAnchorSelect}
           onAnchorContextMenu={handleAnchorContextMenu}
+          onAnchorsChange={handleOrigChange}
           beatAnchors={quantAnchors}
           onBeatAnchorDelete={handleThinBeatAnchorDelete}
           onBeatAnchorSelect={handleThinBeatAnchorSelect}
           onBeatAnchorContextMenu={handleAnchorContextMenu}
+          onBeatAnchorsChange={handleBeatChange}
+          snapInterval={beat / gridDiv}
+          snapOffset={beatOffset}
+          gridDiv={gridDiv}
+          snapTargetsInput={scenes}
+          snapTargetsOutput={clipIn !== undefined ? [beatClipIn ?? 0, beatClipOut ?? outputDuration] : undefined}
           bpm={bpm}
           beatOffset={beatOffset}
           scenes={scenes}
@@ -689,6 +696,14 @@ export default function WarpView({
           regionsOutput={thinRegionsOut}
           onRegionSelect={onClipOverlaySelect}
           onRegionContextMenu={onClipOverlayContextMenu}
+          onRegionResize={onClipOverlayResize}
+          onRegionMove={onClipOverlayMove}
+          onRegionResizeOutput={(id, inP, outP) => {
+            if (activeRegion && clipOverlays?.find(c => c.id === id)) {
+              dispatch(updateRegionBeatTimes({ id: activeRegion.id, inBeatTime: inP, outBeatTime: outP }))
+            }
+          }}
+          onRegionZoom={onClipOverlayZoom}
           segments={segments}
           clipIn={clipIn}
           clipOut={clipOut}

@@ -1,16 +1,27 @@
-/* Region band rows: two short rows (input + output) stacked together. Each
- * row reuses the .clip-overlay--color-N variables from Timeline.css so regions
- * keep a consistent color identity between the old and new layouts.
+/* Region band rows: thin rows (input + output) that render regions as
+ * colored blocks with labels + edge-resize handles. Reuses the
+ * .clip-overlay--color-N variables from Timeline.css so regions keep a
+ * consistent color identity between layouts.
  */
 
 .thin-row--region-input,
 .thin-row--region-output {
-  height: calc(14px * var(--ui-scale));
+  min-height: calc(14px * var(--ui-scale));
 }
 
 .thin-row--region-input .thin-row__body,
 .thin-row--region-output .thin-row__body {
   background: var(--bg-2);
+}
+
+.thin-region-band__body {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.thin-region-band__body > .thin-region {
+  pointer-events: auto;
 }
 
 .thin-region {
@@ -20,8 +31,15 @@
   background: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.55);
   border: 1px solid hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.9);
   border-radius: 2px;
-  cursor: pointer;
+  cursor: grab;
   transition: filter 0.08s, box-shadow 0.08s;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.thin-region:active {
+  cursor: grabbing;
 }
 
 .thin-region:hover {
@@ -31,6 +49,38 @@
 .thin-region--active {
   border-color: hsl(48, 100%, 78%);
   box-shadow: 0 0 4px hsla(48, 100%, 70%, 0.85);
+}
+
+.thin-region__label {
+  flex: 1;
+  padding: 0 6px;
+  font-family: var(--font-family);
+  font-size: calc(10px * var(--ui-scale));
+  letter-spacing: 0.02em;
+  color: var(--fg-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  text-shadow: 0 1px 2px hsla(0, 0%, 0%, 0.8);
+}
+
+.thin-region__handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  cursor: ew-resize;
+  background: transparent;
+  z-index: 1;
+}
+
+.thin-region__handle--l { left: 0; }
+.thin-region__handle--r { right: 0; }
+
+.thin-region__handle:hover,
+.thin-region__handle:active {
+  background: hsla(48, 100%, 78%, 0.35);
+  box-shadow: inset 0 0 0 1px hsla(48, 100%, 78%, 0.8);
 }
 
 /* Output band tints slightly darker to visually distinguish from input. */

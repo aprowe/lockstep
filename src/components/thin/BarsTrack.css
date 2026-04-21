@@ -25,3 +25,21 @@
   background: var(--fg-2);
   opacity: 1;
 }
+
+.thin-bar__label {
+  position: absolute;
+  left: 3px;
+  top: 0;
+  font-family: var(--font-family);
+  font-size: calc(9px * var(--ui-scale));
+  letter-spacing: 0.02em;
+  color: var(--fg-3);
+  white-space: nowrap;
+  pointer-events: none;
+  line-height: 1;
+}
+
+.thin-bar--major .thin-bar__label {
+  color: var(--fg-1);
+  font-weight: 500;
+}

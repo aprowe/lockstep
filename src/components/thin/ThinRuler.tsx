@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import type { View } from '../../types'
 import { timeToViewPct } from '../../utils/view'
 import { formatTime } from '../../utils/time'
@@ -12,6 +12,9 @@ interface ThinRulerProps {
   label?: string
   onSeek?: (time: number) => void
 }
+
+/** Max extra seconds above `duration` we let the user scrub towards. */
+const SCRUB_HEADROOM = 0.001
 
 /**
  * Thin time ruler — seconds ticks + labels. Click → seek. Shares the thin-row
@@ -33,14 +36,43 @@ export default function ThinRuler({ view, duration, playhead, label = 'Time', on
     return out
   }, [view.start, view.end, duration])
 
+  const bodyRef = useRef<HTMLElement | null>(null)
+  const pctToTime = (pct: number) => {
+    const span = view.end - view.start
+    return Math.max(0, Math.min(duration + SCRUB_HEADROOM, view.start + pct * span))
+  }
   const handleBgClick = (pct: number) => {
     if (!onSeek) return
-    const span = view.end - view.start
-    onSeek(Math.max(0, Math.min(duration, view.start + pct * span)))
+    onSeek(pctToTime(pct))
+  }
+  const handlePointerDown = (pct: number, e: React.PointerEvent<HTMLDivElement>) => {
+    if (!onSeek) return
+    const target = e.currentTarget
+    bodyRef.current = target
+    target.setPointerCapture(e.pointerId)
+    onSeek(pctToTime(pct))
+    const onMove = (ev: PointerEvent) => {
+      const rect = target.getBoundingClientRect()
+      const p = (ev.clientX - rect.left) / rect.width
+      onSeek(pctToTime(Math.max(0, Math.min(1, p))))
+    }
+    const onUp = () => {
+      target.removeEventListener('pointermove', onMove)
+      target.removeEventListener('pointerup', onUp)
+      target.removeEventListener('pointercancel', onUp)
+    }
+    target.addEventListener('pointermove', onMove)
+    target.addEventListener('pointerup', onUp)
+    target.addEventListener('pointercancel', onUp)
   }
 
   return (
-    <TrackRow label={label} kind="ruler" onBackgroundClick={handleBgClick}>
+    <TrackRow
+      label={label}
+      kind="ruler"
+      onBackgroundClick={handleBgClick}
+      onBackgroundPointerDown={handlePointerDown}
+    >
       {ticks.map((t, i) => {
         const x = timeToViewPct(t.time, view)
         if (x < -1 || x > 101) return null

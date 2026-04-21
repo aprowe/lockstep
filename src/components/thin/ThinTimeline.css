@@ -2,44 +2,100 @@
   position: relative;
 }
 
-/* Scene row wrapper uses the same rail convention as TrackRow since the
- * existing SceneRow manages its own inner layout. */
+/* Each row lives inside a section wrapper. The wrapper is the flex child
+ * of .thin-timeline and carries the user-adjustable flex-grow value. */
+.thin-timeline__section {
+  display: flex;
+  flex-direction: column;
+  min-height: var(--thin-row-h);
+  width: 100%;
+  position: relative;
+}
+
+/* Force the immediate row child to fill the section vertically. */
+.thin-timeline__section > .thin-row,
+.thin-timeline__section > .warp-connector-wrap,
+.thin-timeline__section > .thin-timeline__scene-wrapper,
+.thin-timeline__section > .thin-timeline__speed-wrapper {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: var(--thin-row-h);
+}
+
+.thin-timeline__section > .thin-row {
+  flex-shrink: 1;
+}
+
+/* Divider between sections: visual is the 1px bottom border of the row above.
+ * The resizer is a transparent 5px-tall hit area with negative margins so it
+ * occupies only 1px of layout space while still being easy to grab. The grip
+ * only occupies the left "rail" column — bodies stay untouched so region
+ * selection, scrubbing, etc. aren't blocked by a 5px-tall overlay. */
+.thin-timeline__resizer {
+  flex: 0 0 5px;
+  height: 5px;
+  margin: -2px 0;
+  background: transparent;
+  position: relative;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.thin-timeline__resizer-grip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--thin-rail-w);
+  pointer-events: auto;
+  cursor: ns-resize;
+  touch-action: none;
+  background: transparent;
+}
+
+.thin-timeline__resizer-grip:hover,
+.thin-timeline__resizer-grip:active {
+  background: hsla(195, 85%, 65%, 0.35);
+}
+
+/* Scene + Speed row wrappers mirror TrackRow's rail+body layout. */
 .thin-timeline__scene-wrapper,
 .thin-timeline__speed-wrapper {
   display: flex;
   flex-direction: row;
   width: 100%;
   border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+  overflow: hidden;
 }
 
 .thin-timeline__scene-body,
 .thin-timeline__speed-body {
   flex: 1;
   min-width: 0;
+  position: relative;
 }
 
-.thin-timeline__speed-body {
-  height: var(--thin-row-h);
+/* Stretch child strips to fill the (now-flexible) body. Both SceneRow and
+ * SpeedStrip ship with a fixed height that would leave a blank gap below
+ * when the parent section is taller than the strip's natural size. */
+.thin-timeline__scene-body > .scene-row,
+.thin-timeline__speed-body > .speed-strip {
+  height: 100%;
+  width: 100%;
 }
 
-/* Marker In / Marker Out rows grow twice as fast as the Warp row;
- * every other row holds its natural thin height. */
-.thin-timeline .thin-row--markers {
-  flex: 2 0 0;
-  height: auto;
-  min-height: var(--thin-row-h);
-}
-
-/* Align WarpConnector's rail with thin rails (it normally uses 76px). */
-.thin-timeline > .warp-connector-wrap {
+/* Align WarpConnector's rail with thin rails (it normally uses 76px).
+ * Override both the custom property and the grid template to defend against
+ * the default `.warp-connector-wrap` rule setting --rail-w at the same
+ * specificity tier. */
+.thin-timeline > .thin-timeline__section > .warp-connector-wrap {
   --rail-w: var(--thin-rail-w);
+  grid-template-columns: var(--thin-rail-w) 1fr;
   border-bottom: 1px solid var(--border);
-  flex: 1 0 var(--thin-row-h);
-  min-height: var(--thin-row-h);
+  overflow: hidden;
 }
 
-.thin-timeline > .warp-connector-wrap .warp-connector__rail-cell {
+.thin-timeline > .thin-timeline__section > .warp-connector-wrap .warp-connector__rail-cell {
   font-size: calc(9px * var(--ui-scale));
   letter-spacing: 0.08em;
   padding: 0 var(--sp-3);
@@ -47,7 +103,7 @@
   border-right: 1px solid var(--border);
 }
 
-.thin-timeline > .warp-connector-wrap .warp-connector {
+.thin-timeline > .thin-timeline__section > .warp-connector-wrap .warp-connector {
   height: 100%;
 }
 
@@ -79,21 +135,174 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 2px;
   transform: translateX(-50%);
   pointer-events: none;
   z-index: 5;
 }
 
-.thin-timeline__playhead {
+.thin-timeline__playhead--thick {
+  width: 2px;
   background: hsl(0, 90%, 65%);
   box-shadow: 0 0 4px hsla(0, 90%, 65%, 0.8);
+}
+
+.thin-timeline__playhead--thin {
+  width: 1px;
+  background: hsla(0, 90%, 65%, 0.85);
+}
+
+.thin-timeline__playhead-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 5;
+}
+
+.thin-timeline__playhead-stroke {
+  fill: none;
+  stroke: hsla(0, 90%, 65%, 0.85);
+  stroke-width: 1;
 }
 
 .thin-timeline__hover {
   width: 1px;
   background: var(--fg-4);
   opacity: 0.5;
+}
+
+/* Through-line overlays — vertical guides at item times that bend across
+ * the Warp section. Sit behind interactive content (z-index < markers/regions)
+ * so they never block clicks. Positioned at the body area (past the rail).
+ * Top/bottom bleed by 2px so adjacent sections' lines visually connect across
+ * the 1px resizer gap. */
+.thin-timeline__through-overlay {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: var(--thin-rail-w);
+  right: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.thin-timeline__through-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  margin-left: -0.5px;
+}
+
+/* Anchor lines — default dotted, selected solid, hover in between. */
+.thin-timeline__through-line--anchor-dotted {
+  width: 1px;
+  background-image: linear-gradient(to bottom, hsla(195, 85%, 75%, 0.55) 50%, transparent 50%);
+  background-size: 1px 4px;
+  background-repeat: repeat-y;
+}
+
+.thin-timeline__through-line--anchor-hover {
+  width: 1px;
+  background: hsla(195, 85%, 70%, 0.75);
+}
+
+.thin-timeline__through-line--anchor-selected {
+  width: 2px;
+  margin-left: -1px;
+  background: hsla(195, 85%, 65%, 0.9);
+  box-shadow: 0 0 4px hsla(195, 85%, 65%, 0.5);
+}
+
+/* Region lines — always thinner than anchor lines, softer color. */
+.thin-timeline__through-line--region-dotted,
+.thin-timeline__through-line--region-hover {
+  width: 1px;
+  background-image: linear-gradient(to bottom, hsla(48, 100%, 78%, 0.35) 50%, transparent 50%);
+  background-size: 1px 3px;
+  background-repeat: repeat-y;
+}
+
+.thin-timeline__through-line--region-selected {
+  width: 1px;
+  background: hsla(48, 100%, 78%, 0.65);
+}
+
+/* Scene through-lines — faint blue-green, thin. */
+.thin-timeline__through-line--scene-dotted,
+.thin-timeline__through-line--scene-hover {
+  width: 1px;
+  background-image: linear-gradient(to bottom, hsla(150, 60%, 75%, 0.45) 50%, transparent 50%);
+  background-size: 1px 3px;
+  background-repeat: repeat-y;
+}
+.thin-timeline__through-line--scene-hover {
+  background-image: linear-gradient(to bottom, hsla(150, 70%, 70%, 0.75) 50%, transparent 50%);
+}
+
+/* Snap-hint through-lines — bright green during drag, thin dashed. */
+.thin-timeline__through-line--snap-snap {
+  width: 1px;
+  background-image: linear-gradient(to bottom, hsla(140, 80%, 65%, 0.85) 50%, transparent 50%);
+  background-size: 1px 4px;
+  background-repeat: repeat-y;
+}
+
+.thin-timeline__through-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.thin-timeline__through-stroke {
+  fill: none;
+}
+
+.thin-timeline__through-stroke--anchor-dotted {
+  stroke: hsla(195, 85%, 75%, 0.55);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.thin-timeline__through-stroke--anchor-hover {
+  stroke: hsla(195, 85%, 70%, 0.75);
+  stroke-width: 1;
+}
+
+.thin-timeline__through-stroke--anchor-selected {
+  stroke: hsla(195, 85%, 65%, 0.9);
+  stroke-width: 2;
+  filter: drop-shadow(0 0 3px hsla(195, 85%, 65%, 0.5));
+}
+
+.thin-timeline__through-stroke--region-dotted,
+.thin-timeline__through-stroke--region-hover {
+  stroke: hsla(48, 100%, 78%, 0.35);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.thin-timeline__through-stroke--region-selected {
+  stroke: hsla(48, 100%, 78%, 0.65);
+  stroke-width: 1;
+}
+
+/* Scenes are input-only — no warp diagonal, but keep styles for completeness. */
+.thin-timeline__through-stroke--scene-dotted,
+.thin-timeline__through-stroke--scene-hover {
+  stroke: hsla(150, 60%, 75%, 0.45);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.thin-timeline__through-stroke--snap-snap {
+  stroke: hsla(140, 80%, 65%, 0.85);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
 }
 
 .thin-timeline__toolbar {
@@ -130,4 +339,12 @@
   background: var(--bg-2);
   border-color: var(--border-hi);
   color: var(--fg-1);
+}
+
+.thin-toolbar__sep {
+  display: inline-block;
+  width: 1px;
+  height: calc(14px * var(--ui-scale));
+  margin: 0 var(--sp-1);
+  background: var(--border);
 }

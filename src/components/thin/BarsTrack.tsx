@@ -62,7 +62,9 @@ export default function BarsTrack({ view, duration, bpm, beatsPerBar = 4, beatOf
             style={{ left: `${x}%` }}
             title={`Bar ${b.idx} @ ${b.time.toFixed(2)}s`}
             onClick={() => onSeek?.(b.time)}
-          />
+          >
+            <span className="thin-bar__label">{b.idx}</span>
+          </button>
         )
       })}
     </TrackRow>

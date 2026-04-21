@@ -1,6 +1,7 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import type { Anchor, View } from '../../types'
 import { timeToViewPct } from '../../utils/view'
+import { computeSnap, pixelsToSeconds, type SnapTarget } from '../../utils/snap'
 import TrackRow from './TrackRow'
 import './MarkersTrack.css'
 
@@ -10,63 +11,184 @@ interface MarkersTrackProps {
   duration: number
   selectedIds: Set<number>
   label?: string
+  /** Grid snap interval (seconds). Typically one beat. */
+  snapInterval?: number
+  snapOffset?: number
+  /** Extra single-point snap targets (scenes, playhead, region edges, etc.). */
+  snapTargets?: number[]
   onSeek?: (time: number) => void
+  /** Double-click on empty background → create an anchor here. */
   onAdd?: (time: number) => void
+  /** Shift-click or double-click on an existing anchor → remove. */
   onDelete?: (id: number) => void
   onSelect?: (id: number, additive: boolean) => void
   onContextMenu?: (id: number, x: number, y: number) => void
+  /** Fires during drag — caller swaps the anchor list in its store. */
+  onAnchorsChange?: (next: Anchor[]) => void
+  /** Fires when a marker gains/loses hover — used for through-line overlays. */
+  onHoverChange?: (id: number | null) => void
+  /** Report nearby snap-target times during a drag (empty array / null when idle). */
+  onSnapHintsChange?: (times: number[] | null) => void
+  /** Report the dragged marker's current time (null when idle). Lets callers
+   *  do things like move the playhead to follow the drag. */
+  onDragTimeChange?: (time: number | null) => void
+}
+
+type DragState = {
+  id: number
+  startX: number
+  startY: number
+  dragging: boolean
 }
 
 /**
- * Thin marker track — shows user-placed anchor times as narrow ticks.
- * Click tick → seek + select. Shift-click → additive select. Right-click →
- * context menu. Click on the row background → add a marker at that time
- * (snap-only; no warping per the thin-layout spec).
+ * Thin marker track — one narrow tick per anchor. Click to seek + select,
+ * shift-click or double-click to remove, double-click background to create,
+ * pointer-drag to move with snap + neighbor clamping.
  */
 export default function MarkersTrack({
   anchors, view, duration,
   selectedIds,
   label = 'Markers',
-  onSeek, onAdd, onDelete, onSelect, onContextMenu,
+  snapInterval, snapOffset = 0, snapTargets,
+  onSeek, onAdd, onDelete, onSelect, onContextMenu, onAnchorsChange, onHoverChange,
+  onSnapHintsChange, onDragTimeChange,
 }: MarkersTrackProps) {
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<DragState | null>(null)
+  const anchorsRef = useRef(anchors); anchorsRef.current = anchors
+
+  const xToTime = useCallback((clientX: number): number => {
+    const el = bodyRef.current
+    if (!el) return 0
+    const rect = el.getBoundingClientRect()
+    const pct = (clientX - rect.left) / rect.width
+    return view.start + pct * (view.end - view.start)
+  }, [view.start, view.end])
+
+  const trySnap = useCallback((raw: number, excludeId: number): number => {
+    const el = bodyRef.current
+    if (!el) return raw
+    const rect = el.getBoundingClientRect()
+    const thresholdSec = pixelsToSeconds(8, rect.width, view.end - view.start)
+    const targets: SnapTarget[] = []
+    for (const a of anchorsRef.current) {
+      if (a.id === excludeId) continue
+      targets.push({ time: a.time, source: 'anchor', id: a.id })
+    }
+    if (snapTargets) for (const t of snapTargets) targets.push({ time: t, source: 'scene' })
+    const grid = snapInterval && snapInterval > 0 ? { interval: snapInterval, offset: snapOffset } : undefined
+    const { delta } = computeSnap({ subjects: [raw], targets, grid, thresholdSec })
+
+    // Emit snap hints: every discrete target whose distance falls within a
+    // looser threshold than the snap itself, so nearby candidates light up
+    // before you're already snapping onto them.
+    if (onSnapHintsChange) {
+      const hintThresholdSec = pixelsToSeconds(24, rect.width, view.end - view.start)
+      const hints: number[] = []
+      for (const t of targets) {
+        if (Math.abs(t.time - raw) <= hintThresholdSec) hints.push(t.time)
+      }
+      if (grid) {
+        const offs = grid.offset ?? 0
+        const nearest = offs + Math.round((raw - offs) / grid.interval) * grid.interval
+        if (Math.abs(nearest - raw) <= hintThresholdSec) hints.push(nearest)
+      }
+      onSnapHintsChange(hints)
+    }
+    return raw + delta
+  }, [view.end, view.start, snapInterval, snapOffset, snapTargets, onSnapHintsChange])
+
+  const handleBgDoubleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!onAdd || e.target !== e.currentTarget) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const pct = (e.clientX - rect.left) / rect.width
+    const t = view.start + pct * (view.end - view.start)
+    if (t >= 0 && t <= duration) onAdd(t)
+  }, [onAdd, view.start, view.end, duration])
+
+  const onMarkerPointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>, a: Anchor) => {
+    if (e.button !== 0) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    dragRef.current = { id: a.id, startX: e.clientX, startY: e.clientY, dragging: false }
+  }, [])
+
+  const onMarkerPointerMove = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = dragRef.current
+    if (!d) return
+    if (!d.dragging) {
+      if (Math.abs(e.clientX - d.startX) < 4 && Math.abs(e.clientY - d.startY) < 4) return
+      d.dragging = true
+    }
+    if (!onAnchorsChange) return
+    const raw = xToTime(e.clientX)
+    const EPS = 0.001
+    const sorted = [...anchorsRef.current].sort((a, b) => a.time - b.time)
+    const idx = sorted.findIndex(a => a.id === d.id)
+    const minT = idx > 0 ? sorted[idx - 1].time + EPS : 0
+    const maxT = idx < sorted.length - 1 ? sorted[idx + 1].time - EPS : duration
+    const clamped = Math.max(minT, Math.min(maxT, raw))
+    const snapped = Math.max(minT, Math.min(maxT, trySnap(clamped, d.id)))
+    onAnchorsChange(anchorsRef.current.map(a => a.id === d.id ? { ...a, time: snapped } : a))
+    onDragTimeChange?.(snapped)
+  }, [xToTime, trySnap, duration, onAnchorsChange, onDragTimeChange])
+
+  const onMarkerClick = useCallback((e: React.MouseEvent<HTMLButtonElement>, a: Anchor) => {
+    const wasDragging = dragRef.current?.dragging ?? false
+    dragRef.current = null
+    onSnapHintsChange?.(null)
+    onDragTimeChange?.(null)
+    if (wasDragging) return
+    e.stopPropagation()
+    if (e.shiftKey && onDelete) { onDelete(a.id); return }
+    onSelect?.(a.id, e.ctrlKey || e.metaKey)
+    onSeek?.(a.time)
+  }, [onDelete, onSelect, onSeek, onSnapHintsChange, onDragTimeChange])
+
+  const onMarkerDoubleClick = useCallback((e: React.MouseEvent<HTMLButtonElement>, a: Anchor) => {
+    e.stopPropagation()
+    onDelete?.(a.id)
+  }, [onDelete])
+
   const handleBgClick = useCallback((pct: number) => {
     if (!onAdd) return
-    const span = view.end - view.start
-    const t = view.start + pct * span
+    const t = view.start + pct * (view.end - view.start)
     if (t >= 0 && t <= duration) onAdd(t)
   }, [onAdd, view.start, view.end, duration])
 
   return (
-    <TrackRow
-      label={label}
-      kind="markers"
-      onBackgroundClick={handleBgClick}
-    >
-      {anchors.map(a => {
-        const x = timeToViewPct(a.time, view)
-        if (x < -1 || x > 101) return null
-        const selected = selectedIds.has(a.id)
-        return (
-          <button
-            key={a.id}
-            type="button"
-            className={`thin-marker${selected ? ' thin-marker--selected' : ''}`}
-            style={{ left: `${x}%` }}
-            title={`Marker @ ${a.time.toFixed(3)}s`}
-            onClick={(e) => {
-              e.stopPropagation()
-              if (e.shiftKey && onDelete) { onDelete(a.id); return }
-              onSelect?.(a.id, e.ctrlKey || e.metaKey)
-              onSeek?.(a.time)
-            }}
-            onContextMenu={(e) => {
-              if (!onContextMenu) return
-              e.preventDefault(); e.stopPropagation()
-              onContextMenu(a.id, e.clientX, e.clientY)
-            }}
-          />
-        )
-      })}
+    <TrackRow label={label} kind="markers" onBackgroundClick={handleBgClick}>
+      <div
+        ref={bodyRef}
+        className="thin-markers__body"
+        onDoubleClick={handleBgDoubleClick}
+      >
+        {anchors.map(a => {
+          const x = timeToViewPct(a.time, view)
+          if (x < -1 || x > 101) return null
+          const selected = selectedIds.has(a.id)
+          return (
+            <button
+              key={a.id}
+              type="button"
+              className={`thin-marker${selected ? ' thin-marker--selected' : ''}`}
+              style={{ left: `${x}%` }}
+              title={`Marker @ ${a.time.toFixed(3)}s`}
+              onPointerDown={(e) => onMarkerPointerDown(e, a)}
+              onPointerMove={onMarkerPointerMove}
+              onClick={(e) => onMarkerClick(e, a)}
+              onDoubleClick={(e) => onMarkerDoubleClick(e, a)}
+              onMouseEnter={() => onHoverChange?.(a.id)}
+              onMouseLeave={() => onHoverChange?.(null)}
+              onContextMenu={(e) => {
+                if (!onContextMenu) return
+                e.preventDefault(); e.stopPropagation()
+                onContextMenu(a.id, e.clientX, e.clientY)
+              }}
+            />
+          )
+        })}
+      </div>
     </TrackRow>
   )
 }

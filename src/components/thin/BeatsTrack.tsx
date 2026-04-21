@@ -11,6 +11,7 @@ interface BeatsTrackProps {
   beatOffset?: number
   /** Optional sub-beat division (1 = beats, 2 = eighths, etc.). */
   division?: number
+  label?: string
   onSeek?: (time: number) => void
 }
 
@@ -19,7 +20,7 @@ interface BeatsTrackProps {
  * optional subdivisions) so users have a snap grid that isn't the coarse
  * bar lines. Hides when too zoomed out to stay readable.
  */
-export default function BeatsTrack({ view, duration, bpm, beatOffset = 0, division = 1, onSeek }: BeatsTrackProps) {
+export default function BeatsTrack({ view, duration, bpm, beatOffset = 0, division = 1, label = 'Beats', onSeek }: BeatsTrackProps) {
   const beats = useMemo(() => {
     if (!bpm || bpm <= 0) return []
     const beatSec = (60 / bpm) / Math.max(1, division)
@@ -34,30 +35,56 @@ export default function BeatsTrack({ view, duration, bpm, beatOffset = 0, divisi
     const firstIdx = Math.ceil((view.start - beatOffset) / beatSec)
     const lastIdx = Math.floor((Math.min(view.end, duration) - beatOffset) / beatSec)
 
-    const out: { idx: number; time: number; downbeat: boolean }[] = []
+    const div = Math.max(1, division)
+    const ticksPerBar = 4 * div
+    // rank: 0 = downbeat (tallest), 1 = whole beat, 2+ = subdivisions
+    // (finer subdivisions get higher ranks → shorter ticks).
+    const rankOf = (i: number): number => {
+      if (i % ticksPerBar === 0) return 0
+      if (i % div === 0) return 1
+      for (let k = 1; div / Math.pow(2, k) >= 1; k++) {
+        const step = div / Math.pow(2, k)
+        if (Number.isInteger(step) && i % step === 0) return 1 + k
+      }
+      return 2
+    }
+    const out: { idx: number; time: number; downbeat: boolean; rank: number; barIdx: number | null; beatInBar: number }[] = []
     for (let i = firstIdx; i <= lastIdx; i += skip) {
       const t = beatOffset + i * beatSec
       if (t < 0 || t > duration) continue
-      // Every 4th beat is a downbeat when we're showing every beat.
-      out.push({ idx: i, time: t, downbeat: skip === 1 && i % (4 * Math.max(1, division)) === 0 })
+      const downbeat = skip === 1 && i % ticksPerBar === 0
+      const onWholeBeat = i % div === 0
+      const rank = rankOf(i)
+      const barIdx = downbeat ? Math.floor(i / ticksPerBar) : null
+      const beatInBar = onWholeBeat ? (Math.floor(i / div) % 4) + 1 : 0
+      out.push({ idx: i, time: t, downbeat, rank, barIdx, beatInBar })
     }
     return out
   }, [view.start, view.end, duration, bpm, beatOffset, division])
 
   return (
-    <TrackRow label="Beats" kind="beats">
+    <TrackRow label={label} kind="beats">
       {beats.map(b => {
         const x = timeToViewPct(b.time, view)
         if (x < -1 || x > 101) return null
+        const showBarNumber = b.downbeat && b.barIdx !== null
+        const showBeatNumber = !b.downbeat && b.beatInBar > 0
         return (
           <button
             key={b.idx}
             type="button"
-            className={`thin-beat${b.downbeat ? ' thin-beat--downbeat' : ''}`}
+            className={`thin-beat thin-beat--rank-${Math.min(b.rank, 4)}${b.downbeat ? ' thin-beat--downbeat' : ''}`}
             style={{ left: `${x}%` }}
             title={`Beat ${b.idx} @ ${b.time.toFixed(3)}s`}
             onClick={() => onSeek?.(b.time)}
-          />
+          >
+            {showBarNumber && (
+              <span className="thin-beat__label thin-beat__label--bar">{b.barIdx! + 1}</span>
+            )}
+            {showBeatNumber && (
+              <span className="thin-beat__label">{b.beatInBar}</span>
+            )}
+          </button>
         )
       })}
     </TrackRow>
