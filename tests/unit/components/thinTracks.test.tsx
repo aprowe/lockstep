@@ -33,7 +33,7 @@ describe('thin tracks', () => {
       expect((markers[1] as HTMLElement).style.left).toBe('75%')
     })
 
-    it('click on background fires onAdd with the scaled time', () => {
+    it('double-click on background fires onAdd with the scaled time', () => {
       const onAdd = vi.fn<(t: number) => void>()
       const { container } = render(
         <MarkersTrack
@@ -44,9 +44,9 @@ describe('thin tracks', () => {
           onAdd={onAdd}
         />
       )
-      const body = container.querySelector('.thin-row__body') as HTMLElement
+      const body = container.querySelector('.thin-markers__body') as HTMLElement
       stubRect(body, 0, 1000)
-      fireEvent.click(body, { clientX: 400 })
+      fireEvent.doubleClick(body, { clientX: 400 })
       expect(onAdd).toHaveBeenCalledTimes(1)
       expect(onAdd.mock.calls[0][0]).toBeCloseTo(40, 1)
     })

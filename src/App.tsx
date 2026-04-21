@@ -674,6 +674,13 @@ export default function App() {
                   onSendToNewRegion={(inPoint, outPoint) =>
                     addRegion(inPoint, outPoint)
                   }
+                  onRegionAdd={t => {
+                    if (!video) return
+                    const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(
+                      t, view, sceneCuts ?? [], video.duration,
+                    )
+                    addRegion(inPoint, outPoint)
+                  }}
                   clipOverlays={regions.map((r, idx) => ({
                     id: r.id,
                     name: r.name,

@@ -37,6 +37,10 @@ interface RegionBandProps {
   onHoverChange?: (id: string | null) => void
   /** Report nearby snap-target times during a resize/move drag (null when idle). */
   onSnapHintsChange?: (times: number[] | null) => void
+  /** Double-click on empty band background — create a new region at time. */
+  onBackgroundAdd?: (time: number) => void
+  /** Right-click on empty band background — global timeline menu. */
+  onBackgroundContextMenu?: (time: number, x: number, y: number) => void
 }
 
 type Gesture =
@@ -56,6 +60,7 @@ export default function RegionBand({
   label, kind, regions, view, hideLabels,
   snapTargets, snapInterval, snapOffset = 0,
   onSelect, onContextMenu, onResize, onMove, onZoom, onHoverChange, onSnapHintsChange,
+  onBackgroundAdd, onBackgroundContextMenu,
 }: RegionBandProps) {
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const gestureRef = useRef<Gesture>(null)
@@ -217,9 +222,35 @@ export default function RegionBand({
     }
   }, [onSelect, onSnapHintsChange, flushPending])
 
+  const handleBgDoubleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!onBackgroundAdd) return
+      if (e.target !== e.currentTarget) return
+      const t = xToTime(e.clientX)
+      onBackgroundAdd(t)
+    },
+    [onBackgroundAdd, xToTime],
+  )
+
+  const handleBgContextMenu = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!onBackgroundContextMenu) return
+      if (e.target !== e.currentTarget) return
+      e.preventDefault(); e.stopPropagation()
+      const t = xToTime(e.clientX)
+      onBackgroundContextMenu(t, e.clientX, e.clientY)
+    },
+    [onBackgroundContextMenu, xToTime],
+  )
+
   return (
     <TrackRow label={label ?? (kind === 'input' ? 'Regions' : 'Out')} kind={`region-${kind}`}>
-      <div className="thin-region-band__body" ref={bodyRef}>
+      <div
+        className="thin-region-band__body"
+        ref={bodyRef}
+        onDoubleClick={handleBgDoubleClick}
+        onContextMenu={handleBgContextMenu}
+      >
         {regions.map(r => {
           if (r.outPoint <= r.inPoint) return null
           const left = timeToViewPct(r.inPoint, view)

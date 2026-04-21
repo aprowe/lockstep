@@ -36,6 +36,9 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
   const stripFrames = useAppSelector(s =>
     video ? s.thumbnails.stripFramesByHash[video.fileHash] ?? [] : [],
   )
+  const hoverFrames = useAppSelector(s =>
+    video ? s.thumbnails.hoverFramesByHash[video.fileHash] ?? [] : [],
+  )
 
   // Freeze the playhead (and therefore the filmstrip slots + priority signature)
   // while the video is playing — we don't want thumbnail churn during playback.
@@ -89,6 +92,7 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
       markerFrames.join(','),
       sceneFrames.join(','),
       stripFrames.join(','),
+      hoverFrames.join(','),
       viewportFrames.join(','),
       thumbWidth,
       maxCachedFrames,
@@ -107,13 +111,14 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
         markerFrames,
         sceneFrames,
         stripFrames,
+        hoverFrames,
         viewportFrames,
         thumbWidth,
         maxCachedFrames,
       }).catch(() => {})
     }, PUSH_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [video, playhead, origAnchors, regions, scenes, stripFrames, view, thumbWidth, maxCachedFrames])
+  }, [video, playhead, origAnchors, regions, scenes, stripFrames, hoverFrames, view, thumbWidth, maxCachedFrames])
 
   const slots = useMemo(() => {
     if (!video) return []

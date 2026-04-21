@@ -26,11 +26,16 @@ groups:
     - Jump to Region End
     - Zoom to Region
 
+  - - New Scene
+    - Next Scene
+    - Prev Scene
+
   - - Play
     - Prev Frame
     - Next Frame
     - Play Time
     - Frame Count
+    - Beat Count (clip based)
 
   - - Speed
     - Grid

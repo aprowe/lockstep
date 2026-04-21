@@ -12,32 +12,16 @@ interface ThumbnailStripTrackProps {
   duration: number
   view: View
   label?: string
-  /** Pixel height of the row; thumbnail width = height × video aspect. */
-  rowHeight?: number
   onSeek?: (time: number) => void
 }
 
-interface Strip {
-  start: number
-  end: number
-}
-
-interface StripLayout extends Strip {
-  slots: { t: number; frame: number }[]
-}
-
 /**
- * Narrow row that lays out connected thumbnails between consecutive scene
- * markers. Each strip starts at a scene (or the timeline origin when no scene
- * precedes) and ends at the next scene (or duration). Thumbnails are sized
- * square to the row height and sampled at regular intervals across the strip.
- *
- * Publishes its visible slot frames to the thumbnails slice so the Filmstrip's
- * priority push includes them in the backend request — otherwise viewport
- * sampling alone isn't dense enough to fill a strip.
+ * Shows one thumbnail per scene marker, positioned at the marker's time.
+ * Scene frames are already a priority tier on the backend, so nothing extra
+ * needs to be pushed — this track just reads from the cache.
  */
 export default function ThumbnailStripTrack({
-  scenes, duration, view, label = 'Thumbs', rowHeight = 18, onSeek,
+  scenes, duration, view, label = 'Thumbs', onSeek,
 }: ThumbnailStripTrackProps) {
   const dispatch = useAppDispatch()
   const video = useAppSelector(s => s.video.video)
@@ -45,100 +29,9 @@ export default function ThumbnailStripTrack({
     video ? s.thumbnails.pathsByHashAndFrame[video.fileHash] ?? {} : {},
   )
 
-  const bodyRef = useRef<HTMLDivElement>(null)
-  const [bodyWidth, setBodyWidth] = useState(0)
-  // Aspect = width / height. Default 16/9 until the first thumbnail loads and
-  // reports its natural dimensions.
   const [aspect, setAspect] = useState(16 / 9)
-  const thumbPx = rowHeight * aspect
-
-  useEffect(() => {
-    const el = bodyRef.current
-    if (!el) return
-    const ro = new ResizeObserver(entries => {
-      for (const e of entries) setBodyWidth(e.contentRect.width)
-    })
-    ro.observe(el)
-    setBodyWidth(el.getBoundingClientRect().width)
-    return () => ro.disconnect()
-  }, [])
-
-  const strips = useMemo<Strip[]>(() => {
-    const sorted = [...scenes].filter(t => t >= 0 && t <= duration).sort((a, b) => a - b)
-    const out: Strip[] = []
-    if (sorted.length === 0) {
-      if (duration > 0) out.push({ start: 0, end: duration })
-      return out
-    }
-    if (sorted[0] > 0) out.push({ start: 0, end: sorted[0] })
-    for (let i = 0; i < sorted.length; i++) {
-      const start = sorted[i]
-      const end = i + 1 < sorted.length ? sorted[i + 1] : duration
-      if (end > start) out.push({ start, end })
-    }
-    return out
-  }, [scenes, duration])
-
-  const viewSpan = view.end - view.start
-  const pxPerSec = bodyWidth > 0 && viewSpan > 0 ? bodyWidth / viewSpan : 0
-  const fps = video?.fps ?? 0
-
-  // Lay out slots only for strips that intersect the viewport. Off-screen
-  // strips contribute nothing to render and nothing to the priority push.
-  const visibleStrips = useMemo<StripLayout[]>(() => {
-    if (pxPerSec <= 0 || fps <= 0) return []
-    const out: StripLayout[] = []
-    for (const s of strips) {
-      if (s.end <= view.start || s.start >= view.end) continue
-      const stripPx = (s.end - s.start) * pxPerSec
-      const count = Math.max(1, Math.floor(stripPx / thumbPx))
-      const slotSec = (s.end - s.start) / count
-      const slots: { t: number; frame: number }[] = []
-      for (let k = 0; k < count; k++) {
-        const t = s.start + (k + 0.5) * slotSec
-        slots.push({ t, frame: Math.floor(t * fps) })
-      }
-      out.push({ ...s, slots })
-    }
-    return out
-  }, [strips, pxPerSec, fps, thumbPx, view.start, view.end])
-
-  // Publish visible slot frames to the store so Filmstrip's priority push can
-  // include them in the request to the backend renderer.
-  useEffect(() => {
-    if (!video) return
-    const fileHash = video.fileHash
-    const frames: number[] = []
-    const seen = new Set<number>()
-    for (const s of visibleStrips) {
-      for (const slot of s.slots) {
-        if (!seen.has(slot.frame)) {
-          seen.add(slot.frame)
-          frames.push(slot.frame)
-        }
-      }
-    }
-    dispatch(setStripFrames({ fileHash, frames }))
-  }, [dispatch, video, visibleStrips])
-
-  // On unmount (e.g. user toggles the strip off), drop our priority claim so
-  // the backend stops rendering strip frames for this video.
-  const hashRef = useRef<string | null>(null)
-  hashRef.current = video?.fileHash ?? null
-  useEffect(() => () => {
-    const h = hashRef.current
-    if (h) dispatch(setStripFrames({ fileHash: h, frames: [] }))
-  }, [dispatch])
-
-  const thumbSrc = useCallback((frame: number): string | null => {
-    const path = thumbPaths[frame]
-    return path ? convertFileSrc(path) : null
-  }, [thumbPaths])
-
   const aspectCapturedRef = useRef(false)
-  useEffect(() => {
-    aspectCapturedRef.current = false
-  }, [video?.fileHash])
+  useEffect(() => { aspectCapturedRef.current = false }, [video?.fileHash])
   const handleImgLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     if (aspectCapturedRef.current) return
     const { naturalWidth: w, naturalHeight: h } = e.currentTarget
@@ -148,46 +41,56 @@ export default function ThumbnailStripTrack({
     }
   }, [])
 
+  // Clear any previously-published strip frames — this track no longer pushes
+  // a dense grid; scene_frames is already its own priority tier on the backend.
+  const hashRef = useRef<string | null>(null)
+  hashRef.current = video?.fileHash ?? null
+  useEffect(() => {
+    const h = hashRef.current
+    if (h) dispatch(setStripFrames({ fileHash: h, frames: [] }))
+    return () => {
+      const h2 = hashRef.current
+      if (h2) dispatch(setStripFrames({ fileHash: h2, frames: [] }))
+    }
+  }, [dispatch])
+
+  const fps = video?.fps ?? 0
+
+  const visible = useMemo(() => {
+    if (fps <= 0) return []
+    return scenes
+      .filter(t => t >= 0 && t <= duration && t >= view.start && t <= view.end)
+      .map(t => ({ t, frame: Math.floor(t * fps) }))
+  }, [scenes, duration, view.start, view.end, fps])
+
   return (
     <TrackRow label={label} kind="thumbs">
-      <div ref={bodyRef} className="thin-thumbs__body">
-        {visibleStrips.map((s, i) => {
-          const leftPct = timeToViewPct(s.start, view)
-          const rightPct = timeToViewPct(s.end, view)
-          const widthPct = rightPct - leftPct
-          const count = s.slots.length
+      <div className="thin-thumbs__body">
+        {visible.map(({ t, frame }) => {
+          const path = thumbPaths[frame]
+          const src = path ? convertFileSrc(path) : null
+          const leftPct = timeToViewPct(t, view)
           return (
-            <div
-              key={i}
-              className="thin-thumbs__strip"
-              style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+            <button
+              key={t}
+              type="button"
+              className="thin-thumbs__scene"
+              style={{ left: `${leftPct}%`, aspectRatio: `${aspect}` }}
+              onClick={() => onSeek?.(t)}
+              title={`${t.toFixed(2)}s`}
             >
-              {s.slots.map(({ t, frame }, k) => {
-                const src = thumbSrc(frame)
-                return (
-                  <button
-                    key={k}
-                    type="button"
-                    className="thin-thumbs__slot"
-                    style={{ width: `${100 / count}%` }}
-                    onClick={() => onSeek?.(t)}
-                    title={`${t.toFixed(2)}s`}
-                  >
-                    {src ? (
-                      <img
-                        className="thin-thumbs__img"
-                        src={src}
-                        alt=""
-                        draggable={false}
-                        onLoad={handleImgLoad}
-                      />
-                    ) : (
-                      <div className="thin-thumbs__placeholder" />
-                    )}
-                  </button>
-                )
-              })}
-            </div>
+              {src ? (
+                <img
+                  className="thin-thumbs__img"
+                  src={src}
+                  alt=""
+                  draggable={false}
+                  onLoad={handleImgLoad}
+                />
+              ) : (
+                <div className="thin-thumbs__placeholder" />
+              )}
+            </button>
           )
         })}
       </div>

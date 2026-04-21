@@ -41,6 +41,10 @@ struct PriorityContext {
     /// points still get thumbnails first.
     strip_frames: Vec<i64>,
     viewport_frames: (i64, i64),
+    /// Hover preview frames — the frames under the user's cursor on the
+    /// timeline. Lowest priority on purpose: workers only get to these when
+    /// literally everything else is already satisfied.
+    hover_frames: Vec<i64>,
 }
 
 struct VideoState {
@@ -84,6 +88,8 @@ pub struct PriorityRequest {
     pub scene_frames: Vec<i64>,
     #[serde(default)]
     pub strip_frames: Vec<i64>,
+    #[serde(default)]
+    pub hover_frames: Vec<i64>,
     pub viewport_frames: (i64, i64),
     /// Output width for extracted thumbnails. Changing this invalidates the
     /// existing cache for this video (entries at a different size get wiped).
@@ -185,6 +191,12 @@ fn frame_priority(ctx: &PriorityContext, frame: i64) -> f64 {
         return 100.0 + tiebreak;
     }
 
+    for &h in &ctx.hover_frames {
+        if (frame - h).abs() <= 1 {
+            return 500.0 + tiebreak;
+        }
+    }
+
     1000.0 + tiebreak
 }
 
@@ -246,7 +258,7 @@ fn candidate_frames(ctx: &PriorityContext, max_frame: i64) -> Vec<(i64, f64)> {
         out.push((f, 50.0 + (f - ph).abs() as f64 * 0.0001));
     }
 
-    // Viewport samples — lowest priority, background fill.
+    // Viewport samples — background fill.
     let (vs, ve) = ctx.viewport_frames;
     let vs = clamp(vs);
     let ve = clamp(ve);
@@ -257,6 +269,13 @@ fn candidate_frames(ctx: &PriorityContext, max_frame: i64) -> Vec<(i64, f64)> {
             out.push((f, 100.0));
             f += step;
         }
+    }
+
+    // Hover frames — absolute-lowest real tier. Workers only pull these when
+    // nothing higher-priority is pending.
+    for &f in &ctx.hover_frames {
+        let f = clamp(f);
+        out.push((f, 500.0 + (f - ph).abs() as f64 * 0.0001));
     }
 
     // Dedupe by frame, keeping the lowest score.
@@ -502,12 +521,100 @@ pub async fn set_thumbnail_priority<R: Runtime>(
             scene_frames: req.scene_frames,
             strip_frames: req.strip_frames,
             viewport_frames: req.viewport_frames,
+            hover_frames: req.hover_frames,
         };
         evict_overflow(&mut st);
     }
 
     schedule(app, req.file_hash, entry);
     Ok(())
+}
+
+#[derive(serde::Serialize)]
+pub struct QueueTierStats {
+    pub name: String,
+    pub total: usize,
+    pub ready: usize,
+    pub in_flight: usize,
+    pub pending: usize,
+}
+
+#[derive(serde::Serialize)]
+pub struct QueueStats {
+    pub file_hash: String,
+    pub workers_running: u32,
+    pub total_ready: usize,
+    pub total_in_flight: usize,
+    pub max_cached_frames: usize,
+    pub max_frame: i64,
+    pub tiers: Vec<QueueTierStats>,
+}
+
+fn tier_name(score: f64) -> &'static str {
+    if score < 5.0 { "playhead" }
+    else if score < 10.0 { "markers" }
+    else if score < 20.0 { "region_edges" }
+    else if score < 30.0 { "region_interior" }
+    else if score < 50.0 { "scenes" }
+    else if score < 100.0 { "strip" }
+    else if score < 500.0 { "viewport" }
+    else if score < 1000.0 { "hover" }
+    else { "other" }
+}
+
+#[tauri::command]
+pub async fn get_thumbnail_queue_stats(
+    state: tauri::State<'_, ThumbnailsState>,
+    file_hash: String,
+) -> Result<Option<QueueStats>, String> {
+    let entry = {
+        let reg = state.0.lock().unwrap();
+        match reg.videos.get(&file_hash) {
+            Some(e) => e.clone(),
+            None => return Ok(None),
+        }
+    };
+    let st = entry.lock().unwrap();
+    let cands = candidate_frames(&st.context, st.max_frame);
+
+    let order = [
+        "playhead", "markers", "region_edges", "region_interior",
+        "scenes", "strip", "viewport", "hover", "other",
+    ];
+    let mut by_name: std::collections::HashMap<&'static str, QueueTierStats> =
+        std::collections::HashMap::new();
+    for name in order.iter() {
+        by_name.insert(*name, QueueTierStats {
+            name: (*name).to_string(),
+            total: 0, ready: 0, in_flight: 0, pending: 0,
+        });
+    }
+    for (f, score) in &cands {
+        let name = tier_name(*score);
+        let t = by_name.get_mut(name).unwrap();
+        t.total += 1;
+        if st.ready.contains(f) {
+            t.ready += 1;
+        } else if st.in_flight.contains(f) {
+            t.in_flight += 1;
+        } else {
+            t.pending += 1;
+        }
+    }
+    let tiers: Vec<QueueTierStats> = order
+        .iter()
+        .map(|n| by_name.remove(*n).unwrap())
+        .collect();
+
+    Ok(Some(QueueStats {
+        file_hash: file_hash.clone(),
+        workers_running: st.workers_running,
+        total_ready: st.ready.len(),
+        total_in_flight: st.in_flight.len(),
+        max_cached_frames: st.max_cached_frames,
+        max_frame: st.max_frame,
+        tiers,
+    }))
 }
 
 #[tauri::command]

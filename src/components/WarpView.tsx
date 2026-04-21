@@ -51,6 +51,8 @@ interface WarpViewProps {
   onSceneAdd?: (time: number) => void
   /** Delete the scene cut at this time (shift-click or right-click on diamond). */
   onSceneDelete?: (time: number) => void
+  /** Create a new region with a sensible span around this time. */
+  onRegionAdd?: (time: number) => void
 }
 
 export default function WarpView({
@@ -65,6 +67,7 @@ export default function WarpView({
   scenes: scenesProp,
   onSceneAdd,
   onSceneDelete,
+  onRegionAdd,
 }: WarpViewProps) {
   const dispatch = useAppDispatch()
 
@@ -505,6 +508,40 @@ export default function WarpView({
     }
   }, [dispatch, selectedIds])
 
+  const handleSceneContextMenu = useCallback((time: number, x: number, y: number) => {
+    setContextMenu({
+      x, y,
+      items: [
+        { label: 'Seek to scene', action: () => onSeek?.(time) },
+        ...(onSceneDelete ? [{
+          label: 'Delete scene',
+          danger: true as const,
+          action: () => onSceneDelete(time),
+        }] : []),
+      ],
+    })
+  }, [onSeek, onSceneDelete])
+
+  const handleTimelineContextMenu = useCallback((time: number, x: number, y: number) => {
+    setContextMenu({
+      x, y,
+      items: [
+        {
+          label: 'Create marker here',
+          action: () => handleThinAnchorAdd(time),
+        },
+        ...(onSceneAdd ? [{
+          label: 'Create scene here',
+          action: () => onSceneAdd(time),
+        }] : []),
+        ...(onRegionAdd ? [{
+          label: 'Create region here',
+          action: () => onRegionAdd(time),
+        }] : []),
+      ],
+    })
+  }, [handleThinAnchorAdd, onSceneAdd, onRegionAdd])
+
   // ── Render ────────────────────────────────────────────────────────────────
   const warpCursor = panning
     ? { cursor: 'grabbing' }
@@ -551,6 +588,9 @@ export default function WarpView({
         scenes={scenes}
         onSceneAdd={onSceneAdd}
         onSceneDelete={onSceneDelete}
+        onSceneContextMenu={handleSceneContextMenu}
+        onRegionAdd={onRegionAdd}
+        onTimelineContextMenu={handleTimelineContextMenu}
         regions={thinRegions}
         regionsOutput={thinRegionsOut}
         onRegionSelect={onClipOverlaySelect}

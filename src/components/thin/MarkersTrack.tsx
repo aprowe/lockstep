@@ -23,6 +23,8 @@ interface MarkersTrackProps {
   onDelete?: (id: number) => void
   onSelect?: (id: number, additive: boolean) => void
   onContextMenu?: (id: number, x: number, y: number) => void
+  /** Right-click on empty background — raise a global timeline menu at (time,x,y). */
+  onBackgroundContextMenu?: (time: number, x: number, y: number) => void
   /** Fires during drag — caller swaps the anchor list in its store. */
   onAnchorsChange?: (next: Anchor[]) => void
   /** Fires when a marker gains/loses hover — used for through-line overlays. */
@@ -51,7 +53,7 @@ export default function MarkersTrack({
   selectedIds,
   label = 'Markers',
   snapInterval, snapOffset = 0, snapTargets,
-  onSeek, onAdd, onDelete, onSelect, onContextMenu, onAnchorsChange, onHoverChange,
+  onSeek, onAdd, onDelete, onSelect, onContextMenu, onBackgroundContextMenu, onAnchorsChange, onHoverChange,
   onSnapHintsChange, onDragTimeChange,
 }: MarkersTrackProps) {
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -178,18 +180,26 @@ export default function MarkersTrack({
     onDelete?.(a.id)
   }, [onDelete])
 
-  const handleBgClick = useCallback((pct: number) => {
-    if (!onAdd) return
-    const t = view.start + pct * (view.end - view.start)
-    if (t >= 0 && t <= duration) onAdd(t)
-  }, [onAdd, view.start, view.end, duration])
+  const handleBgContextMenu = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!onBackgroundContextMenu) return
+      if (e.target !== e.currentTarget) return
+      e.preventDefault(); e.stopPropagation()
+      const rect = e.currentTarget.getBoundingClientRect()
+      const pct = (e.clientX - rect.left) / rect.width
+      const t = view.start + pct * (view.end - view.start)
+      onBackgroundContextMenu(t, e.clientX, e.clientY)
+    },
+    [onBackgroundContextMenu, view.start, view.end],
+  )
 
   return (
-    <TrackRow label={label} kind="markers" onBackgroundClick={handleBgClick}>
+    <TrackRow label={label} kind="markers">
       <div
         ref={bodyRef}
         className="thin-markers__body"
         onDoubleClick={handleBgDoubleClick}
+        onContextMenu={handleBgContextMenu}
       >
         {anchors.map(a => {
           const x = timeToViewPct(a.time, view)

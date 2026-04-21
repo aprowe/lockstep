@@ -39,6 +39,7 @@ pub fn run() {
             storage::get_file_hash,
             thumbnails::set_thumbnail_priority,
             thumbnails::get_thumbnail_path,
+            thumbnails::get_thumbnail_queue_stats,
             thumbnails::clear_thumbnails,
             thumbnails::clear_all_thumbnails,
         ])

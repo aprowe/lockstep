@@ -12,9 +12,12 @@ elements:
       def: the input ruler is a minor horizontal layer in the $warp_stack. Its primary function is to show the time elapsed in the video,
         and to provide a visual reference for the position of the playhead.
 
+    - key: region_strip
+      def: The region strip shows the regions that different parts of the timeline belong to 
+
     - key: input_timeline
       def: the input timeline is an major horizontal layer in the $warp_stack. 
-        Its primary function is to show regions and markers and provide a general working space for markers and clips
+        Its primary function is to show markers and provide a general working space for markers
         it corresponds to the original timeline of the video, and is the basis for all warping operations.
 
     - key: scene_strip
@@ -58,4 +61,3 @@ elements:
   - key: ["scrub", "scrubbing", "scrubbed"]
     def: Scrubbing requires the mouse to be clicked inside the UI area, the mouse moved horizontally while mouse button stays down. It does not matter if the mouse leaves
       the initial UI area, as long as the mouse button is still down. 
-    

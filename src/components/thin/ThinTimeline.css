@@ -173,6 +173,25 @@
   opacity: 0.5;
 }
 
+.thin-timeline__lasso-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--thin-rail-w);
+  right: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.thin-timeline__lasso {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: hsla(0, 0%, 100%, 0.08);
+  border-left: 1px solid hsla(0, 0%, 100%, 0.35);
+  border-right: 1px solid hsla(0, 0%, 100%, 0.35);
+}
+
 /* Through-line overlays — vertical guides at item times that bend across
  * the Warp section. Sit behind interactive content (z-index < markers/regions)
  * so they never block clicks. Positioned at the body area (past the rail).

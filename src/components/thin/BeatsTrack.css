@@ -5,16 +5,16 @@
   width: 1px;
   padding: 0;
   transform: translateX(-50%);
-  background: hsl(213, 60%, 55%);
+  background: hsl(0, 0%, 55%);
   border: none;
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: pointer;
   transition: opacity 0.08s, width 0.08s, background 0.08s;
 }
 
 .thin-beat:hover {
   opacity: 1;
-  background: hsl(213, 80%, 70%);
+  background: hsl(0, 0%, 80%);
 }
 
 /* rank 0 = downbeat: tallest, strongest */
@@ -22,37 +22,37 @@
   top: 2px;
   bottom: 2px;
   width: 2px;
-  background: hsl(213, 85%, 70%);
-  opacity: 1;
+  background: hsl(0, 0%, 78%);
+  opacity: 0.95;
 }
 
 /* rank 1 = whole beat */
 .thin-beat--rank-1 {
   top: 4px;
   bottom: 4px;
-  background: hsl(213, 70%, 65%);
-  opacity: 0.85;
+  background: hsl(0, 0%, 65%);
+  opacity: 0.75;
 }
 
 /* rank 2 = half-beat subdivision */
 .thin-beat--rank-2 {
   top: 7px;
   bottom: 7px;
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 /* rank 3 = quarter-beat subdivision */
 .thin-beat--rank-3 {
   top: 9px;
   bottom: 9px;
-  opacity: 0.4;
+  opacity: 0.35;
 }
 
 /* rank 4+ = finest subdivisions */
 .thin-beat--rank-4 {
   top: 11px;
   bottom: 11px;
-  opacity: 0.3;
+  opacity: 0.25;
 }
 
 .thin-beat__label {
@@ -61,14 +61,14 @@
   top: -1px;
   font-size: calc(8px * var(--ui-scale));
   line-height: 1;
-  color: hsl(213, 50%, 75%);
+  color: hsl(0, 0%, 70%);
   pointer-events: none;
   white-space: nowrap;
   opacity: 0.75;
 }
 
 .thin-beat__label--bar {
-  color: hsl(213, 90%, 85%);
+  color: hsl(0, 0%, 92%);
   font-weight: 600;
   opacity: 1;
 }

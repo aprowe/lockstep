@@ -20,15 +20,22 @@ interface SceneRowProps {
   onSceneHover?: (time: number | null) => void
   /** Current playhead time — highlights the closest scene within one frame. */
   playhead?: number
-  /** Shift-click (or right-click) on a scene diamond — remove that scene. */
+  /** Shift-click or double-click on a scene diamond — remove that scene. */
   onSceneDelete?: (time: number) => void
-  /** Click on the empty row background — add a scene at that timestamp. */
+  /** Double-click on the empty row background — add a scene at that timestamp. */
   onSceneAdd?: (time: number) => void
+  /** Right-click on a scene diamond — caller shows a context menu. */
+  onSceneContextMenu?: (time: number, x: number, y: number) => void
+  /** Right-click on the empty row background — global timeline menu. */
+  onBackgroundContextMenu?: (time: number, x: number, y: number) => void
 }
 
 const PLAYHEAD_MATCH_TOLERANCE = 0.05 // ~1 video frame at 20fps
 
-export default function SceneRow({ scenes, view, duration, expanded, onSceneClick, onSceneHover, playhead, onSceneDelete, onSceneAdd }: SceneRowProps) {
+export default function SceneRow({
+  scenes, view, duration, expanded, onSceneClick, onSceneHover, playhead,
+  onSceneDelete, onSceneAdd, onSceneContextMenu, onBackgroundContextMenu,
+}: SceneRowProps) {
   const video = useAppSelector(s => s.video.video)
   const thumbPaths = useAppSelector(s =>
     video ? s.thumbnails.pathsByHashAndFrame[video.fileHash] ?? {} : {},
@@ -68,9 +75,8 @@ export default function SceneRow({ scenes, view, duration, expanded, onSceneClic
     setThumbnailHover(null)
   }, [onSceneHover, setThumbnailHover])
 
-  // Background click → add a cut at the clicked timestamp. Ignore clicks that
-  // bubble up from diamonds/labels (they're handled separately).
-  const handleBackgroundClick = useCallback(
+  // Double-click on empty row background → add a cut at the clicked timestamp.
+  const handleBackgroundDoubleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (!onSceneAdd) return
       if (e.target !== e.currentTarget) return
@@ -83,10 +89,24 @@ export default function SceneRow({ scenes, view, duration, expanded, onSceneClic
     [onSceneAdd, view.start, view.end, duration],
   )
 
+  const handleBackgroundContextMenu = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!onBackgroundContextMenu) return
+      if (e.target !== e.currentTarget) return
+      e.preventDefault(); e.stopPropagation()
+      const rect = e.currentTarget.getBoundingClientRect()
+      const pct = (e.clientX - rect.left) / rect.width
+      const t = view.start + Math.max(0, Math.min(1, pct)) * (view.end - view.start)
+      onBackgroundContextMenu(t, e.clientX, e.clientY)
+    },
+    [onBackgroundContextMenu, view.start, view.end],
+  )
+
   return (
     <div
       className={`scene-row${expanded ? ' scene-row--expanded' : ''}`}
-      onClick={handleBackgroundClick}
+      onDoubleClick={handleBackgroundDoubleClick}
+      onContextMenu={handleBackgroundContextMenu}
     >
       {scenes.map((t, i) => {
         if (t < 0 || t > duration) return null
@@ -100,25 +120,24 @@ export default function SceneRow({ scenes, view, duration, expanded, onSceneClic
               type="button"
               className={`scene-row__diamond${active ? ' scene-row__diamond--active' : ''}`}
               onClick={(e) => {
-                // Shift-click deletes; plain click seeks. Stop propagation so
-                // the row background doesn't also fire an "add" at this spot.
                 e.stopPropagation()
-                if (e.shiftKey && onSceneDelete) {
-                  onSceneDelete(t)
-                } else {
-                  onSceneClick?.(t)
-                }
+                if (e.shiftKey && onSceneDelete) onSceneDelete(t)
+                else onSceneClick?.(t)
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation()
+                onSceneDelete?.(t)
               }}
               onContextMenu={(e) => {
-                if (!onSceneDelete) return
                 e.preventDefault()
                 e.stopPropagation()
-                onSceneDelete(t)
+                if (onSceneContextMenu) onSceneContextMenu(t, e.clientX, e.clientY)
+                else onSceneDelete?.(t)
               }}
               onMouseEnter={(e) => handleDiamondEnter(t, e)}
               onMouseLeave={handleLeave}
               aria-label={`Scene ${i + 1}`}
-              title={onSceneDelete ? `Scene ${i + 1} — shift-click to delete` : `Scene ${i + 1}`}
+              title={`Scene ${i + 1}`}
             />
             {expanded && (
               <button

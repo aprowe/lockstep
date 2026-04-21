@@ -1,4 +1,6 @@
-import { Fragment, useCallback, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import { setHoverFrames } from '../../store/slices/thumbnailsSlice'
 import type { Anchor, View, WarpSegment } from '../../types'
 import { clampView, timeToViewPct } from '../../utils/view'
 import SceneRow from '../SceneRow'
@@ -11,6 +13,7 @@ import BarsTrack from './BarsTrack'
 import BeatsTrack from './BeatsTrack'
 import RegionBand, { type RegionBlock } from './RegionBand'
 import ThumbnailStripTrack from './ThumbnailStripTrack'
+import ThumbnailQueueDebug from '../ThumbnailQueueDebug'
 import './ThinTimeline.css'
 
 interface ThinTimelineProps {
@@ -54,6 +57,12 @@ interface ThinTimelineProps {
   scenes: number[]
   onSceneAdd?: (time: number) => void
   onSceneDelete?: (time: number) => void
+  onSceneContextMenu?: (time: number, x: number, y: number) => void
+
+  /** Create a new region at the clicked time (double-click on empty region band). */
+  onRegionAdd?: (time: number) => void
+  /** Right-click on any empty timeline body — caller shows a global menu. */
+  onTimelineContextMenu?: (time: number, x: number, y: number) => void
 
   regions: RegionBlock[]
   regionsOutput?: RegionBlock[]
@@ -109,7 +118,8 @@ export default function ThinTimeline({
   onBeatAnchorDelete, onBeatAnchorSelect, onBeatAnchorContextMenu, onBeatAnchorsChange,
   snapInterval, snapOffset = 0, snapTargetsInput, snapTargetsOutput,
   bpm, beatOffset = 0, gridDiv = 1,
-  scenes, onSceneAdd, onSceneDelete,
+  scenes, onSceneAdd, onSceneDelete, onSceneContextMenu,
+  onRegionAdd, onTimelineContextMenu,
   regions, regionsOutput,
   onRegionSelect, onRegionContextMenu,
   onRegionResize, onRegionMove, onRegionResizeOutput, onRegionMoveOutput, onRegionZoom,
@@ -125,6 +135,8 @@ export default function ThinTimeline({
   const [hoveredAnchorId, setHoveredAnchorId] = useState<number | null>(null)
   const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null)
   const [hoveredSceneTime, setHoveredSceneTime] = useState<number | null>(null)
+  const [lassoRange, setLassoRange] = useState<{ startPct: number; endPct: number } | null>(null)
+  const lassoRef = useRef<{ startPct: number; startedAdditive: boolean; initialIds: Set<number> } | null>(null)
 
   // Through-line visibility toggles. Markers are on by default (existing
   // behavior); regions and scenes show on interaction only unless toggled on.
@@ -132,6 +144,33 @@ export default function ThinTimeline({
   const [alwaysRegions, setAlwaysRegions] = useState(false)
   const [alwaysScenes, setAlwaysScenes] = useState(false)
   const [thumbStripEnabled, setThumbStripEnabled] = useState(false)
+  const [queueDebugOpen, setQueueDebugOpen] = useState(false)
+
+  // Hover frames — lowest-priority thumbnail tier. Dispatch the 5-frame window
+  // under the cursor so Filmstrip's priority push picks it up. Using a ref to
+  // dedupe by signature avoids flooding the store on every mousemove pixel.
+  const dispatch = useAppDispatch()
+  const videoFileHash = useAppSelector(s => s.video.video?.fileHash)
+  const videoFps = useAppSelector(s => s.video.video?.fps ?? 0)
+  const lastHoverSigRef = useRef<string>('')
+  useEffect(() => {
+    if (!videoFileHash || videoFps <= 0) return
+    if (hoverPct === null) {
+      if (lastHoverSigRef.current !== '') {
+        lastHoverSigRef.current = ''
+        dispatch(setHoverFrames({ fileHash: videoFileHash, frames: [] }))
+      }
+      return
+    }
+    const t = view.start + hoverPct * (view.end - view.start)
+    const center = Math.max(0, Math.floor(t * videoFps))
+    const frames = [center - 2, center - 1, center, center + 1, center + 2]
+      .filter(f => f >= 0)
+    const sig = frames.join(',')
+    if (sig === lastHoverSigRef.current) return
+    lastHoverSigRef.current = sig
+    dispatch(setHoverFrames({ fileHash: videoFileHash, frames }))
+  }, [dispatch, videoFileHash, videoFps, hoverPct, view.start, view.end])
   // Playhead-follows-drag: when on, dragging a marker moves the playhead too.
   const [followDrag, setFollowDrag] = useState(false)
 
@@ -297,6 +336,78 @@ export default function ThinTimeline({
     setHoverPct(Math.max(0, Math.min(1, pct)))
   }, [])
 
+  // ── Selection lasso ───────────────────────────────────────────────────────
+  const bodyPctFromClientX = useCallback((clientX: number): number | null => {
+    const body = rootRef.current?.querySelector('.thin-row__body') as HTMLElement | null
+    if (!body) return null
+    const rect = body.getBoundingClientRect()
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+  }, [])
+
+  const isLassoTarget = useCallback((target: EventTarget | null): boolean => {
+    if (!(target instanceof Element)) return false
+    if (target.closest('button')) return false
+    if (target.closest('.thin-region')) return false
+    if (target.closest('.thin-timeline__toolbar')) return false
+    if (target.closest('.thin-timeline__resizer')) return false
+    if (target.closest('.thin-minimap')) return false
+    if (target.closest('.warp-connector')) return false
+    if (target.closest('.thumb-queue-debug')) return false
+    return true
+  }, [])
+
+  const computeLassoIds = useCallback((startPct: number, endPct: number): Set<number> => {
+    const span = view.end - view.start
+    const lo = view.start + Math.min(startPct, endPct) * span
+    const hi = view.start + Math.max(startPct, endPct) * span
+    const ids = new Set<number>()
+    for (const a of anchors) if (a.time >= lo && a.time <= hi) ids.add(a.id)
+    for (const a of beatAnchors) if (a.time >= lo && a.time <= hi) ids.add(a.id)
+    return ids
+  }, [anchors, beatAnchors, view.start, view.end])
+
+  const onRootPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    if (e.shiftKey && !e.ctrlKey && !e.metaKey) return // shift+drag = pan
+    if (!isLassoTarget(e.target)) return
+    const pct = bodyPctFromClientX(e.clientX)
+    if (pct === null) return
+    const additive = e.ctrlKey || e.metaKey
+    const initialIds = additive ? new Set(selectedAnchorIds) : new Set<number>()
+    lassoRef.current = { startPct: pct, startedAdditive: additive, initialIds }
+    rootRef.current?.setPointerCapture(e.pointerId)
+    setLassoRange({ startPct: pct, endPct: pct })
+    if (!additive) onConnectorSelectionChange?.(new Set())
+  }, [isLassoTarget, bodyPctFromClientX, selectedAnchorIds, onConnectorSelectionChange])
+
+  const onRootPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const g = lassoRef.current
+    if (!g) return
+    const pct = bodyPctFromClientX(e.clientX)
+    if (pct === null) return
+    setLassoRange({ startPct: g.startPct, endPct: pct })
+    const hit = computeLassoIds(g.startPct, pct)
+    const merged = new Set(g.initialIds)
+    for (const id of hit) merged.add(id)
+    onConnectorSelectionChange?.(merged)
+  }, [bodyPctFromClientX, computeLassoIds, onConnectorSelectionChange])
+
+  const onRootPointerUp = useCallback(() => {
+    if (!lassoRef.current) return
+    lassoRef.current = null
+    setLassoRange(null)
+  }, [])
+
+  const onRootContextMenu = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!onTimelineContextMenu) return
+    if (!isLassoTarget(e.target)) return
+    const pct = bodyPctFromClientX(e.clientX)
+    if (pct === null) return
+    e.preventDefault()
+    const t = view.start + pct * (view.end - view.start)
+    onTimelineContextMenu(t, e.clientX, e.clientY)
+  }, [onTimelineContextMenu, isLassoTarget, bodyPctFromClientX, view.start, view.end])
+
   const onResizeStart = useCallback((e: React.PointerEvent<HTMLDivElement>, aboveId: string, belowId: string) => {
     e.preventDefault()
     e.stopPropagation()
@@ -363,6 +474,8 @@ export default function ThinTimeline({
         onZoom={onRegionZoom}
         onHoverChange={setHoveredRegionId}
         onSnapHintsChange={onInSnapHints}
+        onBackgroundAdd={onRegionAdd}
+        onBackgroundContextMenu={onTimelineContextMenu}
       />
     ),
   })
@@ -382,6 +495,8 @@ export default function ThinTimeline({
             onSceneHover={setHoveredSceneTime}
             onSceneAdd={onSceneAdd}
             onSceneDelete={onSceneDelete}
+            onSceneContextMenu={onSceneContextMenu}
+            onBackgroundContextMenu={onTimelineContextMenu}
           />
         </div>
       </div>
@@ -417,6 +532,7 @@ export default function ThinTimeline({
         onDelete={onAnchorDelete}
         onSelect={onAnchorSelect}
         onContextMenu={onAnchorContextMenu}
+        onBackgroundContextMenu={onTimelineContextMenu}
         onAnchorsChange={onAnchorsChange}
         onHoverChange={setHoveredAnchorId}
         onSnapHintsChange={onInSnapHints}
@@ -467,6 +583,7 @@ export default function ThinTimeline({
           onDelete={onBeatAnchorDelete}
           onSelect={onBeatAnchorSelect}
           onContextMenu={onBeatAnchorContextMenu}
+          onBackgroundContextMenu={onTimelineContextMenu}
           onAnchorsChange={onBeatAnchorsChange}
           onHoverChange={setHoveredAnchorId}
           onSnapHintsChange={onOutSnapHints}
@@ -495,6 +612,7 @@ export default function ThinTimeline({
             onZoom={onRegionZoom}
             onHoverChange={setHoveredRegionId}
             onSnapHintsChange={onOutSnapHints}
+            onBackgroundContextMenu={onTimelineContextMenu}
           />
         ),
       })
@@ -595,6 +713,11 @@ export default function ThinTimeline({
       onWheel={handleWheel}
       onMouseMove={onBodyMouseMove}
       onMouseLeave={() => setHoverPct(null)}
+      onPointerDown={onRootPointerDown}
+      onPointerMove={onRootPointerMove}
+      onPointerUp={onRootPointerUp}
+      onPointerCancel={onRootPointerUp}
+      onContextMenu={onRootContextMenu}
     >
       <ThinMinimap
         duration={maxDuration}
@@ -707,13 +830,25 @@ export default function ThinTimeline({
           type="button"
           className={`thin-toolbar__btn${thumbStripEnabled ? ' thin-toolbar__btn--active' : ''}`}
           onClick={() => setThumbStripEnabled(v => !v)}
-          title="Show a thumbnail strip between scene markers"
+          title="Show a thumbnail at each scene marker"
           aria-pressed={thumbStripEnabled}
         >
           <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
             <rect x="1" y="5" width="4" height="6" fill="none" stroke="currentColor" strokeWidth="1" />
             <rect x="6" y="5" width="4" height="6" fill="none" stroke="currentColor" strokeWidth="1" />
             <rect x="11" y="5" width="4" height="6" fill="none" stroke="currentColor" strokeWidth="1" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className={`thin-toolbar__btn${queueDebugOpen ? ' thin-toolbar__btn--active' : ''}`}
+          onClick={() => setQueueDebugOpen(v => !v)}
+          title="Thumbnail queue debug panel"
+          aria-pressed={queueDebugOpen}
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="2" y="3" width="12" height="10" fill="none" stroke="currentColor" strokeWidth="1" />
+            <path d="M4 6 L12 6 M4 9 L10 9 M4 11 L8 11" stroke="currentColor" strokeWidth="1" />
           </svg>
         </button>
 
@@ -733,6 +868,23 @@ export default function ThinTimeline({
           </svg>
         </button>
       </div>
+
+      {queueDebugOpen && (
+        <ThumbnailQueueDebug onClose={() => setQueueDebugOpen(false)} />
+      )}
+
+      {lassoRange && (() => {
+        const lo = Math.min(lassoRange.startPct, lassoRange.endPct) * 100
+        const hi = Math.max(lassoRange.startPct, lassoRange.endPct) * 100
+        return (
+          <div className="thin-timeline__lasso-overlay">
+            <div
+              className="thin-timeline__lasso"
+              style={{ left: `${lo}%`, width: `${hi - lo}%` }}
+            />
+          </div>
+        )
+      })()}
     </div>
   )
 }

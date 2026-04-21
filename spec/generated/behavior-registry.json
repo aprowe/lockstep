@@ -506,122 +506,247 @@
         "input ruler"
       ]
     },
-    "thumbnail-scrolling::6fee0877": {
+    "thumbnail-scrolling::90ecf3d8": {
       "feature": "Thumbnail scrolling",
-      "scenario": "Thumbnails loaded",
+      "scenario": "Thumbnails start generating when a video loads",
       "isOutline": false,
       "steps": [
         "Given an empty project",
         "When [a video is loaded]",
-        "Then thumbnails in the background start being generated"
+        "Then thumbnail generation starts in the background"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 4,
-      "todo": true,
+      "line": 3,
       "defs": [
         "a video is loaded"
       ]
     },
-    "thumbnail-scrolling::703b35db": {
+    "thumbnail-scrolling::38691341": {
       "feature": "Thumbnail scrolling",
-      "scenario": "Thumbnails prioritized for frames near playhead",
+      "scenario": "Thumbnails near the playhead are generated first",
       "isOutline": false,
       "steps": [
         "Given [a video is loaded]",
         "When the playhead jumps to a new position",
-        "Then the thumbnails for frames near the playhead are generated first, and thumbnails nearby are quickly generated"
+        "Then thumbnails near the playhead are generated before thumbnails elsewhere"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 10,
-      "todo": true,
+      "line": 8,
       "defs": [
         "a video is loaded"
       ]
     },
-    "thumbnail-scrolling::44e8818e": {
+    "thumbnail-scrolling::56235449": {
       "feature": "Thumbnail scrolling",
-      "scenario": "Regions get thumbnails generated for them",
+      "scenario": "Thumbnails inside a region are generated first",
       "isOutline": false,
       "steps": [
         "Given [a video is loaded]",
         "When a [region] is created or updated",
-        "Then thumbnails for frames in that region are quickly generated"
+        "Then thumbnails for frames inside that region are generated first"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 16,
-      "todo": true,
+      "line": 13,
       "defs": [
         "a video is loaded",
         "region"
       ]
     },
-    "thumbnail-scrolling::b9917abf": {
+    "thumbnail-scrolling::ecab2b8f": {
       "feature": "Thumbnail scrolling",
-      "scenario": "The thumbnails appear when [scrubbing] on the [input ruler]",
+      "scenario": "Scrubbing the [input ruler] updates the thumbnail viewer",
       "isOutline": false,
       "steps": [
         "Given [a video is loaded]",
         "When the [input ruler] is [scrubbed]",
-        "Then the thumbnail viewer will show the current frame the playhead is on and X frames before and after,"
+        "Then the thumbnail viewer shows the playhead frame plus as many surrounding frames as fit in the viewer"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 22,
-      "todo": true,
+      "line": 18,
       "defs": [
         "a video is loaded",
         "input ruler",
-        "scrubbed",
-        "scrubbing"
+        "scrubbed"
       ]
     },
-    "thumbnail-scrolling::30ddfee1": {
+    "thumbnail-scrolling::76f18ec6": {
       "feature": "Thumbnail scrolling",
-      "scenario": "the thumbnails show a thumbnail placeholder when thumbnails are not loaded",
+      "scenario": "Missing thumbnails show a placeholder",
       "isOutline": false,
       "steps": [
-        "Given The thumbnail viewer is active and visible",
-        "When a thumbnail is shown for a frame that has not had its thumbnail generated yet",
-        "Then a placeholder thumbnail is shown until the thumbnail for that frame is generated"
+        "Given the thumbnail viewer is active and visible",
+        "When a thumbnail is requested for a frame whose thumbnail has not been generated yet",
+        "Then a placeholder is shown in its place until the real thumbnail is available"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 29,
-      "todo": true
+      "line": 23
     },
-    "thumbnail-scrolling::fe834cb1": {
+    "thumbnail-scrolling::10c1de68": {
       "feature": "Thumbnail scrolling",
-      "scenario": "A thumbnail appears in a pop up when scene changes are hovered over",
+      "scenario": "Hovering a scene marker shows a thumbnail popup",
       "isOutline": false,
       "steps": [
         "Given [a video is loaded]",
         "And the [scene strip] is populated",
-        "And the [scene_strip] is not expanded",
+        "And the [scene strip] is not expanded",
         "When the user hovers over a scene marker",
-        "Then a thumbnail of the frame at the scene change is shown in a pop up"
+        "Then a thumbnail of the frame at that scene change appears in a popup"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 35,
-      "todo": true,
+      "line": 28,
       "defs": [
         "a video is loaded",
         "scene strip"
       ]
     },
-    "thumbnail-scrolling::18d84f34": {
+    "thumbnail-scrolling::07eab3fa": {
       "feature": "Thumbnail scrolling",
-      "scenario": "A thumbnails appear of scene markers in the expanded [scene strip]",
+      "scenario": "Expanded scene strip shows one thumbnail per marker",
       "isOutline": false,
       "steps": [
         "Given [a video is loaded]",
-        "And the scene strip is populated",
-        "When the scene strip is expanded",
-        "Then thumbnails are shown of the different markers, in an area contained in the scene strip"
+        "And the [scene strip] is populated",
+        "When the [scene strip] is expanded",
+        "Then a thumbnail of each scene marker's frame is shown inline inside the scene strip"
       ],
       "file": "spec/features/thumbnails.feature",
-      "line": 43,
-      "todo": true,
+      "line": 35,
       "defs": [
         "a video is loaded",
         "scene strip"
+      ]
+    },
+    "timeline-tracks::6eef362f": {
+      "feature": "Timeline Tracks",
+      "scenario": "Right-click on the timeline opens a three-section context menu",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "When the user right-clicks anywhere in the timeline area",
+        "Then a context menu appears with three sections: target-specific, track-specific, and global timeline actions",
+        "And global actions may be promoted to track-specific when the context calls for it"
+      ],
+      "file": "spec/features/timeline_tracks.feature",
+      "line": 3,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-tracks::eff9cde8": {
+      "feature": "Timeline Tracks",
+      "scenario": "Lasso drag within a single track selects its objects",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "And markers are placed on the current track",
+        "When the user drags across an empty area of the track",
+        "Then the dragged area is highlighted as a lasso within that track",
+        "When the mouse is released",
+        "Then the objects inside the lasso are selected"
+      ],
+      "file": "spec/features/timeline_tracks.feature",
+      "line": 9,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-tracks::da3524a2": {
+      "feature": "Timeline Tracks",
+      "scenario": "Lasso drag expands across tracks when the mouse leaves the starting track",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "And markers are placed on the current track",
+        "When the user drags across an empty area of the track",
+        "And the drag enters another track",
+        "Then the lasso leaves single-track mode and can span multiple object types",
+        "When the mouse is released",
+        "Then all objects inside the lasso are selected"
+      ],
+      "file": "spec/features/timeline_tracks.feature",
+      "line": 17,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-tracks::6cee313c": {
+      "feature": "Timeline Tracks",
+      "scenario": "Lasso across both boundaries of a clip selects that clip",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "And clip 1 exists",
+        "When the user drags across both boundaries of the clip",
+        "Then the clip is selected"
+      ],
+      "file": "spec/features/timeline_tracks.feature",
+      "line": 26,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-tracks::e840fcd6": {
+      "feature": "Timeline Tracks",
+      "scenario": "Double-click in a track's empty area creates a new object",
+      "isOutline": true,
+      "steps": [
+        "Given [a video is loaded]",
+        "And the mouse is over an empty area on a <layer>",
+        "When the user double-clicks",
+        "Then the track creates a new <object> at the cursor position"
+      ],
+      "file": "spec/features/timeline_tracks.feature",
+      "line": 32,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-tracks::bb2839e1": {
+      "feature": "Timeline Tracks",
+      "scenario": "Double-click on an object in a track performs its primary action",
+      "isOutline": true,
+      "steps": [
+        "Given [a video is loaded]",
+        "And the mouse is over an <object> on a <layer>",
+        "When the user double-clicks",
+        "Then the track performs <action> for the <object> under the cursor"
+      ],
+      "file": "spec/features/timeline_tracks.feature",
+      "line": 43,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-tracks::9fced362": {
+      "feature": "Timeline Tracks",
+      "scenario": "Right-click on an object shows object-specific actions above track and global options",
+      "isOutline": true,
+      "steps": [
+        "Given [a video is loaded]",
+        "And the mouse is over a <object> in <layer>",
+        "When the user right-clicks",
+        "Then the context menu shows <actions> above the track and global options"
+      ],
+      "file": "spec/features/timeline_tracks.feature",
+      "line": 54,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-tracks::89de8324": {
+      "feature": "Timeline Tracks",
+      "scenario": "Right-click on an empty track shows track-specific create actions",
+      "isOutline": true,
+      "steps": [
+        "Given [a video is loaded]",
+        "And the mouse is inside <layer>",
+        "When the user right-clicks",
+        "Then the context menu shows <actions> above the track and global options"
+      ],
+      "file": "spec/features/timeline_tracks.feature",
+      "line": 67,
+      "defs": [
+        "a video is loaded"
       ]
     },
     "video-loading::90289e16": {
