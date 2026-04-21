@@ -18,7 +18,7 @@ const REGION_PALETTE = [
 
 interface SceneListProps {
   cuts: number[]
-  status: 'idle' | 'analyzing' | 'done' | 'error'
+  status: 'idle' | 'analyzing' | 'done' | 'cancelled' | 'error'
   progress: number
   error?: string
   threshold: number
@@ -34,6 +34,8 @@ interface SceneListProps {
   onMinGapChange: (minGap: number) => void
   /** Remove the scene boundary at this time. Omit to hide the delete affordance. */
   onSceneDelete?: (time: number) => void
+  /** Abort an in-flight analysis. Omit to hide the cancel affordance. */
+  onCancel?: () => void
 }
 
 export default function SceneList({
@@ -42,6 +44,7 @@ export default function SceneList({
   onSeek, onRecompute,
   minGap, onMinGapChange,
   onSceneDelete,
+  onCancel,
 }: SceneListProps) {
   const [draftThreshold, setDraftThreshold] = useState<string>(String(threshold))
   const [nearViewOnly, setNearViewOnly] = useState<boolean>(false)
@@ -148,6 +151,16 @@ export default function SceneList({
           <span className="sl-progress__label">
             Analyzing… {Math.round(progress * 100)}%
           </span>
+          {onCancel && (
+            <button
+              type="button"
+              className="sl-progress__cancel"
+              onClick={onCancel}
+              title="Stop scene detection"
+            >
+              Stop
+            </button>
+          )}
         </div>
       )}
 

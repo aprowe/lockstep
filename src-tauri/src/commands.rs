@@ -1,9 +1,20 @@
-use tauri::{AppHandle, Emitter};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::ffmpeg::video_duration;
 use crate::processor::{estimate_bpm, remap_video, InterpMethod, WarpOptions};
 use crate::scene::{detect_cuts, DEFAULT_THRESHOLD};
 use crate::video::{get_video_info, VideoInfo};
+
+/// Shared cancel flag for the currently running scene-detection job. Flipping
+/// it to true asks the ffmpeg child process to stop at its next stderr line.
+/// Stored in Tauri-managed state so both `start_scene_detection` and
+/// `cancel_scene_detection` reach the same instance.
+#[derive(Default)]
+pub struct SceneDetectionState {
+    pub cancel: Arc<AtomicBool>,
+}
 
 // ── Open Folder ───────────────────────────────────────────────────────────────
 
@@ -668,6 +679,14 @@ pub async fn start_scene_detection(
     let job_id = uuid::Uuid::new_v4().to_string();
     let threshold = req.threshold.unwrap_or(DEFAULT_THRESHOLD);
 
+    // Reset the cancel flag for this run. If a previous job is still winding
+    // down, it sees its own stale reference via Arc::clone below and bails.
+    let cancel_flag = {
+        let state: State<'_, SceneDetectionState> = app.state::<SceneDetectionState>();
+        state.cancel.store(false, Ordering::Relaxed);
+        state.cancel.clone()
+    };
+
     let app_clone = app.clone();
     let jid = job_id.clone();
     let path = req.path.clone();
@@ -676,6 +695,7 @@ pub async fn start_scene_detection(
         let app2 = app_clone.clone();
         let jid2 = jid.clone();
         let path_for_block = path.clone();
+        let cancel_for_block = cancel_flag.clone();
 
         let result = tokio::task::spawn_blocking(move || {
             let duration = video_duration(&path_for_block).ok();
@@ -711,7 +731,7 @@ pub async fn start_scene_detection(
                     );
                 }
             };
-            detect_cuts(&path_for_block, threshold, duration, progress, on_cut)
+            detect_cuts(&path_for_block, threshold, duration, progress, on_cut, cancel_for_block)
         })
         .await;
 
@@ -729,12 +749,13 @@ pub async fn start_scene_detection(
                 );
             }
             Ok(Err(e)) => {
+                let status = if e == "cancelled" { "cancelled" } else { "error" };
                 let _ = app_clone.emit(
                     "scene-detection-progress",
                     serde_json::json!({
                         "job_id": &jid,
                         "path": &path,
-                        "status": "error",
+                        "status": status,
                         "error": e,
                     }),
                 );
@@ -754,4 +775,14 @@ pub async fn start_scene_detection(
     });
 
     Ok(job_id)
+}
+
+/// Asks the currently running scene-detection job to stop. Safe to call when
+/// no job is running; the flag is simply reset next time one starts.
+#[tauri::command]
+pub async fn cancel_scene_detection(
+    state: State<'_, SceneDetectionState>,
+) -> Result<(), String> {
+    state.cancel.store(true, Ordering::Relaxed);
+    Ok(())
 }

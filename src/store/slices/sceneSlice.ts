@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 
-export type SceneStatus = 'idle' | 'analyzing' | 'done' | 'error'
+export type SceneStatus = 'idle' | 'analyzing' | 'done' | 'cancelled' | 'error'
 
 interface SceneState {
   /** Detected cut times (seconds) per video path. */
@@ -75,6 +75,14 @@ const sceneSlice = createSlice({
       state.statusByPath[action.payload.path] = 'error'
       state.errorByPath[action.payload.path] = action.payload.error
     },
+    /** Flagged when the user aborts an in-flight detection. Keeps whatever
+     *  cuts were streamed so far so the user doesn't lose partial progress. */
+    setCancelled(state, action: PayloadAction<{ path: string }>) {
+      const { path } = action.payload
+      state.statusByPath[path] = 'cancelled'
+      state.progressByPath[path] = 0
+      delete state.errorByPath[path]
+    },
     loadCached(
       state,
       action: PayloadAction<{ path: string; cuts: number[]; threshold: number }>,
@@ -124,6 +132,7 @@ export const {
   setCuts,
   appendCut,
   setError,
+  setCancelled,
   loadCached,
   clearForPath,
   setMinGap,

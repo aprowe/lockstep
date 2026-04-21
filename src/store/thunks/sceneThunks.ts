@@ -1,7 +1,14 @@
 import { createAsyncThunk } from '@reduxjs/toolkit'
 import type { RootState } from '../store'
-import { startSceneDetection, listenSceneProgress } from '../../api/scene'
-import { startDetection, setProgress, setCuts, appendCut, setError } from '../slices/sceneSlice'
+import { startSceneDetection, listenSceneProgress, cancelSceneDetection } from '../../api/scene'
+import {
+  startDetection,
+  setProgress,
+  setCuts,
+  appendCut,
+  setError,
+  setCancelled,
+} from '../slices/sceneSlice'
 
 let unlisten: (() => void) | null = null
 
@@ -29,6 +36,8 @@ export const ensureSceneListener = createAsyncThunk<void, void>(
         }
       } else if (status === 'done' && Array.isArray(cuts)) {
         dispatch(setCuts({ path, cuts }))
+      } else if (status === 'cancelled') {
+        dispatch(setCancelled({ path }))
       } else if (status === 'error') {
         dispatch(setError({ path, error: error ?? 'Scene detection failed' }))
       }
@@ -53,5 +62,15 @@ export const detectScenesThunk = createAsyncThunk<
     } catch (e: any) {
       dispatch(setError({ path, error: String(e?.message ?? e) }))
     }
+  },
+)
+
+/** Abort the currently running scene detection. Only one runs at a time on the
+ *  backend, so no path argument — the cancel flag just flips globally and the
+ *  in-flight worker emits `status: 'cancelled'`. */
+export const cancelSceneDetectionThunk = createAsyncThunk<void, void>(
+  'scene/cancel',
+  async () => {
+    await cancelSceneDetection()
   },
 )

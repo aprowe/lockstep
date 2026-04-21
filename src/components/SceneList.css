@@ -104,6 +104,24 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
   pointer-events: none;
 }
+.sl-progress__cancel {
+  position: absolute;
+  right: var(--sp-2);
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border-hi);
+  border-radius: 3px;
+  color: var(--fg-1);
+  font-family: inherit;
+  font-size: var(--t-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0 var(--sp-2);
+  line-height: 14px;
+  cursor: pointer;
+}
+.sl-progress__cancel:hover { border-color: var(--fg-1); }
 
 .sl-error {
   padding: var(--sp-2) var(--sp-6);

@@ -21,6 +21,12 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 use std::os::windows::process::CommandExt;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+/// Windows process priority class. Background thumb workers run at
+/// BELOW_NORMAL so a long queue can't fight the UI / scene detection /
+/// foreground apps for CPU. Playhead-window frames keep normal priority
+/// because the user is waiting on them right now.
+#[cfg(target_os = "windows")]
+const BELOW_NORMAL_PRIORITY_CLASS: u32 = 0x0000_4000;
 
 use crate::ffmpeg::find_bin;
 
@@ -341,7 +347,13 @@ fn frame_to_time(frame: i64, fps: f64) -> f64 {
     ((frame as f64 - 0.5) / fps).max(0.0)
 }
 
-fn extract_frame(video_path: &str, time: f64, out_path: &PathBuf, width: u32) -> Result<(), String> {
+fn extract_frame(
+    video_path: &str,
+    time: f64,
+    out_path: &PathBuf,
+    width: u32,
+    high_priority: bool,
+) -> Result<(), String> {
     let bin = find_bin("ffmpeg");
     let out_str = out_path.to_string_lossy().to_string();
     let mut cmd = Command::new(&bin);
@@ -370,8 +382,18 @@ fn extract_frame(video_path: &str, time: f64, out_path: &PathBuf, width: u32) ->
     .stdout(Stdio::null())
     .stderr(Stdio::piped());
 
+    // Background thumb workers run at BELOW_NORMAL so a long queue can't fight
+    // the UI thread / scene detection for CPU. Playhead-window frames keep
+    // normal priority because the user is waiting on them right now.
     #[cfg(target_os = "windows")]
-    cmd.creation_flags(CREATE_NO_WINDOW);
+    {
+        let flags = if high_priority {
+            CREATE_NO_WINDOW
+        } else {
+            CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS
+        };
+        cmd.creation_flags(flags);
+    }
 
     let output = cmd
         .output()
@@ -412,11 +434,12 @@ fn schedule<R: Runtime>(
             let video_path = st.video_path.clone();
             let fps = st.fps;
             let width = st.thumb_width;
+            let playhead = st.context.playhead_frame;
             let out_path = thumb_path(&st.cache_dir, frame);
-            Some((frame, video_path, fps, width, out_path))
+            Some((frame, video_path, fps, width, playhead, out_path))
         };
 
-        let Some((frame, video_path, fps, width, out_path)) = next else {
+        let Some((frame, video_path, fps, width, playhead, out_path)) = next else {
             return;
         };
 
@@ -427,8 +450,11 @@ fn schedule<R: Runtime>(
         tokio::spawn(async move {
             let time = frame_to_time(frame, fps);
             let out_for_task = out_path.clone();
+            // Only frames the user is actively watching run at normal priority.
+            // Everything else yields to the foreground UI + other workloads.
+            let high_priority = (frame - playhead).abs() <= PLAYHEAD_WINDOW;
             let result = tokio::task::spawn_blocking(move || {
-                extract_frame(&video_path, time, &out_for_task, width)
+                extract_frame(&video_path, time, &out_for_task, width, high_priority)
             })
             .await;
 

@@ -7,11 +7,18 @@
 
 use std::io::{BufRead, BufReader};
 use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+/// Windows process priority class. Lets foreground apps win the CPU without
+/// fully starving scene detection (IDLE_PRIORITY_CLASS can take forever on
+/// a busy system).
+#[cfg(target_os = "windows")]
+const BELOW_NORMAL_PRIORITY_CLASS: u32 = 0x0000_4000;
 
 use crate::ffmpeg::find_bin;
 
@@ -25,12 +32,18 @@ pub const DEFAULT_THRESHOLD: f64 = 10.0;
 /// `time=HH:MM:SS.xx` status lines; it's called best-effort and may not fire
 /// if the duration is unknown. `on_cut` fires once per detected cut (in the
 /// order ffmpeg reports them) so callers can stream results to the UI.
+///
+/// If `cancel` flips to true, the running ffmpeg child is killed and the
+/// function returns `Err("cancelled")`. ffmpeg is spawned at
+/// BELOW_NORMAL priority on Windows so a long analysis doesn't fight the
+/// foreground UI for CPU.
 pub fn detect_cuts<F, G>(
     video_path: &str,
     threshold: f64,
     duration: Option<f64>,
     mut on_progress: F,
     mut on_cut: G,
+    cancel: Arc<AtomicBool>,
 ) -> Result<Vec<f64>, String>
 where
     F: FnMut(f64),
@@ -53,7 +66,7 @@ where
     .stdout(Stdio::null())
     .stderr(Stdio::piped());
     #[cfg(target_os = "windows")]
-    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd.creation_flags(CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS);
 
     let mut child = cmd.spawn().map_err(|e| format!("ffmpeg spawn failed: {e}"))?;
     let stderr = child
@@ -64,8 +77,14 @@ where
 
     let mut cuts: Vec<f64> = Vec::new();
     let mut tail: Vec<String> = Vec::with_capacity(8);
+    let mut cancelled = false;
 
     for line in reader.lines().map_while(Result::ok) {
+        if cancel.load(Ordering::Relaxed) {
+            let _ = child.kill();
+            cancelled = true;
+            break;
+        }
         // Keep a small rolling tail for error reporting.
         if tail.len() == 8 {
             tail.remove(0);
@@ -85,6 +104,9 @@ where
     let status = child
         .wait()
         .map_err(|e| format!("ffmpeg wait failed: {e}"))?;
+    if cancelled {
+        return Err("cancelled".to_string());
+    }
     if !status.success() {
         return Err(format!("ffmpeg scdet failed: {}", tail.join(" | ")));
     }

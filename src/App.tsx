@@ -42,7 +42,7 @@ import {
   resetVideoDataThunk,
   openJsonFileThunk,
 } from './store/thunks/videoThunks'
-import { detectScenesThunk, ensureSceneListener } from './store/thunks/sceneThunks'
+import { detectScenesThunk, ensureSceneListener, cancelSceneDetectionThunk } from './store/thunks/sceneThunks'
 import { setMinGap as setSceneMinGapAction, addCut as addSceneCutAction, deleteCut as deleteSceneCutAction } from './store/slices/sceneSlice'
 import { filterCutsByMinGap } from './utils/sceneFilter'
 import { useAppDispatch, useAppSelector } from './store/hooks'
@@ -787,6 +787,7 @@ export default function App() {
                   onSceneDelete={(t) => {
                     if (videoPath) dispatch(deleteSceneCutAction({ path: videoPath, cut: t }))
                   }}
+                  onCancel={() => { dispatch(cancelSceneDetectionThunk()) }}
                 />
               </div>
               {/* 5px spacer matching vj-resizer height */}

@@ -323,7 +323,10 @@ export default function ThinTimeline({
     [throughLines],
   )
 
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+  // Wheel zoom must call preventDefault to stop the page from scrolling, but
+  // React attaches onWheel as a passive listener (preventDefault becomes a
+  // no-op + console warning). Bind a native non-passive listener instead.
+  const handleWheelNative = useCallback((e: WheelEvent) => {
     const el = rootRef.current
     if (!el) return
     e.preventDefault()
@@ -337,6 +340,13 @@ export default function ThinTimeline({
     const ns = cursorTime - ratio * newSpan
     onViewChange(clampView(ns, ns + newSpan, maxDuration))
   }, [view.start, view.end, maxDuration, onViewChange])
+
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    el.addEventListener('wheel', handleWheelNative, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheelNative)
+  }, [handleWheelNative])
 
   const playheadInX = useMemo(() => {
     if (playhead === undefined) return null
@@ -808,7 +818,6 @@ export default function ThinTimeline({
     <div
       ref={rootRef}
       className="thin-timeline"
-      onWheel={handleWheel}
       onMouseMove={onBodyMouseMove}
       onMouseLeave={() => setHoverPct(null)}
       onPointerDown={onRootPointerDown}

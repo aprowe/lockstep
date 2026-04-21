@@ -14,6 +14,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(thumbnails::ThumbnailsState::new())
+        .manage(commands::SceneDetectionState::default())
         .invoke_handler(tauri::generate_handler![
             commands::open_video,
             commands::open_folder,
@@ -34,6 +35,7 @@ pub fn run() {
             commands::read_json_sidecar_for_video,
             commands::load_llc_project,
             commands::start_scene_detection,
+            commands::cancel_scene_detection,
             storage::save_video_state,
             storage::load_video_state,
             storage::list_saved_hashes,

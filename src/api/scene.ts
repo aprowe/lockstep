@@ -6,7 +6,7 @@ export interface SceneDetectionProgressPayload {
   job_id: string
   path?: string
   percent?: number
-  status: 'running' | 'done' | 'error'
+  status: 'running' | 'done' | 'cancelled' | 'error'
   /** A single cut time (seconds) emitted during running — lets the UI stream markers in. */
   cut?: number
   /** Final sorted cut list, only present on `status: 'done'`. */
@@ -19,6 +19,10 @@ export async function startSceneDetection(params: {
   threshold?: number
 }): Promise<string> {
   return invoke<string>('start_scene_detection', { req: params })
+}
+
+export async function cancelSceneDetection(): Promise<void> {
+  return invoke<void>('cancel_scene_detection')
 }
 
 export async function listenSceneProgress(
