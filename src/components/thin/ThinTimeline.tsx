@@ -252,6 +252,15 @@ export default function ThinTimeline({
     view,
   ])
 
+  // Pre-partition by space so each section only iterates the subset it needs
+  // to render. Big win when there are many markers and many sections.
+  const inputLines = useMemo(() => throughLines.filter(tl => tl.inputX !== null), [throughLines])
+  const outputLines = useMemo(() => throughLines.filter(tl => tl.outputX !== null), [throughLines])
+  const warpLines = useMemo(
+    () => throughLines.filter(tl => tl.inputX !== null && tl.outputX !== null),
+    [throughLines],
+  )
+
   const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
     const el = rootRef.current
     if (!el) return
@@ -603,10 +612,10 @@ export default function ThinTimeline({
                   viewBox="0 0 100 100"
                   preserveAspectRatio="none"
                 >
-                  {throughLines.map(tl => renderThroughLine(tl, s.space))}
+                  {warpLines.map(tl => renderThroughLine(tl, s.space))}
                 </svg>
               ) : (
-                throughLines.map(tl => renderThroughLine(tl, s.space))
+                (s.space === 'input' ? inputLines : outputLines).map(tl => renderThroughLine(tl, s.space))
               )}
               {renderPlayhead(s.space, s.id)}
               {hoverPct !== null && (

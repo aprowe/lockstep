@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import type { Anchor, View } from '../../types'
 import { timeToViewPct } from '../../utils/view'
 import { computeSnap, pixelsToSeconds, type SnapTarget } from '../../utils/snap'
@@ -58,6 +58,16 @@ export default function MarkersTrack({
   const dragRef = useRef<DragState | null>(null)
   const anchorsRef = useRef(anchors); anchorsRef.current = anchors
 
+  // rAF-coalesce drag dispatches. Pointer-move events can fire at 120+Hz on
+  // high-refresh displays, but we only need one dispatch per repaint. The
+  // pending snapshot holds the latest computed {time, hints} to commit on the
+  // next animation frame.
+  const rafRef = useRef<number | null>(null)
+  const pendingRef = useRef<{ nextAnchors: Anchor[]; snapped: number; hints: number[] } | null>(null)
+  useEffect(() => () => {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+  }, [])
+
   const xToTime = useCallback((clientX: number): number => {
     const el = bodyRef.current
     if (!el) return 0
@@ -66,11 +76,12 @@ export default function MarkersTrack({
     return view.start + pct * (view.end - view.start)
   }, [view.start, view.end])
 
-  const trySnap = useCallback((raw: number, excludeId: number): number => {
+  const trySnap = useCallback((raw: number, excludeId: number): { snapped: number; hints: number[] } => {
     const el = bodyRef.current
-    if (!el) return raw
+    if (!el) return { snapped: raw, hints: [] }
     const rect = el.getBoundingClientRect()
     const thresholdSec = pixelsToSeconds(8, rect.width, view.end - view.start)
+    const hintThresholdSec = pixelsToSeconds(24, rect.width, view.end - view.start)
     const targets: SnapTarget[] = []
     for (const a of anchorsRef.current) {
       if (a.id === excludeId) continue
@@ -80,24 +91,17 @@ export default function MarkersTrack({
     const grid = snapInterval && snapInterval > 0 ? { interval: snapInterval, offset: snapOffset } : undefined
     const { delta } = computeSnap({ subjects: [raw], targets, grid, thresholdSec })
 
-    // Emit snap hints: every discrete target whose distance falls within a
-    // looser threshold than the snap itself, so nearby candidates light up
-    // before you're already snapping onto them.
-    if (onSnapHintsChange) {
-      const hintThresholdSec = pixelsToSeconds(24, rect.width, view.end - view.start)
-      const hints: number[] = []
-      for (const t of targets) {
-        if (Math.abs(t.time - raw) <= hintThresholdSec) hints.push(t.time)
-      }
-      if (grid) {
-        const offs = grid.offset ?? 0
-        const nearest = offs + Math.round((raw - offs) / grid.interval) * grid.interval
-        if (Math.abs(nearest - raw) <= hintThresholdSec) hints.push(nearest)
-      }
-      onSnapHintsChange(hints)
+    const hints: number[] = []
+    for (const t of targets) {
+      if (Math.abs(t.time - raw) <= hintThresholdSec) hints.push(t.time)
     }
-    return raw + delta
-  }, [view.end, view.start, snapInterval, snapOffset, snapTargets, onSnapHintsChange])
+    if (grid) {
+      const offs = grid.offset ?? 0
+      const nearest = offs + Math.round((raw - offs) / grid.interval) * grid.interval
+      if (Math.abs(nearest - raw) <= hintThresholdSec) hints.push(nearest)
+    }
+    return { snapped: raw + delta, hints }
+  }, [view.end, view.start, snapInterval, snapOffset, snapTargets])
 
   const handleBgDoubleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!onAdd || e.target !== e.currentTarget) return
@@ -128,14 +132,38 @@ export default function MarkersTrack({
     const minT = idx > 0 ? sorted[idx - 1].time + EPS : 0
     const maxT = idx < sorted.length - 1 ? sorted[idx + 1].time - EPS : duration
     const clamped = Math.max(minT, Math.min(maxT, raw))
-    const snapped = Math.max(minT, Math.min(maxT, trySnap(clamped, d.id)))
-    onAnchorsChange(anchorsRef.current.map(a => a.id === d.id ? { ...a, time: snapped } : a))
-    onDragTimeChange?.(snapped)
-  }, [xToTime, trySnap, duration, onAnchorsChange, onDragTimeChange])
+    const snap = trySnap(clamped, d.id)
+    const snapped = Math.max(minT, Math.min(maxT, snap.snapped))
+    pendingRef.current = {
+      nextAnchors: anchorsRef.current.map(a => a.id === d.id ? { ...a, time: snapped } : a),
+      snapped,
+      hints: snap.hints,
+    }
+    if (rafRef.current !== null) return
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null
+      const p = pendingRef.current
+      if (!p) return
+      pendingRef.current = null
+      onAnchorsChange(p.nextAnchors)
+      onSnapHintsChange?.(p.hints)
+      onDragTimeChange?.(p.snapped)
+    })
+  }, [xToTime, trySnap, duration, onAnchorsChange, onSnapHintsChange, onDragTimeChange])
 
   const onMarkerClick = useCallback((e: React.MouseEvent<HTMLButtonElement>, a: Anchor) => {
     const wasDragging = dragRef.current?.dragging ?? false
     dragRef.current = null
+    // Flush any rAF-queued update before clearing drag state.
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+      const p = pendingRef.current
+      pendingRef.current = null
+      if (p) {
+        onAnchorsChange?.(p.nextAnchors)
+      }
+    }
     onSnapHintsChange?.(null)
     onDragTimeChange?.(null)
     if (wasDragging) return
@@ -143,7 +171,7 @@ export default function MarkersTrack({
     if (e.shiftKey && onDelete) { onDelete(a.id); return }
     onSelect?.(a.id, e.ctrlKey || e.metaKey)
     onSeek?.(a.time)
-  }, [onDelete, onSelect, onSeek, onSnapHintsChange, onDragTimeChange])
+  }, [onDelete, onSelect, onSeek, onSnapHintsChange, onDragTimeChange, onAnchorsChange])
 
   const onMarkerDoubleClick = useCallback((e: React.MouseEvent<HTMLButtonElement>, a: Anchor) => {
     e.stopPropagation()

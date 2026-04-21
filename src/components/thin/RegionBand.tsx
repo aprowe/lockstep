@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import type { View } from '../../types'
 import { timeToViewPct } from '../../utils/view'
 import { computeSnap, pixelsToSeconds, type SnapTarget } from '../../utils/snap'
@@ -60,6 +60,35 @@ export default function RegionBand({
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const gestureRef = useRef<Gesture>(null)
 
+  // rAF-coalesce drag dispatches — see MarkersTrack for rationale.
+  type PendingUpdate =
+    | { kind: 'resize' | 'move'; id: string; inPoint: number; outPoint: number }
+  const rafRef = useRef<number | null>(null)
+  const pendingRef = useRef<PendingUpdate | null>(null)
+  const pendingHintsRef = useRef<number[] | null>(null)
+
+  const flushPending = useCallback(() => {
+    const p = pendingRef.current
+    const h = pendingHintsRef.current
+    pendingRef.current = null
+    pendingHintsRef.current = null
+    if (p && p.kind === 'resize' && onResize) onResize(p.id, p.inPoint, p.outPoint)
+    else if (p && p.kind === 'move' && onMove) onMove(p.id, p.inPoint, p.outPoint)
+    if (h !== null) onSnapHintsChange?.(h)
+  }, [onResize, onMove, onSnapHintsChange])
+
+  const scheduleFlush = useCallback(() => {
+    if (rafRef.current !== null) return
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null
+      flushPending()
+    })
+  }, [flushPending])
+
+  useEffect(() => () => {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+  }, [])
+
   const xToTime = useCallback((clientX: number): number => {
     const el = bodyRef.current
     if (!el) return 0
@@ -85,8 +114,8 @@ export default function RegionBand({
     return { targets, grid, thresholdSec, hintThresholdSec }
   }, [view.start, view.end, snapTargets, snapInterval, snapOffset, regions])
 
-  const emitHints = useCallback((subjects: number[], ctx: ReturnType<typeof buildSnapContext>) => {
-    if (!onSnapHintsChange || !ctx) return
+  const computeHints = useCallback((subjects: number[], ctx: ReturnType<typeof buildSnapContext>): number[] => {
+    if (!ctx) return []
     const hints: number[] = []
     for (const s of subjects) {
       for (const t of ctx.targets) {
@@ -98,24 +127,22 @@ export default function RegionBand({
         if (Math.abs(nearest - s) <= ctx.hintThresholdSec) hints.push(nearest)
       }
     }
-    onSnapHintsChange(hints)
-  }, [onSnapHintsChange])
+    return hints
+  }, [])
 
-  const trySnap = useCallback((raw: number, excludeId: string): number => {
+  const trySnap = useCallback((raw: number, excludeId: string): { snapped: number; hints: number[] } => {
     const ctx = buildSnapContext(excludeId)
-    if (!ctx) return raw
+    if (!ctx) return { snapped: raw, hints: [] }
     const { delta } = computeSnap({ subjects: [raw], targets: ctx.targets, grid: ctx.grid, thresholdSec: ctx.thresholdSec })
-    emitHints([raw], ctx)
-    return raw + delta
-  }, [buildSnapContext, emitHints])
+    return { snapped: raw + delta, hints: computeHints([raw], ctx) }
+  }, [buildSnapContext, computeHints])
 
-  const trySnapMove = useCallback((rawIn: number, rawOut: number, excludeId: string): number => {
+  const trySnapMove = useCallback((rawIn: number, rawOut: number, excludeId: string): { delta: number; hints: number[] } => {
     const ctx = buildSnapContext(excludeId)
-    if (!ctx) return 0
+    if (!ctx) return { delta: 0, hints: [] }
     const { delta } = computeSnap({ subjects: [rawIn, rawOut], targets: ctx.targets, grid: ctx.grid, thresholdSec: ctx.thresholdSec })
-    emitHints([rawIn, rawOut], ctx)
-    return delta
-  }, [buildSnapContext, emitHints])
+    return { delta, hints: computeHints([rawIn, rawOut], ctx) }
+  }, [buildSnapContext, computeHints])
 
   const onRegionPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>, r: RegionBlock, zone: 'left' | 'right' | 'middle') => {
@@ -152,30 +179,43 @@ export default function RegionBand({
     const dt = tNow - tStart
     if (g.type === 'resize-l' && onResize) {
       const rawIn = g.startInP + dt
-      const snapped = trySnap(rawIn, g.id)
-      const clamped = Math.min(snapped, g.startOutP - MIN_WIDTH_SEC)
-      onResize(g.id, clamped, g.startOutP)
+      const s = trySnap(rawIn, g.id)
+      const clamped = Math.min(s.snapped, g.startOutP - MIN_WIDTH_SEC)
+      pendingRef.current = { kind: 'resize', id: g.id, inPoint: clamped, outPoint: g.startOutP }
+      pendingHintsRef.current = s.hints
     } else if (g.type === 'resize-r' && onResize) {
       const rawOut = g.startOutP + dt
-      const snapped = trySnap(rawOut, g.id)
-      const clamped = Math.max(snapped, g.startInP + MIN_WIDTH_SEC)
-      onResize(g.id, g.startInP, clamped)
+      const s = trySnap(rawOut, g.id)
+      const clamped = Math.max(s.snapped, g.startInP + MIN_WIDTH_SEC)
+      pendingRef.current = { kind: 'resize', id: g.id, inPoint: g.startInP, outPoint: clamped }
+      pendingHintsRef.current = s.hints
     } else if (g.type === 'move' && onMove) {
       const rawIn = g.startInP + dt
       const rawOut = g.startOutP + dt
-      const snapDelta = trySnapMove(rawIn, rawOut, g.id)
-      onMove(g.id, rawIn + snapDelta, rawOut + snapDelta)
+      const s = trySnapMove(rawIn, rawOut, g.id)
+      pendingRef.current = { kind: 'move', id: g.id, inPoint: rawIn + s.delta, outPoint: rawOut + s.delta }
+      pendingHintsRef.current = s.hints
+    } else {
+      return
     }
-  }, [xToTime, trySnap, trySnapMove, onResize, onMove, regions])
+    scheduleFlush()
+  }, [xToTime, trySnap, trySnapMove, onResize, onMove, regions, scheduleFlush])
 
-  const onRegionPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>, r: RegionBlock) => {
+  const onRegionPointerUp = useCallback((_e: React.PointerEvent<HTMLDivElement>, r: RegionBlock) => {
     const g = gestureRef.current
     gestureRef.current = null
+    // Flush any queued rAF update so the final position is committed even if
+    // the last move event hasn't yet been painted.
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+      flushPending()
+    }
     onSnapHintsChange?.(null)
     if (g?.type === 'potential') {
       onSelect?.(r.id)
     }
-  }, [onSelect, onSnapHintsChange])
+  }, [onSelect, onSnapHintsChange, flushPending])
 
   return (
     <TrackRow label={label ?? (kind === 'input' ? 'Regions' : 'Out')} kind={`region-${kind}`}>
