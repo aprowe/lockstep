@@ -324,6 +324,160 @@
       "file": "spec/features/region-creation.feature",
       "line": 39
     },
+    "region-creation::60eb8748": {
+      "feature": "Region Creation",
+      "scenario": "No scene markers at all — falls back to 5s / 10% rule",
+      "isOutline": false,
+      "steps": [
+        "Given the viewport is from 50 to 90 seconds",
+        "And the video duration is 120 seconds",
+        "And there are no scene markers",
+        "And there are no other regions",
+        "When a new region is created at cursor position 60 seconds",
+        "Then the region spans from 60 to 65 seconds"
+      ],
+      "file": "spec/features/region-creation.feature",
+      "line": 51,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "region-creation::728bc8d1": {
+      "feature": "Region Creation",
+      "scenario": "Snaps between surrounding scene markers when both are in view",
+      "isOutline": false,
+      "steps": [
+        "Given the viewport is from 50 to 90 seconds",
+        "And the video duration is 120 seconds",
+        "And there is a scene marker at 55 seconds",
+        "And there is a scene marker at 70 seconds",
+        "And there are no other regions",
+        "When a new region is created at cursor position 60 seconds",
+        "Then the region spans from 55 to 70 seconds"
+      ],
+      "file": "spec/features/region-creation.feature",
+      "line": 60,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "region-creation::3f2b3bed": {
+      "feature": "Region Creation",
+      "scenario": "No next scene marker in view — out-point stops at the viewport end",
+      "isOutline": false,
+      "steps": [
+        "Given the viewport is from 50 to 90 seconds",
+        "And the video duration is 120 seconds",
+        "And there is a scene marker at 55 seconds",
+        "And there are no other regions",
+        "When a new region is created at cursor position 60 seconds",
+        "Then the region spans from 55 to 90 seconds"
+      ],
+      "file": "spec/features/region-creation.feature",
+      "line": 70,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "region-creation::a5661c96": {
+      "feature": "Region Creation",
+      "scenario": "No previous scene marker in view — in-point starts at the viewport start",
+      "isOutline": false,
+      "steps": [
+        "Given the viewport is from 50 to 90 seconds",
+        "And the video duration is 120 seconds",
+        "And there is a scene marker at 80 seconds",
+        "And there are no other regions",
+        "When a new region is created at cursor position 60 seconds",
+        "Then the region spans from 50 to 80 seconds"
+      ],
+      "file": "spec/features/region-creation.feature",
+      "line": 79,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "region-creation::fe66bfde": {
+      "feature": "Region Creation",
+      "scenario": "No scene markers in view — region fills the viewport around the cursor",
+      "isOutline": false,
+      "steps": [
+        "Given the viewport is from 50 to 90 seconds",
+        "And the video duration is 120 seconds",
+        "And there is a scene marker at 10 seconds",
+        "And there is a scene marker at 110 seconds",
+        "And there are no other regions",
+        "When a new region is created at cursor position 60 seconds",
+        "Then the region spans from 50 to 90 seconds"
+      ],
+      "file": "spec/features/region-creation.feature",
+      "line": 88,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "region-creation::dfeb811f": {
+      "feature": "Region Creation",
+      "scenario": "Previous region out-point takes precedence over an earlier scene marker",
+      "isOutline": false,
+      "steps": [
+        "Given the viewport is from 50 to 100 seconds",
+        "And the video duration is 120 seconds",
+        "And there is a scene marker at 55 seconds",
+        "And there is a region from 60 to 70 seconds",
+        "When a new region is created at cursor position 80 seconds",
+        "Then the region spans from 70 to 100 seconds"
+      ],
+      "file": "spec/features/region-creation.feature",
+      "line": 98,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "region-creation::373255c3": {
+      "feature": "Region Creation",
+      "scenario": "Next region in-point takes precedence over a later scene marker",
+      "isOutline": false,
+      "steps": [
+        "Given the viewport is from 50 to 100 seconds",
+        "And the video duration is 120 seconds",
+        "And there is a scene marker at 95 seconds",
+        "And there is a region from 80 to 90 seconds",
+        "When a new region is created at cursor position 60 seconds",
+        "Then the region spans from 50 to 80 seconds"
+      ],
+      "file": "spec/features/region-creation.feature",
+      "line": 107,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "region-creation::5d8f7863": {
+      "feature": "Region Creation",
+      "scenario": "Cursor inside an existing region — behaves as if the playhead is just past the region's out",
+      "isOutline": false,
+      "steps": [
+        "Given the viewport is from 50 to 100 seconds",
+        "And the video duration is 120 seconds",
+        "And there is a region from 60 to 70 seconds",
+        "And there is a scene marker at 80 seconds",
+        "When a new region is created at cursor position 65 seconds",
+        "Then the region spans from 70 to 80 seconds"
+      ],
+      "file": "spec/features/region-creation.feature",
+      "line": 116,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
     "region-editing::5b468a4b": {
       "feature": "Region Editing",
       "scenario": "A regions start bounds can be undone",
