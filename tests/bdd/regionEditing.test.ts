@@ -180,7 +180,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     Given('A region', () => {})
     When('the user double clicks the handle', () => {
       harness = renderTimeline()
-      const bar = harness.container.querySelector('.clip-overlay__bar')!
+      const bar = harness.container.querySelector('.thin-region')!
       expect(bar).not.toBeNull()
       fireEvent.doubleClick(bar)
     })

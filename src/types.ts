@@ -77,6 +77,17 @@ export interface Region {
   triggerMode?: boolean
 }
 
+/** A clip block overlaid on the timeline track at the same zoom level */
+export interface ClipOverlay {
+  id: string
+  name: string
+  inPoint: number
+  outPoint: number
+  active: boolean
+  /** 0-based index for color cycling (optional, defaults to 0) */
+  colorIndex?: number
+}
+
 /** Multi-selection state for markers */
 export interface SelectionState {
   selectedIds: Set<number>

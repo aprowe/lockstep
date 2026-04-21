@@ -683,7 +683,6 @@ export default function App() {
                     colorIndex: idx,
                   }))}
                   onClipOverlaySelect={setActiveRegionId}
-                  onClipOverlayCreate={addRegion}
                   onClipOverlayResize={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
                   onClipOverlayMove={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
                   onClipOverlayZoom={(id) => {

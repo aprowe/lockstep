@@ -22,9 +22,6 @@ interface UiState {
   sidebarCollapsed: boolean
   /** Hide the warp connector + beats/bars/speed timeline so the source timeline fills the pane. */
   warpCollapsed: boolean
-  /** Experimental thin-per-type-track layout (scenes/markers/bars/regions as
-   *  narrow adjacent rows instead of a single Ableton-style source track). */
-  thinLayout: boolean
   gridDiv: number
   playing: boolean
   exportOpen: boolean
@@ -56,7 +53,6 @@ const initialState: UiState = {
   filmstripHeight: 90,
   sidebarCollapsed: false,
   warpCollapsed: false,
-  thinLayout: false,
   gridDiv: 1,
   playing: false,
   exportOpen: false,
@@ -90,9 +86,6 @@ const uiSlice = createSlice({
     setWarpCollapsed(state, action: PayloadAction<boolean>) {
       state.warpCollapsed = action.payload
     },
-    setThinLayout(state, action: PayloadAction<boolean>) {
-      state.thinLayout = action.payload
-    },
     setGridDiv(state, action: PayloadAction<number>) {
       state.gridDiv = action.payload
     },
@@ -125,7 +118,6 @@ export const {
   setFilmstripHeight,
   setSidebarCollapsed,
   setWarpCollapsed,
-  setThinLayout,
   setGridDiv,
   setPlaying,
   setExportOpen,

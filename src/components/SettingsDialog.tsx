@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { setMaxCachedFrames, setThumbWidth, resetSettings } from '../store/slices/settingsSlice'
-import { setThinLayout } from '../store/slices/uiSlice'
 import { clearAllThumbnails } from '../api/thumbnails'
 import './SettingsDialog.css'
 
@@ -14,7 +13,6 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const dispatch = useAppDispatch()
   const thumbWidth = useAppSelector(s => s.settings.thumbWidth)
   const maxCachedFrames = useAppSelector(s => s.settings.maxCachedFrames)
-  const thinLayout = useAppSelector(s => s.ui.thinLayout)
   const [clearing, setClearing] = useState(false)
   const [cleared, setCleared] = useState(false)
 
@@ -100,25 +98,6 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                   disabled={clearing}
                 >
                   {clearing ? 'Clearing…' : cleared ? 'Cleared ✓' : 'Clear all'}
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <section className="settings-section">
-            <h3 className="settings-section__heading">Experimental</h3>
-
-            <div className="settings-row">
-              <label className="settings-row__label">
-                <span className="settings-row__title">Thin layout</span>
-                <span className="settings-row__hint">Render timeline as narrow per-type tracks (scenes, markers, bars, regions) instead of the big Ableton-style source track. Work in progress.</span>
-              </label>
-              <div className="settings-row__control">
-                <button
-                  className={`settings-btn${thinLayout ? ' settings-btn--active' : ''}`}
-                  onClick={() => dispatch(setThinLayout(!thinLayout))}
-                >
-                  {thinLayout ? 'On' : 'Off'}
                 </button>
               </div>
             </div>

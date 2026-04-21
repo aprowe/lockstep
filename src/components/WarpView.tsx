@@ -1,8 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Timeline from './Timeline'
-import WarpConnector from './WarpConnector'
-import SpeedStrip from './SpeedStrip'
-import SceneRow from './SceneRow'
 import ContextMenu from './ContextMenu'
 import ThinTimeline from './thin/ThinTimeline'
 import type { RegionBlock } from './thin/RegionBand'
@@ -11,9 +7,8 @@ import {
   buildSegments,
   snapAllToBeat,
 } from '../utils/quantize'
-import { clampView, initialView, calcNewRegionBoundsFromScenes } from '../utils/view'
-import type { Anchor, View } from '../types'
-import type { ClipOverlay } from './Timeline'
+import { clampView } from '../utils/view'
+import type { Anchor, View, ClipOverlay } from '../types'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import {
   selectSortedOrig,
@@ -24,19 +19,16 @@ import {
   selectActiveRegion,
   selectClipIn,
   selectClipOut,
-  selectDimmedAnchorIds,
 } from '../store/selectors'
 import {
   setOrigAnchorsFromTimeline,
   setBeatAnchorsFromTimeline,
   removeAnchors,
   resetBeatLinks,
-  clearAnchors,
   loadAnchors,
   setBpm,
   setBeatZeroId,
   setSelectedIds as setSelectedIdsAction,
-  deselectAll,
   newAnchorId,
 } from '../store/slices/warpSlice'
 import { updateRegionBeatTimes } from '../store/slices/regionSlice'
@@ -49,7 +41,6 @@ interface WarpViewProps {
   onSendToNewRegion?: (inPoint: number, outPoint: number) => void
   clipOverlays?: ClipOverlay[]
   onClipOverlaySelect?: (id: string) => void
-  onClipOverlayCreate?: (inPoint: number, outPoint: number) => void
   onClipOverlayResize?: (id: string, inPoint: number, outPoint: number) => void
   onClipOverlayMove?: (id: string, inPoint: number, outPoint: number) => void
   onClipOverlayContextMenu?: (id: string, x: number, y: number) => void
@@ -67,7 +58,6 @@ export default function WarpView({
   onSendToNewRegion,
   clipOverlays,
   onClipOverlaySelect,
-  onClipOverlayCreate,
   onClipOverlayResize,
   onClipOverlayMove,
   onClipOverlayContextMenu,
@@ -83,12 +73,9 @@ export default function WarpView({
   const beatAnchors = useAppSelector(s => s.warp.beatAnchors)
   const bpm = useAppSelector(s => s.warp.bpm)
   const beatZeroId = useAppSelector(s => s.warp.beatZeroId)
-  const trimToLoop = useAppSelector(s => s.warp.trimToLoop)
-  const addToEnd = useAppSelector(s => s.warp.addToEnd)
   const playhead = useAppSelector(s => s.warp.playhead)
   const gridDiv = useAppSelector(s => s.ui.gridDiv)
   const warpCollapsed = useAppSelector(s => s.ui.warpCollapsed)
-  const thinLayout = useAppSelector(s => s.ui.thinLayout)
   const duration = useAppSelector(s => s.video.video?.duration ?? 60)
 
   const activeRegion = useAppSelector(selectActiveRegion)
@@ -96,14 +83,12 @@ export default function WarpView({
   const clipOut = useAppSelector(selectClipOut)
   const clipInBeatTime = activeRegion?.inBeatTime
   const clipOutBeatTime = activeRegion?.outBeatTime
-  const regionLock = activeRegion?.lock
 
   const sortedOrig = useAppSelector(selectSortedOrig)
   const sortedBeat = useAppSelector(selectSortedBeat)
   const outputDuration = useAppSelector(selectOutputDuration)
   const linkedAnchorIds = useAppSelector(selectLinkedAnchorIds)
   const selectedIds = useAppSelector(selectSelectedIdsSet)
-  const dimmedAnchorIds = useAppSelector(selectDimmedAnchorIds)
 
   // ── Local state (gestures, view, menus) ─────────────────────────────────────
   const reduxView = useAppSelector(s => s.ui.view)
@@ -112,13 +97,8 @@ export default function WarpView({
   const [shiftHeld, setShiftHeld] = useState(false)
   const [panning, setPanning] = useState(false)
   const [mouseOver, setMouseOver] = useState(false)
-  const [selectionOrigin, setSelectionOrigin] = useState<'orig' | 'beat'>('orig')
-  const [scenesExpanded, setScenesExpanded] = useState(false)
-  const [hoveredScene, setHoveredScene] = useState<number | null>(null)
-  const [dragTime, setDragTime] = useState<number | null>(null)
 
   const warpContainerRef = useRef<HTMLDivElement>(null)
-  const connectorRef = useRef<HTMLDivElement>(null)
   const panGesture = useRef<{ lastX: number; width: number } | null>(null)
   const importRef = useRef<HTMLInputElement>(null)
 
@@ -141,12 +121,6 @@ export default function WarpView({
   // ── Derived values ──────────────────────────────────────────────────────────
   const beat = 60 / bpm
 
-  const effectiveBeatZeroId = useMemo(() => {
-    if (beatZeroId !== null && sortedBeat.some(a => a.id === beatZeroId)) return beatZeroId
-    if (clipIn !== undefined) return null
-    return sortedBeat[0]?.id ?? null
-  }, [beatZeroId, sortedBeat, clipIn])
-
   const beatOffset = useMemo(() => {
     if (clipIn === undefined) return sortedBeat[0]?.time ?? 0
     if (beatZeroId !== null) {
@@ -156,29 +130,9 @@ export default function WarpView({
     return clipInBeatTime ?? clipIn
   }, [clipIn, clipInBeatTime, sortedBeat, beatZeroId])
 
-  const effectiveOutputDuration = trimToLoop && beat > 0
-    ? Math.floor(outputDuration / beat) * beat
-    : outputDuration
-
   const maxDuration = Math.max(duration, outputDuration)
 
   const scenes = useMemo(() => scenesProp ?? [], [scenesProp])
-
-  // Scene throughlines are hidden by default. They appear for the hovered scene
-  // marker, or for the 2 nearest scenes on each side of a dragging anchor/clip.
-  const visibleScenes = useMemo(() => {
-    if (hoveredScene !== null) return [hoveredScene]
-    if (dragTime !== null && scenes.length > 0) {
-      const before: number[] = []
-      const after: number[] = []
-      for (const t of scenes) {
-        if (t <= dragTime) before.push(t)
-        else after.push(t)
-      }
-      return [...before.slice(-2), ...after.slice(0, 2)]
-    }
-    return []
-  }, [hoveredScene, dragTime, scenes])
 
   // ── Segments (with synthetic clip boundary anchors) ────────────────────────
   const { segments, segmentAnchors } = useMemo(() => {
@@ -315,40 +269,9 @@ export default function WarpView({
     [segmentAnchors, selectedIds],
   )
 
-  const getBeatAnchorBounds = useCallback(
-    (id: number): { min: number; max: number } => {
-      const beatIdx = sortedBeat.findIndex(a => a.id === id)
-      const origIdx = sortedOrig.findIndex(a => a.id === id)
-      if (beatIdx === -1 || origIdx === -1) return { min: 0, max: outputDuration }
-      let min = 0, max = outputDuration
-      if (origIdx > 0) {
-        const origSpan = sortedOrig[origIdx].time - sortedOrig[origIdx - 1].time
-        const prevBeat = sortedBeat[beatIdx - 1]?.time ?? 0
-        min = Math.max(min, prevBeat + 0 * origSpan)
-        max = Math.min(max, prevBeat + Infinity * origSpan)
-      }
-      if (origIdx < sortedOrig.length - 1) {
-        const origSpan = sortedOrig[origIdx + 1].time - sortedOrig[origIdx].time
-        const nextBeat = sortedBeat[beatIdx + 1]?.time ?? outputDuration
-        min = Math.max(min, nextBeat - Infinity * origSpan)
-        max = Math.min(max, nextBeat - 0 * origSpan)
-      }
-      return { min, max }
-    },
-    [sortedBeat, sortedOrig, outputDuration],
-  )
-
   // ── Selection helpers ─────────────────────────────────────────────────────
   const setSelectedIds = useCallback(
     (ids: Set<number>) => dispatch(setSelectedIdsAction([...ids])),
-    [dispatch],
-  )
-  const setSelectedIdsOrig = useCallback(
-    (ids: Set<number>) => { setSelectionOrigin('orig'); dispatch(setSelectedIdsAction([...ids])) },
-    [dispatch],
-  )
-  const setSelectedIdsBeat = useCallback(
-    (ids: Set<number>) => { setSelectionOrigin('beat'); dispatch(setSelectedIdsAction([...ids])) },
     [dispatch],
   )
 
@@ -360,11 +283,6 @@ export default function WarpView({
 
   const handleBeatChange = useCallback(
     (next: Anchor[]) => dispatch(setBeatAnchorsFromTimeline(next)),
-    [dispatch],
-  )
-
-  const handleBeatAnchorReset = useCallback(
-    (id: number) => dispatch(resetBeatLinks([id])),
     [dispatch],
   )
 
@@ -396,28 +314,7 @@ export default function WarpView({
     return () => window.removeEventListener('keydown', onKey)
   }, [selectedIds, dispatch])
 
-  // ── Scroll-zoom on connector ──────────────────────────────────────────────
-  const maxDurationRef = useRef(maxDuration); maxDurationRef.current = maxDuration
   const handleViewChangeRef = useRef(handleViewChange); handleViewChangeRef.current = handleViewChange
-
-  useEffect(() => {
-    const el = connectorRef.current
-    if (!el) return
-    const handler = (e: WheelEvent) => {
-      e.preventDefault()
-      const v = viewRef.current
-      const span = v.end - v.start
-      const rect = el.getBoundingClientRect()
-      const cursorTime = v.start + ((e.clientX - rect.left) / rect.width) * span
-      const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15
-      const newSpan = span * factor
-      const ratio = (cursorTime - v.start) / span
-      const ns = cursorTime - ratio * newSpan
-      handleViewChangeRef.current({ start: ns, end: ns + newSpan })
-    }
-    el.addEventListener('wheel', handler, { passive: false })
-    return () => el.removeEventListener('wheel', handler)
-  }, [])
 
   // ── Middle-mouse or shift+drag pan ────────────────────────────────────────
   useEffect(() => {
@@ -550,41 +447,6 @@ export default function WarpView({
     })
   }, [selectedIds, dispatch, beat, gridDiv, beatOffset, beatAnchors, origAnchors, onSendToNewRegion])
 
-  const handleTrackContextMenu = useCallback((time: number, x: number, y: number) => {
-    setContextMenu({
-      x, y,
-      items: [
-        {
-          label: 'Add marker here',
-          action: () => {
-            const clamped = Math.max(0, Math.min(duration, time))
-            dispatch(setOrigAnchorsFromTimeline([...origAnchors, { id: newAnchorId(), time: clamped }]))
-          },
-        },
-        { separator: true },
-        {
-          label: 'Zoom to fit',
-          action: () => handleViewChangeRef.current({ start: 0, end: maxDurationRef.current }),
-        },
-        {
-          label: 'Zoom to region',
-          action: () => handleViewChangeRef.current({ start: clipIn ?? 0, end: clipOut ?? duration }),
-          disabled: clipIn === undefined && clipOut === undefined,
-        },
-        ...(onClipOverlayCreate ? [
-          { separator: true as const },
-          {
-            label: 'New region here',
-            action: () => {
-              const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(time, reduxView, scenes, duration)
-              onClipOverlayCreate(inPoint, outPoint)
-            },
-          },
-        ] : []),
-      ],
-    })
-  }, [duration, clipIn, clipOut, origAnchors, onClipOverlayCreate, beat, dispatch, reduxView, scenes])
-
   // ── Thin-layout region mapping ────────────────────────────────────────────
   const thinRegions: RegionBlock[] = useMemo(
     () => (clipOverlays ?? []).map(c => ({
@@ -620,7 +482,6 @@ export default function WarpView({
   }, [dispatch])
 
   const handleThinAnchorSelect = useCallback((id: number, additive: boolean) => {
-    setSelectionOrigin('orig')
     if (additive) {
       const next = new Set(selectedIds)
       if (next.has(id)) next.delete(id); else next.add(id)
@@ -635,7 +496,6 @@ export default function WarpView({
   }, [dispatch])
 
   const handleThinBeatAnchorSelect = useCallback((id: number, additive: boolean) => {
-    setSelectionOrigin('beat')
     if (additive) {
       const next = new Set(selectedIds)
       if (next.has(id)) next.delete(id); else next.add(id)
@@ -653,155 +513,57 @@ export default function WarpView({
   return (
     <div
       ref={warpContainerRef}
-      className={`warp-view${scenesExpanded ? ' warp-view--scenes-expanded' : ''}`}
+      className="warp-view"
       style={warpCursor}
       onMouseEnter={() => setMouseOver(true)}
       onMouseLeave={() => setMouseOver(false)}
       onMouseDown={e => { if (e.button === 1) e.preventDefault() }}
     >
-      {thinLayout ? (
-        <ThinTimeline
-          duration={duration}
-          outputDuration={outputDuration}
-          view={view}
-          onViewChange={handleViewChange}
-          maxDuration={maxDuration}
-          playhead={playhead}
-          beatPlayhead={beatPlayhead}
-          onSeek={onSeek}
-          onSeekBeat={seekFromBeat}
-          anchors={origAnchors}
-          selectedAnchorIds={selectedIds}
-          onAnchorAdd={handleThinAnchorAdd}
-          onAnchorDelete={handleThinAnchorDelete}
-          onAnchorSelect={handleThinAnchorSelect}
-          onAnchorContextMenu={handleAnchorContextMenu}
-          onAnchorsChange={handleOrigChange}
-          beatAnchors={quantAnchors}
-          onBeatAnchorDelete={handleThinBeatAnchorDelete}
-          onBeatAnchorSelect={handleThinBeatAnchorSelect}
-          onBeatAnchorContextMenu={handleAnchorContextMenu}
-          onBeatAnchorsChange={handleBeatChange}
-          snapInterval={beat / gridDiv}
-          snapOffset={beatOffset}
-          gridDiv={gridDiv}
-          snapTargetsInput={scenes}
-          snapTargetsOutput={clipIn !== undefined ? [beatClipIn ?? 0, beatClipOut ?? outputDuration] : undefined}
-          bpm={bpm}
-          beatOffset={beatOffset}
-          scenes={scenes}
-          onSceneAdd={onSceneAdd}
-          onSceneDelete={onSceneDelete}
-          regions={thinRegions}
-          regionsOutput={thinRegionsOut}
-          onRegionSelect={onClipOverlaySelect}
-          onRegionContextMenu={onClipOverlayContextMenu}
-          onRegionResize={onClipOverlayResize}
-          onRegionMove={onClipOverlayMove}
-          onRegionResizeOutput={(id, inP, outP) => {
-            if (activeRegion && clipOverlays?.find(c => c.id === id)) {
-              dispatch(updateRegionBeatTimes({ id: activeRegion.id, inBeatTime: inP, outBeatTime: outP }))
-            }
-          }}
-          onRegionZoom={onClipOverlayZoom}
-          segments={segments}
-          clipIn={clipIn}
-          clipOut={clipOut}
-          beatClipIn={beatClipIn}
-          beatClipOut={beatClipOut}
-          clipFillColor={activeRegionPalette?.fill}
-          boundaryColor={activeRegionPalette?.solid}
-          linkedBoundaries={linkedBoundaries}
-          selectedBoundaries={selectedBoundaries}
-          onConnectorSelectionChange={setSelectedIds}
-          warpCollapsed={warpCollapsed}
-          onToggleWarp={() => dispatch(setWarpCollapsed(!warpCollapsed))}
-        />
-      ) : (
-      <Timeline
+      <ThinTimeline
         duration={duration}
-        bpm={bpm}
-        gridDiv={gridDiv}
-        anchors={origAnchors}
-        onAnchorsChange={handleOrigChange}
+        outputDuration={outputDuration}
         view={view}
         onViewChange={handleViewChange}
         maxDuration={maxDuration}
         playhead={playhead}
-        onRulerClick={onSeek}
-        onAnchorClick={onSeek}
-        selectedIds={selectedIds}
-        onSelectionChange={setSelectedIdsOrig}
-        primarySelection={selectionOrigin === 'orig'}
-        clipIn={clipIn}
-        clipOut={clipOut}
+        beatPlayhead={beatPlayhead}
+        onSeek={onSeek}
+        onSeekBeat={seekFromBeat}
+        anchors={origAnchors}
+        selectedAnchorIds={selectedIds}
+        onAnchorAdd={handleThinAnchorAdd}
+        onAnchorDelete={handleThinAnchorDelete}
+        onAnchorSelect={handleThinAnchorSelect}
         onAnchorContextMenu={handleAnchorContextMenu}
-        onTrackContextMenu={handleTrackContextMenu}
-        clipOverlays={clipOverlays}
-        onClipOverlaySelect={onClipOverlaySelect}
-        onClipOverlayCreate={onClipOverlayCreate}
-        onClipOverlayResize={onClipOverlayResize}
-        onClipOverlayMove={onClipOverlayMove}
-        onClipOverlayContextMenu={onClipOverlayContextMenu}
-        onClipOverlayZoom={onClipOverlayZoom}
-        beatRangeStart={clipIn}
-        beatRangeEnd={clipOut}
-        onTrackScrub={onSeek}
-        linkedAnchorIds={linkedAnchorIds}
-        dimmedAnchorIds={dimmedAnchorIds}
-        minimapRegions={clipOverlays}
-        belowRulerContent={
-          <SceneRow
-            scenes={scenes}
-            view={view}
-            duration={duration}
-            expanded={scenesExpanded}
-            onSceneClick={onSeek}
-            onSceneHover={setHoveredScene}
-            playhead={playhead}
-            onSceneAdd={onSceneAdd}
-            onSceneDelete={onSceneDelete}
-          />
-        }
-        throughlines={scenes}
-        activeThroughlines={visibleScenes}
-        snapTargets={scenes}
-        onDragPositionChange={t => {
-          setDragTime(t)
-          if (t !== null) onSeek?.(t)
+        onAnchorsChange={handleOrigChange}
+        beatAnchors={quantAnchors}
+        onBeatAnchorDelete={handleThinBeatAnchorDelete}
+        onBeatAnchorSelect={handleThinBeatAnchorSelect}
+        onBeatAnchorContextMenu={handleAnchorContextMenu}
+        onBeatAnchorsChange={handleBeatChange}
+        snapInterval={beat / gridDiv}
+        snapOffset={beatOffset}
+        gridDiv={gridDiv}
+        snapTargetsInput={scenes}
+        snapTargetsOutput={clipIn !== undefined ? [beatClipIn ?? 0, beatClipOut ?? outputDuration] : undefined}
+        bpm={bpm}
+        beatOffset={beatOffset}
+        scenes={scenes}
+        onSceneAdd={onSceneAdd}
+        onSceneDelete={onSceneDelete}
+        regions={thinRegions}
+        regionsOutput={thinRegionsOut}
+        onRegionSelect={onClipOverlaySelect}
+        onRegionContextMenu={onClipOverlayContextMenu}
+        onRegionResize={onClipOverlayResize}
+        onRegionMove={onClipOverlayMove}
+        onRegionResizeOutput={(id, inP, outP) => {
+          if (activeRegion && clipOverlays?.find(c => c.id === id)) {
+            dispatch(updateRegionBeatTimes({ id: activeRegion.id, inBeatTime: inP, outBeatTime: outP }))
+          }
         }}
-        rowLabels={{
-          minimap: 'Overview',
-          ruler: 'Time',
-          belowRuler: (
-            <button
-              className="warp-view__scene-toggle"
-              onClick={() => setScenesExpanded(v => !v)}
-              title={scenesExpanded ? 'Collapse scenes' : 'Expand scenes'}
-            >
-              <span>Scenes</span>
-              <span className="warp-view__scene-chevron">{scenesExpanded ? '▾' : '▸'}</span>
-            </button>
-          ),
-          track: (
-            <button
-              className="warp-view__collapse-toggle"
-              onClick={() => dispatch(setWarpCollapsed(!warpCollapsed))}
-              title={warpCollapsed ? 'Show warp / beats / bars / speed' : 'Hide warp / beats / bars / speed'}
-            >
-              <span>Source</span>
-              <span className="warp-view__collapse-chevron">{warpCollapsed ? '▸' : '▾'}</span>
-            </button>
-          ),
-        }}
-      />
-      )}
-      {(warpCollapsed || thinLayout) ? null : <><WarpConnector
-        ref={connectorRef}
+        onRegionZoom={onClipOverlayZoom}
         segments={segments}
-        view={view}
-        origDuration={duration}
-        outputDuration={outputDuration}
         clipIn={clipIn}
         clipOut={clipOut}
         beatClipIn={beatClipIn}
@@ -810,66 +572,10 @@ export default function WarpView({
         boundaryColor={activeRegionPalette?.solid}
         linkedBoundaries={linkedBoundaries}
         selectedBoundaries={selectedBoundaries}
-        anchors={origAnchors}
-        onSelectionChange={setSelectedIds}
-        railLabel="Warp"
+        onConnectorSelectionChange={setSelectedIds}
+        warpCollapsed={warpCollapsed}
+        onToggleWarp={() => dispatch(setWarpCollapsed(!warpCollapsed))}
       />
-      <Timeline
-        flip
-        duration={outputDuration}
-        trimAt={trimToLoop ? effectiveOutputDuration : undefined}
-        bpm={bpm}
-        gridDiv={gridDiv}
-        anchors={quantAnchors}
-        onAnchorsChange={handleBeatChange}
-        snapInterval={beat}
-        snapOffset={beatOffset}
-        musicalRuler
-        noAdd
-        noRemove
-        onAnchorDblClick={handleBeatAnchorReset}
-        getBounds={getBeatAnchorBounds}
-        view={view}
-        onViewChange={handleViewChange}
-        maxDuration={maxDuration}
-        anchorZeroId={clipIn !== undefined ? (effectiveBeatZeroId ?? undefined) : undefined}
-        selectedIds={selectedIds}
-        onSelectionChange={setSelectedIdsBeat}
-        primarySelection={selectionOrigin === 'beat'}
-        onAnchorContextMenu={handleAnchorContextMenu}
-        playhead={beatPlayhead}
-        onRulerClick={seekFromBeat}
-        onAnchorClick={seekFromBeat}
-        onTrackScrub={seekFromBeat}
-        clipIn={beatClipIn}
-        clipOut={beatClipOut}
-        clipOverlays={beatClipOverlays}
-        onClipOverlaySelect={onClipOverlaySelect}
-        onClipOverlayContextMenu={onClipOverlayContextMenu}
-        onClipOverlayResize={(id, inP, outP) => {
-          if (activeRegion && clipOverlays?.find(c => c.id === id)) {
-            dispatch(updateRegionBeatTimes({ id: activeRegion.id, inBeatTime: inP, outBeatTime: outP }))
-          }
-        }}
-        beatRangeStart={beatClipIn}
-        beatRangeEnd={beatClipOut}
-        linkedAnchorIds={linkedAnchorIds}
-        clipResizeSnapTargets={clipIn !== undefined ? [clipIn, clipOut ?? duration] : undefined}
-        clipResizeNoGridSnap={regionLock === 'beats'}
-        belowRulerContent={
-          <SpeedStrip
-            segments={segments}
-            view={view}
-            outputDuration={outputDuration}
-          />
-        }
-        throughlines={quantAnchors.map(a => a.time)}
-        rowLabels={{
-          track: 'Beats',
-          ruler: 'Bars',
-          belowRuler: 'Speed',
-        }}
-      /></>}
       <input
         ref={importRef}
         type="file"
