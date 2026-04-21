@@ -298,6 +298,29 @@
   overflow: visible;
 }
 
+/* Global through-line overlay — one SVG covering every section. Positioned
+ * after sections in DOM order so lines paint above markers / regions / scenes.
+ * The `top` / `height` inline styles come from measured section bounds so the
+ * SVG sits exactly over the sections column (skipping minimap + toolbar).
+ * Width is computed explicitly: `left + right` is unreliable on SVG elements
+ * (some engines fall back to the intrinsic 300×150), so we set width directly. */
+.thin-timeline__global-through {
+  position: absolute;
+  display: block;
+  left: var(--thin-rail-w);
+  width: calc(100% - var(--thin-rail-w));
+  pointer-events: none;
+  overflow: visible;
+  z-index: 5;
+}
+
+.thin-timeline__hover-stroke {
+  fill: none;
+  stroke: var(--fg-4);
+  stroke-opacity: 0.5;
+  stroke-width: 1;
+}
+
 .thin-timeline__through-stroke {
   fill: none;
 }

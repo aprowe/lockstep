@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import type { Anchor, View } from '../../types'
 import { timeToViewPct } from '../../utils/view'
 import { computeSnap, pixelsToSeconds, type SnapTarget } from '../../utils/snap'
+import { gesture, type Space } from '../../store/gesture'
 import TrackRow from './TrackRow'
 import './MarkersTrack.css'
 
@@ -11,6 +12,9 @@ interface MarkersTrackProps {
   duration: number
   selectedIds: Set<number>
   label?: string
+  /** Which timeline space this track edits — drives which side of the
+   *  gesture store receives snap-hint / drag-time publishes. */
+  space: Space
   /** Grid snap interval (seconds). Typically one beat. */
   snapInterval?: number
   snapOffset?: number
@@ -27,13 +31,6 @@ interface MarkersTrackProps {
   onBackgroundContextMenu?: (time: number, x: number, y: number) => void
   /** Fires during drag — caller swaps the anchor list in its store. */
   onAnchorsChange?: (next: Anchor[]) => void
-  /** Fires when a marker gains/loses hover — used for through-line overlays. */
-  onHoverChange?: (id: number | null) => void
-  /** Report nearby snap-target times during a drag (empty array / null when idle). */
-  onSnapHintsChange?: (times: number[] | null) => void
-  /** Report the dragged marker's current time (null when idle). Lets callers
-   *  do things like move the playhead to follow the drag. */
-  onDragTimeChange?: (time: number | null) => void
 }
 
 type DragState = {
@@ -60,9 +57,9 @@ export default function MarkersTrack({
   anchors, view, duration,
   selectedIds,
   label = 'Markers',
+  space,
   snapInterval, snapOffset = 0, snapTargets,
-  onSeek, onAdd, onDelete, onSelect, onContextMenu, onBackgroundContextMenu, onAnchorsChange, onHoverChange,
-  onSnapHintsChange, onDragTimeChange,
+  onSeek, onAdd, onDelete, onSelect, onContextMenu, onBackgroundContextMenu, onAnchorsChange,
 }: MarkersTrackProps) {
   const bodyRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<DragState | null>(null)
@@ -71,22 +68,11 @@ export default function MarkersTrack({
   // rAF-coalesce drag dispatches. Pointer-move events can fire at 120+Hz on
   // high-refresh displays, but we only need one dispatch per repaint. The
   // pending snapshot holds the latest computed {time, hints} to commit on the
-  // next animation frame.
+  // next animation frame. Snap hints + drag time publish into the shared
+  // gesture store; the store's window-level pointerup listener clears them
+  // even if this component unmounts mid-drag.
   const rafRef = useRef<number | null>(null)
   const pendingRef = useRef<{ nextAnchors: Anchor[]; snapped: number; hints: number[] } | null>(null)
-  // On unmount, cancel any scheduled rAF AND clear snap hints / drag-time in
-  // the parent. The component can unmount mid-drag (view change, etc.) —
-  // without this, hints emitted by a prior rAF stay in parent state forever
-  // because no pointerup ever fires on this (now-gone) button.
-  const onSnapHintsChangeRef = useRef(onSnapHintsChange)
-  onSnapHintsChangeRef.current = onSnapHintsChange
-  const onDragTimeChangeRef = useRef(onDragTimeChange)
-  onDragTimeChangeRef.current = onDragTimeChange
-  useEffect(() => () => {
-    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
-    onSnapHintsChangeRef.current?.(null)
-    onDragTimeChangeRef.current?.(null)
-  }, [])
 
   const xToTime = useCallback((clientX: number): number => {
     const el = bodyRef.current
@@ -218,15 +204,14 @@ export default function MarkersTrack({
       if (!p) return
       pendingRef.current = null
       onAnchorsChange(p.nextAnchors)
-      onSnapHintsChange?.(p.hints)
-      onDragTimeChange?.(p.snapped)
+      gesture.setSnapHints(space, p.hints)
+      gesture.setDragTime(space, p.snapped)
     })
-  }, [xToTime, trySnap, onAnchorsChange, onSnapHintsChange, onDragTimeChange])
+  }, [xToTime, trySnap, onAnchorsChange, space])
 
-  // Pointer-up handles cleanup (flush queued updates, clear snap hints +
-  // drag-time indicators) because `onClick` is suppressed by the browser when
-  // the pointer moved far enough to be considered a drag — leaving hints
-  // stuck on screen. Pointer-up always fires regardless of drag distance.
+  // Pointer-up flushes any queued rAF update. The global gesture listener
+  // (window pointerup) clears snap hints + drag time, so local cleanup only
+  // has to deal with pending anchor updates.
   const onMarkerPointerUp = useCallback((_e: React.PointerEvent<HTMLButtonElement>) => {
     if (rafRef.current !== null) {
       cancelAnimationFrame(rafRef.current)
@@ -235,9 +220,7 @@ export default function MarkersTrack({
       pendingRef.current = null
       if (p) onAnchorsChange?.(p.nextAnchors)
     }
-    onSnapHintsChange?.(null)
-    onDragTimeChange?.(null)
-  }, [onAnchorsChange, onSnapHintsChange, onDragTimeChange])
+  }, [onAnchorsChange])
 
   const onMarkerClick = useCallback((e: React.MouseEvent<HTMLButtonElement>, a: Anchor) => {
     const wasDragging = dragRef.current?.dragging ?? false
@@ -296,8 +279,8 @@ export default function MarkersTrack({
               onPointerCancel={onMarkerPointerUp}
               onClick={(e) => onMarkerClick(e, a)}
               onDoubleClick={(e) => onMarkerDoubleClick(e, a)}
-              onMouseEnter={() => onHoverChange?.(a.id)}
-              onMouseLeave={() => onHoverChange?.(null)}
+              onMouseEnter={() => gesture.setHoveredAnchor(a.id)}
+              onMouseLeave={() => gesture.setHoveredAnchor(null)}
               onContextMenu={(e) => {
                 if (!onContextMenu) return
                 e.preventDefault(); e.stopPropagation()

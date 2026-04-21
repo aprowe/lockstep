@@ -40,6 +40,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, AfterEachScenario }) => {
     Given('[a video is loaded]', () => {
       const r = render(
         createElement(MarkersTrack, {
+          space: 'input',
           anchors: [], view: VIEW, duration: 100, selectedIds: new Set<number>(),
           onBackgroundContextMenu: onBg,
         }),
@@ -80,6 +81,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, AfterEachScenario }) => {
     And('markers are placed on the current track', () => {
       const r = render(
         createElement(MarkersTrack, {
+          space: 'input',
           anchors, view: VIEW, duration: 100, selectedIds: selected,
           onSelect,
         }),
@@ -115,6 +117,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, AfterEachScenario }) => {
     Given('[a video is loaded]', () => {
       const a = render(
         createElement(MarkersTrack, {
+          space: 'input',
           anchors: [{ id: 10, time: 20 }], view: VIEW, duration: 100,
           selectedIds: selected, onSelect,
         }),
@@ -124,6 +127,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, AfterEachScenario }) => {
     And('markers are placed on the current track', () => {
       const b = render(
         createElement(MarkersTrack, {
+          space: 'output',
           anchors: [{ id: 20, time: 40 }], view: VIEW, duration: 100,
           selectedIds: selected, onSelect,
         }),
@@ -185,6 +189,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, AfterEachScenario }) => {
       if (layer === 'input_timeline') {
         const r = render(
           createElement(MarkersTrack, {
+            space: 'input',
             anchors: [], view: VIEW, duration: 100, selectedIds: new Set<number>(),
             onAdd,
           }),
@@ -243,6 +248,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, AfterEachScenario }) => {
       if (layer === 'input_timeline') {
         const r = render(
           createElement(MarkersTrack, {
+            space: 'input',
             anchors: [{ id: 42, time: 40 }], view: VIEW, duration: 100,
             selectedIds: new Set<number>(), onDelete,
           }),
@@ -306,6 +312,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, AfterEachScenario }) => {
       if (layer === 'input_timeline' || layer === 'multiple') {
         const r = render(
           createElement(MarkersTrack, {
+            space: 'input',
             anchors: [{ id: 7, time: 40 }], view: VIEW, duration: 100,
             selectedIds: new Set<number>(), onContextMenu: onAnchorContext,
           }),
@@ -371,6 +378,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, AfterEachScenario }) => {
         bodySelector = '.thin-row__body'
         const r = render(
           createElement(MarkersTrack, {
+            space: 'input',
             anchors: [], view: VIEW, duration: 100, selectedIds: new Set<number>(),
             onBackgroundContextMenu: onBg,
           }),

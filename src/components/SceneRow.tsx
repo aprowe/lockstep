@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { useAppSelector } from '../store/hooks'
 import { selectThumbnailPathsFor } from '../store/slices/thumbnailsSlice'
+import { gesture } from '../store/gesture'
 import type { View } from '../types'
 import { timeToViewPct } from '../utils/view'
 import { useSetThumbnailHover } from './ThumbnailPopup'
@@ -17,8 +18,6 @@ interface SceneRowProps {
   expanded?: boolean
   /** Click on a scene diamond — receives the scene time. */
   onSceneClick?: (time: number) => void
-  /** Fired on diamond hover enter (time) / leave (null). */
-  onSceneHover?: (time: number | null) => void
   /** Current playhead time — highlights the closest scene within one frame. */
   playhead?: number
   /** Shift-click or double-click on a scene diamond — remove that scene. */
@@ -34,7 +33,7 @@ interface SceneRowProps {
 const PLAYHEAD_MATCH_TOLERANCE = 0.05 // ~1 video frame at 20fps
 
 export default function SceneRow({
-  scenes, view, duration, expanded, onSceneClick, onSceneHover, playhead,
+  scenes, view, duration, expanded, onSceneClick, playhead,
   onSceneDelete, onSceneAdd, onSceneContextMenu, onBackgroundContextMenu,
 }: SceneRowProps) {
   const video = useAppSelector(s => s.video.video)
@@ -66,22 +65,23 @@ export default function SceneRow({
     return best
   }, [scenes, playhead])
 
-  // Diamond hover — fires onSceneHover always; popup only in collapsed mode
-  // (expanded mode already shows the thumbnail inline).
+  // Diamond hover — publishes into the shared gesture store (for through-line
+  // rendering) and shows the popup thumbnail in collapsed mode (expanded mode
+  // already shows the thumbnail inline).
   const handleDiamondEnter = useCallback(
     (time: number, e: React.MouseEvent<HTMLElement>) => {
-      onSceneHover?.(time)
+      gesture.setHoveredScene(time)
       if (expanded) return
       const rect = e.currentTarget.getBoundingClientRect()
       setThumbnailHover({ time, x: rect.left + rect.width / 2, y: rect.top })
     },
-    [onSceneHover, expanded, setThumbnailHover],
+    [expanded, setThumbnailHover],
   )
 
   const handleLeave = useCallback(() => {
-    onSceneHover?.(null)
+    gesture.setHoveredScene(null)
     setThumbnailHover(null)
-  }, [onSceneHover, setThumbnailHover])
+  }, [setThumbnailHover])
 
   // Double-click on empty row background → add a cut at the clicked timestamp.
   const handleBackgroundDoubleClick = useCallback(
@@ -152,8 +152,8 @@ export default function SceneRow({
                 type="button"
                 className={`scene-row__thumb-btn${active ? ' scene-row__thumb-btn--active' : ''}`}
                 onClick={onSceneClick ? () => onSceneClick(t) : undefined}
-                onMouseEnter={() => onSceneHover?.(t)}
-                onMouseLeave={() => onSceneHover?.(null)}
+                onMouseEnter={() => gesture.setHoveredScene(t)}
+                onMouseLeave={() => gesture.setHoveredScene(null)}
                 aria-label={`Scene ${i + 1} thumbnail`}
                 title={`Scene ${i + 1}`}
               >

@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import type { View } from '../../types'
 import { timeToViewPct } from '../../utils/view'
 import { computeSnap, pixelsToSeconds, type SnapTarget } from '../../utils/snap'
+import { gesture } from '../../store/gesture'
 import TrackRow from './TrackRow'
 import './RegionBand.css'
 
@@ -33,10 +34,6 @@ interface RegionBandProps {
   onMove?: (id: string, inPoint: number, outPoint: number) => void
   /** Double-click on a region — caller zooms the view to the region. */
   onZoom?: (id: string) => void
-  /** Hover reporting — used to render through-lines at region edges. */
-  onHoverChange?: (id: string | null) => void
-  /** Report nearby snap-target times during a resize/move drag (null when idle). */
-  onSnapHintsChange?: (times: number[] | null) => void
   /** Double-click on empty band background — create a new region at time. */
   onBackgroundAdd?: (time: number) => void
   /** Right-click on empty band background — global timeline menu. */
@@ -59,13 +56,16 @@ const MIN_WIDTH_SEC = 0.05
 export default function RegionBand({
   label, kind, regions, view, hideLabels,
   snapTargets, snapInterval, snapOffset = 0,
-  onSelect, onContextMenu, onResize, onMove, onZoom, onHoverChange, onSnapHintsChange,
+  onSelect, onContextMenu, onResize, onMove, onZoom,
   onBackgroundAdd, onBackgroundContextMenu,
 }: RegionBandProps) {
   const bodyRef = useRef<HTMLDivElement | null>(null)
   const gestureRef = useRef<Gesture>(null)
+  const space = kind === 'input' ? 'input' : 'output'
 
-  // rAF-coalesce drag dispatches — see MarkersTrack for rationale.
+  // rAF-coalesce drag dispatches — see MarkersTrack for rationale. Snap hints
+  // publish into the shared gesture store, which is cleared globally on
+  // pointer-up; no per-component unmount cleanup needed for hints.
   type PendingUpdate =
     | { kind: 'resize' | 'move'; id: string; inPoint: number; outPoint: number }
   const rafRef = useRef<number | null>(null)
@@ -79,8 +79,8 @@ export default function RegionBand({
     pendingHintsRef.current = null
     if (p && p.kind === 'resize' && onResize) onResize(p.id, p.inPoint, p.outPoint)
     else if (p && p.kind === 'move' && onMove) onMove(p.id, p.inPoint, p.outPoint)
-    if (h !== null) onSnapHintsChange?.(h)
-  }, [onResize, onMove, onSnapHintsChange])
+    if (h !== null) gesture.setSnapHints(space, h)
+  }, [onResize, onMove, space])
 
   const scheduleFlush = useCallback(() => {
     if (rafRef.current !== null) return
@@ -89,17 +89,6 @@ export default function RegionBand({
       flushPending()
     })
   }, [flushPending])
-
-  // On unmount, cancel any scheduled rAF AND clear hints in the parent. The
-  // component can unmount mid-drag (e.g. user changes view while dragging a
-  // handle) — without this, hints emitted by the last rAF remain in parent
-  // state indefinitely because no pointerup ever fires on this component.
-  const onSnapHintsChangeRef = useRef(onSnapHintsChange)
-  onSnapHintsChangeRef.current = onSnapHintsChange
-  useEffect(() => () => {
-    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
-    onSnapHintsChangeRef.current?.(null)
-  }, [])
 
   const xToTime = useCallback((clientX: number): number => {
     const el = bodyRef.current
@@ -221,8 +210,9 @@ export default function RegionBand({
       flushPending()
     }
     pendingHintsRef.current = null
-    onSnapHintsChange?.(null)
-  }, [flushPending, onSnapHintsChange])
+    // Global pointerup listener in gesture store clears snap hints; no
+    // local-callback clear needed.
+  }, [flushPending])
 
   const onRegionPointerUp = useCallback((_e: React.PointerEvent<HTMLDivElement>, r: RegionBlock) => {
     const g = gestureRef.current
@@ -235,19 +225,6 @@ export default function RegionBand({
   const onRegionPointerCancel = useCallback(() => {
     endGesture()
   }, [endGesture])
-
-  useEffect(() => {
-    const win = (e: PointerEvent) => {
-      if (gestureRef.current) endGesture()
-      else if (e.type === 'pointerup') onSnapHintsChange?.(null)
-    }
-    window.addEventListener('pointerup', win)
-    window.addEventListener('pointercancel', win)
-    return () => {
-      window.removeEventListener('pointerup', win)
-      window.removeEventListener('pointercancel', win)
-    }
-  }, [endGesture, onSnapHintsChange])
 
   const handleBgDoubleClick = useCallback(
     (pct: number) => {
@@ -295,8 +272,8 @@ export default function RegionBand({
               className={`thin-region clip-overlay--color-${(r.colorIndex ?? 0) % 8}${r.active ? ' thin-region--active' : ''}`}
               style={{ left: `${left}%`, width: `${width}%` }}
               title={r.label ?? `${r.inPoint.toFixed(2)}s → ${r.outPoint.toFixed(2)}s`}
-              onMouseEnter={() => onHoverChange?.(r.id)}
-              onMouseLeave={() => onHoverChange?.(null)}
+              onMouseEnter={() => gesture.setHoveredRegion(r.id)}
+              onMouseLeave={() => gesture.setHoveredRegion(null)}
               onContextMenu={(e) => {
                 if (!onContextMenu) return
                 e.preventDefault(); e.stopPropagation()

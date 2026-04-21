@@ -21,6 +21,7 @@ describe('thin tracks', () => {
     it('positions anchors by view percentage', () => {
       const { container } = render(
         <MarkersTrack
+          space="input"
           anchors={[{ id: 1, time: 25 }, { id: 2, time: 75 }]}
           view={VIEW}
           duration={100}
@@ -37,6 +38,7 @@ describe('thin tracks', () => {
       const onAdd = vi.fn<(t: number) => void>()
       const { container } = render(
         <MarkersTrack
+          space="input"
           anchors={[]}
           view={VIEW}
           duration={100}
@@ -59,6 +61,7 @@ describe('thin tracks', () => {
       const onSelect = vi.fn<(id: number, additive: boolean) => void>()
       const { container } = render(
         <MarkersTrack
+          space="input"
           anchors={[{ id: 7, time: 42 }]}
           view={VIEW}
           duration={100}
@@ -80,6 +83,7 @@ describe('thin tracks', () => {
       const onDelete = vi.fn<(id: number) => void>()
       const { container } = render(
         <MarkersTrack
+          space="input"
           anchors={[{ id: 3, time: 10 }]}
           view={VIEW}
           duration={100}

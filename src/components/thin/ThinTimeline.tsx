@@ -1,6 +1,7 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
 import { setHoverFrames } from '../../store/slices/thumbnailsSlice'
+import { gesture, useGesture } from '../../store/gesture'
 import type { Anchor, View, WarpSegment } from '../../types'
 import { clampView, timeToViewPct } from '../../utils/view'
 import SceneRow from '../SceneRow'
@@ -132,9 +133,16 @@ export default function ThinTimeline({
   const connectorRef = useRef<HTMLDivElement>(null)
   const [hoverPct, setHoverPct] = useState<number | null>(null)
   const [flexBy, setFlexBy] = useState<Record<string, number>>(DEFAULT_FLEX)
-  const [hoveredAnchorId, setHoveredAnchorId] = useState<number | null>(null)
-  const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null)
-  const [hoveredSceneTime, setHoveredSceneTime] = useState<number | null>(null)
+  // Transient pointer state lives in the shared gesture store — see
+  // src/store/gesture.ts. Subscribing here via selector keeps the existing
+  // render shape; children (MarkersTrack, RegionBand, SceneRow) publish
+  // directly into the store.
+  const hoveredAnchorId = useGesture(s => s.hoveredAnchorId)
+  const hoveredRegionId = useGesture(s => s.hoveredRegionId)
+  const hoveredSceneTime = useGesture(s => s.hoveredSceneTime)
+  const snapHintsIn = useGesture(s => s.snapHintsIn)
+  const snapHintsOut = useGesture(s => s.snapHintsOut)
+  const dragTime = useGesture(s => s.dragTime)
   const [lassoRange, setLassoRange] = useState<{
     /** Horizontal extents in % of the body width (0..1). */
     startPct: number
@@ -193,75 +201,34 @@ export default function ThinTimeline({
     dispatch(setHoverFrames({ fileHash: videoFileHash, frames }))
   }, [dispatch, videoFileHash, videoFps, hoverPct, view.start, view.end])
   // Playhead-follows-drag: when on, dragging a marker moves the playhead too.
+  // The drag time lives in the gesture store; we just forward it on change.
   const [followDrag, setFollowDrag] = useState(false)
-
-  const onInDragTime = useCallback(
-    (t: number | null) => { if (followDrag && t !== null) onSeek?.(t) },
-    [followDrag, onSeek],
-  )
-  const onOutDragTime = useCallback(
-    (t: number | null) => { if (followDrag && t !== null) onSeekBeat?.(t) },
-    [followDrag, onSeekBeat],
-  )
-
-  // Live snap hints reported by the currently-dragging row.
-  const [snapHintsIn, setSnapHintsIn] = useState<number[]>([])
-  const [snapHintsOut, setSnapHintsOut] = useState<number[]>([])
-  const onInSnapHints = useCallback(
-    (t: number[] | null) => setSnapHintsIn(t ?? []),
-    [],
-  )
-  const onOutSnapHints = useCallback(
-    (t: number[] | null) => setSnapHintsOut(t ?? []),
-    [],
-  )
-
-  // Safety net: any pointer release/cancel anywhere in the window clears
-  // lingering snap hints AND hover state. Individual row components try to
-  // clean up themselves, but state can leak when a hovered/dragged target
-  // unmounts mid-gesture (e.g. view change drops the marker that had pointer
-  // capture, so pointerup/mouseleave never fires). Attaching at window
-  // guarantees cleanup.
   useEffect(() => {
-    const clearAll = () => {
-      setSnapHintsIn([])
-      setSnapHintsOut([])
-      setHoveredAnchorId(null)
-      setHoveredRegionId(null)
-      setHoveredSceneTime(null)
-    }
-    window.addEventListener('pointerup', clearAll)
-    window.addEventListener('pointercancel', clearAll)
-    window.addEventListener('blur', clearAll)
-    return () => {
-      window.removeEventListener('pointerup', clearAll)
-      window.removeEventListener('pointercancel', clearAll)
-      window.removeEventListener('blur', clearAll)
-    }
-  }, [])
+    if (!followDrag || !dragTime) return
+    if (dragTime.space === 'input') onSeek?.(dragTime.time)
+    else onSeekBeat?.(dragTime.time)
+  }, [followDrag, dragTime, onSeek, onSeekBeat])
 
   // Stale-hover sweep: if the hovered anchor/region/scene has disappeared
-  // from the underlying list (view change, filter, etc.), drop the stale id.
-  // Prevents through-lines from being drawn for targets that no longer exist.
+  // from the underlying list (view change, filter, etc.), drop the stale id
+  // in the gesture store so phantom through-lines don't linger.
   useEffect(() => {
-    if (hoveredAnchorId !== null) {
-      const stillThere =
-        anchors.some(a => a.id === hoveredAnchorId) ||
-        beatAnchors.some(a => a.id === hoveredAnchorId)
-      if (!stillThere) setHoveredAnchorId(null)
+    if (hoveredAnchorId !== null
+      && !anchors.some(a => a.id === hoveredAnchorId)
+      && !beatAnchors.some(a => a.id === hoveredAnchorId)) {
+      gesture.setHoveredAnchor(null)
     }
   }, [anchors, beatAnchors, hoveredAnchorId])
   useEffect(() => {
-    if (hoveredRegionId !== null) {
-      const list = regionsOutput ?? regions
-      const inA = regions.some(r => r.id === hoveredRegionId)
-      const inB = list.some(r => r.id === hoveredRegionId)
-      if (!inA && !inB) setHoveredRegionId(null)
+    if (hoveredRegionId !== null
+      && !regions.some(r => r.id === hoveredRegionId)
+      && !(regionsOutput ?? regions).some(r => r.id === hoveredRegionId)) {
+      gesture.setHoveredRegion(null)
     }
   }, [regions, regionsOutput, hoveredRegionId])
   useEffect(() => {
     if (hoveredSceneTime !== null && !scenes.includes(hoveredSceneTime)) {
-      setHoveredSceneTime(null)
+      gesture.setHoveredScene(null)
     }
   }, [scenes, hoveredSceneTime])
 
@@ -368,14 +335,38 @@ export default function ThinTimeline({
     view,
   ])
 
-  // Pre-partition by space so each section only iterates the subset it needs
-  // to render. Big win when there are many markers and many sections.
-  const inputLines = useMemo(() => throughLines.filter(tl => tl.inputX !== null), [throughLines])
-  const outputLines = useMemo(() => throughLines.filter(tl => tl.outputX !== null), [throughLines])
-  const warpLines = useMemo(
-    () => throughLines.filter(tl => tl.inputX !== null && tl.outputX !== null),
-    [throughLines],
-  )
+  // Section layouts drive the single global through-line overlay (see below).
+  // Measured in pixels relative to rootRef so each line can draw one continuous
+  // path across every section it passes through, bridging the resizer gaps
+  // that used to break the visual into per-section fragments.
+  interface SectionLayout {
+    id: string
+    space: SectionSpace
+    top: number
+    bottom: number
+  }
+  const [layouts, setLayouts] = useState<SectionLayout[]>([])
+
+  // Collapse contiguous same-space sections into one span so a single vertical
+  // stroke covers the whole group (resizer gaps disappear). Then bridge the
+  // gaps between neighbouring spans by snapping each pair to their shared
+  // midpoint — otherwise the vertical input stroke ends ~1px short of the
+  // warp slant's top endpoint and the visual looks broken at the seam.
+  interface SectionSpan { space: SectionSpace; top: number; bottom: number }
+  const spans = useMemo<SectionSpan[]>(() => {
+    const out: SectionSpan[] = []
+    for (const l of layouts) {
+      const last = out[out.length - 1]
+      if (last && last.space === l.space) last.bottom = l.bottom
+      else out.push({ space: l.space, top: l.top, bottom: l.bottom })
+    }
+    for (let i = 0; i < out.length - 1; i++) {
+      const mid = (out[i].bottom + out[i + 1].top) / 2
+      out[i].bottom = mid
+      out[i + 1].top = mid
+    }
+    return out
+  }, [layouts])
 
   // Wheel zoom must call preventDefault to stop the page from scrolling, but
   // React attaches onWheel as a passive listener (preventDefault becomes a
@@ -613,7 +604,6 @@ export default function ThinTimeline({
             duration={duration}
             playhead={playhead}
             onSceneClick={onSeek}
-            onSceneHover={setHoveredSceneTime}
             onSceneAdd={onSceneAdd}
             onSceneDelete={onSceneDelete}
             onSceneContextMenu={onSceneContextMenu}
@@ -652,8 +642,6 @@ export default function ThinTimeline({
         onResize={onRegionResize}
         onMove={onRegionMove}
         onZoom={onRegionZoom}
-        onHoverChange={setHoveredRegionId}
-        onSnapHintsChange={onInSnapHints}
         onBackgroundAdd={onRegionAdd}
         onBackgroundContextMenu={onTimelineContextMenu}
       />
@@ -665,6 +653,7 @@ export default function ThinTimeline({
     node: (
       <MarkersTrack
         label="Marker In"
+        space="input"
         anchors={anchors}
         view={view}
         duration={duration}
@@ -677,9 +666,6 @@ export default function ThinTimeline({
         onContextMenu={onAnchorContextMenu}
         onBackgroundContextMenu={onTimelineContextMenu}
         onAnchorsChange={onAnchorsChange}
-        onHoverChange={setHoveredAnchorId}
-        onSnapHintsChange={onInSnapHints}
-        onDragTimeChange={onInDragTime}
       />
     ),
   })
@@ -713,6 +699,7 @@ export default function ThinTimeline({
       node: (
         <MarkersTrack
           label="Marker Out"
+          space="output"
           anchors={beatAnchors}
           view={view}
           duration={outputDuration}
@@ -726,9 +713,6 @@ export default function ThinTimeline({
           onContextMenu={onBeatAnchorContextMenu}
           onBackgroundContextMenu={onTimelineContextMenu}
           onAnchorsChange={onBeatAnchorsChange}
-          onHoverChange={setHoveredAnchorId}
-          onSnapHintsChange={onOutSnapHints}
-          onDragTimeChange={onOutDragTime}
         />
       ),
     })
@@ -751,8 +735,6 @@ export default function ThinTimeline({
             onResize={onRegionResizeOutput}
             onMove={onRegionMoveOutput}
             onZoom={onRegionZoom}
-            onHoverChange={setHoveredRegionId}
-            onSnapHintsChange={onOutSnapHints}
             onBackgroundContextMenu={onTimelineContextMenu}
           />
         ),
@@ -794,6 +776,48 @@ export default function ThinTimeline({
     })
   }
 
+  // Re-measure section bounds whenever the section set changes (id or space)
+  // or anything resizes. Drives the global through-line overlay. The effect
+  // also re-subscribes the ResizeObserver to the new section elements.
+  const sectionKey = sections.map(s => s.id + ':' + s.space).join('|')
+  useLayoutEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const recompute = () => {
+      const rootRect = root.getBoundingClientRect()
+      const next: SectionLayout[] = []
+      const els = root.querySelectorAll<HTMLElement>('[data-section]')
+      for (const el of els) {
+        const id = el.dataset.section
+        const space = el.dataset.space as SectionSpace | undefined
+        if (!id || !space) continue
+        const r = el.getBoundingClientRect()
+        next.push({
+          id, space,
+          top: r.top - rootRect.top,
+          bottom: r.bottom - rootRect.top,
+        })
+      }
+      setLayouts(prev => {
+        if (prev.length !== next.length) return next
+        for (let i = 0; i < next.length; i++) {
+          const a = prev[i]; const b = next[i]
+          if (a.id !== b.id || a.space !== b.space
+            || Math.abs(a.top - b.top) > 0.5 || Math.abs(a.bottom - b.bottom) > 0.5) {
+            return next
+          }
+        }
+        return prev
+      })
+    }
+    recompute()
+    const ro = new ResizeObserver(recompute)
+    ro.observe(root)
+    const els = root.querySelectorAll<HTMLElement>('[data-section]')
+    for (const el of els) ro.observe(el)
+    return () => ro.disconnect()
+  }, [sectionKey])
+
   /**
    * Translucent band showing the active clip's in→out range. Only rendered
    * on the rows that sit vertically between the clip-in and clip-out rows
@@ -817,57 +841,62 @@ export default function ThinTimeline({
     )
   }
 
-  const renderThroughLine = (tl: ThroughLine, space: SectionSpace) => {
-    if (space === 'warp') {
-      if (tl.inputX === null || tl.outputX === null) return null
-      return (
-        <line
-          key={tl.key}
-          x1={tl.inputX}
-          y1={0}
-          x2={tl.outputX}
-          y2={100}
-          className={`thin-timeline__through-stroke thin-timeline__through-stroke--${tl.kind}-${tl.style}`}
-          vectorEffect="non-scaling-stroke"
-        />
-      )
+  const overlayTop = layouts.length > 0 ? layouts[0].top : 0
+  const overlayBottom = layouts.length > 0 ? layouts[layouts.length - 1].bottom : 0
+  const overlayHeight = Math.max(0, overlayBottom - overlayTop)
+
+  /** One continuous group per through-line: a vertical stroke in each input /
+   *  output span and a slanted stroke across any warp span. y-coords are
+   *  pixels relative to the SVG origin (overlayTop). */
+  const renderGlobalThroughLine = (tl: ThroughLine) => {
+    const cls = `thin-timeline__through-stroke thin-timeline__through-stroke--${tl.kind}-${tl.style}`
+    // Anchors already get a dotted link across the warp row from WarpConnector,
+    // so skip the warp span segment for kind=anchor to avoid double-drawing.
+    const skipWarp = tl.kind === 'anchor'
+    const segs: React.ReactNode[] = []
+    for (let i = 0; i < spans.length; i++) {
+      const sp = spans[i]
+      const y1 = sp.top - overlayTop
+      const y2 = sp.bottom - overlayTop
+      if (sp.space === 'input' && tl.inputX !== null) {
+        segs.push(<line key={i} x1={tl.inputX} y1={y1} x2={tl.inputX} y2={y2} className={cls} vectorEffect="non-scaling-stroke" />)
+      } else if (sp.space === 'output' && tl.outputX !== null) {
+        segs.push(<line key={i} x1={tl.outputX} y1={y1} x2={tl.outputX} y2={y2} className={cls} vectorEffect="non-scaling-stroke" />)
+      } else if (sp.space === 'warp' && !skipWarp && tl.inputX !== null && tl.outputX !== null) {
+        segs.push(<line key={i} x1={tl.inputX} y1={y1} x2={tl.outputX} y2={y2} className={cls} vectorEffect="non-scaling-stroke" />)
+      }
     }
-    const x = space === 'input' ? tl.inputX : tl.outputX
-    if (x === null || x < -2 || x > 102) return null
-    return (
-      <div
-        key={tl.key}
-        className={`thin-timeline__through-line thin-timeline__through-line--${tl.kind}-${tl.style}`}
-        style={{ left: `${x}%` }}
-      />
-    )
+    if (segs.length === 0) return null
+    return <g key={tl.key}>{segs}</g>
   }
 
-  const renderPlayhead = (space: SectionSpace, sectionId: string) => {
-    const thick = sectionId === 'time' || sectionId === 'beat'
-    const cls = `thin-timeline__playhead thin-timeline__playhead--${thick ? 'thick' : 'thin'}`
-    if (space === 'warp') {
-      if (playheadInX === null || playheadOutX === null) return null
-      return (
-        <svg
-          className="thin-timeline__playhead-svg"
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-        >
-          <line
-            x1={playheadInX}
-            y1={0}
-            x2={playheadOutX}
-            y2={100}
-            className="thin-timeline__playhead-stroke"
-            vectorEffect="non-scaling-stroke"
-          />
-        </svg>
-      )
+  /** Continuous playhead across every span — vertical in input/output, slanted
+   *  across warp. Rendered inside the global SVG so it flows over the resizer
+   *  gaps the same way through-lines do. */
+  const renderGlobalPlayhead = () => {
+    if (playheadInX === null && playheadOutX === null) return null
+    const segs: React.ReactNode[] = []
+    for (let i = 0; i < spans.length; i++) {
+      const sp = spans[i]
+      const y1 = sp.top - overlayTop
+      const y2 = sp.bottom - overlayTop
+      if (sp.space === 'input' && playheadInX !== null) {
+        segs.push(<line key={i} x1={playheadInX} y1={y1} x2={playheadInX} y2={y2} className="thin-timeline__playhead-stroke" vectorEffect="non-scaling-stroke" />)
+      } else if (sp.space === 'output' && playheadOutX !== null) {
+        segs.push(<line key={i} x1={playheadOutX} y1={y1} x2={playheadOutX} y2={y2} className="thin-timeline__playhead-stroke" vectorEffect="non-scaling-stroke" />)
+      } else if (sp.space === 'warp' && playheadInX !== null && playheadOutX !== null) {
+        segs.push(<line key={i} x1={playheadInX} y1={y1} x2={playheadOutX} y2={y2} className="thin-timeline__playhead-stroke" vectorEffect="non-scaling-stroke" />)
+      }
     }
-    const x = space === 'input' ? playheadInX : playheadOutX
-    if (x === null || x < -2 || x > 102) return null
-    return <div className={cls} style={{ left: `${x}%` }} />
+    return segs.length > 0 ? <g>{segs}</g> : null
+  }
+
+  /** Hover cursor — one continuous vertical stroke at the pointer's body-%
+   *  across every span. hoverPct is already clamped to [0,1] of the body width. */
+  const renderGlobalHoverCursor = () => {
+    if (hoverPct === null || overlayHeight <= 0) return null
+    const x = hoverPct * 100
+    return <line x1={x} y1={0} x2={x} y2={overlayHeight} className="thin-timeline__hover-stroke" vectorEffect="non-scaling-stroke" />
   }
 
   return (
@@ -904,33 +933,37 @@ export default function ThinTimeline({
           <div
             className="thin-timeline__section"
             data-section={s.id}
+            data-space={s.space}
             style={{ flex: `${flexBy[s.id]} 0 var(--thin-row-h)` }}
           >
             {s.node}
             <div className="thin-timeline__through-overlay">
               {regionBandsFor(s.space, s.id)}
-              {s.space === 'warp' ? (
-                <svg
-                  className="thin-timeline__through-svg"
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                >
-                  {warpLines.map(tl => renderThroughLine(tl, s.space))}
-                </svg>
-              ) : (
-                (s.space === 'input' ? inputLines : outputLines).map(tl => renderThroughLine(tl, s.space))
-              )}
-              {renderPlayhead(s.space, s.id)}
-              {hoverPct !== null && (
-                <div
-                  className="thin-timeline__hover"
-                  style={{ left: `${hoverPct * 100}%` }}
-                />
-              )}
+              {/* Playhead, hover cursor and through-lines live in the global
+               *  SVG overlay below so they flow continuously across section
+               *  resizer gaps. Keep the overlay here only for region bands. */}
             </div>
           </div>
         </Fragment>
       ))}
+
+      {/* Global through-line overlay — paints after every section, so lines
+       *  sit on top of markers / diamonds / region blocks. Pointer-events are
+       *  off, so clicks still land on the underlying rows. Grouping contiguous
+       *  same-space sections into spans produces one continuous stroke per
+       *  line across the whole vertical stack, resizer gaps included. */}
+      {layouts.length > 0 && overlayHeight > 0 && (
+        <svg
+          className="thin-timeline__global-through"
+          viewBox={`0 0 100 ${overlayHeight}`}
+          preserveAspectRatio="none"
+          style={{ top: `${overlayTop}px`, height: `${overlayHeight}px` }}
+        >
+          {throughLines.map(renderGlobalThroughLine)}
+          {renderGlobalPlayhead()}
+          {renderGlobalHoverCursor()}
+        </svg>
+      )}
 
       <div className="thin-timeline__toolbar">
         <button
