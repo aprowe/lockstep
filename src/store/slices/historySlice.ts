@@ -1,12 +1,27 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { Anchor, Region } from '../../types'
 
+/**
+ * One undo/redo snapshot — the full set of state fields that participate in
+ * undo. Any user-visible mutation worth reversing must be captured here.
+ * Excluded on purpose: selection, playhead, active-region-id, view, UI layout,
+ * and the internal globalMarkers cache.
+ */
 export interface HistoryEntry {
+  // Warp anchors
   origAnchors: Anchor[]
   beatAnchors: Anchor[]
   linkedBeatIds: number[]
   beatZeroId: number | null
-  regions?: Region[]
+  // Warp settings
+  bpm: number
+  minStretch: number
+  maxStretch: number
+  loopBeats: number | null
+  trimToLoop: boolean
+  addToEnd: boolean
+  // Regions
+  regions: Region[]
 }
 
 interface HistoryState {
@@ -14,14 +29,63 @@ interface HistoryState {
   index: number
 }
 
+const emptyEntry: HistoryEntry = {
+  origAnchors: [],
+  beatAnchors: [],
+  linkedBeatIds: [],
+  beatZeroId: null,
+  bpm: 120,
+  minStretch: 0.5,
+  maxStretch: 2.0,
+  loopBeats: null,
+  trimToLoop: false,
+  addToEnd: false,
+  regions: [],
+}
+
 const initialState: HistoryState = {
-  stack: [{
-    origAnchors: [],
-    beatAnchors: [],
-    linkedBeatIds: [],
-    beatZeroId: null,
-  }],
+  stack: [emptyEntry],
   index: 0,
+}
+
+function anchorsEqual(a: Anchor[], b: Anchor[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].id !== b[i].id) return false
+    if (Math.abs(a[i].time - b[i].time) > 0.0001) return false
+  }
+  return true
+}
+
+function regionsEqual(a: Region[], b: Region[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    const ra = a[i], rb = b[i]
+    if (ra.id !== rb.id) return false
+    if (ra.name !== rb.name) return false
+    if (ra.inPoint !== rb.inPoint || ra.outPoint !== rb.outPoint) return false
+    if (ra.inBeatTime !== rb.inBeatTime || ra.outBeatTime !== rb.outBeatTime) return false
+    if (ra.bpm !== rb.bpm) return false
+    if (ra.minStretch !== rb.minStretch || ra.maxStretch !== rb.maxStretch) return false
+    if (ra.addToEnd !== rb.addToEnd) return false
+    if (ra.lock !== rb.lock) return false
+    if (ra.lockedBeats !== rb.lockedBeats) return false
+    if (ra.triggerMode !== rb.triggerMode) return false
+  }
+  return true
+}
+
+function entriesEqual(a: HistoryEntry, b: HistoryEntry): boolean {
+  return a.bpm === b.bpm
+    && a.minStretch === b.minStretch
+    && a.maxStretch === b.maxStretch
+    && a.loopBeats === b.loopBeats
+    && a.trimToLoop === b.trimToLoop
+    && a.addToEnd === b.addToEnd
+    && a.beatZeroId === b.beatZeroId
+    && anchorsEqual(a.origAnchors, b.origAnchors)
+    && anchorsEqual(a.beatAnchors, b.beatAnchors)
+    && regionsEqual(a.regions, b.regions)
 }
 
 const historySlice = createSlice({
@@ -31,18 +95,7 @@ const historySlice = createSlice({
     pushSnapshot(state, action: PayloadAction<HistoryEntry>) {
       const entry = action.payload
       const cur = state.stack[state.index]
-      // Skip if identical to current
-      const regionsIdentical = (cur.regions?.length ?? 0) === (entry.regions?.length ?? 0) &&
-        (entry.regions?.every((r, i) => r.id === cur.regions?.[i]?.id && r.inPoint === cur.regions?.[i]?.inPoint && r.outPoint === cur.regions?.[i]?.outPoint) ?? true)
-      if (cur &&
-          cur.origAnchors.length === entry.origAnchors.length &&
-          cur.beatAnchors.length === entry.beatAnchors.length &&
-          cur.beatZeroId === entry.beatZeroId &&
-          cur.origAnchors.every((a, i) => a.id === entry.origAnchors[i]?.id && Math.abs(a.time - entry.origAnchors[i]?.time) < 0.0001) &&
-          cur.beatAnchors.every((a, i) => a.id === entry.beatAnchors[i]?.id && Math.abs(a.time - entry.beatAnchors[i]?.time) < 0.0001) &&
-          regionsIdentical) {
-        return
-      }
+      if (cur && entriesEqual(cur, entry)) return
       // Truncate future entries
       state.stack = state.stack.slice(0, state.index + 1)
       state.stack.push(entry)

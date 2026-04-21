@@ -10,6 +10,7 @@ import { setRegions, setActiveRegionId } from '../slices/regionSlice'
 import { loadCached as loadCachedScenes } from '../slices/sceneSlice'
 import { resetHistory, pushSnapshot } from '../slices/historySlice'
 import type { HistoryEntry } from '../slices/historySlice'
+import { snapshotFromState } from '../middleware/historyMiddleware'
 import { setView } from '../slices/uiSlice'
 
 /** Load markers from sidecar or internal storage for a video */
@@ -37,13 +38,7 @@ export const openFileThunk = createAsyncThunk(
     try {
       const info = await openVideo()
       if (!info) return
-      const { warp } = (getState() as RootState)
-      const preLoadEntry: HistoryEntry = {
-        origAnchors: warp.origAnchors,
-        beatAnchors: warp.beatAnchors,
-        linkedBeatIds: warp.linkedBeatIds,
-        beatZeroId: warp.beatZeroId,
-      }
+      const preLoadEntry: HistoryEntry = snapshotFromState(getState() as RootState)
       dispatch(setFolderVideos([]))
       dispatch(setVideo(info))
       dispatch(setView({ start: 0, end: info.duration }))
@@ -53,7 +48,7 @@ export const openFileThunk = createAsyncThunk(
       dispatch(setMarkersLoaded(false))
 
       const state = await loadMarkersForVideo(info.path, info.fileHash)
-      applyLoadedState(dispatch, state, info.path, preLoadEntry)
+      applyLoadedState(dispatch, getState, state, info.path, preLoadEntry)
     } catch (e: any) {
       console.error('Failed to open file:', e)
     }
@@ -118,13 +113,7 @@ export const selectVideoThunk = createAsyncThunk(
   'video/selectVideo',
   async (path: string, { dispatch, getState }) => {
     try {
-      const { warp } = (getState() as RootState)
-      const preLoadEntry: HistoryEntry = {
-        origAnchors: warp.origAnchors,
-        beatAnchors: warp.beatAnchors,
-        linkedBeatIds: warp.linkedBeatIds,
-        beatZeroId: warp.beatZeroId,
-      }
+      const preLoadEntry: HistoryEntry = snapshotFromState(getState() as RootState)
       const info = await loadVideoFromPath(path)
       dispatch(setVideo(info))
       dispatch(setView({ start: 0, end: info.duration }))
@@ -134,7 +123,7 @@ export const selectVideoThunk = createAsyncThunk(
       dispatch(setMarkersLoaded(false))
 
       const state = await loadMarkersForVideo(info.path, info.fileHash)
-      applyLoadedState(dispatch, state, info.path, preLoadEntry)
+      applyLoadedState(dispatch, getState, state, info.path, preLoadEntry)
     } catch (e: any) {
       console.error('Failed to select video:', e)
     }
@@ -185,13 +174,7 @@ export const openJsonFileThunk = createAsyncThunk(
   'video/openJsonFile',
   async (_, { dispatch, getState }) => {
     try {
-      const { warp } = (getState() as RootState)
-      const preLoadEntry: HistoryEntry = {
-        origAnchors: warp.origAnchors,
-        beatAnchors: warp.beatAnchors,
-        linkedBeatIds: warp.linkedBeatIds,
-        beatZeroId: warp.beatZeroId,
-      }
+      const preLoadEntry: HistoryEntry = snapshotFromState(getState() as RootState)
       const { jsonContent, videoPath: video_path } = await openJsonFileApi()
       // Load the video first
       const info = await loadVideoFromPath(video_path)
@@ -204,7 +187,7 @@ export const openJsonFileThunk = createAsyncThunk(
 
       // The sidecar will be auto-detected by loadMarkersForVideo
       const state = await loadMarkersForVideo(info.path, info.fileHash)
-      applyLoadedState(dispatch, state, info.path, preLoadEntry)
+      applyLoadedState(dispatch, getState, state, info.path, preLoadEntry)
     } catch (e: any) {
       console.error('Failed to open JSON file:', e)
     }
@@ -222,13 +205,7 @@ export const openLlcProjectThunk = createAsyncThunk(
   async (llcPath: string, { dispatch, getState }) => {
     try {
       const { videoPath, cutSegments } = await loadLlcProject(llcPath)
-      const { warp } = (getState() as RootState)
-      const preLoadEntry: HistoryEntry = {
-        origAnchors: warp.origAnchors,
-        beatAnchors: warp.beatAnchors,
-        linkedBeatIds: warp.linkedBeatIds,
-        beatZeroId: warp.beatZeroId,
-      }
+      const preLoadEntry: HistoryEntry = snapshotFromState(getState() as RootState)
       const info = await loadVideoFromPath(videoPath)
       dispatch(setVideo(info))
       dispatch(setView({ start: 0, end: info.duration }))
@@ -241,7 +218,7 @@ export const openLlcProjectThunk = createAsyncThunk(
       // anchors / default-region settings), then override regions with the
       // .llc segments.
       const savedState = await loadMarkersForVideo(info.path, info.fileHash)
-      applyLoadedState(dispatch, savedState, info.path, preLoadEntry)
+      applyLoadedState(dispatch, getState, savedState, info.path, preLoadEntry)
 
       const bpm = (getState() as RootState).warp.bpm
       const regions: Region[] = cutSegments.map((s, i) => ({
@@ -263,7 +240,7 @@ export const openLlcProjectThunk = createAsyncThunk(
 )
 
 /** Apply loaded SavedVideoState to Redux */
-function applyLoadedState(dispatch: any, state: SavedVideoState | null, videoPath: string, preLoadEntry: HistoryEntry) {
+function applyLoadedState(dispatch: any, getState: () => unknown, state: SavedVideoState | null, videoPath: string, preLoadEntry: HistoryEntry) {
   const dr = state?.defaultRegion ?? null
   dispatch(setGlobalMarkers(dr))
 
@@ -307,15 +284,8 @@ function applyLoadedState(dispatch: any, state: SavedVideoState | null, videoPat
 
   // Set history: pre-load state as base so undo can revert the load,
   // then push the loaded state on top as the current entry
-  const orig = dr?.origAnchors ?? []
-  const beat = dr?.beatAnchors ?? []
   dispatch(resetHistory(preLoadEntry))
-  dispatch(pushSnapshot({
-    origAnchors: orig,
-    beatAnchors: beat,
-    linkedBeatIds: [],
-    beatZeroId: null,
-  }))
+  dispatch(pushSnapshot(snapshotFromState(getState() as RootState)))
 
   // Update marker count
   const count = dr?.origAnchors?.length ?? 0

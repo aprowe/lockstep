@@ -13,11 +13,19 @@ const makeRegion = (id: string, inPoint: number, outPoint: number) => ({
   id, name: id, inPoint, outPoint, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
 })
 
-const snap = (store: ReturnType<typeof makeStore>) =>
+const snap = (store: ReturnType<typeof makeStore>) => {
+  const s = store.getState()
   store.dispatch(pushSnapshot({
     origAnchors: [], beatAnchors: [], linkedBeatIds: [], beatZeroId: null,
-    regions: store.getState().region.regions,
+    bpm: s.warp.bpm,
+    minStretch: s.warp.minStretch,
+    maxStretch: s.warp.maxStretch,
+    loopBeats: s.warp.loopBeats,
+    trimToLoop: s.warp.trimToLoop,
+    addToEnd: s.warp.addToEnd,
+    regions: s.region.regions,
   }))
+}
 
 describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => {
   BeforeEachScenario(() => { cleanup() })

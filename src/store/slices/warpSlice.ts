@@ -171,6 +171,27 @@ const warpSlice = createSlice({
       bumpAnchorIdCounter(action.payload.origAnchors)
       bumpAnchorIdCounter(action.payload.beatAnchors)
     },
+    /**
+     * Bulk-apply warp settings during undo/redo without triggering the history
+     * matcher. The granular setters (setBpm, setMinStretch, …) are all in the
+     * matcher so user-initiated edits snapshot; this action is excluded so it
+     * can replay them during restore without recording a fresh snapshot.
+     */
+    loadWarpSettings(state, action: PayloadAction<{
+      bpm: number
+      minStretch: number
+      maxStretch: number
+      loopBeats: number | null
+      trimToLoop: boolean
+      addToEnd: boolean
+    }>) {
+      state.bpm = action.payload.bpm
+      state.minStretch = action.payload.minStretch
+      state.maxStretch = action.payload.maxStretch
+      state.loopBeats = action.payload.loopBeats
+      state.trimToLoop = action.payload.trimToLoop
+      state.addToEnd = action.payload.addToEnd
+    },
 
     // ── Settings ──────────────────────────────────────────────────────────
     setBpm(state, action: PayloadAction<number>) {
@@ -228,6 +249,7 @@ export const {
   resetBeatLinks,
   clearAnchors,
   loadAnchors,
+  loadWarpSettings,
   setBpm,
   setMinStretch,
   setMaxStretch,

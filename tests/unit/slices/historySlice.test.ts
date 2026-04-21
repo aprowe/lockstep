@@ -14,6 +14,13 @@ function entry(origTimes: number[], beatTimes?: number[]): HistoryEntry {
     beatAnchors: bt.map((t, i) => ({ id: i + 1, time: t })),
     linkedBeatIds: origTimes.map((_, i) => i + 1),
     beatZeroId: null,
+    bpm: 120,
+    minStretch: 0.5,
+    maxStretch: 2.0,
+    loopBeats: null,
+    trimToLoop: false,
+    addToEnd: false,
+    regions: [],
   }
 }
 
