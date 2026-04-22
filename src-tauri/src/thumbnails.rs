@@ -39,34 +39,53 @@ const DEFAULT_THUMB_WIDTH: u32 = 120;
 /// scoring `REQ_RADIUS` — process priority is a CPU hint, not cache policy.
 const PLAYHEAD_WINDOW: i64 = 15;
 
-// ── Scoring weights ────────────────────────────────────────────────────────
-// Derived from sandbox optimization (docs/THUMBNAIL_CACHE_DESIGN.md). Higher
-// score = higher priority. Tune by re-running the sandbox against a real
-// workload — see the doc for methodology.
-const W_DIST: f64 = 0.0;
-const DIST_FALLOFF: f64 = 89.0;
-const W_REC: f64 = 0.12;
-const REC_TAU_SECS: f64 = 99.0;
-const W_MARK: f64 = 0.39;
+// ── Scoring tiers ──────────────────────────────────────────────────────────
+//
+// Each tier's base outranks the next tier's max so a higher-tier candidate
+// always beats a lower-tier one regardless of recency. Sub-ordering happens
+// inside each band:
+//   T1  Playhead radius — gradient closer = higher
+//   T2  At-marker frames — sub-ordered by playhead proximity, then viewport
+//   T3  Marker neighborhoods — softer falloff
+//   +   Recency adds within whatever tier the frame falls in
+//
+// REQ_RADIUS is also the hard-protected eviction window — frames inside it
+// are never dropped and `pick_next` scans them outward before scoring.
+const REQ_RADIUS: i64 = 8;
+
+const T_PLAYHEAD_BASE: f64 = 1000.0;
+const T_PLAYHEAD_GRADIENT: f64 = 100.0;
+
+const T_MARKER_BASE: f64 = 100.0;
+const T_MARKER_PLAYHEAD: f64 = 50.0;
+const T_MARKER_VIEWPORT: f64 = 25.0;
+
+const T_NEAR_MARKER: f64 = 10.0;
+
+const T_RECENCY: f64 = 5.0;
+
+/// Falloff (in frames) for the playhead-proximity term that orders markers
+/// in T2: at one DIST_FALLOFF the bonus drops to ~37% of its peak.
+const DIST_FALLOFF: f64 = 90.0;
+/// Falloff for the marker-neighborhood term in T3.
 const MARK_RADIUS: f64 = 72.0;
-/// Hard-mandatory window around the playhead: these frames MUST be cached
-/// if they fit, and are never evicted.
-const REQ_RADIUS: i64 = 3;
-/// 2× the gaussian-ish falloff covers ~86% of the exponential mass; frames
-/// beyond that carry negligible weight, so we don't seed them as candidates.
+const REC_TAU_SECS: f64 = 99.0;
+/// 2× the falloff covers ~86% of the exponential mass; frames beyond that
+/// carry negligible neighborhood weight, so we don't seed them as candidates.
 const MARK_CANDIDATE_REACH: i64 = (MARK_RADIUS as i64) * 2;
 
 #[derive(Clone, Default, Debug)]
 struct PriorityContext {
     playhead_frame: i64,
-    /// Scoring markers = user anchors ∪ scene cuts. Other tier signals from
-    /// the request are still received (so the frontend request shape stays
-    /// stable) but don't currently feed the score.
+    /// Scoring markers = user anchors ∪ filtered scene cuts. MUST be sorted
+    /// — `frame_score` uses binary_search to test "is f a marker?".
     markers: Vec<i64>,
+    /// (start, end) viewport frames. Markers inside this range get a T2 bonus
+    /// so off-playhead-but-on-screen scenes outrank far-from-screen scenes.
+    viewport_frames: (i64, i64),
     #[allow(dead_code)] recent_playheads: Vec<i64>,
     #[allow(dead_code)] region_frames: Vec<(i64, i64)>,
     #[allow(dead_code)] strip_frames: Vec<i64>,
-    #[allow(dead_code)] viewport_frames: (i64, i64),
     #[allow(dead_code)] hover_frames: Vec<i64>,
 }
 
@@ -167,20 +186,46 @@ fn scan_ready(cache_dir: &PathBuf) -> HashSet<i64> {
     out
 }
 
-/// Scoring function — higher = higher priority.
+/// Scoring function — higher = higher priority. See the tier comment block
+/// at the top of this file for the design.
 ///
-/// score = W_DIST·exp(-d/DIST_FALLOFF) + W_REC·exp(-age/REC_TAU) + W_MARK·max_m exp(-|f-m|/MARK_RADIUS)
-///
-/// The required window is enforced separately in `pick_next` / `evict_overflow`;
-/// this function doesn't try to encode a hard threshold.
+/// The required window is *also* enforced as a hard preference in `pick_next`
+/// (outward scan) and `evict_overflow` (radius frames are never dropped) so
+/// even ties / float fuzz can't bump T1 frames to the back.
 fn frame_score(ctx: &PriorityContext, frame: i64, age_secs: f64) -> f64 {
-    let d = (frame - ctx.playhead_frame).abs() as f64;
-    let dist = (-d / DIST_FALLOFF).exp();
-    let rec = (-age_secs / REC_TAU_SECS).exp();
-    let mark = ctx.markers.iter().fold(0.0_f64, |acc, &m| {
+    let recency = (-age_secs / REC_TAU_SECS).exp();
+    let recency_term = T_RECENCY * recency;
+
+    let d_playhead = (frame - ctx.playhead_frame).abs();
+
+    if d_playhead <= REQ_RADIUS {
+        // T1 — playhead radius. Closer wins via a linear gradient so the
+        // exact-playhead frame always edges out its neighbours, and so on.
+        let closeness = 1.0 - (d_playhead as f64) / (REQ_RADIUS as f64);
+        return T_PLAYHEAD_BASE + T_PLAYHEAD_GRADIENT * closeness + recency_term;
+    }
+
+    // Cheap binary_search relies on `markers` being sorted in
+    // `set_thumbnail_priority`.
+    let is_marker = ctx.markers.binary_search(&frame).is_ok();
+    if is_marker {
+        // T2 — at a marker (user anchor or filtered scene cut). Sub-order:
+        // playhead-near markers first, then in-viewport, then everywhere else.
+        let prox = (-(d_playhead as f64) / DIST_FALLOFF).exp();
+        let (vp_lo, vp_hi) = ctx.viewport_frames;
+        let in_vp = if frame >= vp_lo && frame <= vp_hi { 1.0 } else { 0.0 };
+        return T_MARKER_BASE
+            + T_MARKER_PLAYHEAD * prox
+            + T_MARKER_VIEWPORT * in_vp
+            + recency_term;
+    }
+
+    // T3 — in the neighborhood of some marker. Soft falloff to the nearest
+    // marker; a frame far from every marker scores ≈ recency_term alone.
+    let mark_prox = ctx.markers.iter().fold(0.0_f64, |acc, &m| {
         acc.max((-((frame - m).abs() as f64) / MARK_RADIUS).exp())
     });
-    W_DIST * dist + W_REC * rec + W_MARK * mark
+    T_NEAR_MARKER * mark_prox + recency_term
 }
 
 fn required_window(ph: i64, max_frame: i64) -> std::ops::RangeInclusive<i64> {
@@ -576,20 +621,23 @@ pub struct QueueStats {
     pub tiers: Vec<QueueTierStats>,
 }
 
-/// Bucket a candidate frame for stats reporting. Mirrors the sandbox's
-/// conceptual tiers: required (hard), marker (near a marker), recent (touched
-/// lately so recency dominates), cold (low-scoring carry-over).
+/// Bucket a candidate frame for stats reporting. Mirrors the scoring tiers:
+/// required (T1 / playhead radius), marker (T2 / at a marker), neighborhood
+/// (T3 / near a marker), recent (recency carries it), cold (low-score carry).
 fn tier_name(ctx: &PriorityContext, max_frame: i64, frame: i64, age: f64) -> &'static str {
     let ph = ctx.playhead_frame;
     if (frame - ph).abs() <= REQ_RADIUS && frame >= 0 && frame <= max_frame {
         return "required";
     }
+    if ctx.markers.binary_search(&frame).is_ok() {
+        return "marker";
+    }
     let mark = ctx.markers.iter().fold(0.0_f64, |acc, &m| {
         acc.max((-((frame - m).abs() as f64) / MARK_RADIUS).exp())
     });
-    if mark * W_MARK >= 0.05 { return "marker"; }
+    if T_NEAR_MARKER * mark >= 0.5 { return "neighborhood"; }
     let rec = (-age / REC_TAU_SECS).exp();
-    if rec * W_REC >= 0.02 { return "recent"; }
+    if T_RECENCY * rec >= 0.5 { return "recent"; }
     "cold"
 }
 
@@ -609,7 +657,7 @@ pub async fn get_thumbnail_queue_stats(
     let cands = candidate_frames(&st);
     let now = Instant::now();
 
-    let order = ["required", "marker", "recent", "cold"];
+    let order = ["required", "marker", "neighborhood", "recent", "cold"];
     let mut by_name: std::collections::HashMap<&'static str, QueueTierStats> =
         std::collections::HashMap::new();
     for name in order.iter() {
@@ -792,5 +840,84 @@ mod tests {
         let s_on_marker = frame_score(&ctx, 1_000, f64::INFINITY);
         let s_far = frame_score(&ctx, 50_000, f64::INFINITY);
         assert!(s_on_marker > s_far, "on-marker must outscore a distant cold frame");
+    }
+
+    #[test]
+    fn playhead_radius_outranks_any_marker() {
+        // A frame anywhere in T1 must beat any T2 frame, even a marker that's
+        // both close to playhead AND in the viewport.
+        let ctx = PriorityContext {
+            playhead_frame: 100,
+            markers: vec![120],
+            viewport_frames: (0, 200),
+            ..Default::default()
+        };
+        let s_radius_edge = frame_score(&ctx, 100 + REQ_RADIUS, 0.0);
+        let s_marker = frame_score(&ctx, 120, 0.0);
+        assert!(
+            s_radius_edge > s_marker,
+            "T1 edge ({s_radius_edge}) must beat T2 marker ({s_marker})",
+        );
+    }
+
+    #[test]
+    fn within_radius_closer_scores_higher() {
+        // Inside the playhead radius, closeness to the playhead increases
+        // priority — the gradient drives extraction order.
+        let ctx = PriorityContext { playhead_frame: 100, ..Default::default() };
+        let s_at = frame_score(&ctx, 100, 0.0);
+        let s_near = frame_score(&ctx, 102, 0.0);
+        let s_edge = frame_score(&ctx, 100 + REQ_RADIUS, 0.0);
+        assert!(s_at > s_near && s_near > s_edge, "expected at > near > edge");
+    }
+
+    #[test]
+    fn marker_in_viewport_outranks_marker_outside() {
+        // Two markers at the same playhead distance — the in-viewport one wins.
+        let ctx = PriorityContext {
+            playhead_frame: 0,
+            markers: vec![1_000, 10_000],
+            // Viewport contains 1000 but not 10000.
+            viewport_frames: (500, 5_000),
+            ..Default::default()
+        };
+        // Equalize playhead-proximity by scoring same-distance markers — pick
+        // markers that are both far enough that the proximity term is tiny.
+        let m_in_vp = frame_score(&ctx, 1_000, f64::INFINITY);
+        let m_out_vp = frame_score(&ctx, 10_000, f64::INFINITY);
+        assert!(
+            m_in_vp > m_out_vp,
+            "in-viewport marker ({m_in_vp}) must outscore out-of-viewport ({m_out_vp})",
+        );
+    }
+
+    #[test]
+    fn at_marker_outranks_neighborhood() {
+        // A frame that *is* a marker (T2) must beat a frame in the marker's
+        // neighborhood (T3), so the marker frame itself fills first.
+        let ctx = PriorityContext {
+            playhead_frame: 0,
+            markers: vec![10_000],
+            ..Default::default()
+        };
+        let s_at = frame_score(&ctx, 10_000, 0.0);
+        let s_neighbor = frame_score(&ctx, 10_010, 0.0);
+        assert!(s_at > s_neighbor, "at-marker ({s_at}) must beat neighbor ({s_neighbor})");
+    }
+
+    #[test]
+    fn recency_does_not_promote_t3_above_t2() {
+        // Even a max-recency T3 frame must not climb into the T2 band.
+        let ctx = PriorityContext {
+            playhead_frame: 0,
+            markers: vec![10_000, 20_000],
+            ..Default::default()
+        };
+        let s_t2_stale = frame_score(&ctx, 20_000, f64::INFINITY);
+        let s_t3_fresh = frame_score(&ctx, 10_010, 0.0);
+        assert!(
+            s_t2_stale > s_t3_fresh,
+            "stale T2 ({s_t2_stale}) must outrank fresh T3 ({s_t3_fresh})",
+        );
     }
 }

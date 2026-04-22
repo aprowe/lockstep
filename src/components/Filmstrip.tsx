@@ -8,6 +8,7 @@ import {
 import { setThumbnail, selectThumbnailPathsFor } from '../store/slices/thumbnailsSlice'
 import { setFilmstripHeight } from '../store/slices/uiSlice'
 import { secondsToFrames } from '../utils/time'
+import { filterCutsByMinGap } from '../utils/sceneFilter'
 import './Filmstrip.css'
 
 const SLOTS = 7
@@ -28,8 +29,18 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
   const stripHeight = useAppSelector(s => s.ui.filmstripHeight)
   const thumbWidth = useAppSelector(s => s.settings.thumbWidth)
   const maxCachedFrames = useAppSelector(s => s.settings.maxCachedFrames)
-  const scenes = useAppSelector(s =>
+  const rawScenes = useAppSelector(s =>
     video ? s.scene.cutsByPath[video.path] ?? [] : [],
+  )
+  const sceneMinGap = useAppSelector(s =>
+    video ? s.scene.minGapByPath[video.path] : undefined,
+  ) ?? 2
+  // Use the *filtered* set so the backend queues the same scene markers the
+  // user sees on the timeline. Min-gap collapses dense clusters; without this
+  // filter the cache wastes slots on cuts that the UI never surfaces.
+  const scenes = useMemo(
+    () => filterCutsByMinGap(rawScenes, sceneMinGap),
+    [rawScenes, sceneMinGap],
   )
   const thumbPaths = useAppSelector(selectThumbnailPathsFor(video?.fileHash))
   const stripFrames = useAppSelector(s =>
