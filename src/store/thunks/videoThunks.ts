@@ -7,7 +7,7 @@ import { checkVideoSidecar, deleteVideoSidecar, openJsonFile as openJsonFileApi,
 import { setVideo, clearVideo, setFolderVideos, setMarkerCount, setMarkersLoaded, setDetectingBpm } from '../slices/videoSlice'
 import { loadAnchors, clearAnchors, setBpm, setMinStretch, setMaxStretch, setLoopBeats, setTrimToLoop, setAddToEnd, setGlobalMarkers, setPlayhead, bumpAnchorIdCounter } from '../slices/warpSlice'
 import { setRegions, setActiveRegionId } from '../slices/regionSlice'
-import { loadCached as loadCachedScenes } from '../slices/sceneSlice'
+import { loadCached as loadCachedScenes, setMinGap as setSceneMinGap } from '../slices/sceneSlice'
 import { resetHistory, pushSnapshot } from '../slices/historySlice'
 import type { HistoryEntry } from '../slices/historySlice'
 import { snapshotFromState } from '../middleware/historyMiddleware'
@@ -280,6 +280,11 @@ function applyLoadedState(dispatch: any, getState: () => unknown, state: SavedVi
       cuts: state.scenes.cuts,
       threshold: state.scenes.threshold,
     }))
+  }
+  // minGap is independent of cuts — restore even when no cuts have been
+  // detected yet, so a freshly opened video keeps the user's preferred gap.
+  if (typeof state?.scenes?.minGap === 'number') {
+    dispatch(setSceneMinGap({ path: videoPath, minGap: state.scenes.minGap }))
   }
 
   // Set history: pre-load state as base so undo can revert the load,

@@ -16,6 +16,9 @@ interface ExportJob {
   bpm: number
   addToEnd: boolean
   triggerMode?: boolean
+  /** Beat count for filename interpolation. For region jobs this is the
+   *  region span at its bpm; null falls back to the global loop-beats. */
+  beats: number | null
 }
 
 interface ExportDialogProps {
@@ -208,6 +211,13 @@ export default function ExportDialog({
   // Allow export even with no markers (passthrough / cut only)
   const canProcess = !!warpData || (videoPath.length > 0)
 
+  const beatsForRegion = (r: { inPoint: number; outPoint: number; bpm: number } | null): number | null => {
+    if (!r) return loopBeats
+    const span = Math.max(0, r.outPoint - r.inPoint)
+    if (span <= 0 || !(r.bpm > 0)) return loopBeats
+    return Math.round(span * r.bpm / 60)
+  }
+
   const buildJobs = (): ExportJob[] => {
     if (mode === 'current') {
       return [{
@@ -217,6 +227,7 @@ export default function ExportDialog({
         bpm: activeRegion?.bpm ?? bpm,
         addToEnd: activeRegion?.addToEnd ?? addToEnd,
         triggerMode: activeRegion?.triggerMode ?? false,
+        beats: beatsForRegion(activeRegion),
       }]
     }
     const list = mode === 'all' ? regions : regions.filter(r => selectedRegionIds.has(r.id))
@@ -227,6 +238,7 @@ export default function ExportDialog({
         clipOut: null,
         bpm,
         addToEnd,
+        beats: loopBeats,
       }]
     }
     return list.map(r => ({
@@ -236,6 +248,7 @@ export default function ExportDialog({
       bpm: r.bpm,
       addToEnd: r.addToEnd,
       triggerMode: r.triggerMode ?? false,
+      beats: beatsForRegion(r),
     }))
   }
 
@@ -244,7 +257,7 @@ export default function ExportDialog({
       name: job.label,
       stem: baseName,
       bpm: job.bpm,
-      beats: loopBeats,
+      beats: job.beats,
       clipIn: job.clipIn,
       clipOut: job.clipOut,
       index,
@@ -259,12 +272,15 @@ export default function ExportDialog({
     setTotalJobs(jobs.length)
     setOutputPaths([])
     setError(null)
-    setSavedFolder(null)
+    setSavedFolder(destFolder)
+    setSavedCount(0)
     setLogLines([])
     setCurrentMessage('')
     cancelRef.current = false
 
     const results: string[] = []
+    let savedSoFar = 0
+    let firstError: string | null = null
 
     for (let i = 0; i < jobs.length; i++) {
       if (cancelRef.current) break
@@ -317,37 +333,38 @@ export default function ExportDialog({
         })
 
         results.push(outputPath)
+        setOutputPaths([...results])
+
+        // Land the rendered file in the destination folder immediately, before
+        // moving on to the next render. Earlier behavior queued every clip and
+        // copied them only after the full batch finished, which delayed
+        // visibility (and lost everything if a later clip aborted the run).
+        if (destFolder) {
+          try {
+            await saveToFolder({ source_path: outputPath, dest_folder: destFolder, file_name: getFileName(job, i) })
+            savedSoFar += 1
+            setSavedCount(savedSoFar)
+          } catch (e: any) {
+            const msg = `${job.label} (save): ${e.message ?? String(e)}`
+            if (!firstError) firstError = msg
+            setLogLines(prev => [...prev, `ERROR — ${msg}`])
+          }
+        }
       } catch (e: any) {
         const msg = `${job.label}: ${e.message ?? String(e)}`
-        setStatus('error')
-        setError(msg)
+        if (!firstError) firstError = msg
         setLogLines(prev => [...prev, `ERROR — ${msg}`])
-        return
+        // Continue with the remaining jobs — earlier successes stay saved.
       }
     }
 
-    if (!cancelRef.current) {
-      setOutputPaths(results)
-      setStatus('done')
+    if (cancelRef.current) return
 
-      // Auto-save to folder if one is selected
-      if (destFolder && results.length > 0) {
-        const jobs2 = buildJobs()
-        setSaving(true)
-        try {
-          for (let i = 0; i < results.length; i++) {
-            const fileName = getFileName(jobs2[i], i)
-            const savedPath = await saveToFolder({ source_path: results[i], dest_folder: destFolder, file_name: fileName })
-            if (warpData) await writeMarkerSidecar(savedPath, warpData, { videoName: originalName, exportFolder: destFolder })
-          }
-          setSavedCount(results.length)
-          setSavedFolder(destFolder)
-        } catch (e: any) {
-          if (!String(e).includes('cancelled')) setError(e.message ?? String(e))
-        } finally {
-          setSaving(false)
-        }
-      }
+    if (firstError) {
+      setStatus('error')
+      setError(firstError)
+    } else {
+      setStatus('done')
     }
   }
 
@@ -479,6 +496,7 @@ export default function ExportDialog({
               <button
                 className={`export-dialog__mode${mode === 'all' ? ' export-dialog__mode--active' : ''}`}
                 onClick={() => setMode('all')}
+                aria-label="All Regions"
               >
                 All ({regions.length})
               </button>
@@ -533,6 +551,7 @@ export default function ExportDialog({
                 <span className="export-dialog__row-label">Name</span>
                 <input
                   className="export-dialog__pattern"
+                  aria-label="Filename Pattern"
                   value={namePattern}
                   onChange={e => setNamePattern(e.target.value)}
                   spellCheck={false}
@@ -647,6 +666,15 @@ export default function ExportDialog({
                   <span className="export-dialog__progress-msg" title={currentMessage}>
                     {currentMessage}
                   </span>
+                )}
+                {savedFolder && (
+                  <button
+                    className="export-dialog__open-folder"
+                    onClick={() => revealInFolder(savedFolder)}
+                    title={savedFolder}
+                  >
+                    Show Folder
+                  </button>
                 )}
               </div>
               <div className="export-dialog__progress">

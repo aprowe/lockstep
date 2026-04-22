@@ -13,6 +13,7 @@ import type { MenuDef } from './components/MenuBar'
 import { buildFileMenu, buildEditMenu, buildViewMenu } from './menus'
 import { stepUiScale, resetUiScale, UI_SCALE_STEP } from './uiScale'
 import { calcZoomToRegion, calcNewRegionBoundsFromScenes, calcNewRegionBoundsUpToNext, ensureTimeInView } from './utils/view'
+import { findPreviousTarget } from './utils/navigation'
 import type { View } from './types'
 import VideoFolderSidebar from './components/VideoFolderSidebar'
 import RegionSidebar from './components/RegionSidebar'
@@ -126,7 +127,7 @@ export default function App() {
   const sceneProgress = useAppSelector(s => videoPath ? s.scene.progressByPath[videoPath] : undefined) ?? 0
   const sceneError = useAppSelector(s => videoPath ? s.scene.errorByPath[videoPath] : undefined)
   const sceneThreshold = useAppSelector(s => videoPath ? s.scene.thresholdByPath[videoPath] : undefined) ?? 10
-  const sceneMinGap = useAppSelector(s => videoPath ? s.scene.minGapByPath[videoPath] : undefined) ?? 0
+  const sceneMinGap = useAppSelector(s => videoPath ? s.scene.minGapByPath[videoPath] : undefined) ?? 2
   const filteredSceneCuts = useMemo(
     () => filterCutsByMinGap(sceneCuts ?? [], sceneMinGap),
     [sceneCuts, sceneMinGap],
@@ -576,9 +577,9 @@ export default function App() {
                 currentTime={playhead}
                 onMark={t => dispatch(setOrigAnchorsFromTimeline([...origAnchors, { id: newAnchorId(), time: Math.max(0, t) }]))}
                 onJumpPrev={() => {
-                  const sorted = [...(warpData?.origAnchors ?? [])].sort((a, b) => a.time - b.time)
-                  const prev = sorted.filter(a => a.time < playhead - 0.05).pop()
-                  if (prev) playerRef.current?.seek(prev.time)
+                  const times = (warpData?.origAnchors ?? []).map(a => a.time)
+                  const prev = findPreviousTarget(times, playhead, playing)
+                  if (prev !== undefined) playerRef.current?.seek(prev)
                 }}
                 onJumpNext={() => {
                   const sorted = [...(warpData?.origAnchors ?? [])].sort((a, b) => a.time - b.time)
@@ -639,10 +640,14 @@ export default function App() {
                   addRegion(inPoint, outPoint)
                 }}
                 onPrevRegion={regions.length > 1 ? () => {
-                  const sorted = [...regions].sort((a, b) => a.inPoint - b.inPoint)
-                  const idx = sorted.findIndex(r => r.id === activeRegionId)
-                  const prev = idx > 0 ? sorted[idx - 1] : null
-                  if (prev) setActiveRegionId(prev.id)
+                  const inPoints = regions.map(r => r.inPoint)
+                  const prev = findPreviousTarget(inPoints, playhead, playing)
+                  if (prev === undefined) return
+                  const target = regions.find(r => r.inPoint === prev)
+                  if (target) {
+                    setActiveRegionId(target.id)
+                    playerRef.current?.seek(target.inPoint)
+                  }
                 } : undefined}
                 onNextRegion={regions.length > 1 ? () => {
                   const sorted = [...regions].sort((a, b) => a.inPoint - b.inPoint)
@@ -653,7 +658,7 @@ export default function App() {
                 onDeleteRegion={activeRegion ? () => deleteRegion(activeRegion.id) : undefined}
                 onNewScene={videoPath ? () => dispatch(addSceneCutAction({ path: videoPath, cut: playhead })) : undefined}
                 onPrevScene={(filteredSceneCuts.length > 0) ? () => {
-                  const prev = [...filteredSceneCuts].sort((a, b) => a - b).filter(t => t < playhead - 0.001).pop()
+                  const prev = findPreviousTarget(filteredSceneCuts, playhead, playing)
                   if (prev !== undefined) playerRef.current?.seek(prev)
                 } : undefined}
                 onNextScene={(filteredSceneCuts.length > 0) ? () => {
@@ -704,7 +709,13 @@ export default function App() {
                     active: r.id === activeRegionId,
                     colorIndex: idx,
                   }))}
-                  onClipOverlaySelect={setActiveRegionId}
+                  onClipOverlaySelect={(id) => {
+                    setActiveRegionId(id)
+                    if (id) {
+                      const region = regions.find(r => r.id === id)
+                      if (region) playerRef.current?.seek(region.inPoint)
+                    }
+                  }}
                   onClipOverlayResize={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
                   onClipOverlayMove={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
                   onClipOverlayZoom={(id) => {

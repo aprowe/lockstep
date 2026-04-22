@@ -109,9 +109,12 @@ export interface SavedVideoState {
     addToEnd?: boolean
   }
   regions: Region[]
-  /** Cached scene detection output — keyed to the threshold it was computed at. */
+  /** Cached scene detection output — keyed to the threshold it was computed at.
+   *  `minGap` is the per-video min-spacing setting; persists independently of
+   *  cuts so a freshly opened video remembers it without re-running detection. */
   scenes?: {
     threshold: number
     cuts: number[]
+    minGap?: number
   }
 }

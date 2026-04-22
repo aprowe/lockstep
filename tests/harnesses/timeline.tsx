@@ -17,6 +17,7 @@ export interface RenderTimelineOptions {
 
 export function renderTimeline(overrides: RenderTimelineOptions = {}) {
   const onClipOverlayZoom = vi.fn()
+  const onClipOverlaySelect = vi.fn()
   const onViewChange = vi.fn()
 
   const regions: RegionBlock[] = (overrides.clipOverlays as RegionBlock[] | undefined) ?? [
@@ -31,12 +32,14 @@ export function renderTimeline(overrides: RenderTimelineOptions = {}) {
       regions={regions}
       view={view}
       onZoom={onClipOverlayZoom}
+      onSelect={onClipOverlaySelect}
     />,
   )
 
   return {
     ...(result as RenderResult),
     onClipOverlayZoom,
+    onClipOverlaySelect,
     onViewChange,
   }
 }

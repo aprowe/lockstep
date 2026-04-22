@@ -122,6 +122,87 @@
         "save_to_folder (commands.rs) must call std::fs::create_dir_all on dest_folder before std::fs::copy. The Folder input in ExportDialog is free-text, so users can type nested paths that don't exist yet."
       ]
     },
+    "export-options::9a6cb1c6": {
+      "feature": "Export Options",
+      "scenario": "Batch export saves each clip to the destination as it finishes",
+      "isOutline": false,
+      "steps": [
+        "Given I have three clips selected for batch export",
+        "And a destination folder is set",
+        "When the export begins",
+        "Then each clip is written into the destination folder the moment its render completes",
+        "And the next clip's render does not have to finish before earlier clips are saved"
+      ],
+      "file": "spec/features/export-options.feature",
+      "line": 45,
+      "tests": [
+        "tests/bdd/batchExport.test.ts"
+      ],
+      "hints": [
+        "In ExportDialog.process(), the dest-folder copy currently runs after the whole jobs loop finishes. Move saveToFolder() inside the job loop so each finished clip is copied to destFolder before the next warp starts."
+      ]
+    },
+    "export-options::fac99f99": {
+      "feature": "Export Options",
+      "scenario": "Batch export continues past a failed clip",
+      "isOutline": false,
+      "steps": [
+        "Given I have three clips selected for batch export",
+        "And a destination folder is set",
+        "When the second clip fails to render",
+        "Then the first clip is already in the destination folder and is not removed",
+        "And the third clip is still rendered and saved",
+        "And the failure is reported in the export log without aborting the batch"
+      ],
+      "file": "spec/features/export-options.feature",
+      "line": 56,
+      "tests": [
+        "tests/bdd/batchExport.test.ts"
+      ],
+      "hints": [
+        "Wrap the per-job save+render in try/catch that logs and continues, rather than the current early `return` on error. Already-saved clips must be left in place."
+      ]
+    },
+    "export-options::d219ae15": {
+      "feature": "Export Options",
+      "scenario": "The {beats} token in the filename pattern resolves to the clip's beat count",
+      "isOutline": false,
+      "steps": [
+        "Given the filename pattern contains the {beats} token",
+        "And a region with 32 beats is being exported",
+        "When the export filename is generated for that region",
+        "Then {beats} is replaced with 32",
+        "And the token is not left blank or replaced with the global loop-beats value"
+      ],
+      "file": "spec/features/export-options.feature",
+      "line": 69,
+      "tests": [
+        "tests/bdd/exportFilename.test.ts"
+      ],
+      "hints": [
+        "applyPattern() currently passes `beats: loopBeats` for every job. For region jobs, pass the region's beat count (computed from its warped span, e.g. round((outPoint - inPoint) * bpm / 60)). Falls back to loopBeats only when there is no region context."
+      ]
+    },
+    "export-options::f6b6bac9": {
+      "feature": "Export Options",
+      "scenario": "Show Folder button appears on the progress screen as soon as export begins",
+      "isOutline": false,
+      "steps": [
+        "Given a destination folder is set",
+        "When I click Export and processing starts",
+        "Then a \"Show Folder\" button is visible on the progress screen",
+        "And clicking it opens the destination folder in the OS file manager",
+        "And the button remains available for the rest of the export and after it finishes"
+      ],
+      "file": "spec/features/export-options.feature",
+      "line": 81,
+      "tests": [
+        "tests/bdd/exportProgress.test.tsx"
+      ],
+      "hints": [
+        "Add a \"Show folder\" button in the ExportDialog header/progress area that is visible while status === 'processing' (and after) whenever destFolder is set. It invokes the `reveal_in_folder` Tauri command against destFolder, not against a finished output file."
+      ]
+    },
     "file-menu::36132c0a": {
       "feature": "File Menu",
       "scenario": "A file opened shows up in recent files",
@@ -246,6 +327,66 @@
       ],
       "file": "spec/features/frame-count.feature",
       "line": 33
+    },
+    "timeline-navigation::2e61d3bc": {
+      "feature": "Timeline Navigation",
+      "scenario": "While playing, Previous skips targets within 0.5s behind the playhead",
+      "isOutline": true,
+      "steps": [
+        "Given there are targets at 10, 20, and 30 seconds on the <track>",
+        "And the video is playing",
+        "And the playhead is at 20.3 seconds",
+        "When the user clicks Previous on the <track>",
+        "Then the playhead moves to 10 seconds"
+      ],
+      "file": "spec/features/navigation.feature",
+      "line": 9,
+      "tests": [
+        "tests/bdd/prevJumpWindow.test.ts"
+      ],
+      "hints": [
+        "Current onJumpPrev / onPrevScene filter with `< playhead - 0.05`. When `ui.playing === true`, widen that dead-zone to 0.5s so a target the playhead just rolled past is treated as \"behind but still current\" and skipped. When paused, keep the existing small (~0.05s) threshold so a press-and-hold at a marker still works."
+      ]
+    },
+    "timeline-navigation::4363a7f7": {
+      "feature": "Timeline Navigation",
+      "scenario": "While playing, Previous still snaps to the nearest earlier target outside the 0.5s window",
+      "isOutline": true,
+      "steps": [
+        "Given there are targets at 10, 20, and 30 seconds on the <track>",
+        "And the video is playing",
+        "And the playhead is at 21.0 seconds",
+        "When the user clicks Previous on the <track>",
+        "Then the playhead moves to 20 seconds"
+      ],
+      "file": "spec/features/navigation.feature",
+      "line": 23,
+      "tests": [
+        "tests/bdd/prevJumpWindow.test.ts"
+      ],
+      "hints": [
+        "Beyond 0.5s past a target, Previous behaves as it always has."
+      ]
+    },
+    "timeline-navigation::030aad8c": {
+      "feature": "Timeline Navigation",
+      "scenario": "While paused, the 0.5s window does not apply to Previous",
+      "isOutline": true,
+      "steps": [
+        "Given there are targets at 10, 20, and 30 seconds on the <track>",
+        "And the video is paused",
+        "And the playhead is at 20.3 seconds",
+        "When the user clicks Previous on the <track>",
+        "Then the playhead moves to 20 seconds"
+      ],
+      "file": "spec/features/navigation.feature",
+      "line": 38,
+      "tests": [
+        "tests/bdd/prevJumpWindow.test.ts"
+      ],
+      "hints": [
+        "When paused, the widened window is not applied — the existing small dead-zone (~0.05s) keeps single-frame nudges stable."
+      ]
     },
     "region-creation::30fd066b": {
       "feature": "Region Creation",
@@ -641,6 +782,66 @@
       ],
       "hints": [
         "call calcZoomToRegion with current view matching region (viewFitsRegion=true), pass savedView as restore param, assert nextView equals savedView and previousView is null"
+      ]
+    },
+    "region-editing::4dd632ec": {
+      "feature": "Region Editing",
+      "scenario": "Clicking a region moves the playhead to its start",
+      "isOutline": true,
+      "steps": [
+        "Given a region spans from 30 to 45 seconds",
+        "And the playhead is at 50 seconds",
+        "When the user clicks the region in the <surface>",
+        "Then the playhead moves to 30 seconds",
+        "And the playback state is unchanged"
+      ],
+      "file": "spec/features/region-editing.feature",
+      "line": 83,
+      "tests": [
+        "tests/bdd/regionClickSeek.test.tsx"
+      ],
+      "hints": [
+        "Applies to both the ClipSidebar row click and the timeline region overlay bar click. On selection, seek the player to region.inPoint. Do NOT toggle playing state — if the video was playing, it keeps playing from the new position; if paused, it stays paused."
+      ]
+    },
+    "region-editing::8ab0257a": {
+      "feature": "Region Editing",
+      "scenario": "Clicking the already-active region still seeks to its start",
+      "isOutline": false,
+      "steps": [
+        "Given a region spans from 30 to 45 seconds and is the active region",
+        "And the playhead is at 40 seconds",
+        "When the user clicks the same region again",
+        "Then the playhead moves to 30 seconds"
+      ],
+      "file": "spec/features/region-editing.feature",
+      "line": 96,
+      "tests": [
+        "tests/bdd/regionClickSeek.test.tsx"
+      ],
+      "hints": [
+        "Clicking an already-active region still re-seeks to inPoint."
+      ]
+    },
+    "region-editing::9481d829": {
+      "feature": "Region Editing",
+      "scenario": "Right-clicking a clip in the sidebar opens a menu with Rename",
+      "isOutline": false,
+      "steps": [
+        "Given a clip named \"Verse\" in the clip sidebar",
+        "When the user right-clicks the clip row",
+        "Then a context menu appears with a Rename option",
+        "When the user selects Rename",
+        "Then the clip name becomes an inline editable input with the current name selected",
+        "And committing the edit updates the clip's name"
+      ],
+      "file": "spec/features/region-editing.feature",
+      "line": 106,
+      "tests": [
+        "tests/bdd/clipSidebarRename.test.tsx"
+      ],
+      "hints": [
+        "ClipSidebar row needs an onContextMenu handler that opens the existing ContextMenu with a \"Rename\" item. Selecting it calls the same handleStartRename(region) path the double-click already uses."
       ]
     },
     "ruler-layer::0b84503c": {

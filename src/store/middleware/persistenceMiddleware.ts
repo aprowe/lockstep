@@ -36,7 +36,7 @@ import {
   updateRegionStretch,
   updateRegionTriggerMode,
 } from '../slices/regionSlice'
-import { setCuts as setScenes, addCut, deleteCut } from '../slices/sceneSlice'
+import { setCuts as setScenes, addCut, deleteCut, setMinGap as setSceneMinGap } from '../slices/sceneSlice'
 
 export const persistenceMiddleware = createListenerMiddleware()
 
@@ -53,8 +53,8 @@ const shouldSave = isAnyOf(
   setRegions, addRegion, deleteRegion,
   updateRegionInOut, updateRegionBeatTimes, updateRegionLock,
   renameRegion, updateRegionBpm, updateRegionStretch, updateRegionTriggerMode,
-  // Scene detection results + user edits
-  setScenes, addCut, deleteCut,
+  // Scene detection results + user edits + min-gap setting
+  setScenes, addCut, deleteCut, setSceneMinGap,
 )
 
 persistenceMiddleware.startListening({
@@ -83,6 +83,11 @@ persistenceMiddleware.startListening({
 
     const cuts = state.scene.cutsByPath[vid.path]
     const threshold = state.scene.thresholdByPath[vid.path]
+    const minGap = state.scene.minGapByPath[vid.path]
+    const hasSceneData =
+      (cuts && cuts.length > 0) ||
+      typeof threshold === 'number' ||
+      typeof minGap === 'number'
 
     const savedState: SavedVideoState = {
       version: 2,
@@ -98,8 +103,14 @@ persistenceMiddleware.startListening({
         addToEnd: warp.addToEnd,
       },
       regions: state.region.regions,
-      ...(cuts && typeof threshold === 'number'
-        ? { scenes: { threshold, cuts } }
+      ...(hasSceneData
+        ? {
+            scenes: {
+              threshold: threshold ?? 10,
+              cuts: cuts ?? [],
+              ...(typeof minGap === 'number' ? { minGap } : {}),
+            },
+          }
         : {}),
     }
 
