@@ -16,6 +16,18 @@
   pointer-events: none;
 }
 
+/* Minor ticks — 5 subdivisions per labeled step. Sit at the bottom edge
+ * of the ruler so they read as hashes without competing with the labels. */
+.thin-ruler__minor-tick {
+  position: absolute;
+  bottom: 0;
+  height: 4px;
+  width: 1px;
+  background: var(--border);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 .thin-ruler__label {
   position: absolute;
   top: 2px;

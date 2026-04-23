@@ -107,6 +107,42 @@
   height: 100%;
 }
 
+/* Subtle diagonal-stripe texture on the marker-in / warp / marker-out rows —
+ * makes the three tracks read as a related "warp stack" even without labels,
+ * and gives the eye something to land on when the rows grow tall. Stripes
+ * run the opposite direction on the input vs output bands (visually echoing
+ * the warp connector's slant direction at rest) and the warp row uses a
+ * different hue so it remains the visual centerpiece. */
+.thin-timeline__section[data-section="markerin"] .thin-row--markers .thin-row__body {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent 0,
+    transparent 5px,
+    hsla(195, 55%, 60%, 0.07) 5px,
+    hsla(195, 55%, 60%, 0.07) 6px
+  );
+}
+
+.thin-timeline__section[data-section="markerout"] .thin-row--markers .thin-row__body {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0,
+    transparent 5px,
+    hsla(280, 55%, 65%, 0.07) 5px,
+    hsla(280, 55%, 65%, 0.07) 6px
+  );
+}
+
+.thin-timeline__section[data-section="warp"] .warp-connector {
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent 9px,
+    hsla(220, 40%, 65%, 0.05) 9px,
+    hsla(220, 40%, 65%, 0.05) 10px
+  );
+}
+
 .thin-row__rail--inline {
   height: auto;
   min-height: var(--thin-row-h);
@@ -165,6 +201,30 @@
   fill: none;
   stroke: hsla(0, 90%, 65%, 0.85);
   stroke-width: 1;
+}
+
+/* Downward-pointing arrowhead sitting at the top of the playhead line.
+ * Classic NLE look — bulk of the triangle sits inside the Time row, apex
+ * points down at the playhead's exact time. */
+.thin-timeline__playhead-arrow-layer {
+  position: absolute;
+  left: var(--thin-rail-w);
+  right: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.thin-timeline__playhead-arrow {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid hsl(0, 90%, 65%);
+  filter: drop-shadow(0 0 2px hsla(0, 90%, 65%, 0.55));
 }
 
 .thin-timeline__hover {
