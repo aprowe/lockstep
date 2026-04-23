@@ -339,11 +339,7 @@
         "And the row's activate handler fires once for that id"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 18,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ],
+      "line": 17,
       "hints": [
         "click → selection becomes [id]; activate fires for callers that map it to seek / set-active-region / etc."
       ]
@@ -359,11 +355,7 @@
         "And the activate handler is not called"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 32,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ],
+      "line": 30,
       "hints": [
         "shift extends from the anchor (last plain-clicked id) to the clicked id; rows in between are unioned with the prior selection."
       ]
@@ -382,11 +374,7 @@
         "And the other selected rows remain selected"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 46,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ],
+      "line": 43,
       "hints": [
         "ctrl/cmd toggles the clicked id in the existing set; never activates."
       ]
@@ -402,7 +390,7 @@
         "And a bulk-delete (trash) button is visible"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 63
+      "line": 60
     },
     "list-selection::152900a6": {
       "feature": "List Selection",
@@ -415,7 +403,7 @@
         "And the checkbox is unchecked for unselected rows"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 69
+      "line": 66
     },
     "list-selection::0530ee04": {
       "feature": "List Selection",
@@ -427,7 +415,7 @@
         "And the selection bar is hidden"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 75
+      "line": 72
     },
     "list-selection::e6ae004a": {
       "feature": "List Selection",
@@ -440,7 +428,7 @@
         "And the activate handler is not called"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 80
+      "line": 77
     },
     "list-selection::5287d418": {
       "feature": "List Selection",
@@ -453,7 +441,7 @@
         "And the original three-row selection is unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 88
+      "line": 85
     },
     "list-selection::da2c6dec": {
       "feature": "List Selection",
@@ -466,7 +454,7 @@
         "And the selection is cleared"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 94
+      "line": 91
     },
     "list-selection::0c8fc530": {
       "feature": "List Selection",
@@ -479,7 +467,7 @@
         "And the selection is cleared"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 102,
+      "line": 99,
       "hints": [
         "Bound at the panel root via onKeyDown — caller's onDelete fires with the full selection id list, then the selection is cleared."
       ]
@@ -496,7 +484,7 @@
         "And the player seeks to its in-point"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 110
+      "line": 107
     },
     "list-selection::e190e98b": {
       "feature": "List Selection",
@@ -509,7 +497,7 @@
         "And the selection now includes both clips A and B"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 117
+      "line": 114
     },
     "list-selection::376277f3": {
       "feature": "List Selection",
@@ -523,7 +511,7 @@
         "And the clips list shows checkboxes on each selected row"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 129,
+      "line": 126,
       "todo": true,
       "tags": [
         "@ignore"
@@ -546,7 +534,7 @@
         "And the markers list shows checkboxes on each selected row"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 140,
+      "line": 137,
       "todo": true,
       "tags": [
         "@ignore"
@@ -564,7 +552,7 @@
         "Then those two clips show the accent outline on the timeline overlays"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 147,
+      "line": 144,
       "todo": true,
       "tags": [
         "@ignore"
@@ -581,7 +569,7 @@
         "Then the marker selection is unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 153
+      "line": 150
     },
     "list-selection::67c421a9": {
       "feature": "List Selection",
@@ -595,7 +583,7 @@
         "And the rows still visible remain selected and checked"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 161
+      "line": 158
     },
     "list-selection::388b677c": {
       "feature": "List Selection",
@@ -607,7 +595,7 @@
         "Then the selection contains only the lassoed items"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 173,
+      "line": 170,
       "todo": true,
       "tags": [
         "@ignore"
@@ -626,7 +614,7 @@
         "Then the selection contains both the original and lassoed items"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 179,
+      "line": 176,
       "todo": true,
       "tags": [
         "@ignore"
@@ -642,7 +630,7 @@
         "Then only marker items are selected"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 185,
+      "line": 182,
       "todo": true,
       "tags": [
         "@ignore"
@@ -658,7 +646,7 @@
         "Then both marker and clip selections are updated"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 191,
+      "line": 188,
       "todo": true,
       "tags": [
         "@ignore"
@@ -676,7 +664,7 @@
         "And the context menu is shown for clip B"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 238,
+      "line": 235,
       "hints": [
         "Adobe-style \"replace-then-act\": opening a context menu on a row that isn't already in the selection first replaces selection with [id] + sets it active, so menu actions hit what the user visually targeted."
       ]
@@ -691,7 +679,7 @@
         "Then all three clips are still selected"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 248,
+      "line": 245,
       "hints": [
         "Right-click on an *already-selected* row leaves the multi- selection alone — bulk actions in the menu still target every selected clip."
       ]
@@ -706,7 +694,7 @@
         "Then all three clips are selected"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 256,
+      "line": 253,
       "hints": [
         "Cmd/Ctrl+A bound on the focused list panel via useListSelection.handleKeyDown. Scope is the visible-items list — respects whatever filter is active."
       ]
@@ -723,7 +711,7 @@
         "And the markers selection is unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 263,
+      "line": 260,
       "hints": [
         "Cmd/Ctrl+D clears the focused list's selection. Other lists' selections are untouched (focus-scoping rule)."
       ]
@@ -740,7 +728,7 @@
         "And both selections are cleared"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 276
+      "line": 273
     },
     "list-selection::9ca01b60": {
       "feature": "List Selection",
@@ -754,7 +742,7 @@
         "And no items are deleted"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 283
+      "line": 280
     },
     "list-selection::871d21c2": {
       "feature": "List Selection",
@@ -768,7 +756,7 @@
         "And the active clip is unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 294,
+      "line": 291,
       "hints": [
         "Policy B from docs/INTERACTION_DESIGN.md — a plain click on the empty timeline body (no drag, no modifier) clears every timeline-side selection. Modifier-clicks are ignored so the user can ctrl-click without losing the lasso snapshot."
       ]
@@ -783,7 +771,7 @@
         "Then both selections are unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 301
+      "line": 298
     },
     "list-selection::c16d9138": {
       "feature": "List Selection",
@@ -796,7 +784,7 @@
         "And the scene-cut selection is cleared"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 315,
+      "line": 312,
       "hints": [
         "Selected diamonds draw with an accent ring + a brighter through-line so the user can pick them out at a glance even when the always-show-scene-lines toggle is off."
       ]
@@ -812,7 +800,7 @@
         "And the cuts themselves remain"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 321
+      "line": 318
     },
     "list-selection::5afb8d06": {
       "feature": "List Selection",
@@ -824,7 +812,7 @@
         "Then the scene-cut selection is cleared"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 327
+      "line": 324
     },
     "timeline-navigation::2e61d3bc": {
       "feature": "Timeline Navigation",

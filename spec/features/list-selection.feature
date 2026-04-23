@@ -14,7 +14,6 @@ Feature: List Selection
 
     # @hint click → selection becomes [id]; activate fires for callers that
     #       map it to seek / set-active-region / etc.
-    @todo @ignore
     Scenario Outline: Plain click selects one row and activates it
         Given a populated <list> list
         When the user clicks a row with no modifier keys
@@ -28,7 +27,6 @@ Feature: List Selection
 
     # @hint shift extends from the anchor (last plain-clicked id) to the
     #       clicked id; rows in between are unioned with the prior selection.
-    @todo @ignore
     Scenario Outline: Shift-click range-extends the selection without activating
         Given a populated <list> list with one row already selected
         When the user shift-clicks a different row
@@ -42,7 +40,6 @@ Feature: List Selection
             | scenes  |
 
     # @hint ctrl/cmd toggles the clicked id in the existing set; never activates.
-    @todo @ignore
     Scenario Outline: Ctrl-click toggles a single row in the selection
         Given a populated <list> list with one row selected
         When the user ctrl-clicks an unselected row

@@ -2,6 +2,8 @@ import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber'
 import { expect, vi } from 'vitest'
 import { cleanup, fireEvent, screen } from '@testing-library/react/pure'
 import { renderClipsPanel, makeRegion } from '../harnesses/clipsPanel'
+import { renderMarkersPanel } from '../harnesses/markersPanel'
+import { renderScenesPanel } from '../harnesses/scenesPanel'
 import {
   renderThinTimeline,
   makeAnchor,
@@ -15,7 +17,75 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 const feature = await loadFeature('./spec/features/list-selection.feature')
 
-describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
+type ListVariant = 'clips' | 'markers' | 'scenes'
+
+interface PanelHandle {
+  container: HTMLElement
+  store: ReturnType<typeof renderClipsPanel>['store']
+  seek: ReturnType<typeof renderClipsPanel>['seek']
+  rowSelector: string
+  /** Read the current selection as a stringified id array — works across
+   *  the per-list selection sources (lists.selection.{clips,scenes} or
+   *  warp.selectedIds for markers). */
+  readSelection: () => string[]
+}
+
+/** Render the list panel for the given variant pre-seeded with three rows
+ *  and the optional initial selection. Returns a uniform handle so the
+ *  shared scenario bindings can stay list-agnostic. */
+function renderListVariant(list: ListVariant, opts: { selectedIndex?: number } = {}): PanelHandle {
+  if (list === 'clips') {
+    const a = makeRegion('clip-a', 'A', 5, 15)
+    const b = makeRegion('clip-b', 'B', 20, 30)
+    const c = makeRegion('clip-c', 'C', 35, 45)
+    const all = [a, b, c]
+    const harness = renderClipsPanel({
+      regions: all,
+      selectedClipIds: opts.selectedIndex !== undefined ? [all[opts.selectedIndex].id] : undefined,
+    })
+    return {
+      container: harness.container,
+      store: harness.store,
+      seek: harness.seek,
+      rowSelector: '.clip-row:not(.clip-row--full)',
+      readSelection: () => [...harness.store.getState().lists.selection.clips],
+    }
+  }
+  if (list === 'markers') {
+    const anchors = [
+      { id: 1, time: 5 },
+      { id: 2, time: 15 },
+      { id: 3, time: 25 },
+    ]
+    const harness = renderMarkersPanel({
+      anchors,
+      selectedAnchorIds: opts.selectedIndex !== undefined ? [anchors[opts.selectedIndex].id] : undefined,
+    })
+    return {
+      container: harness.container,
+      store: harness.store,
+      seek: harness.seek,
+      rowSelector: '.marker-row',
+      readSelection: () => harness.store.getState().warp.selectedIds.map(String),
+    }
+  }
+  // scenes — boundaries [0, 10, 20, 30, 120] → 4 rows; treat row index 0
+  // as "skip" so callers selecting index 0/1/2 always pick a real cut row.
+  const cuts = [10, 20, 30]
+  const harness = renderScenesPanel({
+    cuts,
+    selectedSceneIds: opts.selectedIndex !== undefined ? [String(opts.selectedIndex)] : undefined,
+  })
+  return {
+    container: harness.container,
+    store: harness.store,
+    seek: harness.seek,
+    rowSelector: '.scene-row',
+    readSelection: () => [...harness.store.getState().lists.selection.scenes],
+  }
+}
+
+describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => {
   BeforeEachScenario(() => { cleanup() })
 
   // @behavior list-selection::cb8929f5
@@ -735,6 +805,111 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     And('the rows still visible remain selected and checked', () => {
       // The single visible row is selected — selectedClipIds includes a.
       expect(observed.selectionAfter).toContain(a.id)
+    })
+  })
+
+  // ── Click semantics shared by every list (clips / markers / scenes) ─────
+
+  // @behavior list-selection::b8d2081f
+  ScenarioOutline('Plain click selects one row and activates it', ({ Given, When, Then, And }, variables) => {
+    const observed: { selection: string[]; seekCalls: number } = {
+      selection: [], seekCalls: 0,
+    }
+
+    Given('a populated <list> list', () => {})
+    When('the user clicks a row with no modifier keys', () => {
+      const list = variables.list as ListVariant
+      const handle = renderListVariant(list)
+      const rows = handle.container.querySelectorAll(handle.rowSelector)
+      // Row index 1 is always a real, second-position row across all lists.
+      fireEvent.click(rows[1] as HTMLElement)
+      observed.selection = handle.readSelection()
+      observed.seekCalls = handle.seek.mock.calls.length
+    })
+    Then("only that row is in the list's selection", () => {
+      expect(observed.selection.length).toBe(1)
+    })
+    And("the row's activate handler fires once for that id", () => {
+      expect(observed.seekCalls).toBe(1)
+    })
+  })
+
+  // @behavior list-selection::b99b4eb7
+  ScenarioOutline('Shift-click range-extends the selection without activating', ({ Given, When, Then, And }, variables) => {
+    const observed: {
+      selectionAfterShift: string[]
+      seekDelta: number
+    } = { selectionAfterShift: [], seekDelta: 0 }
+
+    Given('a populated <list> list with one row already selected', () => {})
+    When('the user shift-clicks a different row', () => {
+      const list = variables.list as ListVariant
+      const handle = renderListVariant(list)
+      const rows = handle.container.querySelectorAll(handle.rowSelector)
+      // Plain-click row 0 first to seed selection + anchor (the spec's
+      // "one row already selected" precondition flows through plain click).
+      fireEvent.click(rows[0] as HTMLElement)
+      const seekBefore = handle.seek.mock.calls.length
+      // Now shift-click row 2 — should range-extend to include 0,1,2.
+      fireEvent.click(rows[2] as HTMLElement, { shiftKey: true })
+      observed.selectionAfterShift = handle.readSelection()
+      observed.seekDelta = handle.seek.mock.calls.length - seekBefore
+    })
+    Then('the selection now contains every row between the anchor and the clicked row, inclusive', () => {
+      expect(observed.selectionAfterShift.length).toBe(3)
+    })
+    And('the activate handler is not called', () => {
+      expect(observed.seekDelta).toBe(0)
+    })
+  })
+
+  // @behavior list-selection::1e9814c2
+  ScenarioOutline('Ctrl-click toggles a single row in the selection', ({ Given, When, Then, And }, variables) => {
+    // The two When/Then pairs share the rendered panel — capture it at the
+    // top of the binding so each step can poke the same DOM/store.
+    let handle: PanelHandle | null = null
+    let rows: NodeListOf<Element> = [] as unknown as NodeListOf<Element>
+    let seekBefore = 0
+    const observed: {
+      selectionAfterAdd: string[]
+      seekDeltaAdd: number
+      selectionAfterRemove: string[]
+      seekDeltaRemove: number
+    } = {
+      selectionAfterAdd: [], seekDeltaAdd: 0,
+      selectionAfterRemove: [], seekDeltaRemove: 0,
+    }
+
+    Given('a populated <list> list with one row selected', () => {
+      const list = variables.list as ListVariant
+      handle = renderListVariant(list, { selectedIndex: 0 })
+      rows = handle.container.querySelectorAll(handle.rowSelector)
+    })
+    When('the user ctrl-clicks an unselected row', () => {
+      seekBefore = handle!.seek.mock.calls.length
+      fireEvent.click(rows[1] as HTMLElement, { ctrlKey: true })
+      observed.selectionAfterAdd = handle!.readSelection()
+      observed.seekDeltaAdd = handle!.seek.mock.calls.length - seekBefore
+    })
+    Then('both rows are in the selection', () => {
+      expect(observed.selectionAfterAdd.length).toBe(2)
+    })
+    And('the activate handler is not called', () => {
+      expect(observed.seekDeltaAdd).toBe(0)
+    })
+    When('the user ctrl-clicks one of the selected rows', () => {
+      seekBefore = handle!.seek.mock.calls.length
+      fireEvent.click(rows[0] as HTMLElement, { ctrlKey: true })
+      observed.selectionAfterRemove = handle!.readSelection()
+      observed.seekDeltaRemove = handle!.seek.mock.calls.length - seekBefore
+    })
+    Then('that row is removed from the selection', () => {
+      // Row 0 was just removed; row 1 (toggled in earlier) must remain.
+      expect(observed.selectionAfterRemove.length).toBe(1)
+    })
+    And('the other selected rows remain selected', () => {
+      // Activate must not have fired on the toggle-off either.
+      expect(observed.seekDeltaRemove).toBe(0)
     })
   })
 })
