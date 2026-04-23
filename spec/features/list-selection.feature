@@ -60,27 +60,23 @@ Feature: List Selection
 
     # ── Multi-select chrome ──────────────────────────────────────────────────
 
-    @todo @ignore
     Scenario: Selection bar appears when 2+ rows are selected
         Given a populated list with two rows selected
         Then the panel header shows "2 selected"
         And a clear-selection (deselect) button is visible
         And a bulk-delete (trash) button is visible
 
-    @todo @ignore
     Scenario: Per-row checkboxes appear when 2+ rows are selected
         Given a populated list with two rows selected
         Then every visible row shows a checkbox
         And the checkbox is checked for currently-selected rows
         And the checkbox is unchecked for unselected rows
 
-    @todo @ignore
     Scenario: Single selection has no checkboxes or bulk-action chrome
         Given a populated list with exactly one row selected
         Then no per-row checkboxes are rendered
         And the selection bar is hidden
 
-    @todo @ignore
     Scenario: Checkbox click toggles selection without activating
         Given a populated list with two rows selected
         When the user clicks an unselected row's checkbox
@@ -89,14 +85,12 @@ Feature: List Selection
 
     # ── Per-row vs bulk delete ───────────────────────────────────────────────
 
-    @todo @ignore
     Scenario: Per-row trash removes only that row
         Given a populated list with three rows selected
         When the user clicks the trash button on a different (unselected) row
         Then only that row is removed
         And the original three-row selection is unchanged
 
-    @todo @ignore
     Scenario: Header trash removes the entire selection
         Given a populated list with three rows selected
         When the user clicks the trash button in the selection header
@@ -105,7 +99,6 @@ Feature: List Selection
 
     # @hint Bound at the panel root via onKeyDown — caller's onDelete fires
     #       with the full selection id list, then the selection is cleared.
-    @todo @ignore
     Scenario: Delete key on focused list removes selection
         Given a populated list with focus and a non-empty selection
         When the user presses Delete
@@ -114,7 +107,6 @@ Feature: List Selection
 
     # ── Active vs selected (clips-specific) ──────────────────────────────────
 
-    @todo @ignore
     Scenario: Plain click on a clip sets both active and selection
         Given the clips list
         When the user clicks a clip row with no modifier keys
@@ -122,7 +114,6 @@ Feature: List Selection
         And it becomes the active region
         And the player seeks to its in-point
 
-    @todo @ignore
     Scenario: Modifier-clicks on clips don't change the active region
         Given the clips list with clip A active and selected
         When the user shift-clicks or ctrl-clicks clip B
@@ -159,7 +150,6 @@ Feature: List Selection
 
     # ── Cross-list independence ──────────────────────────────────────────────
 
-    @todo @ignore
     Scenario: Selecting in one list does not affect another list
         Given a clip is selected in the clips list
         And a marker is selected in the markers list
@@ -168,7 +158,6 @@ Feature: List Selection
 
     # ── Filter independence ──────────────────────────────────────────────────
 
-    @todo @ignore
     Scenario: Selection survives a filter change
         Given a list with three rows selected
         When the user switches the list filter from All to View

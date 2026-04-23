@@ -13,9 +13,10 @@ import { ThumbnailHoverProvider } from '../../src/components/ThumbnailPopup'
 import { DockBridgeProvider, type DockBridge } from '../../src/layout/DockContext'
 import { setVideo } from '../../src/store/slices/videoSlice'
 import { setRegions, setActiveRegionId } from '../../src/store/slices/regionSlice'
-import { setListSelection, setPendingEdit } from '../../src/store/slices/listsSlice'
+import { setListSelection, setListFilterMode, setPendingEdit, type ListFilterMode } from '../../src/store/slices/listsSlice'
 import { setSelectedIds as setSelectedAnchorIds } from '../../src/store/slices/warpSlice'
-import type { Region } from '../../src/types'
+import { setView } from '../../src/store/slices/uiSlice'
+import type { Region, View } from '../../src/types'
 import type { VideoPlayerHandle } from '../../src/components/VideoPlayer'
 import { makeStore, makeVideoInfo } from '../helpers/setup'
 
@@ -35,6 +36,10 @@ export interface RenderClipsPanelOptions {
   selectedClipIds?: string[]
   /** Pre-seed warp.selectedIds (markers selection) before render. */
   selectedMarkerIds?: number[]
+  /** Pre-seed the timeline view (used by the viewport filter). */
+  view?: View
+  /** Pre-seed the clips list filter mode. */
+  filterMode?: ListFilterMode
 }
 
 export function renderClipsPanel(opts: RenderClipsPanelOptions = {}) {
@@ -52,6 +57,12 @@ export function renderClipsPanel(opts: RenderClipsPanelOptions = {}) {
   }
   if (opts.selectedMarkerIds) {
     store.dispatch(setSelectedAnchorIds(opts.selectedMarkerIds))
+  }
+  if (opts.view) {
+    store.dispatch(setView(opts.view))
+  }
+  if (opts.filterMode) {
+    store.dispatch(setListFilterMode({ list: 'clips', mode: opts.filterMode }))
   }
 
   const seek = vi.fn()

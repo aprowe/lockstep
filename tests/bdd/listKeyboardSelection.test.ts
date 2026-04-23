@@ -378,4 +378,363 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       expect([...observed.markersSelection]).toEqual([m1.id])
     })
   })
+
+  // ── Multi-select chrome ─────────────────────────────────────────────────
+
+  // @behavior list-selection::0763ac4b
+  Scenario('Selection bar appears when 2+ rows are selected', ({ Given, Then, And }) => {
+    const observed: {
+      countText: string | null
+      hasClear: boolean
+      hasTrash: boolean
+    } = { countText: null, hasClear: false, hasTrash: false }
+    const a = makeRegion('clip-a', 'A', 5, 15)
+    const b = makeRegion('clip-b', 'B', 20, 30)
+
+    Given('a populated list with two rows selected', () => {
+      const harness = renderClipsPanel({
+        regions: [a, b],
+        selectedClipIds: [a.id, b.id],
+      })
+      const countEl = harness.container.querySelector('.list-panel__selection-count')
+      observed.countText = countEl?.textContent ?? null
+      observed.hasClear = !!harness.container.querySelector('[title="Clear selection"]')
+      observed.hasTrash = !!harness.container.querySelector('[title="Delete selected"]')
+    })
+    Then('the panel header shows "2 selected"', () => {
+      expect(observed.countText).toBe('2 selected')
+    })
+    And('a clear-selection (deselect) button is visible', () => {
+      expect(observed.hasClear).toBe(true)
+    })
+    And('a bulk-delete (trash) button is visible', () => {
+      expect(observed.hasTrash).toBe(true)
+    })
+  })
+
+  // @behavior list-selection::152900a6
+  Scenario('Per-row checkboxes appear when 2+ rows are selected', ({ Given, Then, And }) => {
+    const observed: {
+      checkedIds: string[]
+      uncheckedIds: string[]
+    } = { checkedIds: [], uncheckedIds: [] }
+    const a = makeRegion('clip-a', 'A', 5, 15)
+    const b = makeRegion('clip-b', 'B', 20, 30)
+    const c = makeRegion('clip-c', 'C', 35, 45)
+
+    Given('a populated list with two rows selected', () => {
+      const harness = renderClipsPanel({
+        regions: [a, b, c],
+        selectedClipIds: [a.id, b.id],
+      })
+      const rows = harness.container.querySelectorAll('.clip-row:not(.clip-row--full)')
+      rows.forEach((row, i) => {
+        const id = [a, b, c][i].id
+        const check = row.querySelector('input.clip-row__check') as HTMLInputElement | null
+        if (!check) return
+        if (check.checked) observed.checkedIds.push(id)
+        else observed.uncheckedIds.push(id)
+      })
+    })
+    Then('every visible row shows a checkbox', () => {
+      // 3 rows, 3 checkboxes (covered ids must be exhaustive).
+      expect(observed.checkedIds.length + observed.uncheckedIds.length).toBe(3)
+    })
+    And('the checkbox is checked for currently-selected rows', () => {
+      expect(observed.checkedIds.sort()).toEqual([a.id, b.id].sort())
+    })
+    And('the checkbox is unchecked for unselected rows', () => {
+      expect(observed.uncheckedIds).toEqual([c.id])
+    })
+  })
+
+  // @behavior list-selection::0530ee04
+  Scenario('Single selection has no checkboxes or bulk-action chrome', ({ Given, Then, And }) => {
+    const observed: { checkboxCount: number; selectionBarVisible: boolean } = {
+      checkboxCount: 0, selectionBarVisible: false,
+    }
+    const a = makeRegion('clip-a', 'A', 5, 15)
+    const b = makeRegion('clip-b', 'B', 20, 30)
+
+    Given('a populated list with exactly one row selected', () => {
+      const harness = renderClipsPanel({
+        regions: [a, b],
+        selectedClipIds: [a.id],
+      })
+      observed.checkboxCount = harness.container.querySelectorAll('input.clip-row__check').length
+      observed.selectionBarVisible = !!harness.container.querySelector('.list-panel__selection')
+    })
+    Then('no per-row checkboxes are rendered', () => {
+      expect(observed.checkboxCount).toBe(0)
+    })
+    And('the selection bar is hidden', () => {
+      expect(observed.selectionBarVisible).toBe(false)
+    })
+  })
+
+  // @behavior list-selection::e6ae004a
+  Scenario('Checkbox click toggles selection without activating', ({ Given, When, Then, And }) => {
+    const observed: {
+      selectionAfter: string[]
+      activeAfter: string | null
+      seekCalls: number
+    } = { selectionAfter: [], activeAfter: null, seekCalls: 0 }
+    const a = makeRegion('clip-a', 'A', 5, 15)
+    const b = makeRegion('clip-b', 'B', 20, 30)
+    const c = makeRegion('clip-c', 'C', 35, 45)
+
+    Given('a populated list with two rows selected', () => {})
+    When("the user clicks an unselected row's checkbox", () => {
+      const harness = renderClipsPanel({
+        regions: [a, b, c],
+        selectedClipIds: [a.id, b.id],
+        activeRegionId: a.id,
+      })
+      const rows = harness.container.querySelectorAll('.clip-row:not(.clip-row--full)')
+      // Third row = clip-c (unselected).
+      const checkC = rows[2].querySelector('input.clip-row__check') as HTMLInputElement
+      // Toggling onChange fires the handler — onChange dispatches setListSelection.
+      fireEvent.click(checkC)
+      observed.selectionAfter = [...harness.store.getState().lists.selection.clips]
+      observed.activeAfter = harness.store.getState().region.activeRegionId
+      observed.seekCalls = harness.seek.mock.calls.length
+    })
+    Then('that row joins the selection', () => {
+      expect([...observed.selectionAfter].sort()).toEqual([a.id, b.id, c.id].sort())
+    })
+    And('the activate handler is not called', () => {
+      // Active region unchanged AND seek not invoked — both signals of activation.
+      expect(observed.activeAfter).toBe(a.id)
+      expect(observed.seekCalls).toBe(0)
+    })
+  })
+
+  // ── Per-row vs bulk delete ──────────────────────────────────────────────
+
+  // @behavior list-selection::5287d418
+  Scenario('Per-row trash removes only that row', ({ Given, When, Then, And }) => {
+    const observed: {
+      regionsAfter: string[]
+      selectionAfter: string[]
+    } = { regionsAfter: [], selectionAfter: [] }
+    const a = makeRegion('clip-a', 'A', 5, 15)
+    const b = makeRegion('clip-b', 'B', 20, 30)
+    const c = makeRegion('clip-c', 'C', 35, 45)
+    const d = makeRegion('clip-d', 'D', 50, 60)
+
+    Given('a populated list with three rows selected', () => {})
+    When('the user clicks the trash button on a different (unselected) row', () => {
+      const harness = renderClipsPanel({
+        regions: [a, b, c, d],
+        selectedClipIds: [a.id, b.id, c.id],
+      })
+      const rows = harness.container.querySelectorAll('.clip-row:not(.clip-row--full)')
+      // Fourth row = clip-d (unselected). Per-row trash button.
+      const trashD = rows[3].querySelector('button.clip-row__del') as HTMLButtonElement
+      fireEvent.click(trashD)
+      observed.regionsAfter = harness.store.getState().region.regions.map(r => r.id)
+      observed.selectionAfter = [...harness.store.getState().lists.selection.clips]
+    })
+    Then('only that row is removed', () => {
+      expect(observed.regionsAfter).toEqual([a.id, b.id, c.id])
+    })
+    And('the original three-row selection is unchanged', () => {
+      expect([...observed.selectionAfter].sort()).toEqual([a.id, b.id, c.id].sort())
+    })
+  })
+
+  // @behavior list-selection::da2c6dec
+  Scenario('Header trash removes the entire selection', ({ Given, When, Then, And }) => {
+    const observed: {
+      regionsAfter: string[]
+      selectionAfter: string[]
+    } = { regionsAfter: [], selectionAfter: [] }
+    const a = makeRegion('clip-a', 'A', 5, 15)
+    const b = makeRegion('clip-b', 'B', 20, 30)
+    const c = makeRegion('clip-c', 'C', 35, 45)
+    const d = makeRegion('clip-d', 'D', 50, 60)
+
+    Given('a populated list with three rows selected', () => {})
+    When('the user clicks the trash button in the selection header', () => {
+      const harness = renderClipsPanel({
+        regions: [a, b, c, d],
+        selectedClipIds: [a.id, b.id, c.id],
+      })
+      const headerTrash = harness.container.querySelector(
+        '.list-panel__selection [title="Delete selected"]',
+      ) as HTMLButtonElement
+      fireEvent.click(headerTrash)
+      observed.regionsAfter = harness.store.getState().region.regions.map(r => r.id)
+      observed.selectionAfter = [...harness.store.getState().lists.selection.clips]
+    })
+    Then('all three selected rows are removed', () => {
+      expect(observed.regionsAfter).toEqual([d.id])
+    })
+    And('the selection is cleared', () => {
+      expect(observed.selectionAfter).toEqual([])
+    })
+  })
+
+  // @behavior list-selection::0c8fc530
+  Scenario('Delete key on focused list removes selection', ({ Given, When, Then, And }) => {
+    const observed: {
+      regionsAfter: string[]
+      selectionAfter: string[]
+    } = { regionsAfter: [], selectionAfter: [] }
+    const a = makeRegion('clip-a', 'A', 5, 15)
+    const b = makeRegion('clip-b', 'B', 20, 30)
+    const c = makeRegion('clip-c', 'C', 35, 45)
+
+    Given('a populated list with focus and a non-empty selection', () => {})
+    When('the user presses Delete', () => {
+      const harness = renderClipsPanel({
+        regions: [a, b, c],
+        selectedClipIds: [a.id, b.id],
+      })
+      const panel = harness.container.querySelector('.list-panel') as HTMLElement
+      panel.focus()
+      fireEvent.keyDown(panel, { key: 'Delete' })
+      observed.regionsAfter = harness.store.getState().region.regions.map(r => r.id)
+      observed.selectionAfter = [...harness.store.getState().lists.selection.clips]
+    })
+    Then('every selected row is removed', () => {
+      expect(observed.regionsAfter).toEqual([c.id])
+    })
+    And('the selection is cleared', () => {
+      expect(observed.selectionAfter).toEqual([])
+    })
+  })
+
+  // ── Active vs selected (clips-specific) ─────────────────────────────────
+
+  // @behavior list-selection::8e807736
+  Scenario('Plain click on a clip sets both active and selection', ({ Given, When, Then, And }) => {
+    const observed: {
+      selection: string[]
+      activeId: string | null
+      seekCalls: number[]
+    } = { selection: [], activeId: null, seekCalls: [] }
+    const a = makeRegion('clip-a', 'A', 5, 15)
+    const b = makeRegion('clip-b', 'B', 20, 30)
+
+    Given('the clips list', () => {})
+    When('the user clicks a clip row with no modifier keys', () => {
+      const harness = renderClipsPanel({ regions: [a, b] })
+      const rows = harness.container.querySelectorAll('.clip-row:not(.clip-row--full)')
+      fireEvent.click(rows[1] as HTMLElement)
+      observed.selection = [...harness.store.getState().lists.selection.clips]
+      observed.activeId = harness.store.getState().region.activeRegionId
+      observed.seekCalls = harness.seek.mock.calls.map(c => c[0] as number)
+    })
+    Then('that clip becomes the only selected clip', () => {
+      expect(observed.selection).toEqual([b.id])
+    })
+    And('it becomes the active region', () => {
+      expect(observed.activeId).toBe(b.id)
+    })
+    And('the player seeks to its in-point', () => {
+      expect(observed.seekCalls).toEqual([b.inPoint])
+    })
+  })
+
+  // @behavior list-selection::e190e98b
+  Scenario("Modifier-clicks on clips don't change the active region", ({ Given, When, Then, And }) => {
+    const observed: {
+      activeId: string | null
+      selection: string[]
+    } = { activeId: null, selection: [] }
+    const a = makeRegion('clip-a', 'A', 5, 15)
+    const b = makeRegion('clip-b', 'B', 20, 30)
+
+    Given('the clips list with clip A active and selected', () => {})
+    When('the user shift-clicks or ctrl-clicks clip B', () => {
+      const harness = renderClipsPanel({
+        regions: [a, b],
+        activeRegionId: a.id,
+        selectedClipIds: [a.id],
+      })
+      const rows = harness.container.querySelectorAll('.clip-row:not(.clip-row--full)')
+      // Ctrl-click — additive, shouldn't activate.
+      fireEvent.click(rows[1] as HTMLElement, { ctrlKey: true })
+      observed.activeId = harness.store.getState().region.activeRegionId
+      observed.selection = [...harness.store.getState().lists.selection.clips]
+    })
+    Then('clip A remains the active region', () => {
+      expect(observed.activeId).toBe(a.id)
+    })
+    And('the selection now includes both clips A and B', () => {
+      expect([...observed.selection].sort()).toEqual([a.id, b.id].sort())
+    })
+  })
+
+  // ── Cross-list independence ─────────────────────────────────────────────
+
+  // @behavior list-selection::ecdd90c1
+  Scenario('Selecting in one list does not affect another list', ({ Given, And, When, Then }) => {
+    const observed: { markersAfter: number[] } = { markersAfter: [] }
+    const a = makeRegion('clip-a', 'A', 5, 15)
+    const b = makeRegion('clip-b', 'B', 20, 30)
+
+    Given('a clip is selected in the clips list', () => {})
+    And('a marker is selected in the markers list', () => {})
+    When('the user selects another clip', () => {
+      const harness = renderClipsPanel({
+        regions: [a, b],
+        selectedClipIds: [a.id],
+        selectedMarkerIds: [101, 202],
+      })
+      const rows = harness.container.querySelectorAll('.clip-row:not(.clip-row--full)')
+      fireEvent.click(rows[1] as HTMLElement)
+      observed.markersAfter = [...harness.store.getState().warp.selectedIds]
+    })
+    Then('the marker selection is unchanged', () => {
+      expect([...observed.markersAfter].sort()).toEqual([101, 202].sort())
+    })
+  })
+
+  // ── Filter independence ─────────────────────────────────────────────────
+
+  // @behavior list-selection::67c421a9
+  Scenario('Selection survives a filter change', ({ Given, When, And, Then }) => {
+    const observed: {
+      selectionAfter: string[]
+      visibleIds: string[]
+    } = { selectionAfter: [], visibleIds: [] }
+    // a sits at [5,15], b at [40,50], c at [80,90]. A viewport of 0..30 hides
+    // both b and c — only a's range overlaps. Selection set is independent
+    // of which rows are visible.
+    const a = makeRegion('clip-a', 'A', 5, 15)
+    const b = makeRegion('clip-b', 'B', 40, 50)
+    const c = makeRegion('clip-c', 'C', 80, 90)
+
+    Given('a list with three rows selected', () => {})
+    When('the user switches the list filter from All to View', () => {
+      // Pre-seed the viewport so the filter actually hides one row;
+      // mode change happens at render time via the harness option.
+      const harness = renderClipsPanel({
+        regions: [a, b, c],
+        selectedClipIds: [a.id, b.id, c.id],
+        view: { start: 0, end: 30 },
+        filterMode: 'viewport',
+      })
+      const rows = harness.container.querySelectorAll('.clip-row:not(.clip-row--full)')
+      observed.visibleIds = Array.from(rows).map(r => {
+        // ClipRow renders the clip name in `.clip-row__name` — match by name.
+        const name = r.querySelector('.clip-row__name')?.textContent ?? ''
+        return [a, b, c].find(x => x.name === name)?.id ?? ''
+      })
+      observed.selectionAfter = [...harness.store.getState().lists.selection.clips]
+    })
+    And('the filter hides one of the selected rows', () => {
+      // Only clip A's [5,15] overlaps the [0,30] viewport — b and c are out.
+      expect(observed.visibleIds).toEqual([a.id])
+    })
+    Then('the hidden row remains in the selection', () => {
+      expect([...observed.selectionAfter].sort()).toEqual([a.id, b.id, c.id].sort())
+    })
+    And('the rows still visible remain selected and checked', () => {
+      // The single visible row is selected — selectedClipIds includes a.
+      expect(observed.selectionAfter).toContain(a.id)
+    })
+  })
 })
