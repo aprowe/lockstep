@@ -173,6 +173,25 @@ export function ensureTimeInView(view: View, time: number, videoDuration: number
   return clampView(ns, ns + span, videoDuration)
 }
 
+/**
+ * Shift `view` just enough to bring `time` back on-screen, preserving the
+ * current zoom. Prefer this over {@link ensureTimeInView} when the user has
+ * explicitly jumped to `time` — the recenter can be disorienting when the
+ * pre-jump view was carefully positioned, whereas a minimal scroll keeps the
+ * surrounding context intact. A small margin (10% of span, min 0.25s) stops
+ * the target from landing glued to the edge.
+ *
+ * Returns the view by reference if `time` is already inside, so callers can
+ * short-circuit a dispatch with `next !== view`.
+ */
+export function scrollViewToTime(view: View, time: number, videoDuration: number): View {
+  if (time >= view.start && time <= view.end) return view
+  const span = view.end - view.start
+  const margin = Math.max(span * 0.1, 0.25)
+  const start = time < view.start ? time - margin : time + margin - span
+  return clampView(start, start + span, videoDuration)
+}
+
 const ZOOM_EPS = 0.001
 
 /** Return true when `view` is already fitted to `[regionIn, regionOut]`. */

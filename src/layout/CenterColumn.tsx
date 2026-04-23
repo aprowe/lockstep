@@ -32,7 +32,7 @@ import {
   setSelectedCutTimes as setSelectedSceneCutTimesAction,
 } from '../store/slices/sceneSlice'
 import { setListSelection, setPendingEdit } from '../store/slices/listsSlice'
-import { calcZoomToRegion, calcNewRegionBoundsFromScenes, calcNewRegionBoundsUpToNext } from '../utils/view'
+import { calcZoomToRegion, calcNewRegionBoundsFromScenes, calcNewRegionBoundsUpToNext, scrollViewToTime } from '../utils/view'
 import { findPreviousTarget } from '../utils/navigation'
 import { filterCutsByMinGap } from '../utils/sceneFilter'
 import type { View } from '../types'
@@ -227,12 +227,18 @@ export default function CenterColumn() {
         onJumpPrev={() => {
           const times = (warpData?.origAnchors ?? []).map(a => a.time)
           const prev = findPreviousTarget(times, playhead, playing)
-          if (prev !== undefined) playerRef.current?.seek(prev)
+          if (prev === undefined) return
+          playerRef.current?.seek(prev)
+          const nextView = scrollViewToTime(view, prev, video.duration)
+          if (nextView !== view) dispatch(setViewAction(nextView))
         }}
         onJumpNext={() => {
           const sorted = [...(warpData?.origAnchors ?? [])].sort((a, b) => a.time - b.time)
           const next = sorted.find(a => a.time > playhead + 0.05)
-          if (next) playerRef.current?.seek(next.time)
+          if (!next) return
+          playerRef.current?.seek(next.time)
+          const nextView = scrollViewToTime(view, next.time, video.duration)
+          if (nextView !== view) dispatch(setViewAction(nextView))
         }}
         onZoomToRegion={() => {
           const from = activeRegion?.inPoint ?? 0

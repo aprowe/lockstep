@@ -8,6 +8,7 @@ import {
   findSurroundingScenes,
   calcNewRegionBoundsFromScenes,
   ensureTimeInView,
+  scrollViewToTime,
 } from '../../../src/utils/view'
 import type { View } from '../../../src/types'
 
@@ -203,5 +204,74 @@ describe('ensureTimeInView', () => {
     const v: View = { start: 30, end: 40 }
     const next = ensureTimeInView(v, 2, 60)
     expect(next.start).toBe(0)
+  })
+})
+
+describe('scrollViewToTime', () => {
+  it('returns the same view when time is inside', () => {
+    const v: View = { start: 10, end: 20 }
+    expect(scrollViewToTime(v, 15, 60)).toBe(v)
+  })
+
+  it('preserves the span when scrolling right', () => {
+    const v: View = { start: 0, end: 10 }
+    const next = scrollViewToTime(v, 40, 60)
+    expect(next.end - next.start).toBeCloseTo(10)
+  })
+
+  it('preserves the span when scrolling left', () => {
+    const v: View = { start: 30, end: 40 }
+    const next = scrollViewToTime(v, 20, 60)
+    expect(next.end - next.start).toBeCloseTo(10)
+  })
+
+  it('places time near the right edge (with margin) when scrolling right', () => {
+    // span=10, margin=1.0 (10%). time=40 sits 1s inside the right edge
+    // → next.end = 41, next.start = 31.
+    const v: View = { start: 0, end: 10 }
+    const next = scrollViewToTime(v, 40, 60)
+    expect(next.start).toBeCloseTo(31)
+    expect(next.end).toBeCloseTo(41)
+  })
+
+  it('places time near the left edge (with margin) when scrolling left', () => {
+    // time=20 sits 1s inside the left edge → next.start = 19, next.end = 29.
+    const v: View = { start: 30, end: 40 }
+    const next = scrollViewToTime(v, 20, 60)
+    expect(next.start).toBeCloseTo(19)
+    expect(next.end).toBeCloseTo(29)
+  })
+
+  it('does not recenter — leaves target near the edge, not the middle', () => {
+    const v: View = { start: 0, end: 10 }
+    const next = scrollViewToTime(v, 40, 60)
+    const mid = (next.start + next.end) / 2
+    // If it recentered, mid would be ~40. Scroll-to-edge keeps target ~1s inside.
+    expect(mid).toBeLessThan(38)
+  })
+
+  it('clamps to 0 when scrolling close to the start', () => {
+    // span=10, margin=1. time=0.5 would put start=-0.5 → clamps to 0.
+    const v: View = { start: 30, end: 40 }
+    const next = scrollViewToTime(v, 0.5, 60)
+    expect(next.start).toBe(0)
+    expect(next.end).toBeCloseTo(10)
+  })
+
+  it('clamps to duration when scrolling close to the end', () => {
+    // span=10, margin=1. time=59.5 would put end=60.5 → clamps to 60.
+    const v: View = { start: 0, end: 10 }
+    const next = scrollViewToTime(v, 59.5, 60)
+    expect(next.end).toBe(60)
+    expect(next.start).toBeCloseTo(50)
+  })
+
+  it('uses a minimum 0.25s margin when the span is very small', () => {
+    // span=1, 10% = 0.1 — below floor, so margin = 0.25.
+    // time=5 lands at view.end - 0.25 = 5 → next.end = 5.25, next.start = 4.25.
+    const v: View = { start: 0, end: 1 }
+    const next = scrollViewToTime(v, 5, 60)
+    expect(next.start).toBeCloseTo(4.25)
+    expect(next.end).toBeCloseTo(5.25)
   })
 })
