@@ -7,7 +7,6 @@ import {
   MIN_VISIBLE,
   findSurroundingScenes,
   calcNewRegionBoundsFromScenes,
-  ensureTimeInView,
   scrollViewToTime,
 } from '../../../src/utils/view'
 import type { View } from '../../../src/types'
@@ -177,33 +176,6 @@ describe('calcNewRegionBoundsFromScenes', () => {
     // Cuts at 6.9 and 7.1 — span 0.2 < MIN_VISIBLE
     const result = calcNewRegionBoundsFromScenes(7, view, [6.9, 7.1], 30)
     expect(result.inPoint).toBe(7)
-  })
-})
-
-describe('ensureTimeInView', () => {
-  it('returns the same view when time is inside', () => {
-    const v: View = { start: 10, end: 20 }
-    expect(ensureTimeInView(v, 15, 60)).toBe(v)
-  })
-
-  it('centers view on time when time is left of view', () => {
-    const v: View = { start: 30, end: 40 }
-    const next = ensureTimeInView(v, 20, 60)
-    expect(next.end - next.start).toBeCloseTo(10)
-    expect((next.start + next.end) / 2).toBeCloseTo(20)
-  })
-
-  it('centers view on time when time is right of view', () => {
-    const v: View = { start: 0, end: 10 }
-    const next = ensureTimeInView(v, 40, 60)
-    expect(next.end - next.start).toBeCloseTo(10)
-    expect((next.start + next.end) / 2).toBeCloseTo(40)
-  })
-
-  it('clamps to video bounds when time is near the start', () => {
-    const v: View = { start: 30, end: 40 }
-    const next = ensureTimeInView(v, 2, 60)
-    expect(next.start).toBe(0)
   })
 })
 

@@ -5,10 +5,8 @@ import SceneRow, { type SceneRowData } from './SceneRow'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
 import { setMinGap as setSceneMinGapAction, deleteCut as deleteSceneCutAction } from '../../store/slices/sceneSlice'
 import { detectScenesThunk, cancelSceneDetectionThunk } from '../../store/thunks/sceneThunks'
-import { setView as setViewAction } from '../../store/slices/uiSlice'
 import { setListSelection } from '../../store/slices/listsSlice'
 import { selectActiveRegion } from '../../store/selectors'
-import { ensureTimeInView } from '../../utils/view'
 import { filterCutsByMinGap } from '../../utils/sceneFilter'
 import { useDockBridge } from '../DockContext'
 import './ScenesPanel.css'
@@ -19,7 +17,6 @@ export default function ScenesPanel() {
   const video = useAppSelector(s => s.video.video)
   const videoPath = video?.path ?? null
   const regions = useAppSelector(s => s.region.regions)
-  const view = useAppSelector(s => s.ui.view)
   const cuts = useAppSelector(s => videoPath ? s.scene.cutsByPath[videoPath] ?? [] : [])
   const status = useAppSelector(s => videoPath ? s.scene.statusByPath[videoPath] ?? 'idle' : 'idle')
   const progress = useAppSelector(s => videoPath ? s.scene.progressByPath[videoPath] ?? 0 : 0)
@@ -69,9 +66,7 @@ export default function ScenesPanel() {
     const data = items.find(r => r.id === id)
     if (!data || !video) return
     seek(data.start)
-    const next = ensureTimeInView(view, data.start, video.duration)
-    if (next !== view) dispatch(setViewAction(next))
-  }, [items, video, seek, view, dispatch])
+  }, [items, video, seek])
 
   const onDelete = useCallback((ids: string[]) => {
     if (!videoPath) return
