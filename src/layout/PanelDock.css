@@ -1,0 +1,128 @@
+.panel-dock {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* ── Dockview theme — match the warm-dark app palette ────────────────────
+ * Maps dockview's design tokens onto our --bg / --fg / --accent variables
+ * so the dock chrome (tabs, sashes, drop targets) inherits whichever app
+ * theme is active instead of dockview's built-in blue "abyss" colors.
+ */
+.dockview-theme-lockstep {
+  /* Sizing tokens — keep dockview's defaults but shrink the tab row a bit
+     so it fits the rest of the app's compact monospace chrome. */
+  --dv-tabs-and-actions-container-font-size: var(--t-base);
+  --dv-tabs-and-actions-container-height: 26px;
+  --dv-tab-font-size: inherit;
+  --dv-tab-margin: 0;
+  --dv-border-radius: 0px;
+  --dv-overlay-z-index: 999;
+
+  /* Surfaces */
+  --dv-group-view-background-color: var(--bg-1);
+  --dv-tabs-and-actions-container-background-color: var(--bg-3);
+
+  /* Tabs — visible vs hidden, in active vs inactive groups. The visible
+     tab matches the content surface so it reads as a continuous panel;
+     hidden tabs sink back into the strip. */
+  --dv-activegroup-visiblepanel-tab-background-color: var(--bg-1);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--bg-3);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg-2);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--bg-3);
+  --dv-tab-divider-color: var(--border);
+
+  /* Tab text */
+  --dv-activegroup-visiblepanel-tab-color: var(--fg-1);
+  --dv-activegroup-hiddenpanel-tab-color: var(--fg-4);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--fg-3);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--fg-5);
+
+  /* Borders + sashes */
+  --dv-separator-border: var(--border);
+  --dv-paneview-header-border-color: var(--border);
+  --dv-paneview-active-outline-color: var(--accent);
+  --dv-sash-color: var(--border);
+  --dv-active-sash-color: var(--accent);
+  --dv-active-sash-transition-duration: 0.1s;
+  --dv-active-sash-transition-delay: 0s;
+
+  /* Drag / drop affordances */
+  --dv-drag-over-background-color: rgba(var(--accent-rgb), 0.18);
+  --dv-drag-over-border-color: var(--accent);
+  --dv-floating-box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+
+  /* Misc chrome */
+  --dv-tabs-container-scrollbar-color: var(--fg-5);
+  --dv-icon-hover-background-color: var(--bg-hover);
+}
+
+/* Drop-target overlay anchor — fade in cleanly so it doesn't flash. */
+.dockview-theme-lockstep .dv-drop-target-container .dv-drop-target-anchor.dv-drop-target-anchor-container-changed {
+  opacity: 0;
+  transition: none;
+}
+
+/* No close × on tabs — panels are toggled via the View menu instead, so the
+ * × would just be a foot-gun (a closed panel can be brought back, but the
+ * click target is small and easy to hit by accident). */
+.dockview-theme-lockstep .dv-default-tab-action {
+  display: none !important;
+}
+
+/* Subtle accent underline on the active panel's tab so it's findable when
+   multiple groups are stacked. */
+.dockview-theme-lockstep .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tabs-container > .dv-tab.dv-active-tab {
+  position: relative;
+}
+.dockview-theme-lockstep .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tabs-container > .dv-tab.dv-active-tab::after {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  content: "";
+  width: 100%;
+  height: 2px;
+  background-color: var(--accent);
+  z-index: 2;
+}
+
+.vj-empty-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #6a5e54;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* ── Panel content fills its dockview group ───────────────────────────────
+ * dockview gives each panel a flex-grown content container; the React content
+ * inside it (e.g. .vj-center) needs to be told to stretch — without explicit
+ * sizing it falls back to natural content height and overflows the panel.
+ */
+.panel-dock .vj-center,
+.panel-dock .vf-sidebar,
+.panel-dock .rsi-sidebar,
+.panel-dock .rip,
+.panel-dock .scene-list,
+.panel-dock .marker-list {
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Hide each panel's internal title bar ─────────────────────────────────
+ * The dockview tab already shows the panel name; the header inside each
+ * panel is now redundant. Buttons that lived in those headers (Open Folder,
+ * Add Region, etc.) are reachable via the File menu / Toolbar.
+ */
+.panel-dock .vf-sidebar__header,
+.panel-dock .rsi-header,
+.panel-dock .rip__header,
+.panel-dock .sl-header,
+.panel-dock .ml-section__header {
+  display: none;
+}

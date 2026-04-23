@@ -3,8 +3,6 @@ import VideoPlayer from './components/VideoPlayer'
 import type { VideoPlayerHandle } from './components/VideoPlayer'
 import Filmstrip from './components/Filmstrip'
 import WarpView from './components/WarpView'
-import MarkerList from './components/MarkerList'
-import SceneList from './components/SceneList'
 import ExportProgressBar from './components/ExportProgressBar'
 import ExportDialog from './components/ExportDialog'
 import Toolbar from './components/Toolbar'
@@ -15,9 +13,8 @@ import { stepUiScale, resetUiScale, UI_SCALE_STEP } from './uiScale'
 import { calcZoomToRegion, calcNewRegionBoundsFromScenes, calcNewRegionBoundsUpToNext, ensureTimeInView } from './utils/view'
 import { findPreviousTarget } from './utils/navigation'
 import type { View } from './types'
-import VideoFolderSidebar from './components/VideoFolderSidebar'
-import RegionSidebar from './components/RegionSidebar'
-import RegionInfoPanel from './components/RegionInfoPanel'
+import PanelDock, { PANEL_LIST, type PanelDockHandle } from './layout/PanelDock'
+import { DockBridgeProvider } from './layout/DockContext'
 import ContextMenu from './components/ContextMenu'
 import type { ContextMenuState } from './components/ContextMenu'
 import ThumbnailPopup, { ThumbnailHoverProvider } from './components/ThumbnailPopup'
@@ -76,9 +73,7 @@ import { store } from './store/store'
 import {
   setTimelineHeight as setTimelineHeightAction,
   setSidebarWidth as setSidebarWidthAction,
-  setClipSidebarWidth as setClipSidebarWidthAction,
   setRightWidth as setRightWidthAction,
-  setSidebarCollapsed as setSidebarCollapsedAction,
   setGridDiv as setGridDivAction,
   setPlaying as setPlayingAction,
   setExportOpen as setExportOpenAction,
@@ -96,12 +91,6 @@ function hasJsonExt(p: string) {
 function hasLlcExt(p: string) {
   return p.split('.').pop()?.toLowerCase() === 'llc'
 }
-
-// ── Layout constants ─────────────────────────────────────────────────────────
-
-const MIN_TIMELINE = 275
-const MIN_PLAYER_HEIGHT = 120
-const DEFAULT_TIMELINE = 280
 
 // ── App ──────────────────────────────────────────────────────────────────────
 
@@ -178,27 +167,8 @@ export default function App() {
     dispatch(renameRegionAction({ id, name }))
   const updateRegionLock = (id: string, lock: 'bpm' | 'beats', lockedBeats?: number) =>
     dispatch(updateRegionLockAction({ id, lock, lockedBeats }))
-  const timelineHeight = useAppSelector(s => s.ui.timelineHeight)
-  const sidebarWidth = useAppSelector(s => s.ui.sidebarWidth)
-  const sidebarCollapsed = useAppSelector(s => s.ui.sidebarCollapsed)
-  const clipSidebarWidth = useAppSelector(s => s.ui.clipSidebarWidth)
-  const rightWidth = useAppSelector(s => s.ui.rightWidth)
-  const gridDiv = useAppSelector(s => s.ui.gridDiv)
-  const playing = useAppSelector(s => s.ui.playing)
   const exportOpen = useAppSelector(s => s.ui.exportOpen)
-  const setTimelineHeight = (v: number) => dispatch(setTimelineHeightAction(v))
-  const setSidebarWidth = (v: number) => dispatch(setSidebarWidthAction(v))
-  const setSidebarCollapsed = (v: boolean) => dispatch(setSidebarCollapsedAction(v))
-  const setClipSidebarWidth = (v: number) => dispatch(setClipSidebarWidthAction(v))
-  const setRightWidth = (v: number) => dispatch(setRightWidthAction(v))
-  const setGridDiv = (v: number) => dispatch(setGridDivAction(v))
-  const setPlaying = (v: boolean) => dispatch(setPlayingAction(v))
   const setExportOpen = (v: boolean) => dispatch(setExportOpenAction(v))
-  const selectedIds = useAppSelector(selectSelectedIdsSet)
-  const setSelectedIds = useCallback(
-    (ids: Set<number>) => dispatch(setSelectedIdsWarp([...ids])),
-    [dispatch],
-  )
   const [clipContextMenu, setClipContextMenu] = useState<ContextMenuState | null>(null)
   const [pendingRenameId, setPendingRenameId] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
@@ -206,11 +176,26 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const playerRef = useRef<VideoPlayerHandle>(null)
-  const preZoomView = useRef<View | null>(null)
-  const vDragStart = useRef<{ y: number; h: number } | null>(null)
-  const lDragStart = useRef<{ x: number; w: number } | null>(null)
+
+  // Bridge of imperative App-level APIs (player ref, dialog state, pending
+  // rename, floating context menu) to dockview-mounted panels. useMemo so
+  // panel components don't see a fresh identity every App render.
+  const dockBridge = useMemo(() => ({
+    seek: (t: number) => playerRef.current?.seek(t),
+    setExportOpen: (open: boolean) => dispatch(setExportOpenAction(open)),
+    setPendingRenameId,
+    pendingRenameId,
+    playerRef,
+    setClipContextMenu,
+  }), [pendingRenameId, dispatch])
+
   const rDragStart = useRef<{ x: number; w: number } | null>(null)
-  const cDragStart = useRef<{ x: number; w: number } | null>(null)
+
+  // Imperative handle into PanelDock — lets the View menu reset the layout
+  // and toggle individual panels. Visible panel ids re-render the menu so the
+  // ✓ check marks reflect the live dock state.
+  const dockHandleRef = useRef<PanelDockHandle | null>(null)
+  const [visiblePanelIds, setVisiblePanelIds] = useState<ReadonlySet<string>>(new Set())
 
   // Clear pendingZoom after it's consumed by WarpView on mount
   useEffect(() => {
@@ -291,58 +276,6 @@ export default function App() {
     }
   }, [activeRegionId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Vertical resizer (timeline height) ────────────────────────────────────
-
-  const handleResizerPointerDown = (e: React.PointerEvent) => {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    vDragStart.current = { y: e.clientY, h: timelineHeight }
-  }
-  const handleResizerPointerMove = (e: React.PointerEvent) => {
-    if (!vDragStart.current || !e.buttons) return
-    const body = (e.currentTarget as HTMLElement).closest('.vj-center') as HTMLElement | null
-    const maxTimeline = Math.max(MIN_TIMELINE, (body?.clientHeight ?? window.innerHeight) - MIN_PLAYER_HEIGHT)
-    setTimelineHeight(Math.max(MIN_TIMELINE, Math.min(maxTimeline,
-      vDragStart.current.h - (e.clientY - vDragStart.current.y)
-    )))
-  }
-  const handleResizerPointerUp = () => { vDragStart.current = null }
-
-  // ── Left sidebar resizer ───────────────────────────────────────────────────
-
-  const handleLeftResizerDown = (e: React.PointerEvent) => {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    lDragStart.current = { x: e.clientX, w: sidebarWidth }
-  }
-  const handleLeftResizerMove = (e: React.PointerEvent) => {
-    if (!lDragStart.current || !e.buttons) return
-    setSidebarWidth(Math.max(120, Math.min(320, lDragStart.current.w + (e.clientX - lDragStart.current.x))))
-  }
-  const handleLeftResizerUp = () => { lDragStart.current = null }
-
-  // ── Clip sidebar resizer ───────────────────────────────────────────────────
-
-  const handleClipResizerDown = (e: React.PointerEvent) => {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    cDragStart.current = { x: e.clientX, w: clipSidebarWidth }
-  }
-  const handleClipResizerMove = (e: React.PointerEvent) => {
-    if (!cDragStart.current || !e.buttons) return
-    setClipSidebarWidth(Math.max(120, Math.min(280, cDragStart.current.w + (e.clientX - cDragStart.current.x))))
-  }
-  const handleClipResizerUp = () => { cDragStart.current = null }
-
-  // ── Right panel resizer ────────────────────────────────────────────────────
-
-  const handleRightResizerDown = (e: React.PointerEvent) => {
-    e.currentTarget.setPointerCapture(e.pointerId)
-    rDragStart.current = { x: e.clientX, w: rightWidth }
-  }
-  const handleRightResizerMove = (e: React.PointerEvent) => {
-    if (!rDragStart.current || !e.buttons) return
-    setRightWidth(Math.max(200, Math.min(480, rDragStart.current.w - (e.clientX - rDragStart.current.x))))
-  }
-  const handleRightResizerUp = () => { rDragStart.current = null }
-
   // ── BPM handlers ──────────────────────────────────────────────────────────
 
   const playhead = useAppSelector(s => s.warp.playhead)
@@ -388,7 +321,11 @@ export default function App() {
     increaseUiScale: () => stepUiScale(UI_SCALE_STEP),
     decreaseUiScale: () => stepUiScale(-UI_SCALE_STEP),
     resetUiScale: () => resetUiScale(),
-  }), [])
+    resetPanelLayout: () => dockHandleRef.current?.resetLayout(),
+    togglePanel: id => dockHandleRef.current?.togglePanel(id),
+    panels: PANEL_LIST,
+    visiblePanelIds,
+  }), [visiblePanelIds])
 
   const canExport = !!video
 
@@ -431,35 +368,9 @@ export default function App() {
       />
 
       {/* Body */}
+      <DockBridgeProvider value={dockBridge}>
       <div className="vj-body">
-        {folderVideos.length > 0 && (
-          <>
-            {sidebarCollapsed ? (
-              <div className="vj-sidebar-collapsed" onClick={() => setSidebarCollapsed(false)} title="Expand file browser">
-                <span className="vj-sidebar-collapsed__icon">▶</span>
-              </div>
-            ) : (
-              <VideoFolderSidebar
-                videos={folderVideos}
-                selectedPath={video?.path ?? null}
-                onOpenFolder={openFolder}
-                onSelectVideo={selectVideo}
-                width={sidebarWidth}
-                markerCountByPath={markerCountByPath}
-                onCollapse={() => setSidebarCollapsed(true)}
-              />
-            )}
-            {!sidebarCollapsed && (
-              <div
-                className="vj-panel-resizer"
-                onPointerDown={handleLeftResizerDown}
-                onPointerMove={handleLeftResizerMove}
-                onPointerUp={handleLeftResizerUp}
-              />
-            )}
-          </>
-        )}
-
+        <ExportProgressBar />
         {!video ? (
           <div className="app-empty">
             {folderVideos.length === 0
@@ -471,365 +382,13 @@ export default function App() {
             <p className="app-empty__hint">Loading...</p>
           </div>
         ) : (
-          <>
-            {/* Region sidebar (top) + info panel (bottom, aligned with timeline) */}
-            <div style={{ width: clipSidebarWidth, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <RegionSidebar
-                duration={video.duration}
-                regions={regions}
-                activeRegionId={activeRegionId}
-                onSelectRegion={(id) => {
-                  setActiveRegionId(id)
-                  if (id) {
-                    const region = regions.find(r => r.id === id)
-                    if (region) playerRef.current?.seek(region.inPoint)
-                  }
-                }}
-                onAddRegion={() => {
-                  const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(playhead, view, sceneCuts ?? [], video.duration)
-                  addRegion(inPoint, outPoint)
-                }}
-                onDeleteRegion={deleteRegion}
-                onRename={renameRegion}
-                onUpdateInOut={updateRegionInOut}
-                onExportRegion={(id) => {
-                  setActiveRegionId(id)
-                  setExportOpen(true)
-                }}
-                onDuplicateRegion={(id) => {
-                  const newId = duplicateRegion(id)
-                  if (newId) setActiveRegionId(newId)
-                }}
-                onResetBoundaries={(id) => updateRegionBeatTimes(id, undefined, undefined)}
-                pendingRenameId={pendingRenameId}
-                onPendingRenameConsumed={() => setPendingRenameId(null)}
-              />
-              {/* 5px spacer matching vj-resizer height */}
-              <div style={{ height: 5, flexShrink: 0, background: '#1b1814' }} />
-              <div style={{ height: timelineHeight, flexShrink: 0, overflow: 'hidden' }}>
-                <RegionInfoPanel
-                  activeRegion={activeRegion ?? null}
-                  warpData={warpData}
-                  duration={video.duration}
-                  addToEnd={addToEnd}
-                  onBpmChange={handleBpmChange}
-                  onAddToEndChange={setAddToEnd}
-                  onUpdateRegionInOut={updateRegionInOut}
-                  onUpdateRegionBeatTimes={updateRegionBeatTimes}
-                  beatZeroOrigTime={(() => {
-                    if (!warpData) return null
-                    const zeroBA = warpData.beatAnchors.find(ba => Math.abs(ba.time - warpData.beatZeroTime) < 0.001)
-                    if (!zeroBA) return null
-                    return warpData.origAnchors.find(oa => oa.id === zeroBA.id)?.time ?? null
-                  })()}
-                  onStartAtChange={origTime => {
-                    if (origTime === null) { dispatch(setBeatZeroId(null)); return }
-                    const anchor = origAnchors.find(a => Math.abs(a.time - origTime) < 0.001)
-                    if (anchor) dispatch(setBeatZeroId(anchor.id))
-                  }}
-                  onLockChange={(lock, lockedBeats) => {
-                    if (activeRegionId) updateRegionLock(activeRegionId, lock, lockedBeats)
-                  }}
-                  onTriggerModeChange={(v) => {
-                    if (activeRegionId) dispatch(updateRegionTriggerModeAction({ id: activeRegionId, triggerMode: v }))
-                  }}
-                  onBpmDetect={handleBpmDetect}
-                  detectingBpm={detectingBpm}
-                />
-              </div>
-            </div>
-            <div
-              className="vj-panel-resizer"
-              onPointerDown={handleClipResizerDown}
-              onPointerMove={handleClipResizerMove}
-              onPointerUp={handleClipResizerUp}
-            />
-
-            <div className="vj-center">
-              <div className="vj-breadcrumb">
-                <span className="vj-breadcrumb__name">{video.originalName}</span>
-                {activeRegion && (
-                  <span className="vj-breadcrumb__region"> › {activeRegion.name}</span>
-                )}
-              </div>
-              <div className="vj-player">
-                <div className="vj-player__video">
-                  <VideoPlayer
-                    ref={playerRef}
-                    src={video.videoUrl}
-                    duration={video.duration}
-                    onTimeUpdate={t => dispatch(setPlayheadAction(t))}
-                    onPlayStateChange={setPlaying}
-                  />
-                </div>
-                <Filmstrip
-                  onSeekFrame={frame => {
-                    if (video.fps > 0) playerRef.current?.seek(frame / video.fps)
-                  }}
-                />
-              </div>
-
-              <Toolbar
-                playerRef={playerRef}
-                duration={video.duration}
-                fps={video.fps}
-                playing={playing}
-                currentTime={playhead}
-                onMark={t => dispatch(setOrigAnchorsFromTimeline([...origAnchors, { id: newAnchorId(), time: Math.max(0, t) }]))}
-                onJumpPrev={() => {
-                  const times = (warpData?.origAnchors ?? []).map(a => a.time)
-                  const prev = findPreviousTarget(times, playhead, playing)
-                  if (prev !== undefined) playerRef.current?.seek(prev)
-                }}
-                onJumpNext={() => {
-                  const sorted = [...(warpData?.origAnchors ?? [])].sort((a, b) => a.time - b.time)
-                  const next = sorted.find(a => a.time > playhead + 0.05)
-                  if (next) playerRef.current?.seek(next.time)
-                }}
-                onZoomToRegion={() => {
-                  const from = activeRegion?.inPoint ?? 0
-                  const to = activeRegion?.outPoint ?? video.duration
-                  const currentView = store.getState().ui.view
-                  const { nextView, previousView } = calcZoomToRegion(currentView, from, to, preZoomView.current)
-                  if (previousView !== null) preZoomView.current = previousView
-                  else preZoomView.current = null
-                  dispatch(setViewAction(nextView))
-                }}
-                onJumpRegionStart={activeRegion ? () => {
-                  playerRef.current?.seek(activeRegion.inPoint)
-                } : undefined}
-                onJumpRegionEnd={activeRegion ? () => {
-                  playerRef.current?.seek(activeRegion.outPoint)
-                } : undefined}
-                onSetIn={activeRegion ? () => {
-                  if (playhead > activeRegion.outPoint) {
-                    // In after Out → spawn a new region from playhead up to the next region edge
-                    const { inPoint, outPoint } = calcNewRegionBoundsUpToNext(
-                      playhead, view.end - view.start, regions, video.duration,
-                    )
-                    const id = addRegion(inPoint, outPoint)
-                    if (id) setActiveRegionId(id)
-                  } else {
-                    updateRegionInOut(activeRegion.id, playhead, activeRegion.outPoint)
-                  }
-                } : () => {
-                  // Full Video: create a new region from playhead to end
-                  const id = addRegion(playhead, video.duration)
-                  if (id) setActiveRegionId(id)
-                }}
-                onSetOut={activeRegion ? () => {
-                  if (playhead < activeRegion.inPoint) {
-                    // Out before In → spawn a new region from playhead up to the next region edge
-                    const { inPoint, outPoint } = calcNewRegionBoundsUpToNext(
-                      playhead, view.end - view.start, regions, video.duration,
-                    )
-                    const id = addRegion(inPoint, outPoint)
-                    if (id) setActiveRegionId(id)
-                  } else {
-                    updateRegionInOut(activeRegion.id, activeRegion.inPoint, playhead)
-                  }
-                } : () => {
-                  // Full Video: create a new region from start to playhead
-                  const id = addRegion(0, Math.max(playhead, 0.1))
-                  if (id) setActiveRegionId(id)
-                }}
-                gridDiv={gridDiv}
-                onGridDivChange={setGridDiv}
-                onNewRegion={() => {
-                  const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(playhead, view, sceneCuts ?? [], video.duration)
-                  addRegion(inPoint, outPoint)
-                }}
-                onPrevRegion={regions.length > 1 ? () => {
-                  const inPoints = regions.map(r => r.inPoint)
-                  const prev = findPreviousTarget(inPoints, playhead, playing)
-                  if (prev === undefined) return
-                  const target = regions.find(r => r.inPoint === prev)
-                  if (target) {
-                    setActiveRegionId(target.id)
-                    playerRef.current?.seek(target.inPoint)
-                  }
-                } : undefined}
-                onNextRegion={regions.length > 1 ? () => {
-                  const sorted = [...regions].sort((a, b) => a.inPoint - b.inPoint)
-                  const idx = sorted.findIndex(r => r.id === activeRegionId)
-                  const next = idx < sorted.length - 1 ? sorted[idx + 1] : null
-                  if (next) setActiveRegionId(next.id)
-                } : undefined}
-                onDeleteRegion={activeRegion ? () => deleteRegion(activeRegion.id) : undefined}
-                onNewScene={videoPath ? () => dispatch(addSceneCutAction({ path: videoPath, cut: playhead })) : undefined}
-                onPrevScene={(filteredSceneCuts.length > 0) ? () => {
-                  const prev = findPreviousTarget(filteredSceneCuts, playhead, playing)
-                  if (prev !== undefined) playerRef.current?.seek(prev)
-                } : undefined}
-                onNextScene={(filteredSceneCuts.length > 0) ? () => {
-                  const next = [...filteredSceneCuts].sort((a, b) => a - b).find(t => t > playhead + 0.001)
-                  if (next !== undefined) playerRef.current?.seek(next)
-                } : undefined}
-                clipBeatCount={activeRegion ? (() => {
-                  const bpm = warpData?.bpm ?? 0
-                  if (bpm <= 0) return null
-                  const beat = 60 / bpm
-                  const beatSpan = (activeRegion.outBeatTime ?? activeRegion.outPoint) - (activeRegion.inBeatTime ?? activeRegion.inPoint)
-                  return beatSpan / beat
-                })() : null}
-              />
-
-              <div
-                className="vj-resizer"
-                onPointerDown={handleResizerPointerDown}
-                onPointerMove={handleResizerPointerMove}
-                onPointerUp={handleResizerPointerUp}
-              />
-
-              <div className="vj-timeline" style={{ height: timelineHeight }}>
-                <WarpView
-                  onSeek={t => playerRef.current?.seek(t)}
-                  scenes={filteredSceneCuts}
-                  onSceneAdd={t => {
-                    if (videoPath) dispatch(addSceneCutAction({ path: videoPath, cut: t }))
-                  }}
-                  onSceneDelete={t => {
-                    if (videoPath) dispatch(deleteSceneCutAction({ path: videoPath, cut: t }))
-                  }}
-                  onSendToNewRegion={(inPoint, outPoint) =>
-                    addRegion(inPoint, outPoint)
-                  }
-                  onRegionAdd={t => {
-                    if (!video) return
-                    const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(
-                      t, view, sceneCuts ?? [], video.duration,
-                    )
-                    addRegion(inPoint, outPoint)
-                  }}
-                  clipOverlays={regions.map((r, idx) => ({
-                    id: r.id,
-                    name: r.name,
-                    inPoint: r.inPoint,
-                    outPoint: r.outPoint,
-                    active: r.id === activeRegionId,
-                    colorIndex: idx,
-                  }))}
-                  onClipOverlaySelect={(id) => {
-                    setActiveRegionId(id)
-                    if (id) {
-                      const region = regions.find(r => r.id === id)
-                      if (region) playerRef.current?.seek(region.inPoint)
-                    }
-                  }}
-                  onClipOverlayResize={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
-                  onClipOverlayMove={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
-                  onClipOverlayZoom={(id) => {
-                    const region = regions.find(r => r.id === id)
-                    if (!region) return
-                    const currentView = store.getState().ui.view
-                    const { nextView, previousView } = calcZoomToRegion(currentView, region.inPoint, region.outPoint, preZoomView.current)
-                    if (previousView !== null) preZoomView.current = previousView
-                    else preZoomView.current = null
-                    dispatch(setViewAction(nextView))
-                  }}
-                  onClipOverlayContextMenu={(id, x, y) => {
-                    const region = regions.find(r => r.id === id)
-                    if (!region) return
-                    setClipContextMenu({
-                      x, y,
-                      title: region.name,
-                      items: [
-                        { label: 'Rename', action: () => { setActiveRegionId(id); setPendingRenameId(id) } },
-                        { label: 'Duplicate', action: () => {
-                          const newId = duplicateRegion(id)
-                          if (newId) setActiveRegionId(newId)
-                        }},
-                        { label: 'Export', action: () => { setActiveRegionId(id); setExportOpen(true) } },
-                        { separator: true as const },
-                        { label: 'Reset boundaries', action: () => updateRegionBeatTimes(id, undefined, undefined),
-                          disabled: region.inBeatTime === undefined && region.outBeatTime === undefined },
-                        { label: 'Delete', action: () => deleteRegion(id), danger: true },
-                      ],
-                    })
-                  }}
-                />
-              </div>
-            </div>
-
-            <div
-              className="vj-panel-resizer"
-              onPointerDown={handleRightResizerDown}
-              onPointerMove={handleRightResizerMove}
-              onPointerUp={handleRightResizerUp}
-            />
-            {/* Right column: scene list on top + markers panel aligned with timeline */}
-            <div style={{ width: rightWidth, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <ExportProgressBar />
-              <div style={{ flex: 1, minHeight: 0 }}>
-                <SceneList
-                  cuts={sceneCuts ?? []}
-                  status={sceneStatus}
-                  progress={sceneProgress}
-                  error={sceneError}
-                  threshold={sceneThreshold}
-                  duration={video.duration}
-                  regions={regions}
-                  view={view}
-                  onSeek={t => {
-                    playerRef.current?.seek(t)
-                    const currentView = store.getState().ui.view
-                    const nextView = ensureTimeInView(currentView, t, video.duration)
-                    if (nextView !== currentView) dispatch(setViewAction(nextView))
-                  }}
-                  onRecompute={(t) => {
-                    if (videoPath) dispatch(detectScenesThunk({ path: videoPath, threshold: t }))
-                  }}
-                  minGap={sceneMinGap}
-                  onMinGapChange={(g) => {
-                    if (videoPath) dispatch(setSceneMinGapAction({ path: videoPath, minGap: g }))
-                  }}
-                  onSceneDelete={(t) => {
-                    if (videoPath) dispatch(deleteSceneCutAction({ path: videoPath, cut: t }))
-                  }}
-                  onCancel={() => { dispatch(cancelSceneDetectionThunk()) }}
-                />
-              </div>
-              {/* 5px spacer matching vj-resizer height */}
-              <div style={{ height: 5, flexShrink: 0, background: '#1b1814' }} />
-              <div style={{ height: timelineHeight, flexShrink: 0, overflow: 'hidden' }}>
-                <MarkerList
-                  origAnchors={origAnchors.filter(a =>
-                    activeRegion ? a.time >= activeRegion.inPoint - 0.001 && a.time <= activeRegion.outPoint + 0.001 : true
-                  )}
-                  beatAnchors={beatAnchorsForSnap}
-                  duration={video.duration}
-                  fps={video.fps}
-                  bpm={warpBpm}
-                  beatZeroTime={warpData?.beatZeroTime ?? 0}
-                  selectedIds={selectedIds}
-                  onSelectionChange={setSelectedIds}
-                  onSeek={t => playerRef.current?.seek(t)}
-                  onClear={() => dispatch(clearAnchors())}
-                  onReset={() => dispatch(resetBeatLinks(origAnchors.map(a => a.id)))}
-                  onSnap={() => {
-                    const b = warpBpm > 0 ? 60 / warpBpm / gridDiv : 0
-                    if (b <= 0) return
-                    const snapped = snapAllToBeat(beatAnchorsForSnap, b, warpData?.beatZeroTime ?? 0)
-                    dispatch(setBeatAnchorsFromTimeline(snapped))
-                  }}
-                  onDeleteSelected={() => dispatch(removeAnchors([...selectedIds]))}
-                  onResetSelected={() => dispatch(resetBeatLinks([...selectedIds]))}
-                  onSnapSelected={() => {
-                    const b = warpBpm > 0 ? 60 / warpBpm / gridDiv : 0
-                    if (b <= 0) return
-                    const toSnap = beatAnchorsForSnap.filter(a => selectedIds.has(a.id))
-                    const snapped = snapAllToBeat(toSnap, b, warpData?.beatZeroTime ?? 0)
-                    const snapMap = new Map(snapped.map(a => [a.id, a.time]))
-                    dispatch(setBeatAnchorsFromTimeline(
-                      beatAnchorsForSnap.map(a => snapMap.has(a.id) ? { ...a, time: snapMap.get(a.id)! } : a)
-                    ))
-                  }}
-                />
-              </div>
-            </div>
-          </>
+          <PanelDock
+            ref={dockHandleRef}
+            onPanelsChange={ids => setVisiblePanelIds(new Set(ids))}
+          />
         )}
       </div>
+      </DockBridgeProvider>
 
       {/* Drag-over overlay */}
       {isDragOver && (

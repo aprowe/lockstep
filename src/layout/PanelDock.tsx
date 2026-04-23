@@ -1,0 +1,241 @@
+import { useEffect, useImperativeHandle, useRef, forwardRef } from 'react'
+import { DockviewReact, type DockviewApi, type DockviewReadyEvent, type DockviewTheme, type IDockviewPanelProps, type SerializedDockview } from 'dockview'
+import 'dockview/dist/styles/dockview.css'
+import './PanelDock.css'
+
+/** Custom theme object — dockview's `theme` option drives which className it
+ *  pins on its root element. Without this it falls back to themeAbyss and
+ *  appends "dockview-theme-abyss", which then overrides our --dv-* vars. */
+const lockstepTheme: DockviewTheme = {
+  name: 'lockstep',
+  className: 'dockview-theme-lockstep',
+}
+
+import FileBrowserPanel from './panels/FileBrowserPanel'
+import ClipsPanel from './panels/ClipsPanel'
+import ClipInfoPanel from './panels/ClipInfoPanel'
+import ScenesPanel from './panels/ScenesPanel'
+import MarkersPanel from './panels/MarkersPanel'
+import CenterColumn from './CenterColumn'
+
+// ── Component registry ─────────────────────────────────────────────────────
+//
+// Keys are the `component` strings round-tripped through serialized layouts.
+// The `center` panel is locked + headerless so it can't be dragged or accept
+// drops — see lockCenterGroup() below.
+const components: Record<string, React.FunctionComponent<IDockviewPanelProps>> = {
+  files: () => <FileBrowserPanel />,
+  clips: () => <ClipsPanel />,
+  'clip-info': () => <ClipInfoPanel />,
+  scenes: () => <ScenesPanel />,
+  markers: () => <MarkersPanel />,
+  center: () => <CenterColumn />,
+}
+
+const PANEL_TITLES: Record<string, string> = {
+  files: 'Files',
+  clips: 'Clips',
+  'clip-info': 'Clip Info',
+  scenes: 'Scenes',
+  markers: 'Markers',
+  center: 'Player',
+}
+
+const SIDE_PANEL_IDS = ['files', 'clips', 'clip-info', 'scenes', 'markers'] as const
+
+const STORAGE_KEY = 'lockstep:panel-layout:v3'
+
+/**
+ * Default 4-slot layout the dock falls back to whenever there's no saved
+ * layout (or the saved one fails to deserialize):
+ *
+ *   ┌──────────────┬─────────────┬──────────────────┐
+ *   │ clips        │             │ scenes / markers │  (NW · CENTER · NE)
+ *   │ (+ files)    │  player +   │  (tabbed)        │
+ *   ├──────────────┤  timeline   ├──────────────────┤
+ *   │ (empty)      │             │ clip-info        │  (SW · CENTER · SE)
+ *   └──────────────┴─────────────┴──────────────────┘
+ *
+ * Built imperatively with addPanel(...) so we can position relative to the
+ * locked center group.
+ */
+function buildDefaultLayout(api: DockviewApi) {
+  api.clear()
+  // Center first — every other panel positions relative to it.
+  api.addPanel({
+    id: 'center', component: 'center', title: PANEL_TITLES.center,
+  })
+
+  // NW — clips, with files as a second tab in the same group.
+  api.addPanel({
+    id: 'clips', component: 'clips', title: PANEL_TITLES.clips,
+    position: { referencePanel: 'center', direction: 'left' },
+    initialWidth: 240,
+  })
+  api.addPanel({
+    id: 'files', component: 'files', title: PANEL_TITLES.files,
+    position: { referencePanel: 'clips' },
+    inactive: true, // keep clips active on first paint
+  })
+
+  // NE — scenes + markers tabbed together.
+  api.addPanel({
+    id: 'scenes', component: 'scenes', title: PANEL_TITLES.scenes,
+    position: { referencePanel: 'center', direction: 'right' },
+    initialWidth: 300,
+  })
+  api.addPanel({
+    id: 'markers', component: 'markers', title: PANEL_TITLES.markers,
+    position: { referencePanel: 'scenes' },
+    inactive: true,
+  })
+
+  // SE — clip-info below the scenes/markers group.
+  api.addPanel({
+    id: 'clip-info', component: 'clip-info', title: PANEL_TITLES['clip-info'],
+    position: { referencePanel: 'scenes', direction: 'below' },
+    initialHeight: 220,
+  })
+
+  // SW is intentionally empty — drag any panel below the clips group to fill it.
+
+  lockCenterGroup(api)
+}
+
+/** Lock the center group so it can't be dragged or used as a drop target,
+ *  and hide its tab header so the player UI fills the panel cleanly. */
+function lockCenterGroup(api: DockviewApi) {
+  const center = api.getPanel('center')
+  if (!center) return
+  center.group.locked = 'no-drop-target'
+  center.group.header.hidden = true
+}
+
+/** Imperative handle exposed to App so the View menu can reset the layout
+ *  and toggle individual panels open/closed. */
+export interface PanelDockHandle {
+  /** Wipe the saved layout and rebuild the default 4-slot arrangement. */
+  resetLayout: () => void
+  /** Close the panel if open, or add it back into the active group if hidden. */
+  togglePanel: (id: string) => void
+  /** Snapshot of currently-open side-panel ids (excluding the locked center). */
+  getOpenSidePanelIds: () => string[]
+}
+
+interface PanelDockProps {
+  className?: string
+  /** Fired whenever a panel is added/removed so callers can re-render the
+   *  View menu's "show/hide" check marks against the current set. */
+  onPanelsChange?: (openSidePanelIds: string[]) => void
+}
+
+const PanelDock = forwardRef<PanelDockHandle, PanelDockProps>(function PanelDock(
+  { className, onPanelsChange },
+  ref,
+) {
+  const apiRef = useRef<DockviewApi | null>(null)
+
+  useEffect(() => () => { apiRef.current = null }, [])
+
+  const emitPanels = () => {
+    const api = apiRef.current
+    if (!api) return
+    const ids = api.panels.map(p => p.id).filter(id => id !== 'center')
+    onPanelsChange?.(ids)
+  }
+
+  useImperativeHandle(ref, () => ({
+    resetLayout: () => {
+      const api = apiRef.current
+      if (!api) return
+      try { localStorage.removeItem(STORAGE_KEY) } catch { /* best effort */ }
+      buildDefaultLayout(api)
+      emitPanels()
+    },
+    togglePanel: (id: string) => {
+      const api = apiRef.current
+      if (!api) return
+      const existing = api.getPanel(id)
+      if (existing) {
+        api.removePanel(existing)
+      } else {
+        // Re-add as a new tab in whichever group is active. If nothing is
+        // active (rare — e.g. the user closed every side panel), fall back
+        // to docking right of the locked center group.
+        const center = api.getPanel('center')
+        const active = api.activePanel && api.activePanel.id !== 'center'
+          ? api.activePanel
+          : null
+        api.addPanel({
+          id, component: id, title: PANEL_TITLES[id] ?? id,
+          position: active
+            ? { referencePanel: active.id }
+            : center
+              ? { referencePanel: 'center', direction: 'right' }
+              : undefined,
+        })
+      }
+    },
+    getOpenSidePanelIds: () => {
+      const api = apiRef.current
+      if (!api) return []
+      return api.panels.map(p => p.id).filter(id => id !== 'center')
+    },
+  }), [onPanelsChange])
+
+  const onReady = (event: DockviewReadyEvent) => {
+    apiRef.current = event.api
+    const saved = loadLayout()
+    if (saved) {
+      try {
+        event.api.fromJSON(saved)
+        // The center panel is mandatory — every other side panel is optional
+        // and may legitimately be closed by the user.
+        if (!event.api.getPanel('center')) {
+          event.api.addPanel({ id: 'center', component: 'center', title: PANEL_TITLES.center })
+        }
+        lockCenterGroup(event.api)
+      } catch {
+        buildDefaultLayout(event.api)
+      }
+    } else {
+      buildDefaultLayout(event.api)
+    }
+
+    event.api.onDidLayoutChange(() => {
+      try { saveLayout(event.api.toJSON()) } catch { /* best effort */ }
+      emitPanels()
+    })
+    // Initial snapshot so the menu picks up the post-restore state.
+    emitPanels()
+  }
+
+  return (
+    <div className={`panel-dock ${className ?? ''}`}>
+      <DockviewReact
+        components={components}
+        onReady={onReady}
+        theme={lockstepTheme}
+      />
+    </div>
+  )
+})
+
+export default PanelDock
+
+export const PANEL_LIST: Array<{ id: string; title: string }> =
+  SIDE_PANEL_IDS.map(id => ({ id, title: PANEL_TITLES[id] }))
+
+function loadLayout(): SerializedDockview | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as SerializedDockview
+  } catch {
+    return null
+  }
+}
+
+function saveLayout(layout: SerializedDockview) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(layout))
+}

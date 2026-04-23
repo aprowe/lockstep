@@ -66,6 +66,14 @@ interface ViewMenuDeps {
   increaseUiScale: () => void
   decreaseUiScale: () => void
   resetUiScale: () => void
+  resetPanelLayout: () => void
+  /** Toggle a dock panel's visibility. Hidden panels can be brought back via
+   *  the same toggle — useful since panels close via the tab × button. */
+  togglePanel: (id: string) => void
+  /** All side-panel definitions in the order they should appear in the menu. */
+  panels: Array<{ id: string; title: string }>
+  /** Set of currently-visible panel ids (for the ✓ check state). */
+  visiblePanelIds: ReadonlySet<string>
 }
 
 export function buildViewMenu(d: ViewMenuDeps): MenuDef {
@@ -75,6 +83,16 @@ export function buildViewMenu(d: ViewMenuDeps): MenuDef {
       { label: 'Increase UI Scale', shortcut: 'Ctrl+=', action: d.increaseUiScale },
       { label: 'Decrease UI Scale', shortcut: 'Ctrl+-', action: d.decreaseUiScale },
       { label: 'Reset UI Scale',    shortcut: 'Ctrl+0', action: d.resetUiScale },
+      { separator: true },
+      { label: 'Reset Panel Layout',                    action: d.resetPanelLayout },
+      { separator: true },
+      // One toggle per dock panel — checked when visible, unchecked when
+      // closed (brings the panel back into the active group on click).
+      ...d.panels.map(p => ({
+        label: p.title,
+        action: () => d.togglePanel(p.id),
+        checked: d.visiblePanelIds.has(p.id),
+      })),
     ],
   }
 }

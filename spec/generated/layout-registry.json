@@ -125,6 +125,14 @@
               "label": "Reset UI Scale"
             }
           ]
+        },
+        {
+          "items": [
+            {
+              "id": "reset-panel-layout",
+              "label": "Reset Panel Layout"
+            }
+          ]
         }
       ]
     },

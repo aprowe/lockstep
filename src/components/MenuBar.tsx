@@ -6,6 +6,9 @@ interface MenuItem {
   shortcut?: string
   action?: () => void
   disabled?: boolean
+  /** When defined, renders a checkbox-like ✓ in front of the label.
+   *  Used by toggleable items (e.g. show/hide a dock panel). */
+  checked?: boolean
   separator?: false
 }
 
@@ -113,6 +116,11 @@ export default function MenuBar({ menus, rightContent }: MenuBarProps) {
                       disabled={mi.disabled}
                       onClick={() => { mi.action?.(); setOpenIdx(null) }}
                     >
+                      {mi.checked !== undefined && (
+                        <span className="menubar__item-check" aria-hidden="true">
+                          {mi.checked ? '✓' : ''}
+                        </span>
+                      )}
                       <span className="menubar__item-label">{mi.label}</span>
                       {mi.shortcut && (
                         <span className="menubar__item-shortcut">

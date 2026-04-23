@@ -29,6 +29,10 @@ function defaultDeps() {
     increaseUiScale: noop,
     decreaseUiScale: noop,
     resetUiScale: noop,
+    resetPanelLayout: noop,
+    togglePanel: (_id: string) => {},
+    panels: [],
+    visiblePanelIds: new Set<string>(),
   }
 }
 

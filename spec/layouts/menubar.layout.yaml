@@ -52,3 +52,4 @@ groups:
   - - Increase UI Scale
     - Decrease UI Scale
     - Reset UI Scale
+  - - Reset Panel Layout

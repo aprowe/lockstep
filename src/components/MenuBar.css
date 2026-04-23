@@ -85,6 +85,16 @@
   flex: 1;
 }
 
+.menubar__item-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  flex-shrink: 0;
+  color: var(--accent);
+  font-size: var(--t-md);
+}
+
 .menubar__item-shortcut {
   color: var(--fg-3);
   font-size: var(--t-md);
