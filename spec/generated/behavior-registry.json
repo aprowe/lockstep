@@ -1020,11 +1020,7 @@
         "Then the region spans from 60 to 65 seconds"
       ],
       "file": "spec/features/region-creation.feature",
-      "line": 51,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ]
+      "line": 50
     },
     "region-creation::728bc8d1": {
       "feature": "Region Creation",
@@ -1040,11 +1036,7 @@
         "Then the region spans from 55 to 70 seconds"
       ],
       "file": "spec/features/region-creation.feature",
-      "line": 60,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ]
+      "line": 58
     },
     "region-creation::3f2b3bed": {
       "feature": "Region Creation",
@@ -1059,11 +1051,7 @@
         "Then the region spans from 55 to 90 seconds"
       ],
       "file": "spec/features/region-creation.feature",
-      "line": 70,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ]
+      "line": 67
     },
     "region-creation::a5661c96": {
       "feature": "Region Creation",
@@ -1078,11 +1066,7 @@
         "Then the region spans from 50 to 80 seconds"
       ],
       "file": "spec/features/region-creation.feature",
-      "line": 79,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ]
+      "line": 75
     },
     "region-creation::fe66bfde": {
       "feature": "Region Creation",
@@ -1098,11 +1082,7 @@
         "Then the region spans from 50 to 90 seconds"
       ],
       "file": "spec/features/region-creation.feature",
-      "line": 88,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ]
+      "line": 83
     },
     "region-creation::dfeb811f": {
       "feature": "Region Creation",
@@ -1117,11 +1097,7 @@
         "Then the region spans from 70 to 100 seconds"
       ],
       "file": "spec/features/region-creation.feature",
-      "line": 98,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ]
+      "line": 92
     },
     "region-creation::373255c3": {
       "feature": "Region Creation",
@@ -1136,11 +1112,7 @@
         "Then the region spans from 50 to 80 seconds"
       ],
       "file": "spec/features/region-creation.feature",
-      "line": 107,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ]
+      "line": 100
     },
     "region-creation::5d8f7863": {
       "feature": "Region Creation",
@@ -1155,11 +1127,7 @@
         "Then the region spans from 70 to 80 seconds"
       ],
       "file": "spec/features/region-creation.feature",
-      "line": 116,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ]
+      "line": 108
     },
     "region-editing::5b468a4b": {
       "feature": "Region Editing",

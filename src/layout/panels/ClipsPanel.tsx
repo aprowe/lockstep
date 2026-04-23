@@ -161,7 +161,7 @@ export default function ClipsPanel() {
             title="New clip at playhead"
             onClick={() => {
               const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(
-                playhead, view, sceneCuts, video.duration,
+                playhead, view, sceneCuts, video.duration, regions,
               )
               addRegion(inPoint, outPoint)
             }}

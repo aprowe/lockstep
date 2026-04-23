@@ -103,24 +103,66 @@ export function calcNewRegionBoundsUpToNext(
 }
 
 /**
- * Compute region bounds from scene cuts when the next scene is inside the
- * visible view; otherwise fall back to {@link calcNewRegionBounds}.
- * Also falls back when the resulting span would be essentially zero.
+ * Compute region bounds for a click/playhead at `cursor`, snapping the in /
+ * out points to the closest "wall" on each side:
+ *   inPoint  = max(prev scene cut, prev region's outPoint, view.start, 0)
+ *   outPoint = min(next scene cut, next region's inPoint, view.end, videoDuration)
+ *
+ * If the cursor falls inside an existing region, the cursor is first slid to
+ * that region's outPoint so the new region starts where the existing one
+ * ends (consistent with "set out before in" muscle memory).
+ *
+ * Falls back to the simple {@link calcNewRegionBounds} 5s/10% rule only
+ * when there are no scene cuts AND no other regions in scope — otherwise
+ * the clamping is the desired behavior, even if the span ends up small.
+ * A safety check still kicks in when adjacent scenes pinch the bounds to
+ * less than {@link MIN_VISIBLE}, in which case we fall back so the result
+ * is usable rather than a degenerate sliver.
  */
 export function calcNewRegionBoundsFromScenes(
   cursor: number,
   view: View,
   cuts: number[],
   videoDuration: number,
+  regions: { inPoint: number; outPoint: number }[] = [],
 ): { inPoint: number; outPoint: number } {
   const viewSpan = view.end - view.start
-  const fallback = () => calcNewRegionBounds(cursor, viewSpan, videoDuration)
-  const surrounding = findSurroundingScenes(cursor, cuts, videoDuration)
-  if (!surrounding) return fallback()
-  // Per spec: retain current behavior when the end isn't in view.
-  if (surrounding.next > view.end || surrounding.next < view.start) return fallback()
-  if (surrounding.next - surrounding.prev < MIN_VISIBLE) return fallback()
-  return { inPoint: surrounding.prev, outPoint: surrounding.next }
+
+  // If the cursor sits inside an existing region, treat it as if the user
+  // had clicked just past that region's out — the new region then fills the
+  // next gap rather than colliding with the existing one.
+  const insideRegion = regions.find(r => cursor >= r.inPoint && cursor < r.outPoint)
+  const c = insideRegion ? insideRegion.outPoint : cursor
+
+  // No scenes AND no other regions → simple 5s/10% span at the cursor.
+  if (cuts.length === 0 && regions.length === 0) {
+    return calcNewRegionBounds(c, viewSpan, videoDuration)
+  }
+
+  // Previous-side candidates. view.start is always a candidate (the spec
+  // explicitly clamps to the viewport); scenes within view contribute when
+  // they're left of the cursor; every region whose outPoint is left of (or
+  // at) the cursor contributes its outPoint.
+  const prevCandidates: number[] = [view.start]
+  for (const t of cuts) if (t >= view.start && t < c) prevCandidates.push(t)
+  for (const r of regions) if (r.outPoint <= c) prevCandidates.push(r.outPoint)
+  const inPoint = Math.max(0, ...prevCandidates)
+
+  // Next-side candidates: viewport end + scenes/regions strictly to the
+  // right of the cursor. Clamped to videoDuration as a final ceiling.
+  const nextCandidates: number[] = [view.end]
+  for (const t of cuts) if (t > c && t <= view.end) nextCandidates.push(t)
+  for (const r of regions) if (r.inPoint > c) nextCandidates.push(r.inPoint)
+  const outPoint = Math.min(videoDuration, ...nextCandidates)
+
+  // Degenerate-pinch safety: two scenes very close to each other on either
+  // side of the cursor would yield an unusable sliver. Keep callers happy
+  // with the legacy 5s/10% fallback in that case.
+  if (outPoint - inPoint < MIN_VISIBLE) {
+    return calcNewRegionBounds(c, viewSpan, videoDuration)
+  }
+
+  return { inPoint, outPoint }
 }
 
 /** Center `view` on `time` if `time` falls outside it; returns unchanged view otherwise. */

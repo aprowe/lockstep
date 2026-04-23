@@ -279,7 +279,9 @@ export default function CenterColumn() {
         gridDiv={gridDiv}
         onGridDivChange={v => dispatch(setGridDivAction(v))}
         onNewRegion={() => {
-          const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(playhead, view, sceneCuts, video.duration)
+          const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(
+            playhead, view, sceneCuts, video.duration, regions,
+          )
           addRegion(inPoint, outPoint)
         }}
         onPrevRegion={regions.length > 1 ? () => {
@@ -337,7 +339,7 @@ export default function CenterColumn() {
           onSendToNewRegion={(inPoint, outPoint) => addRegion(inPoint, outPoint)}
           onRegionAdd={t => {
             const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(
-              t, view, sceneCuts, video.duration,
+              t, view, sceneCuts, video.duration, regions,
             )
             addRegion(inPoint, outPoint)
           }}

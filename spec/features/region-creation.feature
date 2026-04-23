@@ -47,7 +47,6 @@ Feature: Region Creation
   # prev region, viewport start); out-point = earliest of (next scene, start of
   # next region, viewport end). Clamped to [0, video duration].
 
-  @todo @ignore
   Scenario: No scene markers at all — falls back to 5s / 10% rule
     Given the viewport is from 50 to 90 seconds
     And the video duration is 120 seconds
@@ -56,7 +55,6 @@ Feature: Region Creation
     When a new region is created at cursor position 60 seconds
     Then the region spans from 60 to 65 seconds
 
-  @todo @ignore
   Scenario: Snaps between surrounding scene markers when both are in view
     Given the viewport is from 50 to 90 seconds
     And the video duration is 120 seconds
@@ -66,7 +64,6 @@ Feature: Region Creation
     When a new region is created at cursor position 60 seconds
     Then the region spans from 55 to 70 seconds
 
-  @todo @ignore
   Scenario: No next scene marker in view — out-point stops at the viewport end
     Given the viewport is from 50 to 90 seconds
     And the video duration is 120 seconds
@@ -75,7 +72,6 @@ Feature: Region Creation
     When a new region is created at cursor position 60 seconds
     Then the region spans from 55 to 90 seconds
 
-  @todo @ignore
   Scenario: No previous scene marker in view — in-point starts at the viewport start
     Given the viewport is from 50 to 90 seconds
     And the video duration is 120 seconds
@@ -84,7 +80,6 @@ Feature: Region Creation
     When a new region is created at cursor position 60 seconds
     Then the region spans from 50 to 80 seconds
 
-  @todo @ignore
   Scenario: No scene markers in view — region fills the viewport around the cursor
     Given the viewport is from 50 to 90 seconds
     And the video duration is 120 seconds
@@ -94,7 +89,6 @@ Feature: Region Creation
     When a new region is created at cursor position 60 seconds
     Then the region spans from 50 to 90 seconds
 
-  @todo @ignore
   Scenario: Previous region out-point takes precedence over an earlier scene marker
     Given the viewport is from 50 to 100 seconds
     And the video duration is 120 seconds
@@ -103,7 +97,6 @@ Feature: Region Creation
     When a new region is created at cursor position 80 seconds
     Then the region spans from 70 to 100 seconds
 
-  @todo @ignore
   Scenario: Next region in-point takes precedence over a later scene marker
     Given the viewport is from 50 to 100 seconds
     And the video duration is 120 seconds
@@ -112,7 +105,6 @@ Feature: Region Creation
     When a new region is created at cursor position 60 seconds
     Then the region spans from 50 to 80 seconds
 
-  @todo @ignore
   Scenario: Cursor inside an existing region — behaves as if the playhead is just past the region's out
     Given the viewport is from 50 to 100 seconds
     And the video duration is 120 seconds

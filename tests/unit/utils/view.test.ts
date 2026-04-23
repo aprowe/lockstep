@@ -131,12 +131,39 @@ describe('calcNewRegionBoundsFromScenes', () => {
       .toEqual({ inPoint: 3, outPoint: 10 })
   })
 
-  it('falls back to calcNewRegionBounds when the next scene is past view.end', () => {
+  it('clamps the out-point to view.end when the next scene is past it', () => {
+    // Updated to match the new spec: when the next scene is offscreen, the
+    // viewport end is the next-side wall (not a 5s/10% fallback).
     const narrow: View = { start: 0, end: 8 }
     const result = calcNewRegionBoundsFromScenes(7, narrow, [3, 10, 18], 30)
-    // Fallback: inPoint = cursor, span = max(viewSpan*0.1, 5)
-    expect(result.inPoint).toBe(7)
-    expect(result.outPoint).toBeCloseTo(12)
+    expect(result).toEqual({ inPoint: 3, outPoint: 8 })
+  })
+
+  it('clamps the in-point to view.start when the previous scene is before it', () => {
+    const view: View = { start: 50, end: 90 }
+    const result = calcNewRegionBoundsFromScenes(60, view, [10, 80], 120)
+    expect(result).toEqual({ inPoint: 50, outPoint: 80 })
+  })
+
+  it('treats prev region outPoint as a left wall, scene only beats it if later', () => {
+    const view: View = { start: 50, end: 100 }
+    const regions = [{ inPoint: 60, outPoint: 70 }]
+    const result = calcNewRegionBoundsFromScenes(80, view, [55], 120, regions)
+    expect(result).toEqual({ inPoint: 70, outPoint: 100 })
+  })
+
+  it('treats next region inPoint as a right wall, scene only beats it if earlier', () => {
+    const view: View = { start: 50, end: 100 }
+    const regions = [{ inPoint: 80, outPoint: 90 }]
+    const result = calcNewRegionBoundsFromScenes(60, view, [95], 120, regions)
+    expect(result).toEqual({ inPoint: 50, outPoint: 80 })
+  })
+
+  it('slides the cursor to the existing region outPoint when clicked inside', () => {
+    const view: View = { start: 50, end: 100 }
+    const regions = [{ inPoint: 60, outPoint: 70 }]
+    const result = calcNewRegionBoundsFromScenes(65, view, [80], 120, regions)
+    expect(result).toEqual({ inPoint: 70, outPoint: 80 })
   })
 
   it('falls back when there are no scene cuts', () => {
