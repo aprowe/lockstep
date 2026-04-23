@@ -708,6 +708,140 @@
         "@ignore"
       ]
     },
+    "list-selection::cb8929f5": {
+      "feature": "List Selection",
+      "scenario": "Right-click on an unselected clip pre-selects it",
+      "isOutline": false,
+      "steps": [
+        "Given the clips list with two clips and clip A is selected",
+        "When the user right-clicks clip B",
+        "Then clip B is the only selected clip",
+        "And clip B becomes the active region",
+        "And the context menu is shown for clip B"
+      ],
+      "file": "spec/features/list-selection.feature",
+      "line": 249,
+      "hints": [
+        "Adobe-style \"replace-then-act\": opening a context menu on a row that isn't already in the selection first replaces selection with [id] + sets it active, so menu actions hit what the user visually targeted."
+      ]
+    },
+    "list-selection::0462dc5d": {
+      "feature": "List Selection",
+      "scenario": "Right-click on an already-selected clip preserves the multi-selection",
+      "isOutline": false,
+      "steps": [
+        "Given the clips list with three clips all selected",
+        "When the user right-clicks one of them",
+        "Then all three clips are still selected"
+      ],
+      "file": "spec/features/list-selection.feature",
+      "line": 259,
+      "hints": [
+        "Right-click on an *already-selected* row leaves the multi- selection alone — bulk actions in the menu still target every selected clip."
+      ]
+    },
+    "list-selection::a9ef63b3": {
+      "feature": "List Selection",
+      "scenario": "Cmd+A in the clips list selects every visible row",
+      "isOutline": false,
+      "steps": [
+        "Given the clips list with three clips and none selected",
+        "When the user presses Cmd+A with the clips list focused",
+        "Then all three clips are selected"
+      ],
+      "file": "spec/features/list-selection.feature",
+      "line": 267,
+      "hints": [
+        "Cmd/Ctrl+A bound on the focused list panel via useListSelection.handleKeyDown. Scope is the visible-items list — respects whatever filter is active."
+      ]
+    },
+    "list-selection::022db7fb": {
+      "feature": "List Selection",
+      "scenario": "Cmd+D in the clips list clears its selection only",
+      "isOutline": false,
+      "steps": [
+        "Given the clips list with two clips selected",
+        "And the markers list also has selected markers",
+        "When the user presses Cmd+D with the clips list focused",
+        "Then the clips selection is cleared",
+        "And the markers selection is unchanged"
+      ],
+      "file": "spec/features/list-selection.feature",
+      "line": 274,
+      "hints": [
+        "Cmd/Ctrl+D clears the focused list's selection. Other lists' selections are untouched (focus-scoping rule)."
+      ]
+    },
+    "list-selection::440d0555": {
+      "feature": "List Selection",
+      "scenario": "Timeline Delete removes the union of clip + marker selections",
+      "isOutline": false,
+      "steps": [
+        "Given the timeline has two selected clips and three selected markers",
+        "When the user presses Delete with the timeline focused",
+        "Then the two clips are removed",
+        "And the three markers are removed",
+        "And both selections are cleared"
+      ],
+      "file": "spec/features/list-selection.feature",
+      "line": 289,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "list-selection::9ca01b60": {
+      "feature": "List Selection",
+      "scenario": "Timeline Cmd+D clears every timeline-side selection",
+      "isOutline": false,
+      "steps": [
+        "Given the timeline has selected clips and selected markers",
+        "When the user presses Cmd+D with the timeline focused",
+        "Then the clips selection is cleared",
+        "And the markers selection is cleared",
+        "And no items are deleted"
+      ],
+      "file": "spec/features/list-selection.feature",
+      "line": 297,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "list-selection::9ab1a0ba": {
+      "feature": "List Selection",
+      "scenario": "Plain click on empty timeline clears every timeline-side selection",
+      "isOutline": false,
+      "steps": [
+        "Given the timeline has selected clips and selected markers",
+        "When the user clicks the empty timeline body with no modifier keys and no drag",
+        "Then both timeline selections are cleared",
+        "And the active clip is unchanged",
+        "And panel-only selections (e.g. Files) are unaffected"
+      ],
+      "file": "spec/features/list-selection.feature",
+      "line": 305,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "list-selection::5253b594": {
+      "feature": "List Selection",
+      "scenario": "Modifier-click on empty timeline does not clear selection",
+      "isOutline": false,
+      "steps": [
+        "Given the timeline has selected clips and selected markers",
+        "When the user ctrl-clicks the empty timeline body with no drag",
+        "Then both selections are unchanged"
+      ],
+      "file": "spec/features/list-selection.feature",
+      "line": 314,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
     "timeline-navigation::2e61d3bc": {
       "feature": "Timeline Navigation",
       "scenario": "While playing, Previous skips targets within 0.5s behind the playhead",

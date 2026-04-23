@@ -1,14 +1,16 @@
-import { useMemo, useRef } from 'react'
+import { useCallback, useMemo, useRef } from 'react'
 import VideoPlayer from '../components/VideoPlayer'
 import Filmstrip from '../components/Filmstrip'
 import WarpView from '../components/WarpView'
 import Toolbar from '../components/Toolbar'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
-import { selectActiveRegion, selectWarpData } from '../store/selectors'
+import { selectActiveRegion, selectSelectedIdsSet, selectWarpData } from '../store/selectors'
 import {
   setOrigAnchorsFromTimeline,
   setPlayhead as setPlayheadAction,
   newAnchorId,
+  removeAnchors as removeAnchorsAction,
+  setSelectedIds as setSelectedAnchorIdsAction,
 } from '../store/slices/warpSlice'
 import {
   addRegion as addRegionAction,
@@ -68,6 +70,27 @@ export default function CenterColumn() {
   // drag/edit gestures show which clips are about to be affected.
   const selectedClipIds = useAppSelector(s => s.lists.selection.clips)
   const selectedClipSet = useMemo(() => new Set(selectedClipIds), [selectedClipIds])
+  const selectedAnchorIds = useAppSelector(selectSelectedIdsSet)
+
+  // Delete the union of every timeline-side selection in one shot. Fires
+  // from Delete / Backspace when the timeline root has keyboard focus.
+  const handleTimelineDelete = useCallback(() => {
+    if (selectedClipIds.length > 0) {
+      for (const id of selectedClipIds) dispatch(deleteRegionAction(id))
+      dispatch(setListSelection({ list: 'clips', ids: [] }))
+    }
+    if (selectedAnchorIds.size > 0) {
+      dispatch(removeAnchorsAction([...selectedAnchorIds]))
+      dispatch(setSelectedAnchorIdsAction([]))
+    }
+  }, [selectedClipIds, selectedAnchorIds, dispatch])
+
+  // Clear every timeline-side selection — Cmd+D and the empty-click
+  // deselect (Policy B from docs/INTERACTION_DESIGN.md).
+  const handleTimelineDeselect = useCallback(() => {
+    if (selectedClipIds.length > 0) dispatch(setListSelection({ list: 'clips', ids: [] }))
+    if (selectedAnchorIds.size > 0) dispatch(setSelectedAnchorIdsAction([]))
+  }, [selectedClipIds, selectedAnchorIds, dispatch])
 
   // Saved viewport from before the user zoomed into a region — restored when
   // the same zoom action toggles back out.
@@ -316,6 +339,8 @@ export default function CenterColumn() {
           }}
           selectedClipIds={selectedClipSet}
           onClipsSelectionChange={ids => dispatch(setListSelection({ list: 'clips', ids: [...ids] }))}
+          onTimelineDelete={handleTimelineDelete}
+          onTimelineDeselect={handleTimelineDeselect}
           onClipOverlayResize={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
           onClipOverlayMove={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
           onClipOverlayZoom={id => {

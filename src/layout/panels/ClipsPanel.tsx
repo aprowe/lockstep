@@ -93,10 +93,20 @@ export default function ClipsPanel() {
     dispatch(setListSelection({ list: 'clips', ids: [] }))
   }, [dispatch])
 
+  const selectedClipIds = useAppSelector(s => s.lists.selection.clips)
+
   const openContextMenu = useCallback((e: React.MouseEvent, id: string) => {
     e.preventDefault(); e.stopPropagation()
     const region = regions.find(r => r.id === id)
     if (!region) return
+    // Adobe-style "replace-then-act" — if the right-clicked row isn't
+    // already in the selection, replace selection with [id] + activate
+    // before showing the menu, so menu actions hit the row the user
+    // visually targeted instead of a stale multi-selection.
+    if (!selectedClipIds.includes(id)) {
+      dispatch(setListSelection({ list: 'clips', ids: [id] }))
+      dispatch(setActiveRegionIdAction(id))
+    }
     setContextMenu({
       x: e.clientX, y: e.clientY,
       title: region.name,
@@ -116,7 +126,7 @@ export default function ClipsPanel() {
         { label: 'Delete', action: () => dispatch(deleteRegionAction(id)), danger: true },
       ],
     })
-  }, [regions, dispatch, duplicateRegion])
+  }, [regions, dispatch, duplicateRegion, selectedClipIds])
 
   if (!video) return <div className="vj-empty-panel">No video</div>
 

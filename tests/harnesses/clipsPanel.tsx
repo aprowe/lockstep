@@ -13,7 +13,8 @@ import { ThumbnailHoverProvider } from '../../src/components/ThumbnailPopup'
 import { DockBridgeProvider, type DockBridge } from '../../src/layout/DockContext'
 import { setVideo } from '../../src/store/slices/videoSlice'
 import { setRegions, setActiveRegionId } from '../../src/store/slices/regionSlice'
-import { setPendingEdit } from '../../src/store/slices/listsSlice'
+import { setListSelection, setPendingEdit } from '../../src/store/slices/listsSlice'
+import { setSelectedIds as setSelectedAnchorIds } from '../../src/store/slices/warpSlice'
 import type { Region } from '../../src/types'
 import type { VideoPlayerHandle } from '../../src/components/VideoPlayer'
 import { makeStore, makeVideoInfo } from '../helpers/setup'
@@ -28,6 +29,12 @@ export interface RenderClipsPanelOptions {
   regions?: Region[]
   activeRegionId?: string | null
   pendingRenameId?: string | null
+  /** Pre-seed lists.selection.clips before render so the rendered tree
+   *  picks the value up on first commit (dispatching after render leaves
+   *  the closures inside handlers stale until React re-renders). */
+  selectedClipIds?: string[]
+  /** Pre-seed warp.selectedIds (markers selection) before render. */
+  selectedMarkerIds?: number[]
 }
 
 export function renderClipsPanel(opts: RenderClipsPanelOptions = {}) {
@@ -39,6 +46,12 @@ export function renderClipsPanel(opts: RenderClipsPanelOptions = {}) {
   }
   if (opts.pendingRenameId) {
     store.dispatch(setPendingEdit({ list: 'clips', id: opts.pendingRenameId }))
+  }
+  if (opts.selectedClipIds) {
+    store.dispatch(setListSelection({ list: 'clips', ids: opts.selectedClipIds }))
+  }
+  if (opts.selectedMarkerIds) {
+    store.dispatch(setSelectedAnchorIds(opts.selectedMarkerIds))
   }
 
   const seek = vi.fn()

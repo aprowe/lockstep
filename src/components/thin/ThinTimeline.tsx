@@ -92,6 +92,14 @@ interface ThinTimelineProps {
   selectedClipIds?: ReadonlySet<string>
   onClipsSelectionChange?: (ids: Set<string>) => void
 
+  /** Delete the union of every timeline-side selection. Fires from
+   *  Delete / Backspace when the timeline has keyboard focus. */
+  onTimelineDelete?: () => void
+  /** Clear every timeline-side selection (clips + markers + scenes).
+   *  Fires from Cmd/Ctrl+D and from a plain click in the empty timeline
+   *  body (Policy B from docs/INTERACTION_DESIGN.md). */
+  onTimelineDeselect?: () => void
+
   warpCollapsed?: boolean
   onToggleWarp?: () => void
 }
@@ -133,6 +141,7 @@ export default function ThinTimeline({
   clipFillColor, boundaryColor, linkedBoundaries, selectedBoundaries,
   onConnectorSelectionChange,
   selectedClipIds, onClipsSelectionChange,
+  onTimelineDelete, onTimelineDeselect,
   warpCollapsed = false, onToggleWarp,
 }: ThinTimelineProps) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -587,10 +596,32 @@ export default function ThinTimeline({
   }, [bodyPctFromClientX, sectionIdAt, computeLassoIds, computeLassoClipIds, onConnectorSelectionChange, onClipsSelectionChange])
 
   const onRootPointerUp = useCallback(() => {
-    if (!lassoRef.current) return
+    const g = lassoRef.current
+    if (!g) return
+    // Plain click on empty timeline body (no drag, no modifier) clears
+    // every timeline-side selection — Policy B from the interaction
+    // design doc. The lasso started but never crossed the drag
+    // threshold, so g.active is false; startedAdditive false means no
+    // ctrl/meta was held.
+    if (!g.active && !g.startedAdditive) onTimelineDeselect?.()
     lassoRef.current = null
     setLassoRange(null)
-  }, [])
+  }, [onTimelineDeselect])
+
+  // Keyboard scope is "the timeline has focus" — root div is tabIndex=0.
+  // Delete / Backspace → delete union of clip + marker selections.
+  // Cmd/Ctrl+D → clear every timeline-side selection.
+  const onRootKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      onTimelineDelete?.()
+      e.preventDefault()
+      return
+    }
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'd') {
+      onTimelineDeselect?.()
+      e.preventDefault()
+    }
+  }, [onTimelineDelete, onTimelineDeselect])
 
   const onRootContextMenu = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!onTimelineContextMenu) return
@@ -968,6 +999,7 @@ export default function ThinTimeline({
     <div
       ref={rootRef}
       className="thin-timeline"
+      tabIndex={0}
       onMouseMove={onBodyMouseMove}
       onMouseLeave={() => setHoverPct(null)}
       onPointerDown={onRootPointerDown}
@@ -975,6 +1007,7 @@ export default function ThinTimeline({
       onPointerUp={onRootPointerUp}
       onPointerCancel={onRootPointerUp}
       onContextMenu={onRootContextMenu}
+      onKeyDown={onRootKeyDown}
     >
       <ThinMinimap
         duration={maxDuration}

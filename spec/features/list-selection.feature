@@ -239,3 +239,79 @@ Feature: List Selection
     Scenario: Selection persistence across video reloads
         # Per-list selection lives in Redux but isn't written to the
         # saved JSON. Reloading a video clears it. Intended?
+
+    # ── Implemented click + keyboard semantics (test-bound) ─────────────────
+
+    # @hint Adobe-style "replace-then-act": opening a context menu on a
+    #       row that isn't already in the selection first replaces
+    #       selection with [id] + sets it active, so menu actions hit
+    #       what the user visually targeted.
+    Scenario: Right-click on an unselected clip pre-selects it
+        Given the clips list with two clips and clip A is selected
+        When the user right-clicks clip B
+        Then clip B is the only selected clip
+        And clip B becomes the active region
+        And the context menu is shown for clip B
+
+    # @hint Right-click on an *already-selected* row leaves the multi-
+    #       selection alone — bulk actions in the menu still target every
+    #       selected clip.
+    Scenario: Right-click on an already-selected clip preserves the multi-selection
+        Given the clips list with three clips all selected
+        When the user right-clicks one of them
+        Then all three clips are still selected
+
+    # @hint Cmd/Ctrl+A bound on the focused list panel via
+    #       useListSelection.handleKeyDown. Scope is the visible-items
+    #       list — respects whatever filter is active.
+    Scenario: Cmd+A in the clips list selects every visible row
+        Given the clips list with three clips and none selected
+        When the user presses Cmd+A with the clips list focused
+        Then all three clips are selected
+
+    # @hint Cmd/Ctrl+D clears the focused list's selection. Other lists'
+    #       selections are untouched (focus-scoping rule).
+    Scenario: Cmd+D in the clips list clears its selection only
+        Given the clips list with two clips selected
+        And the markers list also has selected markers
+        When the user presses Cmd+D with the clips list focused
+        Then the clips selection is cleared
+        And the markers selection is unchanged
+
+    # ── Timeline-focused keyboard + empty-click deselect ────────────────────
+    # Marked @todo @ignore until we have a ThinTimeline render harness
+    # — the implementation IS in place (CenterColumn handlers wired
+    # through ThinTimeline's onTimelineDelete / onTimelineDeselect /
+    # onRootPointerUp), but rendering ThinTimeline + WarpView for a
+    # behavioral test is a substantial fixture.
+
+    @todo @ignore
+    Scenario: Timeline Delete removes the union of clip + marker selections
+        Given the timeline has two selected clips and three selected markers
+        When the user presses Delete with the timeline focused
+        Then the two clips are removed
+        And the three markers are removed
+        And both selections are cleared
+
+    @todo @ignore
+    Scenario: Timeline Cmd+D clears every timeline-side selection
+        Given the timeline has selected clips and selected markers
+        When the user presses Cmd+D with the timeline focused
+        Then the clips selection is cleared
+        And the markers selection is cleared
+        And no items are deleted
+
+    @todo @ignore
+    Scenario: Plain click on empty timeline clears every timeline-side selection
+        # Policy B from docs/INTERACTION_DESIGN.md
+        Given the timeline has selected clips and selected markers
+        When the user clicks the empty timeline body with no modifier keys and no drag
+        Then both timeline selections are cleared
+        And the active clip is unchanged
+        And panel-only selections (e.g. Files) are unaffected
+
+    @todo @ignore
+    Scenario: Modifier-click on empty timeline does not clear selection
+        Given the timeline has selected clips and selected markers
+        When the user ctrl-clicks the empty timeline body with no drag
+        Then both selections are unchanged

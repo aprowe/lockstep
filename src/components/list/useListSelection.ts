@@ -89,9 +89,23 @@ export function useListSelection({
         onDelete?.([...selectedIds])
         return true
       }
+      // Cmd/Ctrl+A — select every visible row in this list. Scoped to
+      // the focused list per the focus-scoping rule; doesn't reach into
+      // other lists.
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'a') {
+        if (itemIds.length === 0) return false
+        onSelectionChange([...itemIds])
+        return true
+      }
+      // Cmd/Ctrl+D — clear this list's selection.
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'd') {
+        if (selectedIds.size === 0) return false
+        onSelectionChange([])
+        return true
+      }
       return false
     },
-    [selectedIds, onDelete],
+    [selectedIds, onDelete, itemIds, onSelectionChange],
   )
 
   return { isSelected, handleRowClick, handleKeyDown }

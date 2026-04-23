@@ -45,6 +45,10 @@ interface WarpViewProps {
    *  active region — drives the clip-list multi-select set. */
   selectedClipIds?: ReadonlySet<string>
   onClipsSelectionChange?: (ids: Set<string>) => void
+  /** Timeline-focused Delete / Backspace deletes the union of clip +
+   *  marker selections; Cmd+D / empty-click clears them. */
+  onTimelineDelete?: () => void
+  onTimelineDeselect?: () => void
   onClipOverlayResize?: (id: string, inPoint: number, outPoint: number) => void
   onClipOverlayMove?: (id: string, inPoint: number, outPoint: number) => void
   onClipOverlayContextMenu?: (id: string, x: number, y: number) => void
@@ -65,6 +69,7 @@ export default function WarpView({
   clipOverlays,
   onClipOverlaySelect,
   selectedClipIds, onClipsSelectionChange,
+  onTimelineDelete, onTimelineDeselect,
   onClipOverlayResize,
   onClipOverlayMove,
   onClipOverlayContextMenu,
@@ -632,6 +637,8 @@ export default function WarpView({
         onConnectorSelectionChange={setSelectedIds}
         selectedClipIds={selectedClipIds}
         onClipsSelectionChange={onClipsSelectionChange}
+        onTimelineDelete={onTimelineDelete}
+        onTimelineDeselect={onTimelineDeselect}
         warpCollapsed={warpCollapsed}
         onToggleWarp={() => dispatch(setWarpCollapsed(!warpCollapsed))}
       />
