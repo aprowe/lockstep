@@ -157,6 +157,7 @@ export default function App() {
     dispatch(updateRegionLockAction({ id, lock, lockedBeats }))
   const exportOpen = useAppSelector(s => s.ui.exportOpen)
   const setExportOpen = (v: boolean) => dispatch(setExportOpenAction(v))
+  const selectedClipIds = useAppSelector(s => s.lists.selection.clips)
   const [clipContextMenu, setClipContextMenu] = useState<ContextMenuState | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [pendingZoom, setPendingZoom] = useState<{ start: number; end: number } | null>(null)
@@ -398,6 +399,7 @@ export default function App() {
         trimToLoop={trimToLoop}
         regions={regions}
         activeRegionId={activeRegionId}
+        selectedClipIds={selectedClipIds}
       />
       <ThumbnailPopup />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />

@@ -53,6 +53,15 @@ export function buildWarpRequest(input: BuildWarpRequestInput): WarpRequest {
 
   const triggerMode = !!job.triggerMode
   const cutsInRange = (sceneCuts ?? []).filter(inRange)
+  // RIFE is warp-aware — on a clip with no markers in range the time map is
+  // the identity, so RIFE is pure cost with no benefit. The user wants RIFE
+  // only on clips they actually warped, with no interpolation otherwise
+  // (not a minterpolate fallback). Minterpolate keeps applying to every
+  // clip the same as before.
+  const rifeOnUnwarped = interpolateFrames
+    && interpMethod === 'rife'
+    && pairs.length === 0
+  const useInterp = !triggerMode && interpolateFrames && !rifeOnUnwarped
   return {
     path: videoPath,
     orig_times: pairs.map(p => p.orig),
@@ -67,8 +76,8 @@ export function buildWarpRequest(input: BuildWarpRequestInput): WarpRequest {
     clip_in: job.clipIn ?? null,
     clip_out: job.clipOut ?? null,
     // Trigger mode plays at 1.0x; frame interpolation makes no sense there.
-    interp_fps: !triggerMode && interpolateFrames ? Math.max(1, Math.round(interpFps)) : null,
-    interp_method: !triggerMode && interpolateFrames ? interpMethod : null,
+    interp_fps: useInterp ? Math.max(1, Math.round(interpFps)) : null,
+    interp_method: useInterp ? interpMethod : null,
     trigger_mode: triggerMode,
     scene_cuts: cutsInRange,
   }
