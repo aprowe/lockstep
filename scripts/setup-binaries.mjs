@@ -20,9 +20,10 @@ const BIN_DIR = join(ROOT, 'src-tauri', 'binaries')
 const FF_VERSION = '6.1'
 const FF_BASE    = `https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v${FF_VERSION}`
 
-// rife-ncnn-vulkan release bundles every model — we only keep the binary + rife-v4.6.
-const RIFE_VERSION = '20221029'
-const RIFE_BASE    = `https://github.com/nihui/rife-ncnn-vulkan/releases/download/${RIFE_VERSION}`
+// rife-ncnn-vulkan from the aprowe fork — adds `-M manifest.json` batch mode.
+// Release bundles every model — we only keep the binary + rife-v4.6.
+const RIFE_VERSION = '20260422'
+const RIFE_BASE    = `https://github.com/aprowe/rife-ncnn-vulkan/releases/download/${RIFE_VERSION}`
 const RIFE_MODEL   = 'rife-v4.6'
 
 function targetTriple() {
@@ -43,7 +44,13 @@ function ffZipUrl(tool) {
 function rifeZipUrl() {
   const p = process.platform
   if (p === 'win32')  return `${RIFE_BASE}/rife-ncnn-vulkan-${RIFE_VERSION}-windows.zip`
-  if (p === 'darwin') return `${RIFE_BASE}/rife-ncnn-vulkan-${RIFE_VERSION}-macos.zip`
+  if (p === 'darwin') {
+    throw new Error(
+      `macOS prebuilts aren't published for aprowe/rife-ncnn-vulkan ${RIFE_VERSION}. ` +
+      `Build from source at https://github.com/aprowe/rife-ncnn-vulkan and drop the ` +
+      `binary + ${RIFE_MODEL}/ into src-tauri/binaries/, or run with RIFE_SKIP=1.`
+    )
+  }
   return `${RIFE_BASE}/rife-ncnn-vulkan-${RIFE_VERSION}-ubuntu.zip`
 }
 
