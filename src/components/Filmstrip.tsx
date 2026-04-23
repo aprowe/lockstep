@@ -8,7 +8,7 @@ import {
 import { setThumbnail, selectThumbnailPathsFor, selectStripFramesFor } from '../store/slices/thumbnailsSlice'
 import { setFilmstripHeight } from '../store/slices/uiSlice'
 import { secondsToFrames } from '../utils/time'
-import { filterCutsByMinGap } from '../utils/sceneFilter'
+import { visibleSceneCuts } from '../utils/sceneFilter'
 import './Filmstrip.css'
 
 const SLOTS = 7
@@ -32,15 +32,19 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
   const rawScenes = useAppSelector(s =>
     video ? s.scene.cutsByPath[video.path] ?? [] : [],
   )
+  const userScenes = useAppSelector(s =>
+    video ? s.scene.userCutsByPath[video.path] ?? [] : [],
+  )
   const sceneMinGap = useAppSelector(s =>
     video ? s.scene.minGapByPath[video.path] : undefined,
   ) ?? 2
-  // Use the *filtered* set so the backend queues the same scene markers the
-  // user sees on the timeline. Min-gap collapses dense clusters; without this
-  // filter the cache wastes slots on cuts that the UI never surfaces.
+  // Use the *visible* set so the backend queues the same scene markers the
+  // user sees on the timeline — min-gap-collapsed detected cuts merged with
+  // user-placed ones (the latter bypass min-gap, since the user explicitly
+  // dropped them there).
   const scenes = useMemo(
-    () => filterCutsByMinGap(rawScenes, sceneMinGap),
-    [rawScenes, sceneMinGap],
+    () => visibleSceneCuts(rawScenes, userScenes, sceneMinGap),
+    [rawScenes, userScenes, sceneMinGap],
   )
   const thumbPaths = useAppSelector(selectThumbnailPathsFor(video?.fileHash))
   const stripFrames = useAppSelector(selectStripFramesFor(video?.fileHash))

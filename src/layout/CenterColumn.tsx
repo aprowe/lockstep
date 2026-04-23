@@ -34,7 +34,7 @@ import {
 import { setListSelection, setPendingEdit } from '../store/slices/listsSlice'
 import { calcZoomToRegion, calcNewRegionBoundsFromScenes, calcNewRegionBoundsUpToNext } from '../utils/view'
 import { findPreviousTarget } from '../utils/navigation'
-import { filterCutsByMinGap } from '../utils/sceneFilter'
+import { visibleSceneCuts } from '../utils/sceneFilter'
 import type { View } from '../types'
 import { useDockBridge } from './DockContext'
 
@@ -68,8 +68,9 @@ export default function CenterColumn() {
   const activeRegionId = useAppSelector(s => s.region.activeRegionId)
   const activeRegion = useAppSelector(selectActiveRegion)
   const sceneCuts = useAppSelector(s => videoPath ? s.scene.cutsByPath[videoPath] ?? [] : [])
+  const userSceneCuts = useAppSelector(s => videoPath ? s.scene.userCutsByPath[videoPath] ?? [] : [])
   const sceneMinGap = useAppSelector(s => videoPath ? s.scene.minGapByPath[videoPath] : undefined) ?? 2
-  const filteredSceneCuts = filterCutsByMinGap(sceneCuts, sceneMinGap)
+  const filteredSceneCuts = visibleSceneCuts(sceneCuts, userSceneCuts, sceneMinGap)
   // Multi-selection set from the clips list — surfaced on the timeline so
   // drag/edit gestures show which clips are about to be affected.
   const selectedClipIds = useAppSelector(s => s.lists.selection.clips)
@@ -79,6 +80,7 @@ export default function CenterColumn() {
   // because scene rows in the panel address segments, not cuts; conflating the
   // two would make panel checkboxes reflect timeline lasso state).
   const selectedSceneCutTimes = useAppSelector(s => s.scene.selectedCutTimes)
+  const userSceneCutSet = useMemo(() => new Set(userSceneCuts), [userSceneCuts])
   const selectedSceneCutSet = useMemo(
     () => new Set(selectedSceneCutTimes), [selectedSceneCutTimes],
   )
@@ -280,7 +282,7 @@ export default function CenterColumn() {
         onGridDivChange={v => dispatch(setGridDivAction(v))}
         onNewRegion={() => {
           const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(
-            playhead, view, sceneCuts, video.duration, regions,
+            playhead, view, filteredSceneCuts, video.duration, regions,
           )
           addRegion(inPoint, outPoint)
         }}
@@ -339,7 +341,7 @@ export default function CenterColumn() {
           onSendToNewRegion={(inPoint, outPoint) => addRegion(inPoint, outPoint)}
           onRegionAdd={t => {
             const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(
-              t, view, sceneCuts, video.duration, regions,
+              t, view, filteredSceneCuts, video.duration, regions,
             )
             addRegion(inPoint, outPoint)
           }}
@@ -372,6 +374,7 @@ export default function CenterColumn() {
           onClipsSelectionChange={ids => dispatch(setListSelection({ list: 'clips', ids: [...ids] }))}
           selectedSceneTimes={selectedSceneCutSet}
           onScenesSelectionChange={times => dispatch(setSelectedSceneCutTimesAction([...times]))}
+          userSceneTimes={userSceneCutSet}
           onTimelineDelete={handleTimelineDelete}
           onTimelineDeselect={handleTimelineDeselect}
           onClipOverlayResize={(id, inP, outP) => updateRegionInOut(id, inP, outP)}

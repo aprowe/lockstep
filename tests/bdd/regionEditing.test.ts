@@ -333,7 +333,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       const harness = renderClipsPanel({ regions: [region] })
       const row = harness.container.querySelector('.clip-row:not(.clip-row--full)') as HTMLElement
       fireEvent.contextMenu(row, { clientX: 50, clientY: 50 })
-      fireEvent.mouseDown(screen.getByText('Rename'))
+      fireEvent.click(screen.getByText('Rename'))
       const input = document.querySelector('.clip-row__rename') as HTMLInputElement | null
       observed.inputValue = input ? input.value : null
       if (input) {

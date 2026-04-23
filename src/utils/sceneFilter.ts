@@ -15,3 +15,28 @@ export function filterCutsByMinGap(cuts: number[], minGap: number): number[] {
   }
   return out
 }
+
+/**
+ * Visible cut list = min-gap-filtered detected cuts ∪ user-placed cuts.
+ *
+ * User-placed cuts always survive: if the operator explicitly dropped a
+ * marker there, the min-gap collapse would override their intent. The two
+ * pools are merged, sorted, and de-duped within 1ms (float drift) before
+ * returning, so downstream code can treat the result as a clean number[].
+ */
+export function visibleSceneCuts(
+  detected: number[],
+  user: number[],
+  minGap: number,
+): number[] {
+  const filtered = filterCutsByMinGap(detected, minGap)
+  if (user.length === 0) return filtered
+  const merged = [...filtered, ...user].sort((a, b) => a - b)
+  const out: number[] = []
+  for (const t of merged) {
+    if (out.length === 0 || Math.abs(out[out.length - 1] - t) >= 1e-3) {
+      out.push(t)
+    }
+  }
+  return out
+}

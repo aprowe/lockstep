@@ -5,6 +5,7 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { setLastExportFolder, setExportProgress, resetExportProgress } from '../store/slices/uiSlice'
 import { buildWarpRequest } from '../utils/exportRequest'
+import { visibleSceneCuts } from '../utils/sceneFilter'
 import './ExportDialog.css'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -137,7 +138,15 @@ export default function ExportDialog({
 
   const reduxDispatch = useAppDispatch()
   const lastExportFolder = useAppSelector(s => s.ui.lastExportFolder)
-  const sceneCuts = useAppSelector(s => (videoPath ? s.scene?.cutsByPath?.[videoPath] ?? [] : []))
+  const detectedSceneCuts = useAppSelector(s => (videoPath ? s.scene?.cutsByPath?.[videoPath] ?? [] : []))
+  const userSceneCuts = useAppSelector(s => (videoPath ? s.scene?.userCutsByPath?.[videoPath] ?? [] : []))
+  const sceneMinGap = useAppSelector(s => (videoPath ? s.scene?.minGapByPath?.[videoPath] : undefined)) ?? 2
+  // Export uses the visible cut set (filtered detected ∪ user-placed) so the
+  // backend processes the same boundaries the operator sees in the UI.
+  const sceneCuts = useMemo(
+    () => visibleSceneCuts(detectedSceneCuts, userSceneCuts, sceneMinGap),
+    [detectedSceneCuts, userSceneCuts, sceneMinGap],
+  )
 
   // Output settings — default folder is last-used export folder, then video's parent folder
   const videoFolder = useMemo(() => videoPath ? parentFolder(videoPath) : null, [videoPath])

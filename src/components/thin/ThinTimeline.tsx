@@ -98,6 +98,11 @@ interface ThinTimelineProps {
   selectedSceneTimes?: ReadonlySet<number>
   onScenesSelectionChange?: (times: Set<number>) => void
 
+  /** Scene-cut times the operator placed by hand (vs. detected). Diamonds
+   *  in this set render with a cooler hue so the user can tell their own
+   *  boundaries apart from the auto-detected ones at a glance. */
+  userSceneTimes?: ReadonlySet<number>
+
   /** Delete the union of every timeline-side selection. Fires from
    *  Delete / Backspace when the timeline has keyboard focus. */
   onTimelineDelete?: () => void
@@ -147,7 +152,7 @@ export default function ThinTimeline({
   clipFillColor, boundaryColor, linkedBoundaries, selectedBoundaries,
   onConnectorSelectionChange,
   selectedClipIds, onClipsSelectionChange,
-  selectedSceneTimes, onScenesSelectionChange,
+  selectedSceneTimes, onScenesSelectionChange, userSceneTimes,
   onTimelineDelete, onTimelineDeselect,
   warpCollapsed = false, onToggleWarp,
 }: ThinTimelineProps) {
@@ -774,6 +779,7 @@ export default function ThinTimeline({
             onSceneContextMenu={onSceneContextMenu}
             onBackgroundContextMenu={onTimelineContextMenu}
             selectedTimes={selectedSceneTimes}
+            userTimes={userSceneTimes}
           />
         </div>
       </div>

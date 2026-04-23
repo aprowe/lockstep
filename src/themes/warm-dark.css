@@ -41,6 +41,17 @@
   --tan-hi:     #e0c888;
   --error:      #ef4444;
 
+  /* ── Scene cuts ─────────────────────────────────────────────
+     Diamond markers on the scenes track. `scene-cut` is the resting
+     fill, `-hi` is the hover/active brighter variant, `-bd` is the
+     resting border, `-active-*` are the playhead-glow variants. */
+  --scene-cut:           hsl(48, 95%, 62%);
+  --scene-cut-hi:        hsl(48, 100%, 72%);
+  --scene-cut-bd:        hsl(40, 90%, 45%);
+  --scene-cut-active:    hsl(48, 100%, 78%);
+  --scene-cut-active-bd: hsl(48, 100%, 88%);
+  --scene-cut-rgb:       240, 200, 50;
+
   /* ── RGB channels for rgba() transparency ───────────────── */
   --accent-rgb:   245, 158, 11;
   --accent-2-rgb: 224, 117, 64;
