@@ -131,7 +131,8 @@ input[type="number"].no-stepper { -moz-appearance: textfield; }
 
 /* ── Clip color palette ──────────────────────────────────
    Sets --clip-h/s/l for a region based on its colorIndex.
-   Must stay in sync with PALETTE in RegionSidebar.tsx. */
+   Sole source of truth for the clip palette — every consumer reads
+   --clip-h/s/l via this class instead of duplicating the table. */
 .clip-overlay--color-0 { --clip-h: 0;   --clip-s: 75%; --clip-l: 55%; }
 .clip-overlay--color-1 { --clip-h: 30;  --clip-s: 80%; --clip-l: 52%; }
 .clip-overlay--color-2 { --clip-h: 58;  --clip-s: 80%; --clip-l: 48%; }

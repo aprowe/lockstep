@@ -49,11 +49,14 @@
   cursor: pointer;
 }
 
+/* Color comes from the .clip-overlay--color-N modifier set in JSX, which
+ * supplies --clip-h/s/l. Single source of truth for clip palette. */
 .clip-row__swatch {
   width: 8px;
   height: 18px;
   border-radius: 2px;
   flex-shrink: 0;
+  background: hsl(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%));
 }
 
 .clip-row__body {

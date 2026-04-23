@@ -11,16 +11,45 @@ const initialState: RegionState = {
   activeRegionId: null,
 }
 
+/** Next colorIndex above any existing one — monotonic so deleting a region
+ *  doesn't free up a slot another region could collide with on next add.
+ *  Wraps to 0 only when the entire i64 space is exhausted (i.e. never). */
+function nextColorIndex(regions: Region[]): number {
+  let max = -1
+  for (const r of regions) {
+    if (typeof r.colorIndex === 'number' && r.colorIndex > max) max = r.colorIndex
+  }
+  return max + 1
+}
+
 const regionSlice = createSlice({
   name: 'region',
   initialState,
   reducers: {
     setRegions(state, action: PayloadAction<Region[]>) {
-      state.regions = action.payload
+      // Backfill colorIndex for any region loaded from a save predating
+      // the field. Using array position keeps existing palette assignments
+      // stable for a single load; persistence will write them back.
+      const seen = new Set<number>()
+      for (const r of action.payload) {
+        if (typeof r.colorIndex === 'number') seen.add(r.colorIndex)
+      }
+      let next = 0
+      const filled = action.payload.map(r => {
+        if (typeof r.colorIndex === 'number') return r
+        while (seen.has(next)) next++
+        seen.add(next)
+        return { ...r, colorIndex: next++ }
+      })
+      state.regions = filled
     },
     addRegion(state, action: PayloadAction<Region>) {
-      state.regions.push(action.payload)
-      state.activeRegionId = action.payload.id
+      const r = action.payload
+      const withColor = typeof r.colorIndex === 'number'
+        ? r
+        : { ...r, colorIndex: nextColorIndex(state.regions) }
+      state.regions.push(withColor)
+      state.activeRegionId = withColor.id
     },
     deleteRegion(state, action: PayloadAction<string>) {
       state.regions = state.regions.filter(r => r.id !== action.payload)

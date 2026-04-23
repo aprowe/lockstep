@@ -1,9 +1,9 @@
 import { useCallback, useMemo } from 'react'
 import ListPanel from '../../components/list/ListPanel'
+import { useFilteredItems } from '../../components/list/useFilteredItems'
 import MarkerRow, { type MarkerRowData } from './MarkerRow'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
 import { removeAnchors, setSelectedIds as setSelectedAnchorIds } from '../../store/slices/warpSlice'
-import { setLastSelected } from '../../store/slices/listsSlice'
 import { selectActiveRegion, selectSelectedIdsSet, selectWarpData } from '../../store/selectors'
 import { useDockBridge } from '../DockContext'
 
@@ -16,7 +16,6 @@ export default function MarkersPanel() {
   const warpBpm = useAppSelector(s => s.warp.bpm)
   const warpData = useAppSelector(selectWarpData)
   const activeRegion = useAppSelector(selectActiveRegion)
-  const view = useAppSelector(s => s.ui.view)
   const filterMode = useAppSelector(s => s.lists.filterMode.markers)
   // Markers selection lives in warp.selectedIds (number ids) so the
   // timeline lasso and the list stay in sync — same source of truth on
@@ -27,21 +26,12 @@ export default function MarkersPanel() {
     [selectedAnchorIdSet],
   )
 
-  // Derive each row's display data once. Keys/ids are coerced to strings so
-  // they fit ListPanel's generic id type.
-  const items = useMemo<MarkerRowData[]>(() => {
+  // Build all rows up-front; let useFilteredItems window them by mode.
+  const allItems = useMemo<MarkerRowData[]>(() => {
     if (!video) return []
     const beatZeroTime = warpData?.beatZeroTime ?? 0
     const beatDuration = warpBpm > 0 ? 60 / warpBpm : 0
-    let visible = origAnchors
-    if (filterMode === 'viewport') {
-      visible = origAnchors.filter(a => a.time >= view.start && a.time <= view.end)
-    } else if (filterMode === 'clip' && activeRegion) {
-      visible = origAnchors.filter(a =>
-        a.time >= activeRegion.inPoint - 0.001 && a.time <= activeRegion.outPoint + 0.001,
-      )
-    }
-    const sorted = [...visible].sort((a, b) => a.time - b.time)
+    const sorted = [...origAnchors].sort((a, b) => a.time - b.time)
     return sorted.map((anchor, i) => {
       const beatAnchor = beatAnchors.find(b => b.id === anchor.id)
       const next = sorted[i + 1]
@@ -66,14 +56,19 @@ export default function MarkersPanel() {
         stretch,
       }
     })
-  }, [video, origAnchors, beatAnchors, warpBpm, warpData, activeRegion, filterMode, view.start, view.end])
+  }, [video, origAnchors, beatAnchors, warpBpm, warpData])
+
+  const items = useFilteredItems({
+    items: allItems,
+    filterMode,
+    // Markers are points; range collapses to start === end at the anchor's time.
+    getRange: useCallback((m: MarkerRowData) => ({ start: m.time, end: m.time }), []),
+  })
 
   const onActivate = useCallback((id: string) => {
     const data = items.find(r => r.id === id)
-    if (!data) return
-    seek(data.time)
-    dispatch(setLastSelected({ list: 'markers', id }))
-  }, [items, seek, dispatch])
+    if (data) seek(data.time)
+  }, [items, seek])
 
   const onDelete = useCallback((ids: string[]) => {
     dispatch(removeAnchors(ids.map(s => Number(s))))

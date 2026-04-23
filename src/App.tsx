@@ -170,24 +170,22 @@ export default function App() {
   const exportOpen = useAppSelector(s => s.ui.exportOpen)
   const setExportOpen = (v: boolean) => dispatch(setExportOpenAction(v))
   const [clipContextMenu, setClipContextMenu] = useState<ContextMenuState | null>(null)
-  const [pendingRenameId, setPendingRenameId] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [pendingZoom, setPendingZoom] = useState<{ start: number; end: number } | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const playerRef = useRef<VideoPlayerHandle>(null)
 
-  // Bridge of imperative App-level APIs (player ref, dialog state, pending
-  // rename, floating context menu) to dockview-mounted panels. useMemo so
-  // panel components don't see a fresh identity every App render.
+  // Bridge of imperative App-level APIs (player ref, dialog state, floating
+  // context menu) to dockview-mounted panels. Inline-rename state moved to
+  // lists.pendingEdit. useMemo so panels don't see a fresh identity each
+  // App render.
   const dockBridge = useMemo(() => ({
     seek: (t: number) => playerRef.current?.seek(t),
     setExportOpen: (open: boolean) => dispatch(setExportOpenAction(open)),
-    setPendingRenameId,
-    pendingRenameId,
     playerRef,
     setClipContextMenu,
-  }), [pendingRenameId, dispatch])
+  }), [dispatch])
 
   const rDragStart = useRef<{ x: number; w: number } | null>(null)
 

@@ -1,29 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import ListPanel from '../../components/list/ListPanel'
+import { useFilteredItems } from '../../components/list/useFilteredItems'
 import SceneRow, { type SceneRowData } from './SceneRow'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
 import { setMinGap as setSceneMinGapAction, deleteCut as deleteSceneCutAction } from '../../store/slices/sceneSlice'
 import { detectScenesThunk, cancelSceneDetectionThunk } from '../../store/thunks/sceneThunks'
 import { setView as setViewAction } from '../../store/slices/uiSlice'
-import { setListSelection, setLastSelected } from '../../store/slices/listsSlice'
+import { setListSelection } from '../../store/slices/listsSlice'
 import { selectActiveRegion } from '../../store/selectors'
 import { ensureTimeInView } from '../../utils/view'
 import { filterCutsByMinGap } from '../../utils/sceneFilter'
 import { useDockBridge } from '../DockContext'
 import './ScenesPanel.css'
-
-// Region color palette — must match clip-overlay--color-N in Timeline.css
-// so a scene falling inside a clip shows the same hue as the clip overlay.
-const REGION_PALETTE = [
-  { h: 0,   s: 75, l: 55 },
-  { h: 30,  s: 80, l: 52 },
-  { h: 58,  s: 80, l: 48 },
-  { h: 115, s: 65, l: 45 },
-  { h: 183, s: 65, l: 42 },
-  { h: 213, s: 70, l: 55 },
-  { h: 270, s: 60, l: 55 },
-  { h: 305, s: 65, l: 52 },
-]
 
 export default function ScenesPanel() {
   const dispatch = useAppDispatch()
@@ -50,33 +38,32 @@ export default function ScenesPanel() {
   const filteredCuts = useMemo(() => filterCutsByMinGap(cuts, minGap), [cuts, minGap])
 
   // Boundaries 0 → ...cuts → duration become rows; each row spans [start, end).
-  const items = useMemo<SceneRowData[]>(() => {
+  const allItems = useMemo<SceneRowData[]>(() => {
     if (!video) return []
     const boundaries = [0, ...filteredCuts, video.duration]
-    const rows: SceneRowData[] = boundaries.slice(0, -1).map((start, i) => {
+    return boundaries.slice(0, -1).map((start, i) => {
       const end = boundaries[i + 1]
-      const regionIdx = regions.findIndex(r => start >= r.inPoint && start < r.outPoint)
-      const regionColor = regionIdx >= 0 ? REGION_PALETTE[regionIdx % REGION_PALETTE.length] : null
+      // Inherit the containing region's persistent colorIndex so a scene
+      // inside that clip matches its overlay hue. Falls through to null
+      // when the scene falls outside every region.
+      const region = regions.find(r => start >= r.inPoint && start < r.outPoint)
       return {
         id: String(i),
         index: i,
         start, end,
         thumbnailTime: start,
-        regionColor,
+        regionColorIndex: region?.colorIndex ?? null,
         // Boundary at t=0 is implied, not a real cut — disable its delete.
         canDelete: i > 0,
       }
     })
-    if (filterMode === 'viewport') {
-      return rows.filter(r => r.end > view.start && r.start < view.end)
-    }
-    if (filterMode === 'clip' && activeRegion) {
-      return rows.filter(r =>
-        r.end > activeRegion.inPoint && r.start < activeRegion.outPoint,
-      )
-    }
-    return rows
-  }, [video, filteredCuts, regions, filterMode, view.start, view.end, activeRegion])
+  }, [video, filteredCuts, regions])
+
+  const items = useFilteredItems({
+    items: allItems,
+    filterMode,
+    getRange: useCallback((s: SceneRowData) => ({ start: s.start, end: s.end }), []),
+  })
 
   const onActivate = useCallback((id: string) => {
     const data = items.find(r => r.id === id)
@@ -84,7 +71,6 @@ export default function ScenesPanel() {
     seek(data.start)
     const next = ensureTimeInView(view, data.start, video.duration)
     if (next !== view) dispatch(setViewAction(next))
-    dispatch(setLastSelected({ list: 'scenes', id }))
   }, [items, video, seek, view, dispatch])
 
   const onDelete = useCallback((ids: string[]) => {

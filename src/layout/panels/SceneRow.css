@@ -34,12 +34,26 @@
   cursor: pointer;
 }
 
+/* Default to neutral when no region claims this scene; the
+ * clip-overlay--color-N modifier (composed at the JSX level) overrides
+ * this with the persisted region hue when one is in scope. */
 .scene-row__color {
   width: 8px;
   height: 18px;
   border-radius: 2px;
   flex-shrink: 0;
   background: var(--bg-3);
+}
+
+.scene-row__color.clip-overlay--color-0,
+.scene-row__color.clip-overlay--color-1,
+.scene-row__color.clip-overlay--color-2,
+.scene-row__color.clip-overlay--color-3,
+.scene-row__color.clip-overlay--color-4,
+.scene-row__color.clip-overlay--color-5,
+.scene-row__color.clip-overlay--color-6,
+.scene-row__color.clip-overlay--color-7 {
+  background: hsl(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%));
 }
 
 .scene-row__idx {

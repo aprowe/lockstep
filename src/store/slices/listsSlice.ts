@@ -30,16 +30,17 @@ interface ListsState {
   selection: SelectionState
   thumbnailMode: ThumbnailModeState
   filterMode: FilterModeState
-  /** The most-recently-clicked single item, used to drive the Inspector
-   *  panel that shows the focused item's details. Null = nothing focused. */
-  lastSelected: { list: ListId; id: string } | null
+  /** The row currently being inline-renamed, if any. Lifted out of
+   *  DockBridge so any list can drive its own rename UI without growing
+   *  a per-type field on the bridge. */
+  pendingEdit: { list: ListId; id: string } | null
 }
 
 const initialState: ListsState = {
   selection: { clips: [], markers: [], scenes: [] },
   thumbnailMode: { clips: 'none', markers: 'none', scenes: 'none' },
   filterMode: { clips: 'global', markers: 'global', scenes: 'global' },
-  lastSelected: null,
+  pendingEdit: null,
 }
 
 const listsSlice = createSlice({
@@ -50,8 +51,8 @@ const listsSlice = createSlice({
       const { list, ids } = action.payload
       state.selection[list] = ids
     },
-    clearListSelection(state, action: PayloadAction<ListId>) {
-      state.selection[action.payload] = []
+    clearListSelection(state, action: PayloadAction<{ list: ListId }>) {
+      state.selection[action.payload.list] = []
     },
     setListThumbnailMode(state, action: PayloadAction<{ list: ListId; mode: ListThumbnailMode }>) {
       const { list, mode } = action.payload
@@ -61,8 +62,8 @@ const listsSlice = createSlice({
       const { list, mode } = action.payload
       state.filterMode[list] = mode
     },
-    setLastSelected(state, action: PayloadAction<{ list: ListId; id: string } | null>) {
-      state.lastSelected = action.payload
+    setPendingEdit(state, action: PayloadAction<{ list: ListId; id: string } | null>) {
+      state.pendingEdit = action.payload
     },
   },
 })
@@ -72,7 +73,7 @@ export const {
   clearListSelection,
   setListThumbnailMode,
   setListFilterMode,
-  setLastSelected,
+  setPendingEdit,
 } = listsSlice.actions
 
 export default listsSlice.reducer

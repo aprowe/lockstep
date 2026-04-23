@@ -4,19 +4,19 @@ import type { ContextMenuState } from '../components/ContextMenu'
 
 /**
  * Bridges App-level imperative APIs (player ref, dialog state) into panels
- * rendered by dockview. Dockview re-mounts panel components on layout changes;
- * passing these via context keeps a single stable identity instead of forcing
- * a layout rebuild every time a callback closure changes.
+ * rendered by dockview. Dockview re-mounts panel components on layout
+ * changes; passing these via context keeps a single stable identity instead
+ * of forcing a layout rebuild every time a callback closure changes.
+ *
+ * Inline-rename state is *not* on this bridge — it lives in
+ * `lists.pendingEdit` so any list (clips, markers, scenes) can drive its
+ * own rename UI without growing a per-type field here.
  */
 export interface DockBridge {
   /** Seek the player to a given time in seconds. */
   seek: (time: number) => void
   /** Open / close the Export dialog. */
   setExportOpen: (open: boolean) => void
-  /** Request inline-rename for a region in the clips sidebar. */
-  setPendingRenameId: (id: string | null) => void
-  /** Read the current pending-rename id (cleared by the panel after consuming). */
-  pendingRenameId: string | null
   /** Mutable ref to the (single) VideoPlayer instance. CenterColumn sets it
    *  via <VideoPlayer ref>; everyone else reads .current?.seek() etc. */
   playerRef: RefObject<VideoPlayerHandle | null>

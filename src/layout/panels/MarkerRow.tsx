@@ -1,5 +1,5 @@
 import type { RowContext } from '../../components/list/ListPanel'
-import { IconTrash } from '../../components/icons'
+import RowShell from '../../components/list/RowShell'
 import { formatTime } from '../../utils/time'
 import './MarkerRow.css'
 
@@ -28,17 +28,6 @@ interface Props {
 }
 
 export default function MarkerRow({ data, ctx, onDelete, onDoubleClick }: Props) {
-  const {
-    isActive, isSelected, thumbnailMode, thumbnailSrc, multiSelectMode,
-    onRowClick, onRowMouseEnter, onRowMouseLeave, onToggleSelection,
-  } = ctx
-
-  const cls = [
-    'marker-row',
-    isActive && 'marker-row--active',
-    isSelected && 'marker-row--selected',
-  ].filter(Boolean).join(' ')
-
   const frame = Math.round(data.time * data.fps)
   const stretchClass = data.stretch == null
     ? ''
@@ -47,28 +36,14 @@ export default function MarkerRow({ data, ctx, onDelete, onDoubleClick }: Props)
     : ''
 
   return (
-    <div
-      className={cls}
-      onClick={onRowClick}
+    <RowShell
+      kind="marker-row"
+      ctx={ctx}
+      checkboxLabel="Select marker"
+      deleteLabel="Delete marker"
+      onDelete={onDelete}
       onDoubleClick={onDoubleClick}
-      onMouseEnter={onRowMouseEnter}
-      onMouseLeave={onRowMouseLeave}
     >
-      {multiSelectMode && (
-        <input
-          type="checkbox"
-          className="marker-row__check"
-          checked={isSelected}
-          onChange={onToggleSelection}
-          onClick={e => e.stopPropagation()}
-          aria-label="Select marker"
-        />
-      )}
-      {thumbnailMode === 'always' && (
-        thumbnailSrc
-          ? <img className="list-panel__row-thumb" src={thumbnailSrc} alt="" draggable={false} />
-          : <div className="list-panel__row-thumb list-panel__row-thumb--placeholder" />
-      )}
       <span className="marker-row__idx">{data.index}</span>
       <span className="marker-row__time">{formatTime(data.time)}</span>
       <span className="marker-row__frame">f{frame}</span>
@@ -85,14 +60,6 @@ export default function MarkerRow({ data, ctx, onDelete, onDoubleClick }: Props)
           {data.stretch.toFixed(2)}×
         </span>
       )}
-      <button
-        type="button"
-        className="marker-row__del"
-        title="Delete marker"
-        onClick={e => { e.stopPropagation(); onDelete() }}
-      >
-        <IconTrash size={14} />
-      </button>
-    </div>
+    </RowShell>
   )
 }

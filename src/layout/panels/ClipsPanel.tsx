@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import ListPanel from '../../components/list/ListPanel'
+import { useFilteredItems } from '../../components/list/useFilteredItems'
 import ContextMenu, { type ContextMenuState } from '../../components/ContextMenu'
 import ClipRow from './ClipRow'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
@@ -11,7 +12,7 @@ import {
   renameRegion as renameRegionAction,
 } from '../../store/slices/regionSlice'
 import { setExportOpen as setExportOpenAction } from '../../store/slices/uiSlice'
-import { setListSelection, setLastSelected } from '../../store/slices/listsSlice'
+import { setListSelection, setPendingEdit } from '../../store/slices/listsSlice'
 import { calcNewRegionBoundsFromScenes } from '../../utils/view'
 import { useDockBridge } from '../DockContext'
 
@@ -23,7 +24,9 @@ import { useDockBridge } from '../DockContext'
  */
 export default function ClipsPanel() {
   const dispatch = useAppDispatch()
-  const { seek, pendingRenameId, setPendingRenameId } = useDockBridge()
+  const { seek } = useDockBridge()
+  const pendingEdit = useAppSelector(s => s.lists.pendingEdit)
+  const pendingRenameId = pendingEdit?.list === 'clips' ? pendingEdit.id : null
   const video = useAppSelector(s => s.video.video)
   const regions = useAppSelector(s => s.region.regions)
   const activeRegionId = useAppSelector(s => s.region.activeRegionId)
@@ -35,16 +38,24 @@ export default function ClipsPanel() {
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
 
-  // Augment each region with the thumbnailTime the ListPanel needs, then
-  // apply the active filter (clip-list ignores the 'clip' mode — that
-  // would scope clips to themselves which is meaningless).
-  const items = useMemo(() => {
-    const augmented = regions.map(r => ({ ...r, thumbnailTime: r.inPoint }))
-    if (filterMode === 'viewport') {
-      return augmented.filter(r => r.outPoint > view.start && r.inPoint < view.end)
-    }
-    return augmented
-  }, [regions, filterMode, view.start, view.end])
+  type ClipItem = typeof regions[number] & { thumbnailTime: number }
+  const augmented = useMemo<ClipItem[]>(
+    () => regions.map(r => ({ ...r, thumbnailTime: r.inPoint })),
+    [regions],
+  )
+  // Clips list hides the 'clip' filter tab (filtering clips by themselves
+  // is meaningless) but the hook still treats 'clip' mode as no-window →
+  // returns []. Force 'global' here so a stale Redux value can't surface.
+  const effectiveMode = filterMode === 'clip' ? 'global' : filterMode
+  const getClipRange = useCallback(
+    (r: ClipItem) => ({ start: r.inPoint, end: r.outPoint }),
+    [],
+  )
+  const items = useFilteredItems({
+    items: augmented,
+    filterMode: effectiveMode,
+    getRange: getClipRange,
+  })
 
   const addRegion = useCallback((inPoint: number, outPoint: number) => {
     const id = `region_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
@@ -73,7 +84,6 @@ export default function ClipsPanel() {
   // Active = the single clip a plain click landed on; also seeks the player.
   const onActivate = useCallback((id: string) => {
     dispatch(setActiveRegionIdAction(id))
-    dispatch(setLastSelected({ list: 'clips', id }))
     const r = regions.find(x => x.id === id)
     if (r) seek(r.inPoint)
   }, [dispatch, regions, seek])
@@ -91,7 +101,7 @@ export default function ClipsPanel() {
       x: e.clientX, y: e.clientY,
       title: region.name,
       items: [
-        { label: 'Rename',    action: () => { dispatch(setActiveRegionIdAction(id)); setPendingRenameId(id) } },
+        { label: 'Rename',    action: () => { dispatch(setActiveRegionIdAction(id)); dispatch(setPendingEdit({ list: 'clips', id })) } },
         { label: 'Duplicate', action: () => {
           const newId = duplicateRegion(id)
           if (newId) dispatch(setActiveRegionIdAction(newId))
@@ -106,7 +116,7 @@ export default function ClipsPanel() {
         { label: 'Delete', action: () => dispatch(deleteRegionAction(id)), danger: true },
       ],
     })
-  }, [regions, dispatch, duplicateRegion, setPendingRenameId])
+  }, [regions, dispatch, duplicateRegion])
 
   if (!video) return <div className="vj-empty-panel">No video</div>
 
@@ -148,21 +158,21 @@ export default function ClipsPanel() {
           >+</button>
         }
         renderRow={(item, ctx) => {
-          const colorIndex = regions.findIndex(r => r.id === item.id)
+          // ClipRow reads colorIndex straight off the region; the slice
+          // backfills it on load and writes it on add.
           return (
             <ClipRow
               key={item.id}
               region={item}
-              colorIndex={colorIndex}
               ctx={ctx}
               pendingRename={pendingRenameId === item.id}
               onCommitRename={(id, name) => {
                 dispatch(renameRegionAction({ id, name }))
-                setPendingRenameId(null)
+                dispatch(setPendingEdit(null))
               }}
-              onCancelRename={() => setPendingRenameId(null)}
+              onCancelRename={() => dispatch(setPendingEdit(null))}
               onContextMenu={e => openContextMenu(e, item.id)}
-              onDoubleClick={() => setPendingRenameId(item.id)}
+              onDoubleClick={() => dispatch(setPendingEdit({ list: 'clips', id: item.id }))}
               onDelete={() => dispatch(deleteRegionAction(item.id))}
             />
           )

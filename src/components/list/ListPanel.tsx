@@ -107,9 +107,11 @@ export default function ListPanel<T extends ListItem>({
   const filterMode = useAppSelector(s => s.lists.filterMode[listId])
   const view = useAppSelector(s => s.ui.view)
   const activeRegion = useAppSelector(selectActiveRegion)
-  const activeRegionIdx = useAppSelector(s =>
-    activeRegion ? s.region.regions.findIndex(r => r.id === activeRegion.id) : -1,
-  )
+  // Pull colorIndex from the region itself instead of computing from
+  // array position — array index would shuffle on reorder, and a stale
+  // findIndex during a delete/active-id race could return -1, which then
+  // produces "clip-overlay--color--1" (no rule, no color).
+  const activeColorIndex = activeRegion?.colorIndex ?? null
   const defaultSelectionIds = useAppSelector(s => s.lists.selection[listId])
   const selectedSet = useMemo(
     () => selectedIdsOverride ?? new Set(defaultSelectionIds),
@@ -147,12 +149,16 @@ export default function ListPanel<T extends ListItem>({
   // Push the always-on frames into the thumbnail strip queue so the
   // backend prioritises them. Hover mode pushes nothing — the popup hits
   // the standard scoring path. Source-keyed so each list panel doesn't
-  // overwrite the others' contributions.
+  // overwrite the others' contributions, and clears its source on unmount
+  // so closing a panel via View → Panels stops polluting the cache.
   useEffect(() => {
     if (!video) return
-    dispatch(setStripFrames({
-      fileHash: video.fileHash, source: `list:${listId}`, frames: stripFrames,
-    }))
+    const fileHash = video.fileHash
+    const source = `list:${listId}`
+    dispatch(setStripFrames({ fileHash, source, frames: stripFrames }))
+    return () => {
+      dispatch(setStripFrames({ fileHash, source, frames: [] }))
+    }
   }, [video, stripFrames, dispatch, listId])
 
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -219,7 +225,9 @@ export default function ListPanel<T extends ListItem>({
       {filterMode === 'clip' && activeRegion && (
         <div className="list-panel__filter-context" title={activeRegion.name}>
           <span
-            className={`list-panel__filter-context-swatch clip-overlay--color-${activeRegionIdx % 8}`}
+            className={`list-panel__filter-context-swatch${
+              activeColorIndex !== null ? ` clip-overlay--color-${activeColorIndex % 8}` : ''
+            }`}
           />
           <span className="list-panel__filter-context-name">{activeRegion.name}</span>
         </div>

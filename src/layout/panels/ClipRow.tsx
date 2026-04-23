@@ -1,33 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Region } from '../../types'
 import type { RowContext } from '../../components/list/ListPanel'
-import { IconTrash } from '../../components/icons'
+import RowShell from '../../components/list/RowShell'
+import { formatTime } from '../../utils/time'
 import './ClipRow.css'
-
-// Color palette — must match Timeline.css clip-overlay--color-N.
-const PALETTE = [
-  { h: 0,   s: 75, l: 55 },
-  { h: 30,  s: 80, l: 52 },
-  { h: 58,  s: 80, l: 48 },
-  { h: 115, s: 65, l: 45 },
-  { h: 183, s: 65, l: 42 },
-  { h: 213, s: 70, l: 55 },
-  { h: 270, s: 60, l: 55 },
-  { h: 305, s: 65, l: 52 },
-]
-
-function fmtTime(s: number): string {
-  const m = Math.floor(s / 60)
-  const sec = s % 60
-  const ss = String(Math.floor(sec)).padStart(2, '0')
-  const cs = String(Math.floor((sec % 1) * 100)).padStart(2, '0')
-  return m > 0 ? `${m}:${ss}.${cs}` : `${ss}.${cs}s`
-}
 
 interface Props {
   region: Region
-  /** Index in the unsorted region list — drives the color swatch. */
-  colorIndex: number
   ctx: RowContext
   pendingRename: boolean
   onCommitRename: (id: string, name: string) => void
@@ -40,13 +19,9 @@ interface Props {
 }
 
 export default function ClipRow({
-  region, colorIndex, ctx, pendingRename, onCommitRename, onCancelRename,
+  region, ctx, pendingRename, onCommitRename, onCancelRename,
   onContextMenu, onDoubleClick, onDelete,
 }: Props) {
-  const {
-    isActive, isSelected, thumbnailMode, thumbnailSrc, multiSelectMode,
-    onRowClick, onRowMouseEnter, onRowMouseLeave, onToggleSelection,
-  } = ctx
   const [renameValue, setRenameValue] = useState(region.name)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -63,38 +38,19 @@ export default function ClipRow({
     else onCancelRename()
   }
 
-  const { h, s, l } = PALETTE[colorIndex % PALETTE.length]
-  const cls = [
-    'clip-row',
-    isActive && 'clip-row--active',
-    isSelected && 'clip-row--selected',
-  ].filter(Boolean).join(' ')
+  const colorIndex = region.colorIndex ?? 0
 
   return (
-    <div
-      className={cls}
-      onClick={onRowClick}
+    <RowShell
+      kind="clip-row"
+      ctx={ctx}
+      checkboxLabel="Select clip"
+      deleteLabel="Delete clip"
+      onDelete={onDelete}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
-      onMouseEnter={onRowMouseEnter}
-      onMouseLeave={onRowMouseLeave}
     >
-      {multiSelectMode && (
-        <input
-          type="checkbox"
-          className="clip-row__check"
-          checked={isSelected}
-          onChange={onToggleSelection}
-          onClick={e => e.stopPropagation()}
-          aria-label="Select clip"
-        />
-      )}
-      {thumbnailMode === 'always' && (
-        thumbnailSrc
-          ? <img className="list-panel__row-thumb" src={thumbnailSrc} alt="" draggable={false} />
-          : <div className="list-panel__row-thumb list-panel__row-thumb--placeholder" />
-      )}
-      <span className="clip-row__swatch" style={{ background: `hsl(${h},${s}%,${l}%)` }} />
+      <span className={`clip-row__swatch clip-overlay--color-${colorIndex % 8}`} />
       <div className="clip-row__body">
         {pendingRename ? (
           <input
@@ -115,17 +71,9 @@ export default function ClipRow({
           <div className="clip-row__name" title={region.name}>{region.name}</div>
         )}
         <div className="clip-row__range">
-          {fmtTime(region.inPoint)} – {fmtTime(region.outPoint)}
+          {formatTime(region.inPoint)} – {formatTime(region.outPoint)}
         </div>
       </div>
-      <button
-        type="button"
-        className="clip-row__del"
-        title="Delete clip"
-        onClick={e => { e.stopPropagation(); onDelete() }}
-      >
-        <IconTrash size={14} />
-      </button>
-    </div>
+    </RowShell>
   )
 }

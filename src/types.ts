@@ -85,6 +85,11 @@ export interface Region {
   /** When true, export plays each anchor interval at 1.0x (truncating source or
    *  padding with a freeze-frame) instead of time-warping. No frame interp. */
   triggerMode?: boolean
+  /** Stable seed for the palette swatch (mod 8 → clip-overlay--color-N).
+   *  Captured at creation time so deletions and re-orderings don't shuffle
+   *  the colors. Optional only for backwards-compat with old saves; the
+   *  region slice fills it in on load via the array index fallback. */
+  colorIndex?: number
 }
 
 /** A clip block overlaid on the timeline track at the same zoom level */

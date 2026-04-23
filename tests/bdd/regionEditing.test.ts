@@ -6,7 +6,7 @@ import { pushSnapshot, undo } from '../../src/store/slices/historySlice'
 import { calcZoomToRegion, calcNewRegionBoundsUpToNext, viewFitsRegion } from '../../src/utils/view'
 import { makeStore } from '../helpers/setup'
 import { renderTimeline } from '../harnesses/timeline'
-import { renderRegionSidebar, makeRegion as makeSidebarRegion } from '../harnesses/regionSidebar'
+import { renderClipsPanel, makeRegion as makeSidebarRegion } from '../harnesses/clipsPanel'
 
 const feature = await loadFeature('./spec/features/region-editing.feature')
 
@@ -262,13 +262,13 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     When('the user clicks the region in the <surface>', () => {
       const surface = String(variables.surface)
       if (surface === 'clip sidebar') {
-        const harness = renderRegionSidebar({ regions: [region] })
-        harness.onSelectRegion.mockImplementation((id: string | null) => {
-          if (id) observed.selected = id
-        })
-        const row = harness.container.querySelector('.rsi-item:not(:first-child)') as HTMLElement
+        const harness = renderClipsPanel({ regions: [region] })
+        // ClipsPanel dispatches setActiveRegionId + seek through the bridge
+        // when a row is clicked; either signal proves the activate fired.
+        harness.seek.mockImplementation(() => { observed.selected = region.id })
+        const row = harness.container.querySelector('.clip-row:not(.clip-row--full)') as HTMLElement
         fireEvent.click(row)
-        return new Promise<void>(resolve => setTimeout(resolve, 300))
+        return
       }
       const harness = renderTimeline({
         clipOverlays: [{ id: region.id, label: region.name, inPoint: region.inPoint, outPoint: region.outPoint, colorIndex: 0 }],
@@ -295,13 +295,10 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     Given('a region spans from 30 to 45 seconds and is the active region', () => {})
     And('the playhead is at 40 seconds', () => {})
     When('the user clicks the same region again', () => {
-      const harness = renderRegionSidebar({ regions: [region], activeRegionId: region.id })
-      harness.onSelectRegion.mockImplementation((id: string | null) => {
-        if (id) seen.push(id)
-      })
-      const row = harness.container.querySelector('.rsi-item.rsi-item--active') as HTMLElement
+      const harness = renderClipsPanel({ regions: [region], activeRegionId: region.id })
+      harness.seek.mockImplementation(() => seen.push(region.id))
+      const row = harness.container.querySelector('.clip-row.clip-row--active') as HTMLElement
       fireEvent.click(row)
-      return new Promise<void>(resolve => setTimeout(resolve, 300))
     })
     Then('the playhead moves to 30 seconds', () => {
       expect(seen).toContain(region.id)
@@ -314,18 +311,16 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     const observed: {
       menuShown: boolean
       inputValue: string | null
-      renameCallArgs: [string, string] | null
-    } = { menuShown: false, inputValue: null, renameCallArgs: null }
-    let onRenameSpy: ReturnType<typeof vi.fn>
+      committedName: string | null
+    } = { menuShown: false, inputValue: null, committedName: null }
 
     Given('a clip named "Verse" in the clip sidebar', () => {
       // The menu only opens in the same step as the contextmenu event because
       // the DOM is torn down between steps — see scenario-block comment above.
     })
     When('the user right-clicks the clip row', () => {
-      const harness = renderRegionSidebar({ regions: [region] })
-      onRenameSpy = harness.onRename
-      const row = harness.container.querySelector('.rsi-item:not(:first-child)') as HTMLElement
+      const harness = renderClipsPanel({ regions: [region] })
+      const row = harness.container.querySelector('.clip-row:not(.clip-row--full)') as HTMLElement
       fireEvent.contextMenu(row, { clientX: 50, clientY: 50 })
       observed.menuShown = !!screen.queryByText('Rename')
     })
@@ -333,31 +328,27 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       expect(observed.menuShown).toBe(true)
     })
     When('the user selects Rename', () => {
-      // Re-render and fire the full sequence so the DOM is still alive when
-      // we read input.value below.
-      const harness = renderRegionSidebar({ regions: [region] })
-      onRenameSpy = harness.onRename
-      const row = harness.container.querySelector('.rsi-item:not(:first-child)') as HTMLElement
+      // Re-render the full sequence so the DOM is still alive when we read
+      // input.value + the post-commit store state below.
+      const harness = renderClipsPanel({ regions: [region] })
+      const row = harness.container.querySelector('.clip-row:not(.clip-row--full)') as HTMLElement
       fireEvent.contextMenu(row, { clientX: 50, clientY: 50 })
-      const renameItem = screen.getByText('Rename')
-      fireEvent.mouseDown(renameItem)
-      const input = document.querySelector('.rsi-rename') as HTMLInputElement | null
+      fireEvent.mouseDown(screen.getByText('Rename'))
+      const input = document.querySelector('.clip-row__rename') as HTMLInputElement | null
       observed.inputValue = input ? input.value : null
       if (input) {
         fireEvent.change(input, { target: { value: 'Chorus' } })
         fireEvent.keyDown(input, { key: 'Enter' })
-        // commitRename runs onBlur, but we trigger Enter — verify by capturing
-        // the callback args either way.
-        if (onRenameSpy.mock.calls.length > 0) {
-          observed.renameCallArgs = onRenameSpy.mock.calls[0] as [string, string]
-        }
+        // ClipsPanel commits the rename through the regionSlice — assert
+        // against the store rather than a callback spy.
+        observed.committedName = harness.store.getState().region.regions[0].name
       }
     })
     Then('the clip name becomes an inline editable input with the current name selected', () => {
       expect(observed.inputValue).toBe('Verse')
     })
     And("committing the edit updates the clip's name", () => {
-      expect(observed.renameCallArgs).toEqual([region.id, 'Chorus'])
+      expect(observed.committedName).toBe('Chorus')
     })
   })
 })

@@ -25,7 +25,7 @@ import {
   setGridDiv as setGridDivAction,
 } from '../store/slices/uiSlice'
 import { addCut as addSceneCutAction, deleteCut as deleteSceneCutAction } from '../store/slices/sceneSlice'
-import { setListSelection } from '../store/slices/listsSlice'
+import { setListSelection, setPendingEdit } from '../store/slices/listsSlice'
 import { calcZoomToRegion, calcNewRegionBoundsFromScenes, calcNewRegionBoundsUpToNext } from '../utils/view'
 import { findPreviousTarget } from '../utils/navigation'
 import { filterCutsByMinGap } from '../utils/sceneFilter'
@@ -47,7 +47,7 @@ const MIN_PLAYER_HEIGHT = 220
  */
 export default function CenterColumn() {
   const dispatch = useAppDispatch()
-  const { playerRef, setExportOpen, setPendingRenameId, setClipContextMenu } = useDockBridge()
+  const { playerRef, setExportOpen, setClipContextMenu } = useDockBridge()
 
   const video = useAppSelector(s => s.video.video)
   const videoPath = video?.path ?? null
@@ -298,14 +298,14 @@ export default function CenterColumn() {
             )
             addRegion(inPoint, outPoint)
           }}
-          clipOverlays={regions.map((r, idx) => ({
+          clipOverlays={regions.map(r => ({
             id: r.id,
             name: r.name,
             inPoint: r.inPoint,
             outPoint: r.outPoint,
             active: r.id === activeRegionId,
             selected: selectedClipSet.has(r.id),
-            colorIndex: idx,
+            colorIndex: r.colorIndex,
           }))}
           onClipOverlaySelect={id => {
             setActiveRegionId(id)
@@ -333,7 +333,7 @@ export default function CenterColumn() {
               x, y,
               title: region.name,
               items: [
-                { label: 'Rename', action: () => { setActiveRegionId(id); setPendingRenameId(id) } },
+                { label: 'Rename', action: () => { setActiveRegionId(id); dispatch(setPendingEdit({ list: 'clips', id })) } },
                 { label: 'Duplicate', action: () => {
                   const newId = duplicateRegion(id)
                   if (newId) setActiveRegionId(newId)
