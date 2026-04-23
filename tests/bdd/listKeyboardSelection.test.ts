@@ -2,6 +2,11 @@ import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber'
 import { expect, vi } from 'vitest'
 import { cleanup, fireEvent, screen } from '@testing-library/react/pure'
 import { renderClipsPanel, makeRegion } from '../harnesses/clipsPanel'
+import {
+  renderThinTimeline,
+  makeAnchor,
+  makeRegion as makeTimelineRegion,
+} from '../harnesses/thinTimeline'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockResolvedValue(null),
@@ -119,6 +124,175 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     })
     And('the markers selection is unchanged', () => {
       expect([...observed.markersAfter].sort()).toEqual([101, 202].sort())
+    })
+  })
+
+  // ── Timeline-focused keyboard + empty-click deselect ─────────────────────
+
+  // @behavior list-selection::440d0555
+  Scenario('Timeline Delete removes the union of clip + marker selections', ({ Given, When, Then, And }) => {
+    const observed: {
+      clipsRemaining: string[]
+      anchorsRemaining: number[]
+      clipsSelection: string[]
+      markersSelection: number[]
+    } = {
+      clipsRemaining: [], anchorsRemaining: [], clipsSelection: [], markersSelection: [],
+    }
+    const a = makeTimelineRegion('clip-a', 'A', 5, 15)
+    const b = makeTimelineRegion('clip-b', 'B', 20, 30)
+    const m1 = makeAnchor(101, 6)
+    const m2 = makeAnchor(102, 12)
+    const m3 = makeAnchor(103, 25)
+
+    Given('the timeline has two selected clips and three selected markers', () => {})
+    When('the user presses Delete with the timeline focused', () => {
+      const harness = renderThinTimeline({
+        regions: [a, b],
+        anchors: [m1, m2, m3],
+        selectedClipIds: [a.id, b.id],
+        selectedMarkerIds: [m1.id, m2.id, m3.id],
+      })
+      const root = harness.container.querySelector('.thin-timeline') as HTMLElement
+      root.focus()
+      fireEvent.keyDown(root, { key: 'Delete' })
+      const s = harness.store.getState()
+      observed.clipsRemaining = s.region.regions.map(r => r.id)
+      observed.anchorsRemaining = s.warp.origAnchors.map(x => x.id)
+      observed.clipsSelection = [...s.lists.selection.clips]
+      observed.markersSelection = [...s.warp.selectedIds]
+    })
+    Then('the two clips are removed', () => {
+      expect(observed.clipsRemaining).toEqual([])
+    })
+    And('the three markers are removed', () => {
+      expect(observed.anchorsRemaining).toEqual([])
+    })
+    And('both selections are cleared', () => {
+      expect(observed.clipsSelection).toEqual([])
+      expect(observed.markersSelection).toEqual([])
+    })
+  })
+
+  // @behavior list-selection::9ca01b60
+  Scenario('Timeline Cmd+D clears every timeline-side selection', ({ Given, When, Then, And }) => {
+    const observed: {
+      clipsSelection: string[]
+      markersSelection: number[]
+      clipsRemaining: string[]
+      anchorsRemaining: number[]
+    } = {
+      clipsSelection: [], markersSelection: [], clipsRemaining: [], anchorsRemaining: [],
+    }
+    const a = makeTimelineRegion('clip-a', 'A', 5, 15)
+    const m1 = makeAnchor(101, 6)
+    const m2 = makeAnchor(102, 25)
+
+    Given('the timeline has selected clips and selected markers', () => {})
+    When('the user presses Cmd+D with the timeline focused', () => {
+      const harness = renderThinTimeline({
+        regions: [a],
+        anchors: [m1, m2],
+        selectedClipIds: [a.id],
+        selectedMarkerIds: [m1.id, m2.id],
+      })
+      const root = harness.container.querySelector('.thin-timeline') as HTMLElement
+      root.focus()
+      fireEvent.keyDown(root, { key: 'd', metaKey: true })
+      const s = harness.store.getState()
+      observed.clipsSelection = [...s.lists.selection.clips]
+      observed.markersSelection = [...s.warp.selectedIds]
+      observed.clipsRemaining = s.region.regions.map(r => r.id)
+      observed.anchorsRemaining = s.warp.origAnchors.map(x => x.id)
+    })
+    Then('the clips selection is cleared', () => {
+      expect(observed.clipsSelection).toEqual([])
+    })
+    And('the markers selection is cleared', () => {
+      expect(observed.markersSelection).toEqual([])
+    })
+    And('no items are deleted', () => {
+      expect(observed.clipsRemaining).toEqual([a.id])
+      expect([...observed.anchorsRemaining].sort()).toEqual([m1.id, m2.id].sort())
+    })
+  })
+
+  // @behavior list-selection::871d21c2
+  Scenario('Plain click on empty timeline clears every timeline-side selection', ({ Given, And, When, Then }) => {
+    const observed: {
+      clipsSelection: string[]
+      markersSelection: number[]
+      activeId: string | null
+    } = { clipsSelection: [], markersSelection: [], activeId: null }
+    const a = makeTimelineRegion('clip-a', 'A', 5, 15)
+    const m1 = makeAnchor(101, 6)
+
+    Given('the timeline has selected clips and selected markers', () => {})
+    And('the active clip is set', () => {})
+    When('the user clicks the empty timeline body with no modifier keys and no drag', () => {
+      const harness = renderThinTimeline({
+        regions: [a],
+        anchors: [m1],
+        selectedClipIds: [a.id],
+        selectedMarkerIds: [m1.id],
+        activeRegionId: a.id,
+      })
+      const root = harness.container.querySelector('.thin-timeline') as HTMLElement
+      // Plain pointerdown → pointerup with no movement and no modifier keys
+      // is the empty-click deselect path (Policy B).
+      fireEvent.pointerDown(root, {
+        button: 0, pointerId: 1, clientX: 50, clientY: 50,
+      })
+      fireEvent.pointerUp(root, {
+        button: 0, pointerId: 1, clientX: 50, clientY: 50,
+      })
+      const s = harness.store.getState()
+      observed.clipsSelection = [...s.lists.selection.clips]
+      observed.markersSelection = [...s.warp.selectedIds]
+      observed.activeId = s.region.activeRegionId
+    })
+    Then('both timeline selections are cleared', () => {
+      expect(observed.clipsSelection).toEqual([])
+      expect(observed.markersSelection).toEqual([])
+    })
+    And('the active clip is unchanged', () => {
+      expect(observed.activeId).toBe(a.id)
+    })
+  })
+
+  // @behavior list-selection::5253b594
+  Scenario('Modifier-click on empty timeline does not clear selection', ({ Given, When, Then }) => {
+    const observed: {
+      clipsSelection: string[]
+      markersSelection: number[]
+    } = { clipsSelection: [], markersSelection: [] }
+    const a = makeTimelineRegion('clip-a', 'A', 5, 15)
+    const m1 = makeAnchor(101, 6)
+
+    Given('the timeline has selected clips and selected markers', () => {})
+    When('the user ctrl-clicks the empty timeline body with no drag', () => {
+      const harness = renderThinTimeline({
+        regions: [a],
+        anchors: [m1],
+        selectedClipIds: [a.id],
+        selectedMarkerIds: [m1.id],
+      })
+      const root = harness.container.querySelector('.thin-timeline') as HTMLElement
+      // Ctrl-pointerdown arms an additive lasso; pointerup with no
+      // movement is a no-op — the prior selection survives.
+      fireEvent.pointerDown(root, {
+        button: 0, pointerId: 1, clientX: 50, clientY: 50, ctrlKey: true,
+      })
+      fireEvent.pointerUp(root, {
+        button: 0, pointerId: 1, clientX: 50, clientY: 50, ctrlKey: true,
+      })
+      const s = harness.store.getState()
+      observed.clipsSelection = [...s.lists.selection.clips]
+      observed.markersSelection = [...s.warp.selectedIds]
+    })
+    Then('both selections are unchanged', () => {
+      expect(observed.clipsSelection).toEqual([a.id])
+      expect([...observed.markersSelection]).toEqual([m1.id])
     })
   })
 })

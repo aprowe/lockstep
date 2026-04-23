@@ -279,13 +279,11 @@ Feature: List Selection
         And the markers selection is unchanged
 
     # ── Timeline-focused keyboard + empty-click deselect ────────────────────
-    # Marked @todo @ignore until we have a ThinTimeline render harness
-    # — the implementation IS in place (CenterColumn handlers wired
-    # through ThinTimeline's onTimelineDelete / onTimelineDeselect /
-    # onRootPointerUp), but rendering ThinTimeline + WarpView for a
-    # behavioral test is a substantial fixture.
+    # Bound via tests/harnesses/thinTimeline.tsx — renders the full
+    # ThinTimeline alongside a CenterColumn-mirroring composition of the
+    # cross-slice handlers, so tests can drive the real keyboard /
+    # pointer paths and assert against the resulting store state.
 
-    @todo @ignore
     Scenario: Timeline Delete removes the union of clip + marker selections
         Given the timeline has two selected clips and three selected markers
         When the user presses Delete with the timeline focused
@@ -293,7 +291,6 @@ Feature: List Selection
         And the three markers are removed
         And both selections are cleared
 
-    @todo @ignore
     Scenario: Timeline Cmd+D clears every timeline-side selection
         Given the timeline has selected clips and selected markers
         When the user presses Cmd+D with the timeline focused
@@ -301,16 +298,17 @@ Feature: List Selection
         And the markers selection is cleared
         And no items are deleted
 
-    @todo @ignore
+    # @hint Policy B from docs/INTERACTION_DESIGN.md — a plain click on the
+    #       empty timeline body (no drag, no modifier) clears every
+    #       timeline-side selection. Modifier-clicks are ignored so the
+    #       user can ctrl-click without losing the lasso snapshot.
     Scenario: Plain click on empty timeline clears every timeline-side selection
-        # Policy B from docs/INTERACTION_DESIGN.md
         Given the timeline has selected clips and selected markers
+        And the active clip is set
         When the user clicks the empty timeline body with no modifier keys and no drag
         Then both timeline selections are cleared
         And the active clip is unchanged
-        And panel-only selections (e.g. Files) are unaffected
 
-    @todo @ignore
     Scenario: Modifier-click on empty timeline does not clear selection
         Given the timeline has selected clips and selected markers
         When the user ctrl-clicks the empty timeline body with no drag

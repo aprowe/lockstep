@@ -784,11 +784,7 @@
         "And both selections are cleared"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 289,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ]
+      "line": 287
     },
     "list-selection::9ca01b60": {
       "feature": "List Selection",
@@ -802,28 +798,23 @@
         "And no items are deleted"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 297,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ]
+      "line": 294
     },
-    "list-selection::9ab1a0ba": {
+    "list-selection::871d21c2": {
       "feature": "List Selection",
       "scenario": "Plain click on empty timeline clears every timeline-side selection",
       "isOutline": false,
       "steps": [
         "Given the timeline has selected clips and selected markers",
+        "And the active clip is set",
         "When the user clicks the empty timeline body with no modifier keys and no drag",
         "Then both timeline selections are cleared",
-        "And the active clip is unchanged",
-        "And panel-only selections (e.g. Files) are unaffected"
+        "And the active clip is unchanged"
       ],
       "file": "spec/features/list-selection.feature",
       "line": 305,
-      "todo": true,
-      "tags": [
-        "@ignore"
+      "hints": [
+        "Policy B from docs/INTERACTION_DESIGN.md — a plain click on the empty timeline body (no drag, no modifier) clears every timeline-side selection. Modifier-clicks are ignored so the user can ctrl-click without losing the lasso snapshot."
       ]
     },
     "list-selection::5253b594": {
@@ -836,11 +827,7 @@
         "Then both selections are unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 314,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ]
+      "line": 312
     },
     "timeline-navigation::2e61d3bc": {
       "feature": "Timeline Navigation",
