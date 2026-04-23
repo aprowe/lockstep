@@ -18,6 +18,7 @@ import { DockBridgeProvider } from './layout/DockContext'
 import ContextMenu from './components/ContextMenu'
 import type { ContextMenuState } from './components/ContextMenu'
 import ThumbnailPopup, { ThumbnailHoverProvider } from './components/ThumbnailPopup'
+import DevThemeSwitcher from './components/DevThemeSwitcher'
 import SettingsDialog from './components/SettingsDialog'
 import { snapAllToBeat } from './utils/quantize'
 import { undo as undoAction, redo as redoAction } from './store/slices/historySlice'
@@ -410,6 +411,10 @@ export default function App() {
       />
       <ThumbnailPopup />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {/* Dev-only theme switcher — gated by Vite's DEV flag so it never
+       *  ships in a release bundle. Set data-theme="..." on <html> for
+       *  manual control if the chip is in the way. */}
+      {import.meta.env.DEV && <DevThemeSwitcher />}
     </div>
     </ThumbnailHoverProvider>
   )

@@ -128,7 +128,7 @@
   background: none;
   border: 1px solid var(--border-hi);
   border-radius: 4px;
-  color: #b5a898;
+  color: var(--fg-2);
   font-size: var(--t-sm);
   cursor: pointer;
   padding: 0;
@@ -211,7 +211,7 @@
   flex: 1;
   min-width: 0;
   padding: 3px var(--sp-2);
-  background: #131110;
+  background: var(--bg-inset);
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--fg-2);

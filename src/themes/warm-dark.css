@@ -1,6 +1,65 @@
 /* ═══════════════════════════════════════════════════════════
    Warm Dark — default theme
    Warm brown-black base with amber + orange accents.
+
+   ── How to use these tokens (applies to every theme file) ───
+   This is the canonical token surface. New themes copy the same
+   variable names with different values; nothing in `src/components`
+   should hardcode a color — pick the semantic token below and let
+   the theme decide the actual hue.
+
+   Backgrounds (--bg-*): low → high is darker → lighter.
+     --bg-0       App canvas / file sidebar deepest layer.
+     --bg-1       Main app body.
+     --bg-2       Panels, tracks.
+     --bg-3       Sidebars, list rows.
+     --bg-4       Ruler, in/out editor.
+     --bg-5       Headers, breadcrumb.
+     --bg-6       Inputs, buttons.
+     --bg-7       Section headers.
+     --bg-hover   Generic hover surface.
+     --bg-sel     Active / selected list row.
+     --bg-inset   Sunken inputs + the export log frame —
+                  the deepest "well" surface (darker than --bg-0).
+
+   Foreground (--fg-*): primary → faint.
+     --fg-1   Primary text.
+     --fg-2   Secondary text + soft body labels.
+     --fg-3   Muted text + sidebar names.
+     --fg-4   Dim text + disabled labels.
+     --fg-5   Faint text (range hints, scaffolding).
+
+   Accent (brand): the app's primary color story.
+     --accent      Primary accent fill (Export, active rail).
+     --accent-hi   Hover/glow variant.
+     --accent-2    Secondary accent (warp, alt highlights).
+     --accent-2hi  Secondary hover variant.
+
+   Borders:
+     --border      Resting border between panels / inputs.
+     --border-hi   Stronger border (focus, separator).
+
+   Domain hues (functional, not brand):
+     --blue / --blue-light / --blue-soft   Anchors + connector.
+     --tan / --tan-hi                      Region swatches, beat tags.
+     --error                               Destructive actions.
+
+   Scene cuts (timeline diamonds):
+     --scene-cut, --scene-cut-hi, --scene-cut-bd,
+     --scene-cut-active, --scene-cut-active-bd, --scene-cut-rgb.
+
+   RGB-channel variants (for rgba() opacity work):
+     --accent-rgb, --accent-2-rgb, --fg-1-rgb, --blue-rgb,
+     --beat-rgb, --scene-cut-rgb.
+
+   Warp panel (cool dark — separate sub-palette so the warp UI
+   reads as its own surface even in warm-themed apps):
+     --wp-bg, --wp-bg2, --wp-bg3, --wp-foot,
+     --wp-bd, --wp-bd2, --wp-bd3, --wp-bd4,
+     --wp-tx, --wp-tx2, --wp-tx3, --wp-tx4, --wp-tx5.
+
+   Typography:  --font-family (theme-controlled so retro themes
+                can swap to a different mono).
    ═══════════════════════════════════════════════════════════ */
 :root,
 :root[data-theme="warm-dark"] {
@@ -15,6 +74,7 @@
   --bg-7:     #252018;
   --bg-hover: #2a2418;
   --bg-sel:   #261f15;
+  --bg-inset: #131110;
 
   /* ── Foreground (text) ──────────────────────────────────── */
   --fg-1: #e2dbd2;
@@ -41,10 +101,7 @@
   --tan-hi:     #e0c888;
   --error:      #ef4444;
 
-  /* ── Scene cuts ─────────────────────────────────────────────
-     Diamond markers on the scenes track. `scene-cut` is the resting
-     fill, `-hi` is the hover/active brighter variant, `-bd` is the
-     resting border, `-active-*` are the playhead-glow variants. */
+  /* ── Scene cuts ─────────────────────────────────────────── */
   --scene-cut:           hsl(48, 95%, 62%);
   --scene-cut-hi:        hsl(48, 100%, 72%);
   --scene-cut-bd:        hsl(40, 90%, 45%);

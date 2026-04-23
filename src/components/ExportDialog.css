@@ -72,7 +72,7 @@
 .export-dialog__modes {
   display: flex;
   gap: var(--sp-1);
-  background: #131110;
+  background: var(--bg-inset);
   border-radius: 5px;
   padding: 3px;
 }
@@ -94,7 +94,7 @@
   text-overflow: ellipsis;
   min-width: 0;
 }
-.export-dialog__mode:hover { color: #b5a898; }
+.export-dialog__mode:hover { color: var(--fg-2); }
 .export-dialog__mode--active {
   background: var(--border);
   color: var(--accent);
@@ -117,7 +117,7 @@
   border-radius: 3px;
   cursor: pointer;
   font-size: var(--t-md);
-  color: #b5a898;
+  color: var(--fg-2);
   transition: background 0.1s;
 }
 .export-dialog__clip-item:hover { background: rgba(255,255,255,0.03); }
@@ -166,10 +166,10 @@
   flex: 1;
   min-width: 0;
   padding: 5px var(--sp-3);
-  background: #131110;
+  background: var(--bg-inset);
   border: 1px solid var(--border);
   border-radius: 4px;
-  color: #b5a898;
+  color: var(--fg-2);
   font-family: var(--font-family);
   font-size: var(--t-sm);
   direction: rtl;
@@ -184,7 +184,7 @@
   background: var(--bg-4);
   border: 1px solid var(--border);
   border-radius: 4px;
-  color: #b5a898;
+  color: var(--fg-2);
   font-size: var(--t-base);
   cursor: pointer;
   flex-shrink: 0;
@@ -208,7 +208,7 @@
   flex: 1;
   min-width: 0;
   padding: 5px var(--sp-3);
-  background: #131110;
+  background: var(--bg-inset);
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--fg-2);
@@ -262,7 +262,7 @@
   font-size: var(--t-md);
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #b5a898;
+  color: var(--fg-2);
   cursor: pointer;
 }
 .export-dialog__check input[type="checkbox"] {
@@ -281,7 +281,7 @@
 .export-dialog__norm-bpm {
   width: 50px;
   padding: 2px var(--sp-1);
-  background: #131110;
+  background: var(--bg-inset);
   border: 1px solid var(--border);
   border-radius: 3px;
   color: var(--fg-1);
@@ -310,7 +310,7 @@
   gap: var(--sp-3);
   padding: var(--sp-4);
   margin-left: 22px;
-  background: #131110;
+  background: var(--bg-inset);
   border: 1px solid var(--border);
   border-radius: 4px;
 }
@@ -336,7 +336,7 @@
   background: var(--bg-4);
   border: 1px solid var(--border);
   border-radius: 4px;
-  color: #b5a898;
+  color: var(--fg-2);
   font-family: inherit;
   font-size: var(--t-base);
   outline: none;
@@ -354,7 +354,7 @@
   height: 120px;
   overflow-y: auto;
   padding: var(--sp-3) var(--sp-4);
-  background: #131110;
+  background: var(--bg-inset);
   border: 1px solid var(--border);
   border-radius: 4px;
   font-family: var(--font-mono, ui-monospace, Consolas, monospace);
@@ -481,7 +481,7 @@
   white-space: nowrap;
   transition: color 0.1s, border-color 0.1s;
 }
-.export-dialog__open-folder:hover { color: #b5a898; border-color: var(--fg-5); }
+.export-dialog__open-folder:hover { color: var(--fg-2); border-color: var(--fg-5); }
 
 .export-dialog__save {
   padding: 7px var(--sp-6);

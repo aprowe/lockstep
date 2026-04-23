@@ -15,6 +15,7 @@
   --bg-7:     #1f2e40;   /* section headers */
   --bg-hover: #243548;   /* hover */
   --bg-sel:   #1a3050;   /* active / selected item */
+  --bg-inset: #050810;   /* sunken inputs / log frame — see warm-dark.css for the canonical token doc */
 
   /* ── Foreground (text) ──────────────────────────────────── */
   --fg-1: #eaf2ff;   /* primary — spec primary text */

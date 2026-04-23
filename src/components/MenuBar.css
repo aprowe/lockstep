@@ -139,7 +139,7 @@
   transition: color 0.1s;
   -webkit-app-region: no-drag;
 }
-.menubar__close:hover { color: #b5a898; }
+.menubar__close:hover { color: var(--fg-2); }
 
 /* ── Right actions group (settings + export) ───────────────── */
 .menubar__right-actions {

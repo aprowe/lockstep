@@ -1,0 +1,77 @@
+/* ═══════════════════════════════════════════════════════════
+   Tokyo Night — adapted from folke/tokyonight.nvim
+   Deep navy base + bright periwinkle accent. Calm, "after-dark
+   editor" feel. See warm-dark.css for the canonical token doc.
+   ═══════════════════════════════════════════════════════════ */
+:root[data-theme="tokyo-night"] {
+  /* ── Backgrounds ────────────────────────────────────────── */
+  --bg-0:     #15161e;
+  --bg-1:     #16171f;
+  --bg-2:     #1a1b26;
+  --bg-3:     #1f2335;
+  --bg-4:     #232841;
+  --bg-5:     #24283b;
+  --bg-6:     #292e42;
+  --bg-7:     #2e3450;
+  --bg-hover: #2e3450;
+  --bg-sel:   #283457;
+  --bg-inset: #0f1015;
+
+  /* ── Foreground (text) ──────────────────────────────────── */
+  --fg-1: #c0caf5;
+  --fg-2: #a9b1d6;
+  --fg-3: #9aa5ce;
+  --fg-4: #737aa2;
+  --fg-5: #565f89;
+
+  /* ── Accent ─────────────────────────────────────────────── */
+  --accent:     #7aa2f7;   /* periwinkle blue */
+  --accent-hi:  #9eb8f9;
+  --accent-2:   #bb9af7;   /* magenta-violet */
+  --accent-2hi: #d3b3ff;
+
+  /* ── Borders ────────────────────────────────────────────── */
+  --border:    #2c3045;
+  --border-hi: #3b4261;
+
+  /* ── Special ────────────────────────────────────────────── */
+  --blue:       #7dcfff;   /* cyan in tokyo-night, used for anchors */
+  --blue-light: #b4f9f8;
+  --blue-soft:  #5ab2c8;
+  --tan:        #e0af68;   /* warm yellow */
+  --tan-hi:     #ffd591;
+  --error:      #f7768e;
+
+  /* ── Scene cuts ─────────────────────────────────────────── */
+  --scene-cut:           #e0af68;
+  --scene-cut-hi:        #f7c789;
+  --scene-cut-bd:        #b88940;
+  --scene-cut-active:    #ffd591;
+  --scene-cut-active-bd: #fde2b3;
+  --scene-cut-rgb:       224, 175, 104;
+
+  /* ── RGB channels for rgba() transparency ───────────────── */
+  --accent-rgb:   122, 162, 247;
+  --accent-2-rgb: 187, 154, 247;
+  --fg-1-rgb:     192, 202, 245;
+  --blue-rgb:     125, 207, 255;
+  --beat-rgb:     192, 202, 245;
+
+  /* ── Warp panel (kept on the cool side, mirrors the theme) ──── */
+  --wp-bg:   #16171f;
+  --wp-bg2:  #1a1b26;
+  --wp-bg3:  #1f2335;
+  --wp-foot: #0f1015;
+  --wp-bd:   #2c3045;
+  --wp-bd2:  #232841;
+  --wp-bd3:  #3b4261;
+  --wp-bd4:  #545c7e;
+  --wp-tx:   #c0caf5;
+  --wp-tx2:  #a9b1d6;
+  --wp-tx3:  #737aa2;
+  --wp-tx4:  #565f89;
+  --wp-tx5:  #414868;
+
+  /* ── Font ───────────────────────────────────────────────── */
+  --font-family: ui-monospace, Consolas, monospace;
+}

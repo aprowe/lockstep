@@ -2,10 +2,14 @@
    To switch theme, set data-theme on <html>:
      <html data-theme="neon-rhythm">
    Default (no attribute) = warm-dark.
+
+   Token reference + how to add a new theme: see warm-dark.css.
    ─────────────────────────────────────────────────────────── */
 @import './themes/warm-dark.css';
 @import './themes/neon-rhythm.css';
 @import './themes/violet-dusk.css';
+@import './themes/tokyo-night.css';
+@import './themes/catppuccin-mocha.css';
 
 /* ═══════════════════════════════════════════════════════════
    Scale & structural tokens — theme-independent.

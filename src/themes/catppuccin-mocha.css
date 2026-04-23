@@ -1,78 +1,77 @@
 /* ═══════════════════════════════════════════════════════════
-   Violet Dusk
-   Deep indigo-black base. Vivid violet primary accent for
-   anchors and active elements. Warm amber secondary for the
-   playhead and zero markers — high contrast, zero clash.
-   Cool blue-grey text. Beat grid gets a subtle violet blush.
+   Catppuccin Mocha — adapted from catppuccin/nvim
+   Soft pastel palette on a desaturated indigo base. Mauve as the
+   primary accent, peach as the secondary. See warm-dark.css for
+   the canonical token doc.
    ═══════════════════════════════════════════════════════════ */
-:root[data-theme="violet-dusk"] {
+:root[data-theme="catppuccin-mocha"] {
   /* ── Backgrounds ────────────────────────────────────────── */
-  --bg-0:     #09090e;
-  --bg-1:     #0c0c14;
-  --bg-2:     #101018;
-  --bg-3:     #13131e;
-  --bg-4:     #161622;
-  --bg-5:     #1a1a28;
-  --bg-6:     #1e1e2e;
-  --bg-7:     #21213a;
-  --bg-hover: #262644;
-  --bg-sel:   #1d1d48;
-  --bg-inset: #06060c;   /* sunken inputs / log frame — see warm-dark.css for the canonical token doc */
+  --bg-0:     #11111b;   /* crust */
+  --bg-1:     #181825;   /* mantle */
+  --bg-2:     #1e1e2e;   /* base */
+  --bg-3:     #232337;
+  --bg-4:     #282844;
+  --bg-5:     #2e2e4e;
+  --bg-6:     #313244;   /* surface0 */
+  --bg-7:     #45475a;   /* surface1 */
+  --bg-hover: #313244;
+  --bg-sel:   #3a3a55;
+  --bg-inset: #0c0c14;
 
   /* ── Foreground (text) ──────────────────────────────────── */
-  --fg-1: #cdd6f4;
-  --fg-2: #a6adc8;
-  --fg-3: #7f849c;
-  --fg-4: #585b70;
-  --fg-5: #3d3f52;
+  --fg-1: #cdd6f4;   /* text */
+  --fg-2: #bac2de;   /* subtext1 */
+  --fg-3: #a6adc8;   /* subtext0 */
+  --fg-4: #7f849c;   /* overlay2 */
+  --fg-5: #585b70;   /* surface2 */
 
   /* ── Accent ─────────────────────────────────────────────── */
-  --accent:     #7c6af7;   /* vivid indigo-violet */
-  --accent-hi:  #9d8fff;   /* lighter violet hover */
-  --accent-2:   #f4a261;   /* warm amber — playhead, zero anchor */
-  --accent-2hi: #f7b87a;   /* amber hover */
+  --accent:     #cba6f7;   /* mauve */
+  --accent-hi:  #dcc1ff;
+  --accent-2:   #fab387;   /* peach */
+  --accent-2hi: #ffc59d;
 
   /* ── Borders ────────────────────────────────────────────── */
-  --border:    #24243c;
-  --border-hi: #30305c;
+  --border:    #313244;
+  --border-hi: #45475a;
 
   /* ── Special ────────────────────────────────────────────── */
-  --blue:       #89b4fa;
+  --blue:       #89b4fa;   /* blue */
   --blue-light: #b4d0fb;
   --blue-soft:  #74a8f5;
-  --tan:        #e8b84b;   /* gold for region swatches */
-  --tan-hi:     #f0cc6a;
-  --error:      #f38ba8;
+  --tan:        #f9e2af;   /* yellow */
+  --tan-hi:     #fff0c8;
+  --error:      #f38ba8;   /* red */
 
   /* ── Scene cuts ─────────────────────────────────────────── */
-  --scene-cut:           hsl(48, 95%, 62%);
-  --scene-cut-hi:        hsl(48, 100%, 72%);
-  --scene-cut-bd:        hsl(40, 90%, 45%);
-  --scene-cut-active:    hsl(48, 100%, 78%);
-  --scene-cut-active-bd: hsl(48, 100%, 88%);
-  --scene-cut-rgb:       240, 200, 50;
+  --scene-cut:           #f9e2af;
+  --scene-cut-hi:        #fff0c8;
+  --scene-cut-bd:        #d4b97a;
+  --scene-cut-active:    #fff0c8;
+  --scene-cut-active-bd: #fff8e0;
+  --scene-cut-rgb:       249, 226, 175;
 
   /* ── RGB channels for rgba() transparency ───────────────── */
-  --accent-rgb:   124, 106, 247;
-  --accent-2-rgb: 244, 162, 97;
+  --accent-rgb:   203, 166, 247;
+  --accent-2-rgb: 250, 179, 135;
   --fg-1-rgb:     205, 214, 244;
   --blue-rgb:     137, 180, 250;
-  --beat-rgb:     180, 170, 255;   /* violet-tinted beat grid */
+  --beat-rgb:     205, 214, 244;
 
   /* ── Warp panel ─────────────────────────────────────────── */
-  --wp-bg:   #07070d;
-  --wp-bg2:  #0e0e1c;
-  --wp-bg3:  #0c0c18;
-  --wp-foot: #050508;
-  --wp-bd:   #181830;
-  --wp-bd2:  #141428;
-  --wp-bd3:  #28284e;
-  --wp-bd4:  #383872;
+  --wp-bg:   #181825;
+  --wp-bg2:  #1e1e2e;
+  --wp-bg3:  #232337;
+  --wp-foot: #0c0c14;
+  --wp-bd:   #313244;
+  --wp-bd2:  #282844;
+  --wp-bd3:  #45475a;
+  --wp-bd4:  #585b70;
   --wp-tx:   #cdd6f4;
-  --wp-tx2:  #a6adc8;
-  --wp-tx3:  #7f849c;
-  --wp-tx4:  #585b70;
-  --wp-tx5:  #3d3f52;
+  --wp-tx2:  #bac2de;
+  --wp-tx3:  #a6adc8;
+  --wp-tx4:  #7f849c;
+  --wp-tx5:  #585b70;
 
   /* ── Font ───────────────────────────────────────────────── */
   --font-family: ui-monospace, Consolas, monospace;

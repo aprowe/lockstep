@@ -32,7 +32,7 @@
   background: none;
   border: 1px solid var(--border-hi);
   border-radius: 4px;
-  color: #b5a898;
+  color: var(--fg-2);
   font-size: 17px;
   line-height: 1;
   cursor: pointer;
@@ -64,7 +64,7 @@
   margin-left: auto;
 }
 
-.vf-sidebar__collapse-btn:hover { color: #b5a898; }
+.vf-sidebar__collapse-btn:hover { color: var(--fg-2); }
 
 /* ── Empty state ──────────────────────────────────────────── */
 /* Sit the call-to-action just below the header, not floating in the
