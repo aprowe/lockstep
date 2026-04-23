@@ -21,19 +21,30 @@ const SCRUB_HEADROOM = 0.001
  * rail so labels line up with the tracks below.
  */
 export default function ThinRuler({ view, duration, playhead, label = 'Time', onSeek }: ThinRulerProps) {
-  const ticks = useMemo(() => {
+  const { ticks, minorTicks } = useMemo(() => {
     const span = view.end - view.start
-    if (span <= 0) return []
+    if (span <= 0) return { ticks: [], minorTicks: [] as number[] }
     // Aim for ~8 labels across the width. Step snaps to a nice value.
     const raw = span / 8
     const niceSteps = [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600]
     const step = niceSteps.find(s => s >= raw) ?? 600
     const first = Math.ceil(view.start / step) * step
-    const out: { time: number; label: string }[] = []
+    const ticks: { time: number; label: string }[] = []
     for (let t = first; t <= Math.min(view.end, duration) + 1e-6; t += step) {
-      out.push({ time: t, label: formatTime(t) })
+      ticks.push({ time: t, label: formatTime(t) })
     }
-    return out
+    // Minor ticks — 5 subdivisions per major step. Skipped positions that
+    // coincide with majors so ticks don't double-paint. Iterate by integer
+    // counter rather than floating-point += to avoid drift across many steps.
+    const minorStep = step / 5
+    const firstMinorIdx = Math.ceil(view.start / minorStep)
+    const lastMinorIdx = Math.floor(Math.min(view.end, duration) / minorStep)
+    const minorTicks: number[] = []
+    for (let i = firstMinorIdx; i <= lastMinorIdx; i++) {
+      if (i % 5 === 0) continue
+      minorTicks.push(i * minorStep)
+    }
+    return { ticks, minorTicks }
   }, [view.start, view.end, duration])
 
   const bodyRef = useRef<HTMLElement | null>(null)
@@ -73,6 +84,13 @@ export default function ThinRuler({ view, duration, playhead, label = 'Time', on
       onBackgroundClick={handleBgClick}
       onBackgroundPointerDown={handlePointerDown}
     >
+      {minorTicks.map((t, i) => {
+        const x = timeToViewPct(t, view)
+        if (x < -1 || x > 101) return null
+        return (
+          <span key={`m-${i}`} className="thin-ruler__minor-tick" style={{ left: `${x}%` }} />
+        )
+      })}
       {ticks.map((t, i) => {
         const x = timeToViewPct(t.time, view)
         if (x < -1 || x > 101) return null
