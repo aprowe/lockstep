@@ -6,13 +6,19 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* Visual hierarchy on this panel:
+ *   Export (menubar)    — solid accent fill, dominant CTA
+ *   Recompute (scenes)  — tinted bg + accent border + accent text
+ *   Filter tabs (here)  — softly tinted bg on active, no border, just colored text
+ * Filter tabs sit below both because flipping the filter mode is reversible
+ * and frequent — they shouldn't pull the eye like an action button. */
 .list-filter-tab {
   flex: 1;
   padding: 2px var(--sp-2);
-  background: var(--bg-3);
-  border: 1px solid var(--border);
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: 2px;
-  color: var(--fg-3);
+  color: var(--fg-4);
   font-family: inherit;
   font-size: var(--t-xs);
   letter-spacing: 0.04em;
@@ -23,13 +29,12 @@
 
 .list-filter-tab:hover:not(:disabled) {
   background: var(--bg-hover);
-  color: var(--fg-1);
+  color: var(--fg-2);
 }
 
 .list-filter-tab--active {
-  background: rgba(var(--accent-rgb), 0.18);
+  background: rgba(var(--accent-rgb), 0.10);
   color: var(--accent);
-  border-color: var(--accent);
 }
 
 .list-filter-tab:disabled {

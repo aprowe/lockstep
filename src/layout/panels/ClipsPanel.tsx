@@ -14,6 +14,7 @@ import {
 import { setExportOpen as setExportOpenAction } from '../../store/slices/uiSlice'
 import { setListSelection, setPendingEdit } from '../../store/slices/listsSlice'
 import { calcNewRegionBoundsFromScenes } from '../../utils/view'
+import { visibleSceneCuts } from '../../utils/sceneFilter'
 import { useDockBridge } from '../DockContext'
 
 /**
@@ -34,6 +35,12 @@ export default function ClipsPanel() {
   const view = useAppSelector(s => s.ui.view)
   const warpBpm = useAppSelector(s => s.warp.bpm)
   const sceneCuts = useAppSelector(s => video ? s.scene.cutsByPath[video.path] ?? [] : [])
+  const userSceneCuts = useAppSelector(s => video ? s.scene.userCutsByPath[video.path] ?? [] : [])
+  const sceneMinGap = useAppSelector(s => video ? s.scene.minGapByPath[video.path] : undefined) ?? 2
+  const visibleCuts = useMemo(
+    () => visibleSceneCuts(sceneCuts, userSceneCuts, sceneMinGap),
+    [sceneCuts, userSceneCuts, sceneMinGap],
+  )
   const filterMode = useAppSelector(s => s.lists.filterMode.clips)
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
@@ -161,7 +168,7 @@ export default function ClipsPanel() {
             title="New clip at playhead"
             onClick={() => {
               const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(
-                playhead, view, sceneCuts, video.duration, regions,
+                playhead, view, visibleCuts, video.duration, regions,
               )
               addRegion(inPoint, outPoint)
             }}

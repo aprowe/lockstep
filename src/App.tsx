@@ -43,7 +43,7 @@ import {
 } from './store/thunks/videoThunks'
 import { detectScenesThunk, ensureSceneListener, cancelSceneDetectionThunk } from './store/thunks/sceneThunks'
 import { setMinGap as setSceneMinGapAction, addCut as addSceneCutAction, deleteCut as deleteSceneCutAction } from './store/slices/sceneSlice'
-import { filterCutsByMinGap } from './utils/sceneFilter'
+import { visibleSceneCuts } from './utils/sceneFilter'
 import { useAppDispatch, useAppSelector } from './store/hooks'
 import { setDetectingBpm as setDetectingBpmAction } from './store/slices/videoSlice'
 import {
@@ -112,14 +112,15 @@ export default function App() {
   const addToEnd = useAppSelector(s => s.warp.addToEnd)
   const videoPath = video?.path ?? null
   const sceneCuts = useAppSelector(s => videoPath ? s.scene.cutsByPath[videoPath] : undefined)
+  const userSceneCuts = useAppSelector(s => videoPath ? s.scene.userCutsByPath[videoPath] : undefined)
   const sceneStatus = useAppSelector(s => videoPath ? s.scene.statusByPath[videoPath] : undefined) ?? 'idle'
   const sceneProgress = useAppSelector(s => videoPath ? s.scene.progressByPath[videoPath] : undefined) ?? 0
   const sceneError = useAppSelector(s => videoPath ? s.scene.errorByPath[videoPath] : undefined)
   const sceneThreshold = useAppSelector(s => videoPath ? s.scene.thresholdByPath[videoPath] : undefined) ?? 10
   const sceneMinGap = useAppSelector(s => videoPath ? s.scene.minGapByPath[videoPath] : undefined) ?? 2
   const filteredSceneCuts = useMemo(
-    () => filterCutsByMinGap(sceneCuts ?? [], sceneMinGap),
-    [sceneCuts, sceneMinGap],
+    () => visibleSceneCuts(sceneCuts ?? [], userSceneCuts ?? [], sceneMinGap),
+    [sceneCuts, userSceneCuts, sceneMinGap],
   )
 
   // ── Dispatch helpers ────────────────────────────────────────────────────

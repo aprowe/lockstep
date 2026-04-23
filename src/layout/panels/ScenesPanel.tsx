@@ -7,7 +7,7 @@ import { setMinGap as setSceneMinGapAction, deleteCut as deleteSceneCutAction } 
 import { detectScenesThunk, cancelSceneDetectionThunk } from '../../store/thunks/sceneThunks'
 import { setListSelection } from '../../store/slices/listsSlice'
 import { selectActiveRegion } from '../../store/selectors'
-import { filterCutsByMinGap } from '../../utils/sceneFilter'
+import { visibleSceneCuts } from '../../utils/sceneFilter'
 import { useDockBridge } from '../DockContext'
 import './ScenesPanel.css'
 
@@ -18,6 +18,7 @@ export default function ScenesPanel() {
   const videoPath = video?.path ?? null
   const regions = useAppSelector(s => s.region.regions)
   const cuts = useAppSelector(s => videoPath ? s.scene.cutsByPath[videoPath] ?? [] : [])
+  const userCuts = useAppSelector(s => videoPath ? s.scene.userCutsByPath[videoPath] ?? [] : [])
   const status = useAppSelector(s => videoPath ? s.scene.statusByPath[videoPath] ?? 'idle' : 'idle')
   const progress = useAppSelector(s => videoPath ? s.scene.progressByPath[videoPath] ?? 0 : 0)
   const error = useAppSelector(s => videoPath ? s.scene.errorByPath[videoPath] : undefined)
@@ -32,7 +33,7 @@ export default function ScenesPanel() {
   const parsedThreshold = Number.parseFloat(draftThreshold)
   const thresholdChanged = Number.isFinite(parsedThreshold) && Math.abs(parsedThreshold - threshold) > 1e-3
 
-  const filteredCuts = useMemo(() => filterCutsByMinGap(cuts, minGap), [cuts, minGap])
+  const filteredCuts = useMemo(() => visibleSceneCuts(cuts, userCuts, minGap), [cuts, userCuts, minGap])
 
   // Boundaries 0 → ...cuts → duration become rows; each row spans [start, end).
   const allItems = useMemo<SceneRowData[]>(() => {

@@ -361,11 +361,19 @@
   font-size: var(--t-sm);
   color: var(--fg-4);
   line-height: 1.5;
+  /* Override the global no-select rule (in index.css) so the user can
+   * highlight + copy stderr lines for debugging. Cursor follows suit so
+   * the text-tool affordance matches the behavior. */
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
 }
 
 .export-dialog__log-line {
   white-space: pre-wrap;
   word-break: break-word;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* ── Footer ────────────────────────────────────────────────── */

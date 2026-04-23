@@ -67,12 +67,13 @@
 .vf-sidebar__collapse-btn:hover { color: #b5a898; }
 
 /* ── Empty state ──────────────────────────────────────────── */
+/* Sit the call-to-action just below the header, not floating in the
+ * middle of the panel — keeps it close to where the rest of the file
+ * list will appear once a folder is opened. */
 .vf-sidebar__empty {
-  flex: 1;
   display: flex;
-  align-items: center;
   justify-content: center;
-  padding: var(--sp-7);
+  padding: var(--sp-4) var(--sp-5);
 }
 
 .vf-sidebar__open-folder-btn {

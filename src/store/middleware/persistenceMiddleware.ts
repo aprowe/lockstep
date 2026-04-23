@@ -82,10 +82,12 @@ persistenceMiddleware.startListening({
     }
 
     const cuts = state.scene.cutsByPath[vid.path]
+    const userCuts = state.scene.userCutsByPath[vid.path]
     const threshold = state.scene.thresholdByPath[vid.path]
     const minGap = state.scene.minGapByPath[vid.path]
     const hasSceneData =
       (cuts && cuts.length > 0) ||
+      (userCuts && userCuts.length > 0) ||
       typeof threshold === 'number' ||
       typeof minGap === 'number'
 
@@ -109,6 +111,7 @@ persistenceMiddleware.startListening({
               threshold: threshold ?? 10,
               cuts: cuts ?? [],
               ...(typeof minGap === 'number' ? { minGap } : {}),
+              ...(userCuts && userCuts.length > 0 ? { userCuts } : {}),
             },
           }
         : {}),

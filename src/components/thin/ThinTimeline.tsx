@@ -98,6 +98,11 @@ interface ThinTimelineProps {
   selectedSceneTimes?: ReadonlySet<number>
   onScenesSelectionChange?: (times: Set<number>) => void
 
+  /** Scene-cut times the operator placed by hand (vs. detected). Diamonds
+   *  in this set render with a cooler hue so the user can tell their own
+   *  boundaries apart from the auto-detected ones at a glance. */
+  userSceneTimes?: ReadonlySet<number>
+
   /** Delete the union of every timeline-side selection. Fires from
    *  Delete / Backspace when the timeline has keyboard focus. */
   onTimelineDelete?: () => void
@@ -110,9 +115,14 @@ interface ThinTimelineProps {
   onToggleWarp?: () => void
 }
 
+// Rows where flex-grow is 0 stay pinned to their flex-basis (--thin-row-h)
+// as the timeline expands — scenes, clip-out, and speed read as thin index
+// strips that don't need extra vertical room. Users can still drag the
+// resizer grip to grow them manually; the resizer re-proportions flex on
+// drag so a 0-grow row can become non-zero if pulled open.
 const DEFAULT_FLEX: Record<string, number> = {
-  time: 1, clipin: 1, scenes: 1, thumbs: 1, markerin: 1,
-  warp: 1, markerout: 1, clipout: 1, beat: 1, speed: 1,
+  time: 1, clipin: 1, scenes: 0, thumbs: 1, markerin: 1,
+  warp: 1, markerout: 1, clipout: 0, beat: 1, speed: 0,
 }
 
 type SectionSpace = 'input' | 'output' | 'warp'
@@ -147,7 +157,7 @@ export default function ThinTimeline({
   clipFillColor, boundaryColor, linkedBoundaries, selectedBoundaries,
   onConnectorSelectionChange,
   selectedClipIds, onClipsSelectionChange,
-  selectedSceneTimes, onScenesSelectionChange,
+  selectedSceneTimes, onScenesSelectionChange, userSceneTimes,
   onTimelineDelete, onTimelineDeselect,
   warpCollapsed = false, onToggleWarp,
 }: ThinTimelineProps) {
@@ -774,6 +784,7 @@ export default function ThinTimeline({
             onSceneContextMenu={onSceneContextMenu}
             onBackgroundContextMenu={onTimelineContextMenu}
             selectedTimes={selectedSceneTimes}
+            userTimes={userSceneTimes}
           />
         </div>
       </div>
@@ -1136,6 +1147,23 @@ export default function ThinTimeline({
           {renderGlobalPlayhead()}
           {renderGlobalHoverCursor()}
         </svg>
+      )}
+
+      {/* Down-pointing playhead arrow above the Time ruler — classic NLE/DAW
+       *  look. The arrow sits at the top of the first section; its point
+       *  marks the playhead time, and the stroke from the SVG overlay picks
+       *  up below it. Non-scaling CSS triangle keeps crisp edges regardless
+       *  of viewport width. */}
+      {playheadInX !== null && layouts.length > 0 && (
+        <div
+          className="thin-timeline__playhead-arrow-layer"
+          style={{ top: `${overlayTop}px` }}
+        >
+          <div
+            className="thin-timeline__playhead-arrow"
+            style={{ left: `${playheadInX}%` }}
+          />
+        </div>
       )}
 
       <div className="thin-timeline__toolbar">

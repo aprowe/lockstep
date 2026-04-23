@@ -3,8 +3,14 @@ import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 export type SceneStatus = 'idle' | 'analyzing' | 'done' | 'cancelled' | 'error'
 
 interface SceneState {
-  /** Detected cut times (seconds) per video path. */
+  /** Detected cut times (seconds) per video path — what ffmpeg's scdet
+   *  produced. Subject to the user's min-gap filter at display time. */
   cutsByPath: Record<string, number[]>
+  /** User-placed cut times per video path. These bypass the min-gap
+   *  filter — if the user explicitly dropped a cut there, the UI must
+   *  honor it regardless of how dense the surrounding detected cuts are.
+   *  Persisted alongside `cutsByPath`. */
+  userCutsByPath: Record<string, number[]>
   /** Per-path detection status. */
   statusByPath: Record<string, SceneStatus>
   /** Per-path progress fraction 0..1. */
@@ -25,6 +31,7 @@ interface SceneState {
 
 const initialState: SceneState = {
   cutsByPath: {},
+  userCutsByPath: {},
   statusByPath: {},
   progressByPath: {},
   errorByPath: {},
@@ -32,6 +39,16 @@ const initialState: SceneState = {
   thresholdByPath: {},
   minGapByPath: {},
   selectedCutTimes: [],
+}
+
+/** Insert `t` into a sorted number[] in place (Immer-safe), deduped within
+ *  1ms to absorb float drift. Returns true when the array changed. */
+function insertSorted(list: number[], t: number): boolean {
+  if (list.some(existing => Math.abs(existing - t) < 1e-3)) return false
+  let i = 0
+  while (i < list.length && list[i] < t) i += 1
+  list.splice(i, 0, t)
+  return true
 }
 
 const sceneSlice = createSlice({
@@ -90,10 +107,11 @@ const sceneSlice = createSlice({
     },
     loadCached(
       state,
-      action: PayloadAction<{ path: string; cuts: number[]; threshold: number }>,
+      action: PayloadAction<{ path: string; cuts: number[]; threshold: number; userCuts?: number[] }>,
     ) {
-      const { path, cuts, threshold } = action.payload
+      const { path, cuts, threshold, userCuts } = action.payload
       state.cutsByPath[path] = cuts
+      if (userCuts && userCuts.length > 0) state.userCutsByPath[path] = userCuts
       state.statusByPath[path] = 'done'
       state.progressByPath[path] = 1
       state.thresholdByPath[path] = threshold
@@ -103,6 +121,7 @@ const sceneSlice = createSlice({
     clearForPath(state, action: PayloadAction<string>) {
       const path = action.payload
       delete state.cutsByPath[path]
+      delete state.userCutsByPath[path]
       delete state.statusByPath[path]
       delete state.progressByPath[path]
       delete state.errorByPath[path]
@@ -112,21 +131,27 @@ const sceneSlice = createSlice({
       const { path, minGap } = action.payload
       state.minGapByPath[path] = Math.max(0, minGap)
     },
-    /** User-added cut. Same-position dedup as appendCut; does not change status. */
+    /** User-added cut — written to `userCutsByPath` so it bypasses the
+     *  min-gap filter that detected cuts are subject to. Skipped if the
+     *  same time is already a detected cut (no point shadowing it). */
     addCut(state, action: PayloadAction<{ path: string; cut: number }>) {
       const { path, cut } = action.payload
-      const list = state.cutsByPath[path] ?? []
-      if (list.some(t => Math.abs(t - cut) < 1e-3)) return
-      let i = 0
-      while (i < list.length && list[i] < cut) i += 1
-      state.cutsByPath[path] = [...list.slice(0, i), cut, ...list.slice(i)]
+      const detected = state.cutsByPath[path] ?? []
+      if (detected.some(t => Math.abs(t - cut) < 1e-3)) return
+      if (!state.userCutsByPath[path]) state.userCutsByPath[path] = []
+      insertSorted(state.userCutsByPath[path], cut)
     },
-    /** User-removed cut. Matches within 1ms to tolerate float drift. */
+    /** User-removed cut — matches within 1ms in BOTH detected and user
+     *  pools so the same path works whether the cut was detected or
+     *  manually placed. */
     deleteCut(state, action: PayloadAction<{ path: string; cut: number }>) {
       const { path, cut } = action.payload
-      const list = state.cutsByPath[path]
-      if (!list) return
-      state.cutsByPath[path] = list.filter(t => Math.abs(t - cut) >= 1e-3)
+      if (state.cutsByPath[path]) {
+        state.cutsByPath[path] = state.cutsByPath[path].filter(t => Math.abs(t - cut) >= 1e-3)
+      }
+      if (state.userCutsByPath[path]) {
+        state.userCutsByPath[path] = state.userCutsByPath[path].filter(t => Math.abs(t - cut) >= 1e-3)
+      }
       // Drop the matching entry from selection too — orphaned times would
       // visually do nothing but pollute every selection-driven action.
       state.selectedCutTimes = state.selectedCutTimes.filter(

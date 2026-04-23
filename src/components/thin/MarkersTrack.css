@@ -2,27 +2,67 @@
   cursor: copy;
 }
 
+/* Warp markers read as a small circle with a vertical line running through it.
+ * Button itself is a transparent hit target; ::before draws the line and
+ * ::after draws the circle glyph centered on the anchor time. */
 .thin-marker {
   position: absolute;
-  top: 2px;
-  bottom: 2px;
-  width: 3px;
+  top: 0;
+  bottom: 0;
+  width: 12px;
   padding: 0;
   transform: translateX(-50%);
-  background: hsl(195, 75%, 60%);
+  background: transparent;
   border: none;
-  border-radius: 1px;
   cursor: pointer;
-  transition: background 0.08s, box-shadow 0.08s, transform 0.08s;
 }
 
-.thin-marker:hover {
+.thin-marker::before {
+  content: '';
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  left: 50%;
+  width: 1.5px;
+  transform: translateX(-50%);
+  background: hsl(195, 75%, 60%);
+  transition: background 0.08s, width 0.08s;
+}
+
+.thin-marker::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: hsl(195, 75%, 60%);
+  border: 1.5px solid hsl(195, 85%, 72%);
+  box-sizing: border-box;
+  transition: background 0.08s, border-color 0.08s, box-shadow 0.08s, transform 0.08s;
+}
+
+.thin-marker:hover::before {
   background: hsl(195, 95%, 72%);
-  box-shadow: 0 0 4px hsla(195, 95%, 70%, 0.85);
+  width: 2px;
 }
 
-.thin-marker--selected {
+.thin-marker:hover::after {
+  background: hsl(195, 95%, 72%);
+  border-color: hsl(195, 100%, 85%);
+  box-shadow: 0 0 5px hsla(195, 95%, 70%, 0.85);
+}
+
+.thin-marker--selected::before {
   background: hsl(48, 100%, 70%);
+  width: 2px;
+}
+
+.thin-marker--selected::after {
+  background: hsl(48, 100%, 70%);
+  border-color: hsl(48, 100%, 85%);
   box-shadow: 0 0 6px hsla(48, 100%, 65%, 0.9);
-  transform: translateX(-50%) scaleX(1.4);
+  transform: translate(-50%, -50%) scale(1.15);
 }

@@ -69,7 +69,13 @@ export default function ContextMenu({ menu, onClose }: ContextMenuProps) {
             key={i}
             className={`ctx-menu__item${item.danger ? ' ctx-menu__item--danger' : ''}`}
             disabled={item.disabled}
-            onMouseDown={e => {
+            // Run on click (not mousedown) so the natural mousedown→mouseup→
+            // click sequence completes against the menu button before the
+            // action unmounts the menu. Otherwise mouseup + click land on
+            // whatever sits *underneath* the menu, which can steal focus
+            // from a freshly-mounted input (e.g. inline rename) — the input
+            // immediately blurs and commits as a no-op.
+            onClick={e => {
               e.stopPropagation()
               if (!item.disabled) { item.action(); onClose() }
             }}

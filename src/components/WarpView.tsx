@@ -49,6 +49,9 @@ interface WarpViewProps {
    *  surfaces on the timeline as accent-ringed diamonds. */
   selectedSceneTimes?: ReadonlySet<number>
   onScenesSelectionChange?: (times: Set<number>) => void
+  /** User-placed scene cuts — passed through so the timeline tints them
+   *  with a cooler hue than auto-detected ones. */
+  userSceneTimes?: ReadonlySet<number>
   /** Timeline-focused Delete / Backspace deletes the union of clip +
    *  marker + scene selections; Cmd+D / empty-click clears them. */
   onTimelineDelete?: () => void
@@ -73,7 +76,7 @@ export default function WarpView({
   clipOverlays,
   onClipOverlaySelect,
   selectedClipIds, onClipsSelectionChange,
-  selectedSceneTimes, onScenesSelectionChange,
+  selectedSceneTimes, onScenesSelectionChange, userSceneTimes,
   onTimelineDelete, onTimelineDeselect,
   onClipOverlayResize,
   onClipOverlayMove,
@@ -643,6 +646,7 @@ export default function WarpView({
         selectedClipIds={selectedClipIds}
         onClipsSelectionChange={onClipsSelectionChange}
         selectedSceneTimes={selectedSceneTimes}
+        userSceneTimes={userSceneTimes}
         onScenesSelectionChange={onScenesSelectionChange}
         onTimelineDelete={onTimelineDelete}
         onTimelineDeselect={onTimelineDeselect}

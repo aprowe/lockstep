@@ -31,6 +31,10 @@ interface SceneRowProps {
   /** Currently-selected scene cut times — diamonds in this set get an accent
    *  outline. Independent of the activeIdx (playhead-derived) styling. */
   selectedTimes?: ReadonlySet<number>
+  /** Times the user explicitly placed (vs. ffmpeg-detected). User-placed
+   *  diamonds render with a slightly different fill so they're visually
+   *  distinguishable from auto-detected cuts. */
+  userTimes?: ReadonlySet<number>
 }
 
 const PLAYHEAD_MATCH_TOLERANCE = 0.05 // ~1 video frame at 20fps
@@ -38,7 +42,7 @@ const PLAYHEAD_MATCH_TOLERANCE = 0.05 // ~1 video frame at 20fps
 export default function SceneRow({
   scenes, view, duration, expanded, onSceneClick, playhead,
   onSceneDelete, onSceneAdd, onSceneContextMenu, onBackgroundContextMenu,
-  selectedTimes,
+  selectedTimes, userTimes,
 }: SceneRowProps) {
   const video = useAppSelector(s => s.video.video)
   const thumbPaths = useAppSelector(selectThumbnailPathsFor(video?.fileHash))
@@ -126,12 +130,13 @@ export default function SceneRow({
         if (x < -2 || x > 102) return null
         const active = i === activeIdx
         const selected = !!selectedTimes?.has(t)
+        const isUser = !!userTimes?.has(t)
         const inlineSrc = expanded ? inlineSrcs[i] ?? null : null
         return (
           <div key={i} className="scene-band__marker" style={{ left: `${x}%` }}>
             <button
               type="button"
-              className={`scene-band__diamond${active ? ' scene-band__diamond--active' : ''}${selected ? ' scene-band__diamond--selected' : ''}`}
+              className={`scene-band__diamond${active ? ' scene-band__diamond--active' : ''}${selected ? ' scene-band__diamond--selected' : ''}${isUser ? ' scene-band__diamond--user' : ''}`}
               onClick={(e) => {
                 e.stopPropagation()
                 if (e.shiftKey && onSceneDelete) onSceneDelete(t)
