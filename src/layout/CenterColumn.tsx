@@ -343,15 +343,24 @@ export default function CenterColumn() {
             )
             addRegion(inPoint, outPoint)
           }}
-          clipOverlays={regions.map(r => ({
-            id: r.id,
-            name: r.name,
-            inPoint: r.inPoint,
-            outPoint: r.outPoint,
-            active: r.id === activeRegionId,
-            selected: selectedClipSet.has(r.id),
-            colorIndex: r.colorIndex,
-          }))}
+          clipOverlays={regions.map(r => {
+            const isActive = r.id === activeRegionId
+            // A single clip that's both active AND the only selected one
+            // shows just the active treatment — the selected outline on top
+            // would be visually redundant and noisier than the active state
+            // it duplicates. Multi-select still flags the active clip as
+            // selected so the user can see it's part of the group.
+            const onlySelfSelected = selectedClipSet.size === 1 && selectedClipSet.has(r.id)
+            return {
+              id: r.id,
+              name: r.name,
+              inPoint: r.inPoint,
+              outPoint: r.outPoint,
+              active: isActive,
+              selected: selectedClipSet.has(r.id) && !(isActive && onlySelfSelected),
+              colorIndex: r.colorIndex,
+            }
+          })}
           onClipOverlaySelect={id => {
             setActiveRegionId(id)
             if (id) {
