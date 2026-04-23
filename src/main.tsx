@@ -5,13 +5,16 @@ import { store } from './store/store'
 import { initUiScale } from './uiScale'
 import './index.css'
 import App from './App'
+import ErrorBoundary from './components/ErrorBoundary'
 
 initUiScale()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Provider store={store}>
-      <App />
-    </Provider>
+    <ErrorBoundary>
+      <Provider store={store}>
+        <App />
+      </Provider>
+    </ErrorBoundary>
   </StrictMode>,
 )
