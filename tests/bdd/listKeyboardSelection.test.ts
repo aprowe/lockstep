@@ -17,6 +17,26 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 const feature = await loadFeature('./spec/features/list-selection.feature')
 
+/** Stub bodyRect so bodyPctFromClientX yields a real percentage (jsdom
+ *  defaults to all zeros, which would make the lasso math NaN). 1000px
+ *  width × 100s view = 1px ↔ 0.1s — easy time/pixel mental model. */
+function stubLassoBody(body: HTMLElement, left = 0, width = 1000) {
+  body.getBoundingClientRect = () => ({
+    left, top: 0, right: left + width, bottom: 18,
+    width, height: 18, x: left, y: 0, toJSON: () => ({}),
+  }) as DOMRect
+}
+
+let _origElementFromPoint: typeof document.elementFromPoint | null = null
+function stubElementFromPointTo(el: Element) {
+  _origElementFromPoint = document.elementFromPoint
+  document.elementFromPoint = (() => el) as typeof document.elementFromPoint
+}
+function restoreElementFromPoint() {
+  if (_origElementFromPoint) document.elementFromPoint = _origElementFromPoint
+  _origElementFromPoint = null
+}
+
 type ListVariant = 'clips' | 'markers' | 'scenes'
 
 interface PanelHandle {
@@ -860,6 +880,153 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     })
     And('the activate handler is not called', () => {
       expect(observed.seekDelta).toBe(0)
+    })
+  })
+
+  // ── Lasso details ───────────────────────────────────────────────────────
+
+  // @behavior list-selection::388b677c
+  Scenario('Plain lasso replaces the existing selection', ({ Given, When, Then }) => {
+    const observed: { selectionAfter: number[] } = { selectionAfter: [] }
+    // m1 sits well before the lasso range, m2 inside it, m3 well after.
+    const m1 = makeAnchor(101, 5)
+    const m2 = makeAnchor(102, 25)
+    const m3 = makeAnchor(103, 50)
+
+    Given('a populated list with two rows selected', () => {})
+    When('the user lassos a different range with no modifier keys', () => {
+      const harness = renderThinTimeline({
+        anchors: [m1, m2, m3],
+        // Pre-seed two markers — neither is in the lasso range, so a plain
+        // lasso must drop them and end up holding only the lassoed item.
+        selectedMarkerIds: [101, 103],
+        view: { start: 0, end: 100 },
+      })
+      const root = harness.container.querySelector('.thin-timeline') as HTMLElement
+      const body = harness.container.querySelector('.thin-row__body') as HTMLElement
+      stubLassoBody(body)
+      // Lasso 20% to 30% of the body → time 20s..30s; m2 (t=25) is in range.
+      fireEvent.pointerDown(root, { button: 0, pointerId: 1, clientX: 200, clientY: 50 })
+      fireEvent.pointerMove(root, { button: 0, pointerId: 1, clientX: 300, clientY: 50 })
+      fireEvent.pointerUp(root, { button: 0, pointerId: 1, clientX: 300, clientY: 50 })
+      observed.selectionAfter = [...harness.store.getState().warp.selectedIds]
+    })
+    Then('the selection contains only the lassoed items', () => {
+      expect([...observed.selectionAfter].sort()).toEqual([102])
+    })
+  })
+
+  // @behavior list-selection::320d6ceb
+  Scenario('Ctrl+lasso adds to the existing selection', ({ Given, When, Then }) => {
+    const observed: { selectionAfter: number[] } = { selectionAfter: [] }
+    const m1 = makeAnchor(101, 5)
+    const m2 = makeAnchor(102, 25)
+    const m3 = makeAnchor(103, 50)
+
+    Given('a populated list with two rows selected', () => {})
+    When('the user ctrl+lassos a different range', () => {
+      const harness = renderThinTimeline({
+        anchors: [m1, m2, m3],
+        selectedMarkerIds: [101, 103],
+        view: { start: 0, end: 100 },
+      })
+      const root = harness.container.querySelector('.thin-timeline') as HTMLElement
+      const body = harness.container.querySelector('.thin-row__body') as HTMLElement
+      stubLassoBody(body)
+      fireEvent.pointerDown(root, {
+        button: 0, pointerId: 1, clientX: 200, clientY: 50, ctrlKey: true,
+      })
+      fireEvent.pointerMove(root, {
+        button: 0, pointerId: 1, clientX: 300, clientY: 50, ctrlKey: true,
+      })
+      fireEvent.pointerUp(root, {
+        button: 0, pointerId: 1, clientX: 300, clientY: 50, ctrlKey: true,
+      })
+      observed.selectionAfter = [...harness.store.getState().warp.selectedIds]
+    })
+    Then('the selection contains both the original and lassoed items', () => {
+      expect([...observed.selectionAfter].sort()).toEqual([101, 102, 103])
+    })
+  })
+
+  // @behavior list-selection::564d68b7
+  Scenario("Single-track lasso scopes to that track's items only", ({ Given, When, Then }) => {
+    const observed: { markerSelection: number[]; clipSelection: string[] } = {
+      markerSelection: [], clipSelection: [],
+    }
+    const a = makeTimelineRegion('clip-a', 'A', 18, 32) // overlaps the lasso range
+    const m1 = makeAnchor(101, 25) // inside the lasso range
+
+    Given('the timeline with both clips and markers', () => {})
+    When('the user lassos starting and ending inside the marker track', () => {
+      const harness = renderThinTimeline({
+        regions: [a],
+        anchors: [m1],
+        view: { start: 0, end: 100 },
+      })
+      const root = harness.container.querySelector('.thin-timeline') as HTMLElement
+      const body = harness.container.querySelector('.thin-row__body') as HTMLElement
+      stubLassoBody(body)
+      // Pin elementFromPoint to the markerin section for both pointer points
+      // — the lasso must scope to that track and ignore the clip band.
+      const markerInSection = harness.container.querySelector('[data-section="markerin"]') as HTMLElement
+      stubElementFromPointTo(markerInSection)
+      try {
+        fireEvent.pointerDown(root, { button: 0, pointerId: 1, clientX: 200, clientY: 50 })
+        fireEvent.pointerMove(root, { button: 0, pointerId: 1, clientX: 300, clientY: 50 })
+        fireEvent.pointerUp(root, { button: 0, pointerId: 1, clientX: 300, clientY: 50 })
+      } finally {
+        restoreElementFromPoint()
+      }
+      observed.markerSelection = [...harness.store.getState().warp.selectedIds]
+      observed.clipSelection = [...harness.store.getState().lists.selection.clips]
+    })
+    Then('only marker items are selected', () => {
+      expect(observed.markerSelection).toEqual([101])
+      expect(observed.clipSelection).toEqual([])
+    })
+  })
+
+  // @behavior list-selection::ed5022ee
+  Scenario('Cross-track lasso selects items on every track it crosses', ({ Given, When, Then }) => {
+    const observed: { markerSelection: number[]; clipSelection: string[] } = {
+      markerSelection: [], clipSelection: [],
+    }
+    const a = makeTimelineRegion('clip-a', 'A', 18, 32)
+    const m1 = makeAnchor(101, 25)
+
+    Given('the timeline with both clips and markers', () => {})
+    When('the user starts a lasso on the marker track and drags into the clip band', () => {
+      const harness = renderThinTimeline({
+        regions: [a],
+        anchors: [m1],
+        view: { start: 0, end: 100 },
+      })
+      const root = harness.container.querySelector('.thin-timeline') as HTMLElement
+      const body = harness.container.querySelector('.thin-row__body') as HTMLElement
+      stubLassoBody(body)
+      const markerInSection = harness.container.querySelector('[data-section="markerin"]') as HTMLElement
+      const clipInSection = harness.container.querySelector('[data-section="clipin"]') as HTMLElement
+      // First call (pointerdown) returns markerin, subsequent calls
+      // (pointermove) return clipin — start ≠ current → multi-track lasso.
+      const fromPoint = vi.fn()
+        .mockReturnValueOnce(markerInSection)
+        .mockReturnValue(clipInSection)
+      const orig = document.elementFromPoint
+      document.elementFromPoint = fromPoint as typeof document.elementFromPoint
+      try {
+        fireEvent.pointerDown(root, { button: 0, pointerId: 1, clientX: 200, clientY: 50 })
+        fireEvent.pointerMove(root, { button: 0, pointerId: 1, clientX: 300, clientY: 50 })
+        fireEvent.pointerUp(root, { button: 0, pointerId: 1, clientX: 300, clientY: 50 })
+      } finally {
+        document.elementFromPoint = orig
+      }
+      observed.markerSelection = [...harness.store.getState().warp.selectedIds]
+      observed.clipSelection = [...harness.store.getState().lists.selection.clips]
+    })
+    Then('both marker and clip selections are updated', () => {
+      expect(observed.markerSelection).toEqual([101])
+      expect(observed.clipSelection).toEqual([a.id])
     })
   })
 

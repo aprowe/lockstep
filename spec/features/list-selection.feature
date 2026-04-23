@@ -166,25 +166,21 @@ Feature: List Selection
 
     # @hint Plain drag clears selection before adding lasso hits;
     #       Ctrl/Cmd+drag is additive (snapshot-then-merge).
-    @todo @ignore
     Scenario: Plain lasso replaces the existing selection
         Given a populated list with two rows selected
         When the user lassos a different range with no modifier keys
         Then the selection contains only the lassoed items
 
-    @todo @ignore
     Scenario: Ctrl+lasso adds to the existing selection
         Given a populated list with two rows selected
         When the user ctrl+lassos a different range
         Then the selection contains both the original and lassoed items
 
-    @todo @ignore
     Scenario: Single-track lasso scopes to that track's items only
         Given the timeline with both clips and markers
         When the user lassos starting and ending inside the marker track
         Then only marker items are selected
 
-    @todo @ignore
     Scenario: Cross-track lasso selects items on every track it crosses
         Given the timeline with both clips and markers
         When the user starts a lasso on the marker track and drags into the clip band

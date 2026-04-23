@@ -83,6 +83,9 @@ function ThinTimelineHarness(props: {
   warpCollapsed: boolean
   onTimelineDelete: () => void
   onTimelineDeselect: () => void
+  onConnectorSelectionChange: (ids: Set<number>) => void
+  onClipsSelectionChange: (ids: Set<string>) => void
+  onScenesSelectionChange: (times: Set<number>) => void
 }) {
   const selectedAnchorIds = useAppSelector(selectSelectedIdsSet)
   const selectedClipIds = useAppSelector(selectSelectedClipIdsSet)
@@ -117,6 +120,9 @@ function ThinTimelineHarness(props: {
       segments={[]}
       selectedClipIds={selectedClipIds}
       selectedSceneTimes={selectedSceneTimes}
+      onConnectorSelectionChange={props.onConnectorSelectionChange}
+      onClipsSelectionChange={props.onClipsSelectionChange}
+      onScenesSelectionChange={props.onScenesSelectionChange}
       onTimelineDelete={props.onTimelineDelete}
       onTimelineDeselect={props.onTimelineDeselect}
       warpCollapsed={props.warpCollapsed}
@@ -192,6 +198,18 @@ export function renderThinTimeline(opts: RenderThinTimelineOptions = {}) {
     }
   }
 
+  // Lasso writes flow back into the store so tests can read the resulting
+  // selection from any of the three slices, mirroring WarpView's wiring.
+  const onConnectorSelectionChange = (ids: Set<number>) => {
+    store.dispatch(setSelectedAnchorIds([...ids]))
+  }
+  const onClipsSelectionChange = (ids: Set<string>) => {
+    store.dispatch(setListSelection({ list: 'clips', ids: [...ids] }))
+  }
+  const onScenesSelectionChange = (times: Set<number>) => {
+    store.dispatch(setSelectedCutTimes([...times]))
+  }
+
   const result = render(
     <Provider store={store}>
       <ThinTimelineHarness
@@ -205,6 +223,9 @@ export function renderThinTimeline(opts: RenderThinTimelineOptions = {}) {
         warpCollapsed={opts.warpCollapsed ?? false}
         onTimelineDelete={handleTimelineDelete}
         onTimelineDeselect={handleTimelineDeselect}
+        onConnectorSelectionChange={onConnectorSelectionChange}
+        onClipsSelectionChange={onClipsSelectionChange}
+        onScenesSelectionChange={onScenesSelectionChange}
       />
     </Provider>,
   )

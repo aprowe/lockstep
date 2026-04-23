@@ -517,9 +517,10 @@ export default function ThinTimeline({
 
   /**
    * Clip lasso — a clip is hit when its [in, out] range overlaps the lasso
-   * range at all. Single-track scopes to the clip band the lasso started in
-   * (input or output); a multi-track span (sectionId === null) selects from
-   * both bands' clip pools, which currently share the same id space.
+   * range at all. Strictly per-track: single-track scopes to the clip
+   * bands (clipin / clipout); a multi-track span (sectionId === null)
+   * pulls from both. Lassos confined to marker/warp tracks don't grab
+   * clips — those tracks own their own selection pool (anchors).
    */
   const computeLassoClipIds = useCallback((startPct: number, endPct: number, sectionId: string | null): Set<string> => {
     const span = view.end - view.start
@@ -528,7 +529,6 @@ export default function ThinTimeline({
     const ids = new Set<string>()
     const allowsClips = sectionId === null
       || sectionId === 'clipin' || sectionId === 'clipout'
-      || sectionId === 'markerin' || sectionId === 'markerout' || sectionId === 'warp'
     if (!allowsClips) return ids
     for (const r of regions) {
       if (r.outPoint > lo && r.inPoint < hi) ids.add(r.id)
