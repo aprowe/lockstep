@@ -9,6 +9,7 @@ import {
   makeAnchor,
   makeRegion as makeTimelineRegion,
 } from '../harnesses/thinTimeline'
+import { renderTimelineAndPanel } from '../harnesses/timelineAndPanel'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockResolvedValue(null),
@@ -880,6 +881,117 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     })
     And('the activate handler is not called', () => {
       expect(observed.seekDelta).toBe(0)
+    })
+  })
+
+  // ── List ↔ timeline mirroring ──────────────────────────────────────────
+
+  // @behavior list-selection::376277f3
+  Scenario('Lasso on the timeline selects clips in the list', ({ Given, When, Then, And }) => {
+    const observed: {
+      selection: string[]
+      accentCount: number
+      checkedCount: number
+    } = { selection: [], accentCount: 0, checkedCount: 0 }
+    // Three clips placed inside the lasso range (all overlap [20, 60]).
+    const a = makeRegion('clip-a', 'A', 22, 30)
+    const b = makeRegion('clip-b', 'B', 35, 50)
+    const c = makeRegion('clip-c', 'C', 65, 80) // outside the lasso range
+
+    Given('the timeline with several clips', () => {})
+    When('the user lassos across the clip band', () => {
+      const harness = renderTimelineAndPanel({
+        panel: 'clips',
+        regions: [a, b, c],
+        view: { start: 0, end: 100 },
+      })
+      const root = harness.container.querySelector('.thin-timeline') as HTMLElement
+      const body = harness.container.querySelector('.thin-row__body') as HTMLElement
+      stubLassoBody(body)
+      // Lasso 20..60 — covers a (22-30) and b (35-50) but not c (65-80).
+      fireEvent.pointerDown(root, { button: 0, pointerId: 1, clientX: 200, clientY: 50 })
+      fireEvent.pointerMove(root, { button: 0, pointerId: 1, clientX: 600, clientY: 50 })
+      fireEvent.pointerUp(root, { button: 0, pointerId: 1, clientX: 600, clientY: 50 })
+      observed.selection = [...harness.store.getState().lists.selection.clips]
+      observed.accentCount = harness.container.querySelectorAll('.thin-region--selected').length
+      observed.checkedCount = Array.from(
+        harness.container.querySelectorAll('.list-panel input.clip-row__check'),
+      ).filter(el => (el as HTMLInputElement).checked).length
+    })
+    Then('every clip whose [in, out] overlaps the lasso range is added to the clip selection', () => {
+      expect([...observed.selection].sort()).toEqual([a.id, b.id].sort())
+    })
+    And('those clips show an accent outline on the timeline', () => {
+      // Each clip gets an overlay in the timeline; selected ones add the
+      // .thin-region--selected modifier — one per band per region (input
+      // band only when warp is collapsed; here we render with warp open
+      // so input + output bands → 2 per selected region = 4 total).
+      expect(observed.accentCount).toBeGreaterThanOrEqual(2)
+    })
+    And('the clips list shows checkboxes on each selected row', () => {
+      expect(observed.checkedCount).toBe(2)
+    })
+  })
+
+  // @behavior list-selection::e231708d
+  Scenario('Lasso on the timeline mirrors marker selection in the list', ({ Given, When, Then, And }) => {
+    const observed: {
+      markerSelection: number[]
+      checkedCount: number
+    } = { markerSelection: [], checkedCount: 0 }
+    const m1 = makeAnchor(101, 22)
+    const m2 = makeAnchor(102, 40)
+    const m3 = makeAnchor(103, 70) // outside the lasso range
+
+    Given('the timeline with several markers', () => {})
+    When('the user lassos across the marker track', () => {
+      const harness = renderTimelineAndPanel({
+        panel: 'markers',
+        anchors: [m1, m2, m3],
+        view: { start: 0, end: 100 },
+      })
+      const root = harness.container.querySelector('.thin-timeline') as HTMLElement
+      const body = harness.container.querySelector('.thin-row__body') as HTMLElement
+      stubLassoBody(body)
+      fireEvent.pointerDown(root, { button: 0, pointerId: 1, clientX: 200, clientY: 50 })
+      fireEvent.pointerMove(root, { button: 0, pointerId: 1, clientX: 600, clientY: 50 })
+      fireEvent.pointerUp(root, { button: 0, pointerId: 1, clientX: 600, clientY: 50 })
+      observed.markerSelection = [...harness.store.getState().warp.selectedIds]
+      observed.checkedCount = Array.from(
+        harness.container.querySelectorAll('.list-panel input.marker-row__check'),
+      ).filter(el => (el as HTMLInputElement).checked).length
+    })
+    Then('every marker inside the lasso range is added to the marker selection', () => {
+      expect([...observed.markerSelection].sort()).toEqual([101, 102])
+    })
+    And('the markers list shows checkboxes on each selected row', () => {
+      expect(observed.checkedCount).toBe(2)
+    })
+  })
+
+  // @behavior list-selection::51d95b99
+  Scenario('Selecting in the list highlights on the timeline', ({ Given, Then }) => {
+    const observed: { accentCount: number } = { accentCount: 0 }
+    const a = makeRegion('clip-a', 'A', 5, 15)
+    const b = makeRegion('clip-b', 'B', 20, 30)
+    const c = makeRegion('clip-c', 'C', 35, 45)
+
+    Given('the clips list with two clips selected via shift-click', () => {
+      const harness = renderTimelineAndPanel({
+        panel: 'clips',
+        regions: [a, b, c],
+        view: { start: 0, end: 100 },
+      })
+      const rows = harness.container.querySelectorAll('.list-panel .clip-row:not(.clip-row--full)')
+      // Plain-click first row to seed selection + anchor, then shift-click
+      // second row to range-extend to two selected clips.
+      fireEvent.click(rows[0] as HTMLElement)
+      fireEvent.click(rows[1] as HTMLElement, { shiftKey: true })
+      observed.accentCount = harness.container.querySelectorAll('.thin-region--selected').length
+    })
+    Then('those two clips show the accent outline on the timeline overlays', () => {
+      // 2 selected regions × 2 bands (clipin + clipout when warp is open).
+      expect(observed.accentCount).toBeGreaterThanOrEqual(2)
     })
   })
 

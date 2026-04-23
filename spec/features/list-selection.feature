@@ -122,7 +122,6 @@ Feature: List Selection
     # @hint Clip lasso writes lists.selection.clips; the clips list reads
     #       from the same store, so the timeline outline + the list
     #       checkboxes update in lockstep.
-    @todo @ignore
     Scenario: Lasso on the timeline selects clips in the list
         Given the timeline with several clips
         When the user lassos across the clip band
@@ -133,14 +132,12 @@ Feature: List Selection
     # @hint Markers list selection is wired to warp.selectedIds via
     #       MarkersPanel's selectedIdsOverride — the timeline lasso has
     #       always written there, so list + timeline mirror automatically.
-    @todo @ignore
     Scenario: Lasso on the timeline mirrors marker selection in the list
         Given the timeline with several markers
         When the user lassos across the marker track
         Then every marker inside the lasso range is added to the marker selection
         And the markers list shows checkboxes on each selected row
 
-    @todo @ignore
     Scenario: Selecting in the list highlights on the timeline
         Given the clips list with two clips selected via shift-click
         Then those two clips show the accent outline on the timeline overlays

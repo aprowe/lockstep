@@ -511,11 +511,7 @@
         "And the clips list shows checkboxes on each selected row"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 126,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ],
+      "line": 125,
       "unresolvedRefs": [
         "in out"
       ],
@@ -534,11 +530,7 @@
         "And the markers list shows checkboxes on each selected row"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 137,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ],
+      "line": 135,
       "hints": [
         "Markers list selection is wired to warp.selectedIds via MarkersPanel's selectedIdsOverride — the timeline lasso has always written there, so list + timeline mirror automatically."
       ]
@@ -552,11 +544,7 @@
         "Then those two clips show the accent outline on the timeline overlays"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 144,
-      "todo": true,
-      "tags": [
-        "@ignore"
-      ]
+      "line": 141
     },
     "list-selection::ecdd90c1": {
       "feature": "List Selection",
@@ -569,7 +557,7 @@
         "Then the marker selection is unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 150
+      "line": 147
     },
     "list-selection::67c421a9": {
       "feature": "List Selection",
@@ -583,7 +571,7 @@
         "And the rows still visible remain selected and checked"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 158
+      "line": 155
     },
     "list-selection::388b677c": {
       "feature": "List Selection",
@@ -595,7 +583,7 @@
         "Then the selection contains only the lassoed items"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 169,
+      "line": 166,
       "hints": [
         "Plain drag clears selection before adding lasso hits; Ctrl/Cmd+drag is additive (snapshot-then-merge)."
       ]
@@ -610,7 +598,7 @@
         "Then the selection contains both the original and lassoed items"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 174
+      "line": 171
     },
     "list-selection::564d68b7": {
       "feature": "List Selection",
@@ -622,7 +610,7 @@
         "Then only marker items are selected"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 179
+      "line": 176
     },
     "list-selection::ed5022ee": {
       "feature": "List Selection",
@@ -634,7 +622,7 @@
         "Then both marker and clip selections are updated"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 184
+      "line": 181
     },
     "list-selection::cb8929f5": {
       "feature": "List Selection",
@@ -648,7 +636,7 @@
         "And the context menu is shown for clip B"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 231,
+      "line": 228,
       "hints": [
         "Adobe-style \"replace-then-act\": opening a context menu on a row that isn't already in the selection first replaces selection with [id] + sets it active, so menu actions hit what the user visually targeted."
       ]
@@ -663,7 +651,7 @@
         "Then all three clips are still selected"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 241,
+      "line": 238,
       "hints": [
         "Right-click on an *already-selected* row leaves the multi- selection alone — bulk actions in the menu still target every selected clip."
       ]
@@ -678,7 +666,7 @@
         "Then all three clips are selected"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 249,
+      "line": 246,
       "hints": [
         "Cmd/Ctrl+A bound on the focused list panel via useListSelection.handleKeyDown. Scope is the visible-items list — respects whatever filter is active."
       ]
@@ -695,7 +683,7 @@
         "And the markers selection is unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 256,
+      "line": 253,
       "hints": [
         "Cmd/Ctrl+D clears the focused list's selection. Other lists' selections are untouched (focus-scoping rule)."
       ]
@@ -712,7 +700,7 @@
         "And both selections are cleared"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 269
+      "line": 266
     },
     "list-selection::9ca01b60": {
       "feature": "List Selection",
@@ -726,7 +714,7 @@
         "And no items are deleted"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 276
+      "line": 273
     },
     "list-selection::871d21c2": {
       "feature": "List Selection",
@@ -740,7 +728,7 @@
         "And the active clip is unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 287,
+      "line": 284,
       "hints": [
         "Policy B from docs/INTERACTION_DESIGN.md — a plain click on the empty timeline body (no drag, no modifier) clears every timeline-side selection. Modifier-clicks are ignored so the user can ctrl-click without losing the lasso snapshot."
       ]
@@ -755,7 +743,7 @@
         "Then both selections are unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 294
+      "line": 291
     },
     "list-selection::c16d9138": {
       "feature": "List Selection",
@@ -768,7 +756,7 @@
         "And the scene-cut selection is cleared"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 308,
+      "line": 305,
       "hints": [
         "Selected diamonds draw with an accent ring + a brighter through-line so the user can pick them out at a glance even when the always-show-scene-lines toggle is off."
       ]
@@ -784,7 +772,7 @@
         "And the cuts themselves remain"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 314
+      "line": 311
     },
     "list-selection::5afb8d06": {
       "feature": "List Selection",
@@ -796,7 +784,7 @@
         "Then the scene-cut selection is cleared"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 320
+      "line": 317
     },
     "timeline-navigation::2e61d3bc": {
       "feature": "Timeline Navigation",
