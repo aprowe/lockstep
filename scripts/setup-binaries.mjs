@@ -8,8 +8,8 @@
  *   RIFE_SKIP=1 npm run setup   # skip RIFE (large ~430MB download)
  */
 
-import { existsSync, mkdirSync, cpSync, readdirSync, statSync } from 'node:fs'
-import { execSync } from 'node:child_process'
+import { existsSync, mkdirSync, cpSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { execSync, spawnSync } from 'node:child_process'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir, homedir } from 'node:os'
@@ -107,12 +107,31 @@ if (process.env.RIFE_SKIP) {
   setupRife()
 }
 
+/** The binary printed usage contains this flag iff it's the aprowe fork. */
+function rifeSupportsManifest(exe) {
+  try {
+    const r = spawnSync(exe, ['-h'], { encoding: 'utf8', timeout: 5000 })
+    const out = (r.stdout || '') + (r.stderr || '')
+    return out.includes('-M manifest-path')
+  } catch {
+    return false
+  }
+}
+
 function setupRife() {
   const rifeExe   = join(BIN_DIR, `rife-ncnn-vulkan-${triple}${ext}`)
   const modelDir  = join(BIN_DIR, RIFE_MODEL)
 
-  const exePresent   = existsSync(rifeExe)
+  let exePresent   = existsSync(rifeExe)
   const modelPresent = existsSync(modelDir)
+
+  // Stale-binary guard: pre-20260422 builds don't support -M manifest mode.
+  // Force a re-download so users don't hit "rife-ncnn-vulkan exited ... -f pattern-format".
+  if (exePresent && !rifeSupportsManifest(rifeExe)) {
+    console.log(`  ↻  rife-ncnn-vulkan present but missing -M support; removing to refresh`)
+    rmSync(rifeExe, { force: true })
+    exePresent = false
+  }
 
   if (exePresent && modelPresent) {
     console.log(`  ✓  rife-ncnn-vulkan + ${RIFE_MODEL}  (already present)`)
