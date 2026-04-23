@@ -498,18 +498,46 @@ export default function ThinTimeline({
   }, [])
 
   /**
-   * Compute which ids are inside the lasso. In single-track mode, only iterate
-   * the pool that track shows (markerin → origAnchors, markerout → beatAnchors).
-   * Warp is the connector row between input and output — both pools contribute
-   * there, same as multi-track mode (sectionId = null).
+   * Set of section ids the lasso rectangle covers. Walks DOM order to find
+   * the slice between `startId` and `currentId` inclusive. Returning `null`
+   * means "scope unknown" (e.g. elementFromPoint failed) — callers should
+   * fall back to unconstrained behavior in that case.
    */
-  const computeLassoIds = useCallback((startPct: number, endPct: number, sectionId: string | null): Set<number> => {
+  const getCrossedSectionIds = useCallback((
+    startId: string | null,
+    currentId: string | null,
+  ): ReadonlySet<string> | null => {
+    if (!startId) return null
+    if (!currentId || currentId === startId) return new Set([startId])
+    const root = rootRef.current
+    if (!root) return new Set([startId])
+    const all = Array.from(root.querySelectorAll<HTMLElement>('[data-section]'))
+      .map(el => el.dataset.section ?? '')
+      .filter(Boolean)
+    const startIdx = all.indexOf(startId)
+    const currentIdx = all.indexOf(currentId)
+    if (startIdx < 0 || currentIdx < 0) return new Set([startId])
+    const [lo, hi] = startIdx <= currentIdx ? [startIdx, currentIdx] : [currentIdx, startIdx]
+    return new Set(all.slice(lo, hi + 1))
+  }, [])
+
+  /**
+   * Lasso → set of in-range anchor ids. The set of allowed pools is keyed
+   * to which sections the lasso rectangle actually crosses, so a marker-only
+   * lasso ignores beat anchors (and vice versa); a span that bridges
+   * markerin → markerout (e.g. through warp) pulls from both. `null` means
+   * scope-unknown — fall back to both pools so we don't silently drop hits.
+   */
+  const computeLassoIds = useCallback((
+    startPct: number, endPct: number,
+    allowed: ReadonlySet<string> | null,
+  ): Set<number> => {
     const span = view.end - view.start
     const lo = view.start + Math.min(startPct, endPct) * span
     const hi = view.start + Math.max(startPct, endPct) * span
     const ids = new Set<number>()
-    const wantIn = sectionId === null || sectionId === 'markerin' || sectionId === 'warp'
-    const wantOut = sectionId === null || sectionId === 'markerout' || sectionId === 'warp'
+    const wantIn = allowed === null || allowed.has('markerin') || allowed.has('warp')
+    const wantOut = allowed === null || allowed.has('markerout') || allowed.has('warp')
     if (wantIn) for (const a of anchors) if (a.time >= lo && a.time <= hi) ids.add(a.id)
     if (wantOut) for (const a of beatAnchors) if (a.time >= lo && a.time <= hi) ids.add(a.id)
     return ids
@@ -517,18 +545,19 @@ export default function ThinTimeline({
 
   /**
    * Clip lasso — a clip is hit when its [in, out] range overlaps the lasso
-   * range at all. Strictly per-track: single-track scopes to the clip
-   * bands (clipin / clipout); a multi-track span (sectionId === null)
-   * pulls from both. Lassos confined to marker/warp tracks don't grab
-   * clips — those tracks own their own selection pool (anchors).
+   * range at all. Only contributes when the lasso rectangle covers a clip
+   * band (clipin / clipout); marker- or warp-only lassos leave clips alone.
    */
-  const computeLassoClipIds = useCallback((startPct: number, endPct: number, sectionId: string | null): Set<string> => {
+  const computeLassoClipIds = useCallback((
+    startPct: number, endPct: number,
+    allowed: ReadonlySet<string> | null,
+  ): Set<string> => {
     const span = view.end - view.start
     const lo = view.start + Math.min(startPct, endPct) * span
     const hi = view.start + Math.max(startPct, endPct) * span
     const ids = new Set<string>()
-    const allowsClips = sectionId === null
-      || sectionId === 'clipin' || sectionId === 'clipout'
+    const allowsClips = allowed === null
+      || allowed.has('clipin') || allowed.has('clipout')
     if (!allowsClips) return ids
     for (const r of regions) {
       if (r.outPoint > lo && r.inPoint < hi) ids.add(r.id)
@@ -537,17 +566,19 @@ export default function ThinTimeline({
   }, [regions, view.start, view.end])
 
   /**
-   * Scene-cut lasso — a cut is hit when its time falls inside the lasso
-   * range. Scenes live in input space only, so the multi-track span and
-   * scene-track-scoped lassos are the only paths that contribute. The other
-   * tracks (clips, markers) leave scene selection untouched.
+   * Scene-cut lasso — only contributes when the rectangle covers the scenes
+   * row. Scenes live in input space only, so they never participate in any
+   * cross-track span that doesn't actually include `scenes`.
    */
-  const computeLassoSceneTimes = useCallback((startPct: number, endPct: number, sectionId: string | null): Set<number> => {
+  const computeLassoSceneTimes = useCallback((
+    startPct: number, endPct: number,
+    allowed: ReadonlySet<string> | null,
+  ): Set<number> => {
     const span = view.end - view.start
     const lo = view.start + Math.min(startPct, endPct) * span
     const hi = view.start + Math.max(startPct, endPct) * span
     const times = new Set<number>()
-    const allowsScenes = sectionId === null || sectionId === 'scenes'
+    const allowsScenes = allowed === null || allowed.has('scenes')
     if (!allowsScenes) return times
     for (const t of scenes) {
       if (t >= lo && t <= hi) times.add(t)
@@ -605,38 +636,38 @@ export default function ThinTimeline({
       }
     }
 
-    // Tracks: if pointer is inside the starting section, lasso clips to that
-    // row. Otherwise it expands to cover every whole row between the start
-    // section and the section under the pointer.
+    // The lasso rectangle's vertical extent = the slice of sections from
+    // the start row to the row the pointer is currently over. Each pool
+    // (anchors / clips / scenes) only contributes from sections inside
+    // that slice, so a lasso that never touches the clip band can't pick
+    // up clips even when it crosses three other rows.
     const here = sectionIdAt(e.clientX, e.clientY)
-    // Single-track selection only when start and current section are the same;
-    // otherwise we select across both marker tracks (null = multi).
-    const selectionSection = (g.startSectionId !== null && here === g.startSectionId) ? g.startSectionId : null
+    const allowed = getCrossedSectionIds(g.startSectionId, here)
     setLassoRange({
       startPct: g.startPct,
       endPct: pct,
       startSectionId: g.startSectionId,
       currentSectionId: here,
     })
-    const hit = computeLassoIds(g.startPct, pct, selectionSection)
+    const hit = computeLassoIds(g.startPct, pct, allowed)
     const merged = new Set(g.initialIds)
     for (const id of hit) merged.add(id)
     onConnectorSelectionChange?.(merged)
 
     // Clips run in a parallel selection space. Same merge rules — additive
     // gestures keep the prior selection; non-additive starts fresh.
-    const hitClips = computeLassoClipIds(g.startPct, pct, selectionSection)
+    const hitClips = computeLassoClipIds(g.startPct, pct, allowed)
     const mergedClips = new Set(g.initialClipIds)
     for (const id of hitClips) mergedClips.add(id)
     onClipsSelectionChange?.(mergedClips)
 
     // Scenes — same again. Selection by time means we don't need a separate
     // id-time map since cuts are uniquely identified by their value.
-    const hitScenes = computeLassoSceneTimes(g.startPct, pct, selectionSection)
+    const hitScenes = computeLassoSceneTimes(g.startPct, pct, allowed)
     const mergedScenes = new Set(g.initialSceneTimes)
     for (const t of hitScenes) mergedScenes.add(t)
     onScenesSelectionChange?.(mergedScenes)
-  }, [bodyPctFromClientX, sectionIdAt, computeLassoIds, computeLassoClipIds, computeLassoSceneTimes, onConnectorSelectionChange, onClipsSelectionChange, onScenesSelectionChange])
+  }, [bodyPctFromClientX, sectionIdAt, getCrossedSectionIds, computeLassoIds, computeLassoClipIds, computeLassoSceneTimes, onConnectorSelectionChange, onClipsSelectionChange, onScenesSelectionChange])
 
   const onRootPointerUp = useCallback(() => {
     const g = lassoRef.current

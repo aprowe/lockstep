@@ -1101,17 +1101,25 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
 
   // @behavior list-selection::ed5022ee
   Scenario('Cross-track lasso selects items on every track it crosses', ({ Given, When, Then }) => {
-    const observed: { markerSelection: number[]; clipSelection: string[] } = {
-      markerSelection: [], clipSelection: [],
-    }
+    const observed: {
+      markerSelection: number[]
+      clipSelection: string[]
+      sceneSelection: number[]
+    } = { markerSelection: [], clipSelection: [], sceneSelection: [] }
     const a = makeTimelineRegion('clip-a', 'A', 18, 32)
     const m1 = makeAnchor(101, 25)
+    // Scene at the same time as the marker — sits in the `scenes` row,
+    // which is NOT crossed by a markerin→clipin span (DOM order:
+    // scenes, clipin, markerin). The cross-track lasso must not pick
+    // it up; that's the per-lane scoping the spec calls out.
+    const offTrackSceneTime = 25
 
     Given('the timeline with both clips and markers', () => {})
     When('the user starts a lasso on the marker track and drags into the clip band', () => {
       const harness = renderThinTimeline({
         regions: [a],
         anchors: [m1],
+        scenes: [offTrackSceneTime],
         view: { start: 0, end: 100 },
       })
       const root = harness.container.querySelector('.thin-timeline') as HTMLElement
@@ -1135,10 +1143,14 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       }
       observed.markerSelection = [...harness.store.getState().warp.selectedIds]
       observed.clipSelection = [...harness.store.getState().lists.selection.clips]
+      observed.sceneSelection = [...harness.store.getState().scene.selectedCutTimes]
     })
     Then('both marker and clip selections are updated', () => {
       expect(observed.markerSelection).toEqual([101])
       expect(observed.clipSelection).toEqual([a.id])
+      // Scene cuts on rows the lasso never crossed must stay unselected —
+      // this is the regression assertion for the per-lane scoping fix.
+      expect(observed.sceneSelection).toEqual([])
     })
   })
 
