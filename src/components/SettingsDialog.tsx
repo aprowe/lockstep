@@ -1,8 +1,23 @@
 import { useEffect, useState } from 'react'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
-import { setMaxCachedFrames, setThumbWidth, resetSettings } from '../store/slices/settingsSlice'
+import {
+  setMaxCachedFrames,
+  setThumbWidth,
+  setTheme,
+  resetSettings,
+  THEMES,
+  type Theme,
+} from '../store/slices/settingsSlice'
 import { clearAllThumbnails } from '../api/thumbnails'
 import './SettingsDialog.css'
+
+const THEME_LABELS: Record<Theme, string> = {
+  'warm-dark':       'Warm Dark',
+  'neon-rhythm':     'Neon Rhythm',
+  'violet-dusk':     'Violet Dusk',
+  'tokyo-night':     'Tokyo Night',
+  'catppuccin-mocha':'Catppuccin Mocha',
+}
 
 interface SettingsDialogProps {
   open: boolean
@@ -13,6 +28,7 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const dispatch = useAppDispatch()
   const thumbWidth = useAppSelector(s => s.settings.thumbWidth)
   const maxCachedFrames = useAppSelector(s => s.settings.maxCachedFrames)
+  const theme = useAppSelector(s => s.settings.theme)
   const [clearing, setClearing] = useState(false)
   const [cleared, setCleared] = useState(false)
 
@@ -47,6 +63,28 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         </div>
 
         <div className="settings-dialog__body">
+          <section className="settings-section">
+            <h3 className="settings-section__heading">Appearance</h3>
+
+            <div className="settings-row">
+              <label className="settings-row__label">
+                <span className="settings-row__title">Theme</span>
+                <span className="settings-row__hint">Color palette for the entire app.</span>
+              </label>
+              <div className="settings-row__control">
+                <select
+                  className="settings-select"
+                  value={theme}
+                  onChange={e => dispatch(setTheme(e.target.value as Theme))}
+                >
+                  {THEMES.map(t => (
+                    <option key={t} value={t}>{THEME_LABELS[t]}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </section>
+
           <section className="settings-section">
             <h3 className="settings-section__heading">Thumbnails</h3>
 

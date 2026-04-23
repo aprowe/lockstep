@@ -18,7 +18,6 @@ import { DockBridgeProvider } from './layout/DockContext'
 import ContextMenu from './components/ContextMenu'
 import type { ContextMenuState } from './components/ContextMenu'
 import ThumbnailPopup, { ThumbnailHoverProvider } from './components/ThumbnailPopup'
-import DevThemeSwitcher from './components/DevThemeSwitcher'
 import SettingsDialog from './components/SettingsDialog'
 import { snapAllToBeat } from './utils/quantize'
 import { undo as undoAction, redo as redoAction } from './store/slices/historySlice'
@@ -258,6 +257,15 @@ export default function App() {
     return () => { unlisten?.() }
   }, [selectVideo, loadFolderFromPath])
 
+  // ── Theme: mirror settings.theme onto <html data-theme="…"> so the
+  //     theme tokens cascade. Settings are persisted in localStorage by the
+  //     slice; this effect just keeps the DOM in sync with the redux value.
+
+  const theme = useAppSelector(s => s.settings.theme)
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+  }, [theme])
+
   // ── Scene detection: register listener + auto-trigger on video load ──────
 
   useEffect(() => { dispatch(ensureSceneListener()) }, [dispatch])
@@ -411,10 +419,6 @@ export default function App() {
       />
       <ThumbnailPopup />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      {/* Dev-only theme switcher — gated by Vite's DEV flag so it never
-       *  ships in a release bundle. Set data-theme="..." on <html> for
-       *  manual control if the chip is in the way. */}
-      {import.meta.env.DEV && <DevThemeSwitcher />}
     </div>
     </ThumbnailHoverProvider>
   )
