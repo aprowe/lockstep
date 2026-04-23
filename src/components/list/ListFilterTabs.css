@@ -1,0 +1,38 @@
+.list-filter-tabs {
+  display: flex;
+  gap: 1px;
+  padding: var(--sp-1) var(--sp-2);
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border);
+}
+
+.list-filter-tab {
+  flex: 1;
+  padding: 2px var(--sp-2);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--fg-3);
+  font-family: inherit;
+  font-size: var(--t-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.08s, color 0.08s, border-color 0.08s;
+}
+
+.list-filter-tab:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg-1);
+}
+
+.list-filter-tab--active {
+  background: rgba(var(--accent-rgb), 0.18);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.list-filter-tab:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

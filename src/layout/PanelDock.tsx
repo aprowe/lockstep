@@ -16,6 +16,7 @@ import ClipsPanel from './panels/ClipsPanel'
 import ClipInfoPanel from './panels/ClipInfoPanel'
 import ScenesPanel from './panels/ScenesPanel'
 import MarkersPanel from './panels/MarkersPanel'
+import VideoInfoPanel from './panels/VideoInfoPanel'
 import CenterColumn from './CenterColumn'
 
 // ── Component registry ─────────────────────────────────────────────────────
@@ -29,6 +30,7 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps>> =
   'clip-info': () => <ClipInfoPanel />,
   scenes: () => <ScenesPanel />,
   markers: () => <MarkersPanel />,
+  'video-info': () => <VideoInfoPanel />,
   center: () => <CenterColumn />,
 }
 
@@ -38,10 +40,11 @@ const PANEL_TITLES: Record<string, string> = {
   'clip-info': 'Clip Info',
   scenes: 'Scenes',
   markers: 'Markers',
+  'video-info': 'Video Info',
   center: 'Player',
 }
 
-const SIDE_PANEL_IDS = ['files', 'clips', 'clip-info', 'scenes', 'markers'] as const
+const SIDE_PANEL_IDS = ['files', 'clips', 'clip-info', 'scenes', 'markers', 'video-info'] as const
 
 const STORAGE_KEY = 'lockstep:panel-layout:v3'
 
@@ -90,11 +93,17 @@ function buildDefaultLayout(api: DockviewApi) {
     inactive: true,
   })
 
-  // SE — clip-info below the scenes/markers group.
+  // SE — clip-info below the scenes/markers group, with video-info tabbed
+  // alongside it (both "metadata about a thing" panels).
   api.addPanel({
     id: 'clip-info', component: 'clip-info', title: PANEL_TITLES['clip-info'],
     position: { referencePanel: 'scenes', direction: 'below' },
     initialHeight: 220,
+  })
+  api.addPanel({
+    id: 'video-info', component: 'video-info', title: PANEL_TITLES['video-info'],
+    position: { referencePanel: 'clip-info' },
+    inactive: true,
   })
 
   // SW is intentionally empty — drag any panel below the clips group to fill it.

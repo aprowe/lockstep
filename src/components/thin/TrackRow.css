@@ -39,6 +39,16 @@
   border-right: 1px solid var(--border);
   white-space: nowrap;
   overflow: hidden;
+  /* Smooth the hover-driven color change instead of snapping. */
+  transition: background 0.08s, color 0.08s;
+}
+
+/* Subtle hover highlight on the label rail when the pointer is anywhere
+ * over the track — makes it easy to scan which row you're working on
+ * without needing to look at the cursor. */
+.thin-row:hover > .thin-row__rail {
+  background: var(--bg-hover);
+  color: var(--fg-2);
 }
 
 .thin-row__body {

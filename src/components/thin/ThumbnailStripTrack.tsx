@@ -39,16 +39,17 @@ export default function ThumbnailStripTrack({
     }
   }, [])
 
-  // Clear any previously-published strip frames — this track no longer pushes
-  // a dense grid; scene_frames is already its own priority tier on the backend.
+  // Clear any previously-published strip frames for this source — the track
+  // no longer pushes a dense grid; scene_frames is already its own priority
+  // tier on the backend.
   const hashRef = useRef<string | null>(null)
   hashRef.current = video?.fileHash ?? null
   useEffect(() => {
     const h = hashRef.current
-    if (h) dispatch(setStripFrames({ fileHash: h, frames: [] }))
+    if (h) dispatch(setStripFrames({ fileHash: h, source: 'scene-strip', frames: [] }))
     return () => {
       const h2 = hashRef.current
-      if (h2) dispatch(setStripFrames({ fileHash: h2, frames: [] }))
+      if (h2) dispatch(setStripFrames({ fileHash: h2, source: 'scene-strip', frames: [] }))
     }
   }, [dispatch])
 

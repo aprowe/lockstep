@@ -161,3 +161,28 @@ export function IconNextRegion({ size = 24, ...props }: IconProps) {
     </svg>
   );
 }
+
+// ── Generic ──────────────────────────────────────────────────────────────────
+
+/** Deselect — circle with a diagonal slash. Reads as "clear" / "remove". */
+export function IconDeselect({ size = 24, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
+      <circle cx="12" cy="12" r="8" strokeWidth="2" />
+      <line x1="6" y1="18" x2="18" y2="6" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Trash / delete — used by row delete buttons and bulk-delete affordances. */
+export function IconTrash({ size = 24, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
+      <path d="M4,7 L20,7" strokeWidth="2" strokeLinecap="round" />
+      <path d="M9,7 L9,5 A1,1 0 0 1 10,4 L14,4 A1,1 0 0 1 15,5 L15,7" strokeWidth="2" strokeLinejoin="miter" />
+      <path d="M6,7 L7,20 A1,1 0 0 0 8,21 L16,21 A1,1 0 0 0 17,20 L18,7" strokeWidth="2" strokeLinejoin="miter" />
+      <line x1="10" y1="11" x2="10" y2="17" strokeWidth="1.5" strokeOpacity="0.6" />
+      <line x1="14" y1="11" x2="14" y2="17" strokeWidth="1.5" strokeOpacity="0.6" />
+    </svg>
+  );
+}

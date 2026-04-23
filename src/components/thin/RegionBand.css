@@ -28,9 +28,13 @@
   position: absolute;
   top: 2px;
   bottom: 2px;
-  background: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.55);
-  border: 1px solid hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.9);
-  border-radius: 2px;
+  /* Mostly solid fill — keeps the "real region block" read of the recent
+   * change, but a touch of alpha lets the dark timeline ground bleed
+   * through, which is what keeps the white label legible across all
+   * palette hues (yellow + cyan especially get washed out at full alpha). */
+  background: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.78);
+  border: 1px solid hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.95);
+  border-radius: 0;
   cursor: grab;
   transition: filter 0.08s, box-shadow 0.08s;
   overflow: hidden;
@@ -51,18 +55,34 @@
   box-shadow: 0 0 4px hsla(48, 100%, 70%, 0.85);
 }
 
+/* Member of the multi-select set (independent of active). Drawn as an
+ * outset accent outline so it stacks cleanly with the active border —
+ * an active+selected clip shows the yellow border *and* the accent ring. */
+.thin-region--selected {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
 .thin-region__label {
   flex: 1;
   padding: 0 6px;
   font-family: var(--font-family);
   font-size: calc(10px * var(--ui-scale));
   letter-spacing: 0.02em;
-  color: var(--fg-1);
+  color: #fff;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  /* Hard cut at the region edge — no "…" — so the visible portion of the
+   * name reads as the start of the real name rather than a truncated
+   * stub with ellipsis decoration. */
+  text-overflow: clip;
   pointer-events: none;
-  text-shadow: 0 1px 2px hsla(0, 0%, 0%, 0.8);
+  /* Layered shadow: tight 1px halo for edge contrast on light fills,
+   * softer 3px drop for vertical separation. */
+  text-shadow:
+    0 0 2px hsla(0, 0%, 0%, 0.85),
+    0 1px 3px hsla(0, 0%, 0%, 0.7);
 }
 
 .thin-region__handle {
@@ -83,7 +103,9 @@
   box-shadow: inset 0 0 0 1px hsla(48, 100%, 78%, 0.8);
 }
 
-/* Output band tints slightly darker to visually distinguish from input. */
+/* Output band uses the same hue but darkened so it stays distinguishable
+ * from the input band even with both bands now solidly filled. */
 .thin-row--region-output .thin-region {
-  background: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.35);
+  background: hsla(var(--clip-h, 0), var(--clip-s, 70%), calc(var(--clip-l, 50%) - 18%), 0.78);
+  border-color: hsla(var(--clip-h, 0), var(--clip-s, 70%), calc(var(--clip-l, 50%) - 18%), 0.95);
 }

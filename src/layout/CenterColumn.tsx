@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import VideoPlayer from '../components/VideoPlayer'
 import Filmstrip from '../components/Filmstrip'
 import WarpView from '../components/WarpView'
@@ -25,6 +25,7 @@ import {
   setGridDiv as setGridDivAction,
 } from '../store/slices/uiSlice'
 import { addCut as addSceneCutAction, deleteCut as deleteSceneCutAction } from '../store/slices/sceneSlice'
+import { setListSelection } from '../store/slices/listsSlice'
 import { calcZoomToRegion, calcNewRegionBoundsFromScenes, calcNewRegionBoundsUpToNext } from '../utils/view'
 import { findPreviousTarget } from '../utils/navigation'
 import { filterCutsByMinGap } from '../utils/sceneFilter'
@@ -63,6 +64,10 @@ export default function CenterColumn() {
   const sceneCuts = useAppSelector(s => videoPath ? s.scene.cutsByPath[videoPath] ?? [] : [])
   const sceneMinGap = useAppSelector(s => videoPath ? s.scene.minGapByPath[videoPath] : undefined) ?? 2
   const filteredSceneCuts = filterCutsByMinGap(sceneCuts, sceneMinGap)
+  // Multi-selection set from the clips list — surfaced on the timeline so
+  // drag/edit gestures show which clips are about to be affected.
+  const selectedClipIds = useAppSelector(s => s.lists.selection.clips)
+  const selectedClipSet = useMemo(() => new Set(selectedClipIds), [selectedClipIds])
 
   // Saved viewport from before the user zoomed into a region — restored when
   // the same zoom action toggles back out.
@@ -70,7 +75,30 @@ export default function CenterColumn() {
   // Tracks the start of a drag on the player/timeline divider.
   const vDragStart = useRef<{ y: number; h: number } | null>(null)
 
-  if (!video) return null
+  const folderVideos = useAppSelector(s => s.video.folderVideos)
+  const markersLoaded = useAppSelector(s => s.video.markersLoaded)
+
+  // Empty / loading state — rendered in the center slot whenever there's
+  // no usable video, so the rest of the dock (file browser etc.) stays
+  // reachable around it.
+  if (!video) {
+    return (
+      <div className="vj-center vj-center--empty">
+        <p className="vj-center__hint">
+          {folderVideos.length === 0
+            ? 'Open a file or folder to get started'
+            : 'Select a video from the Files panel'}
+        </p>
+      </div>
+    )
+  }
+  if (!markersLoaded) {
+    return (
+      <div className="vj-center vj-center--empty">
+        <p className="vj-center__hint">Loading…</p>
+      </div>
+    )
+  }
 
   const setActiveRegionId = (id: string | null) => dispatch(setActiveRegionIdAction(id))
 
@@ -276,6 +304,7 @@ export default function CenterColumn() {
             inPoint: r.inPoint,
             outPoint: r.outPoint,
             active: r.id === activeRegionId,
+            selected: selectedClipSet.has(r.id),
             colorIndex: idx,
           }))}
           onClipOverlaySelect={id => {
@@ -285,6 +314,8 @@ export default function CenterColumn() {
               if (region) playerRef.current?.seek(region.inPoint)
             }
           }}
+          selectedClipIds={selectedClipSet}
+          onClipsSelectionChange={ids => dispatch(setListSelection({ list: 'clips', ids: [...ids] }))}
           onClipOverlayResize={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
           onClipOverlayMove={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
           onClipOverlayZoom={id => {

@@ -1,15 +1,10 @@
-import { useCallback } from 'react'
-import MarkerList from '../../components/MarkerList'
+import { useCallback, useMemo } from 'react'
+import ListPanel from '../../components/list/ListPanel'
+import MarkerRow, { type MarkerRowData } from './MarkerRow'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
-import {
-  clearAnchors,
-  removeAnchors,
-  resetBeatLinks,
-  setBeatAnchorsFromTimeline,
-  setSelectedIds as setSelectedIdsAction,
-} from '../../store/slices/warpSlice'
+import { removeAnchors, setSelectedIds as setSelectedAnchorIds } from '../../store/slices/warpSlice'
+import { setLastSelected } from '../../store/slices/listsSlice'
 import { selectActiveRegion, selectSelectedIdsSet, selectWarpData } from '../../store/selectors'
-import { snapAllToBeat } from '../../utils/quantize'
 import { useDockBridge } from '../DockContext'
 
 export default function MarkersPanel() {
@@ -21,55 +16,103 @@ export default function MarkersPanel() {
   const warpBpm = useAppSelector(s => s.warp.bpm)
   const warpData = useAppSelector(selectWarpData)
   const activeRegion = useAppSelector(selectActiveRegion)
-  const selectedIds = useAppSelector(selectSelectedIdsSet)
-  const gridDiv = useAppSelector(s => s.ui.gridDiv)
-
-  const setSelectedIds = useCallback(
-    (ids: Set<number>) => dispatch(setSelectedIdsAction([...ids])),
-    [dispatch],
+  const view = useAppSelector(s => s.ui.view)
+  const filterMode = useAppSelector(s => s.lists.filterMode.markers)
+  // Markers selection lives in warp.selectedIds (number ids) so the
+  // timeline lasso and the list stay in sync — same source of truth on
+  // both sides. Stringified for ListPanel's id contract.
+  const selectedAnchorIdSet = useAppSelector(selectSelectedIdsSet)
+  const selectedIdsAsStrings = useMemo(
+    () => new Set(Array.from(selectedAnchorIdSet, n => String(n))),
+    [selectedAnchorIdSet],
   )
+
+  // Derive each row's display data once. Keys/ids are coerced to strings so
+  // they fit ListPanel's generic id type.
+  const items = useMemo<MarkerRowData[]>(() => {
+    if (!video) return []
+    const beatZeroTime = warpData?.beatZeroTime ?? 0
+    const beatDuration = warpBpm > 0 ? 60 / warpBpm : 0
+    let visible = origAnchors
+    if (filterMode === 'viewport') {
+      visible = origAnchors.filter(a => a.time >= view.start && a.time <= view.end)
+    } else if (filterMode === 'clip' && activeRegion) {
+      visible = origAnchors.filter(a =>
+        a.time >= activeRegion.inPoint - 0.001 && a.time <= activeRegion.outPoint + 0.001,
+      )
+    }
+    const sorted = [...visible].sort((a, b) => a.time - b.time)
+    return sorted.map((anchor, i) => {
+      const beatAnchor = beatAnchors.find(b => b.id === anchor.id)
+      const next = sorted[i + 1]
+      const nextBeat = next ? beatAnchors.find(b => b.id === next.id) : null
+      let stretch: number | null = null
+      if (next && beatAnchor && nextBeat) {
+        const origSpan = next.time - anchor.time
+        const beatSpan = nextBeat.time - beatAnchor.time
+        if (origSpan > 0) stretch = beatSpan / origSpan
+      }
+      return {
+        id: String(anchor.id),
+        anchorId: anchor.id,
+        index: i + 1,
+        time: anchor.time,
+        thumbnailTime: anchor.time,
+        fps: video.fps,
+        beatNumber: beatAnchor && beatDuration > 0
+          ? (beatAnchor.time - beatZeroTime) / beatDuration
+          : null,
+        isBeatZero: !!beatAnchor && Math.abs(beatAnchor.time - beatZeroTime) < 0.001,
+        stretch,
+      }
+    })
+  }, [video, origAnchors, beatAnchors, warpBpm, warpData, activeRegion, filterMode, view.start, view.end])
+
+  const onActivate = useCallback((id: string) => {
+    const data = items.find(r => r.id === id)
+    if (!data) return
+    seek(data.time)
+    dispatch(setLastSelected({ list: 'markers', id }))
+  }, [items, seek, dispatch])
+
+  const onDelete = useCallback((ids: string[]) => {
+    dispatch(removeAnchors(ids.map(s => Number(s))))
+    dispatch(setSelectedAnchorIds([]))
+  }, [dispatch])
+
+  const onSelectionChangeOverride = useCallback((ids: string[]) => {
+    dispatch(setSelectedAnchorIds(ids.map(s => Number(s))))
+  }, [dispatch])
 
   if (!video) return <div className="vj-empty-panel">No video</div>
 
-  const beatStep = warpBpm > 0 ? 60 / warpBpm / gridDiv : 0
-
-  // Markers shown for the active region only — App-level handlers used to
-  // pre-filter; preserve that scoping here.
-  const visibleAnchors = activeRegion
-    ? origAnchors.filter(
-        a => a.time >= activeRegion.inPoint - 0.001 && a.time <= activeRegion.outPoint + 0.001,
-      )
-    : origAnchors
-
   return (
-    <MarkerList
-      origAnchors={visibleAnchors}
-      beatAnchors={beatAnchors}
-      duration={video.duration}
-      fps={video.fps}
-      bpm={warpBpm}
-      beatZeroTime={warpData?.beatZeroTime ?? 0}
-      selectedIds={selectedIds}
-      onSelectionChange={setSelectedIds}
-      onSeek={t => seek(t)}
-      onClear={() => dispatch(clearAnchors())}
-      onReset={() => dispatch(resetBeatLinks(origAnchors.map(a => a.id)))}
-      onSnap={() => {
-        if (beatStep <= 0) return
-        const snapped = snapAllToBeat(beatAnchors, beatStep, warpData?.beatZeroTime ?? 0)
-        dispatch(setBeatAnchorsFromTimeline(snapped))
-      }}
-      onDeleteSelected={() => dispatch(removeAnchors([...selectedIds]))}
-      onResetSelected={() => dispatch(resetBeatLinks([...selectedIds]))}
-      onSnapSelected={() => {
-        if (beatStep <= 0) return
-        const toSnap = beatAnchors.filter(a => selectedIds.has(a.id))
-        const snapped = snapAllToBeat(toSnap, beatStep, warpData?.beatZeroTime ?? 0)
-        const snapMap = new Map(snapped.map(a => [a.id, a.time]))
-        dispatch(setBeatAnchorsFromTimeline(
-          beatAnchors.map(a => snapMap.has(a.id) ? { ...a, time: snapMap.get(a.id)! } : a),
-        ))
-      }}
+    <ListPanel
+      listId="markers"
+      items={items}
+      onActivate={onActivate}
+      onDelete={onDelete}
+      selectedIdsOverride={selectedIdsAsStrings}
+      onSelectionChangeOverride={onSelectionChangeOverride}
+      clipFilterDisabled={!activeRegion}
+      emptyHint={
+        filterMode === 'clip' && !activeRegion
+          ? 'Select a clip to scope markers'
+          : filterMode === 'clip'
+            ? 'No markers in the active clip'
+            : filterMode === 'viewport'
+              ? 'No markers in view'
+              : 'No markers placed'
+      }
+      renderRow={(item, ctx) => (
+        <MarkerRow
+          key={item.id}
+          data={item}
+          ctx={ctx}
+          onDelete={() => dispatch(removeAnchors([item.anchorId]))}
+          onDoubleClick={() => seek(item.time)}
+        />
+      )}
     />
   )
 }

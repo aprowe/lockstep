@@ -565,6 +565,44 @@ pub async fn reveal_in_folder(path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Opens the OS file manager *with the given file selected*.
+/// On Windows uses `explorer /select,<path>`, on macOS `open -R <path>`,
+/// on Linux falls back to opening the parent directory (no universal
+/// "show in folder" verb).
+#[tauri::command]
+pub async fn show_in_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        // explorer parses the comma-joined arg as `/select,<path>` and
+        // highlights the file in its containing folder.
+        std::process::Command::new("explorer")
+            .arg(format!("/select,{}", path))
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        // No standard reveal verb — open the parent directory instead.
+        let parent = std::path::Path::new(&path)
+            .parent()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.clone());
+        std::process::Command::new("xdg-open")
+            .arg(&parent)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 /// Reads the JSON sidecar at the given path directly (e.g. drag-dropped .json file).
 #[tauri::command]
 pub async fn read_json_sidecar_for_video(json_path: String) -> Result<JsonFileResult, String> {

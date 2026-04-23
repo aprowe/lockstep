@@ -71,4 +71,37 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       expect(store.getState().ui.view).toEqual({ start: 0, end: 45 })
     })
   })
+
+  // @behavior video-loading::c70c40ec
+  // Regression: the FileBrowserPanel was unreachable when no video was
+  // loaded because PanelDock was conditionally hidden. Now the panel
+  // renders unconditionally; this scenario locks that in.
+  Scenario('File browser is reachable before any video is loaded', ({ Given, When, Then, And }) => {
+    const fakeEntries = [
+      { path: '/videos/a.mp4', name: 'a.mp4' },
+      { path: '/videos/b.mp4', name: 'b.mp4' },
+    ]
+
+    Given('the application is open with no video loaded', () => {
+      // Fresh store from the BeforeEachScenario hook — video is null.
+      expect(store.getState().video.video).toBeNull()
+    })
+    When('the user opens a folder containing videos', async () => {
+      vi.mocked(videoApi.openFolder).mockResolvedValue(fakeEntries)
+      const { openFolderThunk } = await import('../../src/store/thunks/videoThunks')
+      await store.dispatch(openFolderThunk())
+    })
+    Then('the Files panel lists those videos', () => {
+      // FileBrowserPanel reads s.video.folderVideos directly; if the panel
+      // were hidden the user would never see this list.
+      expect(store.getState().video.folderVideos).toEqual(fakeEntries)
+    })
+    And('the user can click one of them to load it', async () => {
+      vi.mocked(videoApi.loadVideoFromPath).mockResolvedValueOnce(
+        makeVideoInfo({ path: fakeEntries[0].path, duration: 60 }),
+      )
+      await store.dispatch(selectVideoThunk(fakeEntries[0].path))
+      expect(store.getState().video.video?.path).toBe(fakeEntries[0].path)
+    })
+  })
 })

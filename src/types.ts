@@ -8,6 +8,16 @@ export interface VideoInfo {
   fps: number
   /** Stable content fingerprint — used as localStorage key for markers */
   fileHash: string
+  /** ── Stream metadata reported by ffprobe ───────────────────────────── */
+  width?: number
+  height?: number
+  videoCodec?: string
+  container?: string
+  fileSize?: number
+  bitrate?: number
+  audioCodec?: string
+  audioChannels?: number
+  audioSampleRate?: number
 }
 
 export interface Anchor {
@@ -84,6 +94,10 @@ export interface ClipOverlay {
   inPoint: number
   outPoint: number
   active: boolean
+  /** Member of the multi-select set in the clips list — drawn with an
+   *  accent outline on the timeline so the user can see which clips a
+   *  bulk action would touch. */
+  selected?: boolean
   /** 0-based index for color cycling (optional, defaults to 0) */
   colorIndex?: number
 }

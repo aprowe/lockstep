@@ -1,0 +1,126 @@
+.scenes-panel__row {
+  display: grid;
+  /* Label · input · unit · trailing button. Fixed-width label column makes
+   * the threshold + min-gap inputs line up so the panel doesn't read
+   * staggered when both rows are visible. */
+  grid-template-columns: 64px 56px 16px 1fr;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.scenes-panel__label {
+  font-size: var(--t-sm);
+  color: var(--fg-3);
+}
+
+.scenes-panel__input {
+  width: 100%;
+  padding: 1px var(--sp-1);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--fg-1);
+  font-family: inherit;
+  font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+
+.scenes-panel__input:focus {
+  border-color: var(--accent);
+}
+
+.scenes-panel__unit {
+  color: var(--fg-4);
+  font-size: var(--t-xs);
+}
+
+/* Mid-emphasis — accent-tinted fill + accent border + accent text so it
+ * reads as "the important control on this row" without overwhelming the
+ * panel the way the menubar Export button does. Recompute kicks off a
+ * long ffmpeg run so it earns more weight than the neutral Stop button. */
+.scenes-panel__btn {
+  padding: 2px var(--sp-3);
+  background: rgba(var(--accent-rgb), 0.18);
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.08s, color 0.08s;
+}
+
+.scenes-panel__btn:hover:not(:disabled) {
+  background: rgba(var(--accent-rgb), 0.28);
+  color: var(--accent-hi);
+}
+
+.scenes-panel__btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.scenes-panel__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-left: auto;
+  font-size: var(--t-xs);
+  color: var(--fg-3);
+  cursor: pointer;
+}
+
+.scenes-panel__filter input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.scenes-panel__progress {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 18px;
+  background: var(--bg-3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.scenes-panel__progress-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: rgba(var(--accent-rgb), 0.3);
+}
+
+.scenes-panel__progress-label {
+  position: relative;
+  padding: 0 var(--sp-2);
+  font-size: var(--t-xs);
+  color: var(--fg-2);
+  z-index: 1;
+}
+
+.scenes-panel__progress-cancel {
+  position: relative;
+  margin-left: auto;
+  padding: 0 var(--sp-2);
+  background: none;
+  border: none;
+  color: var(--fg-3);
+  font-family: inherit;
+  font-size: var(--t-xs);
+  cursor: pointer;
+  z-index: 1;
+}
+
+.scenes-panel__progress-cancel:hover { color: var(--accent); }
+
+.scenes-panel__error {
+  padding: var(--sp-1) var(--sp-2);
+  color: var(--error);
+  font-size: var(--t-xs);
+  background: var(--bg-3);
+  border-radius: 2px;
+}

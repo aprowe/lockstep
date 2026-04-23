@@ -7,6 +7,7 @@ import historyReducer from './slices/historySlice'
 import sceneReducer from './slices/sceneSlice'
 import thumbnailsReducer from './slices/thumbnailsSlice'
 import settingsReducer from './slices/settingsSlice'
+import listsReducer from './slices/listsSlice'
 import { persistenceMiddleware } from './middleware/persistenceMiddleware'
 import { historyMiddleware } from './middleware/historyMiddleware'
 
@@ -20,6 +21,7 @@ export const store = configureStore({
     scene: sceneReducer,
     thumbnails: thumbnailsReducer,
     settings: settingsReducer,
+    lists: listsReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware()

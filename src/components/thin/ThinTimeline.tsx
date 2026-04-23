@@ -87,6 +87,11 @@ interface ThinTimelineProps {
   selectedBoundaries?: boolean[]
   onConnectorSelectionChange?: (ids: Set<number>) => void
 
+  /** Clip-list selection — surfaces on the timeline as accent outlines and
+   *  receives lasso updates when the drag covers the region bands. */
+  selectedClipIds?: ReadonlySet<string>
+  onClipsSelectionChange?: (ids: Set<string>) => void
+
   warpCollapsed?: boolean
   onToggleWarp?: () => void
 }
@@ -127,6 +132,7 @@ export default function ThinTimeline({
   segments, clipIn, clipOut, beatClipIn, beatClipOut,
   clipFillColor, boundaryColor, linkedBoundaries, selectedBoundaries,
   onConnectorSelectionChange,
+  selectedClipIds, onClipsSelectionChange,
   warpCollapsed = false, onToggleWarp,
 }: ThinTimelineProps) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -160,6 +166,8 @@ export default function ThinTimeline({
     startSectionId: string | null
     startedAdditive: boolean
     initialIds: Set<number>
+    /** Snapshot of clip selection at lasso-arm — additive starts merge from here. */
+    initialClipIds: Set<string>
     /** Pointer id captured by root; undefined before drag threshold exceeded. */
     pointerId?: number
     /** Has the drag moved far enough to activate the lasso? */
@@ -371,6 +379,12 @@ export default function ThinTimeline({
   // Wheel zoom must call preventDefault to stop the page from scrolling, but
   // React attaches onWheel as a passive listener (preventDefault becomes a
   // no-op + console warning). Bind a native non-passive listener instead.
+  //
+  //   plain vertical wheel  → zoom toward cursor
+  //   horizontal wheel      → pan view (covers tilt-wheel mice + trackpad
+  //                                     two-finger horizontal swipe)
+  //   shift + vertical wheel → pan view (single-axis mice without a
+  //                                     horizontal wheel)
   const handleWheelNative = useCallback((e: WheelEvent) => {
     const el = rootRef.current
     if (!el) return
@@ -378,6 +392,19 @@ export default function ThinTimeline({
     const body = el.querySelector<HTMLDivElement>('.thin-row__body')
     const rect = body ? body.getBoundingClientRect() : el.getBoundingClientRect()
     const span = view.end - view.start
+
+    const horizontalIntent = e.deltaX !== 0 || (e.shiftKey && e.deltaY !== 0)
+    if (horizontalIntent) {
+      // Convert wheel-pixels to view-time using the body width as the
+      // reference span. clampView preserves the existing span, so panning
+      // past either edge stops cleanly without changing zoom level.
+      const px = e.deltaX !== 0 ? e.deltaX : e.deltaY
+      const dt = (px / Math.max(1, rect.width)) * span
+      onViewChange(clampView(view.start + dt, view.end + dt, maxDuration))
+      return
+    }
+
+    // Vertical wheel = zoom toward the cursor's view-time.
     const cursorTime = view.start + ((e.clientX - rect.left) / rect.width) * span
     const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15
     const newSpan = span * factor
@@ -465,6 +492,27 @@ export default function ThinTimeline({
     return ids
   }, [anchors, beatAnchors, view.start, view.end])
 
+  /**
+   * Clip lasso — a clip is hit when its [in, out] range overlaps the lasso
+   * range at all. Single-track scopes to the clip band the lasso started in
+   * (input or output); a multi-track span (sectionId === null) selects from
+   * both bands' clip pools, which currently share the same id space.
+   */
+  const computeLassoClipIds = useCallback((startPct: number, endPct: number, sectionId: string | null): Set<string> => {
+    const span = view.end - view.start
+    const lo = view.start + Math.min(startPct, endPct) * span
+    const hi = view.start + Math.max(startPct, endPct) * span
+    const ids = new Set<string>()
+    const allowsClips = sectionId === null
+      || sectionId === 'clipin' || sectionId === 'clipout'
+      || sectionId === 'markerin' || sectionId === 'markerout' || sectionId === 'warp'
+    if (!allowsClips) return ids
+    for (const r of regions) {
+      if (r.outPoint > lo && r.inPoint < hi) ids.add(r.id)
+    }
+    return ids
+  }, [regions, view.start, view.end])
+
   const onRootPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return
     if (e.shiftKey && !e.ctrlKey && !e.metaKey) return // shift+drag = pan
@@ -473,6 +521,7 @@ export default function ThinTimeline({
     if (pct === null) return
     const additive = e.ctrlKey || e.metaKey
     const initialIds = additive ? new Set(selectedAnchorIds) : new Set<number>()
+    const initialClipIds = additive ? new Set(selectedClipIds ?? []) : new Set<string>()
     const sectionId = sectionIdAt(e.clientX, e.clientY)
     // NOTE: don't capture the pointer or show a lasso yet — only arm it. If the
     // user clicks without moving past LASSO_DRAG_THRESHOLD, the click/dblclick
@@ -485,9 +534,10 @@ export default function ThinTimeline({
       startSectionId: sectionId,
       startedAdditive: additive,
       initialIds,
+      initialClipIds,
       active: false,
     }
-  }, [isLassoTarget, bodyPctFromClientX, sectionIdAt, selectedAnchorIds])
+  }, [isLassoTarget, bodyPctFromClientX, sectionIdAt, selectedAnchorIds, selectedClipIds])
 
   const onRootPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const g = lassoRef.current
@@ -504,7 +554,10 @@ export default function ThinTimeline({
       g.active = true
       g.pointerId = e.pointerId
       rootRef.current?.setPointerCapture(e.pointerId)
-      if (!g.startedAdditive) onConnectorSelectionChange?.(new Set())
+      if (!g.startedAdditive) {
+        onConnectorSelectionChange?.(new Set())
+        onClipsSelectionChange?.(new Set())
+      }
     }
 
     // Tracks: if pointer is inside the starting section, lasso clips to that
@@ -524,7 +577,14 @@ export default function ThinTimeline({
     const merged = new Set(g.initialIds)
     for (const id of hit) merged.add(id)
     onConnectorSelectionChange?.(merged)
-  }, [bodyPctFromClientX, sectionIdAt, computeLassoIds, onConnectorSelectionChange])
+
+    // Clips run in a parallel selection space. Same merge rules — additive
+    // gestures keep the prior selection; non-additive starts fresh.
+    const hitClips = computeLassoClipIds(g.startPct, pct, selectionSection)
+    const mergedClips = new Set(g.initialClipIds)
+    for (const id of hitClips) mergedClips.add(id)
+    onClipsSelectionChange?.(mergedClips)
+  }, [bodyPctFromClientX, sectionIdAt, computeLassoIds, computeLassoClipIds, onConnectorSelectionChange, onClipsSelectionChange])
 
   const onRootPointerUp = useCallback(() => {
     if (!lassoRef.current) return
@@ -636,6 +696,7 @@ export default function ThinTimeline({
         kind="input"
         regions={regions}
         view={view}
+        duration={duration}
         snapTargets={snapTargetsInput}
         onSelect={onRegionSelect}
         onContextMenu={onRegionContextMenu}
@@ -726,6 +787,7 @@ export default function ThinTimeline({
             kind="output"
             regions={regionsOutput}
             view={view}
+            duration={outputDuration}
             hideLabels
             snapInterval={snapInterval}
             snapOffset={snapOffset}
@@ -819,26 +881,29 @@ export default function ThinTimeline({
   }, [sectionKey])
 
   /**
-   * Translucent band showing the active clip's in→out range. Only rendered
-   * on the rows that sit vertically between the clip-in and clip-out rows
-   * (markerin / markerout). The warp section draws its own slanted quad.
+   * Translucent band showing each clip's in→out range across the marker
+   * tracks (markerin / markerout). Every region gets a band — the active
+   * one's just sits on top of any overlapping siblings via z-index. The
+   * warp section draws its own slanted quad and is skipped here.
    */
   const regionBandsFor = (space: SectionSpace, sectionId: string): React.ReactNode => {
     if (sectionId !== 'markerin' && sectionId !== 'markerout') return null
-    const active = (space === 'input' ? regions : (regionsOutput ?? regions)).find(r => r.active)
-    if (!active) return null
-    const left = timeToViewPct(active.inPoint, view)
-    const right = timeToViewPct(active.outPoint, view)
-    const width = right - left
-    if (width <= 0 || right < -1 || left > 101) return null
-    const colorCls = `clip-overlay--color-${(active.colorIndex ?? 0) % 8}`
-    return (
-      <div
-        key={`rband-${active.id}`}
-        className={`thin-timeline__region-band ${colorCls}`}
-        style={{ left: `${left}%`, width: `${width}%` }}
-      />
-    )
+    const sourceRegions = space === 'input' ? regions : (regionsOutput ?? regions)
+    if (sourceRegions.length === 0) return null
+    return sourceRegions.map(r => {
+      const left = timeToViewPct(r.inPoint, view)
+      const right = timeToViewPct(r.outPoint, view)
+      const width = right - left
+      if (width <= 0 || right < -1 || left > 101) return null
+      const colorCls = `clip-overlay--color-${(r.colorIndex ?? 0) % 8}`
+      return (
+        <div
+          key={`rband-${r.id}`}
+          className={`thin-timeline__region-band ${colorCls}`}
+          style={{ left: `${left}%`, width: `${width}%` }}
+        />
+      )
+    })
   }
 
   const overlayTop = layouts.length > 0 ? layouts[0].top : 0

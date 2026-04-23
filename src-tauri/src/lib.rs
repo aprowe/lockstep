@@ -28,6 +28,7 @@ pub fn run() {
             commands::save_to_folder,
             commands::write_text_file,
             commands::reveal_in_folder,
+            commands::show_in_folder,
             commands::check_video_sidecar,
             commands::write_video_sidecar,
             commands::delete_video_sidecar,

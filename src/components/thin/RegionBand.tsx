@@ -11,7 +11,10 @@ export interface RegionBlock {
   inPoint: number
   outPoint: number
   colorIndex?: number
+  /** Drives the timeline view (single). */
   active?: boolean
+  /** Member of the multi-select set (independent of active). */
+  selected?: boolean
   label?: string
 }
 
@@ -20,6 +23,9 @@ interface RegionBandProps {
   kind: 'input' | 'output'
   regions: RegionBlock[]
   view: View
+  /** Maximum time (seconds) for clamping drag / resize. Without this, a
+   *  region can be moved past the end of the video or resized below 0. */
+  duration?: number
   /** If true, hide the per-region name label (e.g. on the output band). */
   hideLabels?: boolean
   /** Single-point snap targets (scenes, playhead, anchor times, etc.). */
@@ -54,7 +60,7 @@ const MIN_WIDTH_SEC = 0.05
  * once for input (source) regions and once for their output (beat-space) spans.
  */
 export default function RegionBand({
-  label, kind, regions, view, hideLabels,
+  label, kind, regions, view, duration, hideLabels,
   snapTargets, snapInterval, snapOffset = 0,
   onSelect, onContextMenu, onResize, onMove, onZoom,
   onBackgroundAdd, onBackgroundContextMenu,
@@ -178,23 +184,39 @@ export default function RegionBand({
     const tNow = xToTime(e.clientX)
     const tStart = xToTime(g.startX)
     const dt = tNow - tStart
+    // Hard upper bound for any edit. Falls back to +∞ when no duration is
+    // supplied so the existing min-width clamp still wins for callers that
+    // don't pass it.
+    const maxT = duration ?? Number.POSITIVE_INFINITY
     if (g.type === 'resize-l' && onResize) {
       const rawIn = g.startInP + dt
       const s = trySnap(rawIn, g.id)
-      const clamped = Math.min(s.snapped, g.startOutP - MIN_WIDTH_SEC)
+      // Clamp in-point to [0, outPoint - MIN_WIDTH] so the left handle can't
+      // cross zero or collide with the right edge.
+      const clamped = Math.max(0, Math.min(s.snapped, g.startOutP - MIN_WIDTH_SEC))
       pendingRef.current = { kind: 'resize', id: g.id, inPoint: clamped, outPoint: g.startOutP }
       pendingHintsRef.current = s.hints
     } else if (g.type === 'resize-r' && onResize) {
       const rawOut = g.startOutP + dt
       const s = trySnap(rawOut, g.id)
-      const clamped = Math.max(s.snapped, g.startInP + MIN_WIDTH_SEC)
+      // Clamp out-point to [inPoint + MIN_WIDTH, duration].
+      const clamped = Math.min(maxT, Math.max(s.snapped, g.startInP + MIN_WIDTH_SEC))
       pendingRef.current = { kind: 'resize', id: g.id, inPoint: g.startInP, outPoint: clamped }
       pendingHintsRef.current = s.hints
     } else if (g.type === 'move' && onMove) {
       const rawIn = g.startInP + dt
       const rawOut = g.startOutP + dt
       const s = trySnapMove(rawIn, rawOut, g.id)
-      pendingRef.current = { kind: 'move', id: g.id, inPoint: rawIn + s.delta, outPoint: rawOut + s.delta }
+      // Apply the snap delta first, then clamp so the entire region stays
+      // inside [0, duration] without changing its length. Compute the move
+      // amount from the start position, then bound it on both sides.
+      const desiredIn = rawIn + s.delta
+      const span = g.startOutP - g.startInP
+      const minDelta = -g.startInP                    // can't push in below 0
+      const maxDelta = maxT - g.startOutP             // can't push out past end
+      const moveDelta = Math.max(minDelta, Math.min(maxDelta, desiredIn - g.startInP))
+      const newIn = g.startInP + moveDelta
+      pendingRef.current = { kind: 'move', id: g.id, inPoint: newIn, outPoint: newIn + span }
       pendingHintsRef.current = s.hints
     } else {
       return
@@ -269,7 +291,12 @@ export default function RegionBand({
           return (
             <div
               key={r.id}
-              className={`thin-region clip-overlay--color-${(r.colorIndex ?? 0) % 8}${r.active ? ' thin-region--active' : ''}`}
+              className={[
+                'thin-region',
+                `clip-overlay--color-${(r.colorIndex ?? 0) % 8}`,
+                r.active && 'thin-region--active',
+                r.selected && 'thin-region--selected',
+              ].filter(Boolean).join(' ')}
               style={{ left: `${left}%`, width: `${width}%` }}
               title={r.label ?? `${r.inPoint.toFixed(2)}s → ${r.outPoint.toFixed(2)}s`}
               onMouseEnter={() => gesture.setHoveredRegion(r.id)}

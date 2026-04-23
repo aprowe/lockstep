@@ -41,6 +41,10 @@ interface WarpViewProps {
   onSendToNewRegion?: (inPoint: number, outPoint: number) => void
   clipOverlays?: ClipOverlay[]
   onClipOverlaySelect?: (id: string) => void
+  /** Lasso-driven multi-selection of clips. Independent of the single
+   *  active region — drives the clip-list multi-select set. */
+  selectedClipIds?: ReadonlySet<string>
+  onClipsSelectionChange?: (ids: Set<string>) => void
   onClipOverlayResize?: (id: string, inPoint: number, outPoint: number) => void
   onClipOverlayMove?: (id: string, inPoint: number, outPoint: number) => void
   onClipOverlayContextMenu?: (id: string, x: number, y: number) => void
@@ -60,6 +64,7 @@ export default function WarpView({
   onSendToNewRegion,
   clipOverlays,
   onClipOverlaySelect,
+  selectedClipIds, onClipsSelectionChange,
   onClipOverlayResize,
   onClipOverlayMove,
   onClipOverlayContextMenu,
@@ -468,6 +473,7 @@ export default function WarpView({
       outPoint: c.outPoint,
       colorIndex: c.colorIndex,
       active: c.active,
+      selected: c.selected,
       label: c.name,
     })),
     [clipOverlays],
@@ -480,6 +486,7 @@ export default function WarpView({
       outPoint: c.outPoint,
       colorIndex: c.colorIndex,
       active: c.active,
+      selected: c.selected,
       label: c.name,
     })),
     [beatClipOverlays],
@@ -623,6 +630,8 @@ export default function WarpView({
         linkedBoundaries={linkedBoundaries}
         selectedBoundaries={selectedBoundaries}
         onConnectorSelectionChange={setSelectedIds}
+        selectedClipIds={selectedClipIds}
+        onClipsSelectionChange={onClipsSelectionChange}
         warpCollapsed={warpCollapsed}
         onToggleWarp={() => dispatch(setWarpCollapsed(!warpCollapsed))}
       />

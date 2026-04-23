@@ -92,6 +92,12 @@ export async function revealInFolder(path: string): Promise<void> {
   return invoke('reveal_in_folder', { path })
 }
 
+/** Opens the OS file manager with the given file selected. Falls back to
+ *  opening the parent directory on Linux (no universal reveal verb). */
+export async function showInFolder(path: string): Promise<void> {
+  return invoke('show_in_folder', { path })
+}
+
 /** Writes a text file (e.g. JSON metadata) to a given path. */
 export async function writeTextFile(path: string, content: string): Promise<void> {
   return invoke('write_text_file', { req: { path, content } })

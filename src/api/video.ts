@@ -8,6 +8,15 @@ interface RawVideoInfo {
   duration: number
   fps: number
   file_hash: string
+  width?: number
+  height?: number
+  video_codec?: string
+  container?: string
+  file_size?: number
+  bitrate?: number
+  audio_codec?: string
+  audio_channels?: number
+  audio_sample_rate?: number
 }
 
 export interface VideoEntry {
@@ -23,6 +32,15 @@ function rawToVideoInfo(raw: RawVideoInfo): VideoInfo {
     duration: raw.duration,
     fps: raw.fps,
     fileHash: raw.file_hash,
+    width: raw.width,
+    height: raw.height,
+    videoCodec: raw.video_codec,
+    container: raw.container,
+    fileSize: raw.file_size,
+    bitrate: raw.bitrate,
+    audioCodec: raw.audio_codec,
+    audioChannels: raw.audio_channels,
+    audioSampleRate: raw.audio_sample_rate,
   }
 }
 

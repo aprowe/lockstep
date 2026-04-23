@@ -367,26 +367,16 @@ export default function App() {
         }
       />
 
-      {/* Body */}
+      {/* Body — PanelDock renders unconditionally so the file-browser panel
+          is reachable even before a video is loaded. The center column
+          shows the empty / loading state itself. */}
       <DockBridgeProvider value={dockBridge}>
       <div className="vj-body">
         <ExportProgressBar />
-        {!video ? (
-          <div className="app-empty">
-            {folderVideos.length === 0
-              ? <p className="app-empty__hint">Open a file or folder to get started</p>
-              : <p className="app-empty__hint">Select a video from the sidebar</p>}
-          </div>
-        ) : !markersLoaded ? (
-          <div className="app-empty">
-            <p className="app-empty__hint">Loading...</p>
-          </div>
-        ) : (
-          <PanelDock
-            ref={dockHandleRef}
-            onPanelsChange={ids => setVisiblePanelIds(new Set(ids))}
-          />
-        )}
+        <PanelDock
+          ref={dockHandleRef}
+          onPanelsChange={ids => setVisiblePanelIds(new Set(ids))}
+        />
       </div>
       </DockBridgeProvider>
 

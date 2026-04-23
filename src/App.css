@@ -42,6 +42,24 @@
   overflow: hidden;
 }
 
+/* Empty / loading state — when no video is loaded the center column
+ * still gets rendered (so the dock around it stays reachable) and
+ * shows a centered hint. */
+.vj-center--empty {
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-1);
+}
+
+.vj-center__hint {
+  font-family: var(--font-family);
+  font-size: var(--t-xl);
+  color: var(--fg-4);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
 /* ── Video breadcrumb ───────────────────────────────────── */
 .vj-breadcrumb {
   flex-shrink: 0;
