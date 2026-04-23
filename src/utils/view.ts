@@ -165,12 +165,20 @@ export function calcNewRegionBoundsFromScenes(
   return { inPoint, outPoint }
 }
 
-/** Center `view` on `time` if `time` falls outside it; returns unchanged view otherwise. */
-export function ensureTimeInView(view: View, time: number, videoDuration: number): View {
+/**
+ * Shift `view` just enough to bring `time` back on-screen, preserving the
+ * current zoom. A small margin (10% of span, min 0.25s) stops the target from
+ * landing glued to the edge.
+ *
+ * Returns the view by reference if `time` is already inside, so callers can
+ * short-circuit a dispatch with `next !== view`.
+ */
+export function scrollViewToTime(view: View, time: number, videoDuration: number): View {
   if (time >= view.start && time <= view.end) return view
   const span = view.end - view.start
-  const ns = time - span / 2
-  return clampView(ns, ns + span, videoDuration)
+  const margin = Math.max(span * 0.1, 0.25)
+  const start = time < view.start ? time - margin : time + margin - span
+  return clampView(start, start + span, videoDuration)
 }
 
 const ZOOM_EPS = 0.001

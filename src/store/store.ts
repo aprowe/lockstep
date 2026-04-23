@@ -10,6 +10,7 @@ import settingsReducer from './slices/settingsSlice'
 import listsReducer from './slices/listsSlice'
 import { persistenceMiddleware } from './middleware/persistenceMiddleware'
 import { historyMiddleware } from './middleware/historyMiddleware'
+import { revealPlayheadMiddleware } from './middleware/revealPlayheadMiddleware'
 
 export const store = configureStore({
   reducer: {
@@ -26,7 +27,8 @@ export const store = configureStore({
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware()
       .prepend(persistenceMiddleware.middleware)
-      .prepend(historyMiddleware.middleware),
+      .prepend(historyMiddleware.middleware)
+      .prepend(revealPlayheadMiddleware.middleware),
 })
 
 export type RootState = ReturnType<typeof store.getState>
