@@ -34,6 +34,10 @@ interface ExportDialogProps {
   trimToLoop: boolean
   regions: Region[]
   activeRegionId: string | null
+  /** Clip ids selected on the timeline / clips list. When the dialog opens
+   *  with a non-empty selection we auto-switch into 'selected' mode and
+   *  pre-check those ids, so "export selected" is one click. */
+  selectedClipIds?: readonly string[]
 }
 
 type ExportMode = 'current' | 'all' | 'selected'
@@ -104,6 +108,7 @@ function parentFolder(filePath: string): string {
 export default function ExportDialog({
   open, onClose, warpData, videoPath, originalName, videoFps,
   loopBeats, addToEnd, trimToLoop, regions, activeRegionId,
+  selectedClipIds,
 }: ExportDialogProps) {
   const [fadeAtLoop, setFadeAtLoop] = useState(false)
   const [normalizeBpm, setNormalizeBpm] = useState(false)
@@ -169,10 +174,22 @@ export default function ExportDialog({
       setCurrentMessage('')
       setLogLines([])
       cancelRef.current = false
-      setSelectedRegionIds(new Set(regions.map(r => r.id)))
+      // Prefer the timeline's clip selection when the dialog opens: switch
+      // into 'selected' mode and pre-check exactly those ids. Filter by the
+      // live regions list so stale ids can't end up in the checked set. If
+      // nothing is selected, fall back to the old default (every region
+      // checked, caller picks a mode).
+      const preSelected = (selectedClipIds ?? [])
+        .filter(id => regions.some(r => r.id === id))
+      if (preSelected.length > 0) {
+        setMode('selected')
+        setSelectedRegionIds(new Set(preSelected))
+      } else {
+        setSelectedRegionIds(new Set(regions.map(r => r.id)))
+      }
       setInterpFps(Math.round(videoFps ?? 60))
     }
-  }, [open, regions, videoFps]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, regions, videoFps, selectedClipIds]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => { unlistenRef.current?.() }, [])
 
