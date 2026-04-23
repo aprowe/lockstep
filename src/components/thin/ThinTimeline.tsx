@@ -92,6 +92,12 @@ interface ThinTimelineProps {
   selectedClipIds?: ReadonlySet<string>
   onClipsSelectionChange?: (ids: Set<string>) => void
 
+  /** Scene-cut selection — diamonds in this set draw with an accent ring,
+   *  and lasso gestures inside the scenes track update it. Identified by
+   *  exact cut time. */
+  selectedSceneTimes?: ReadonlySet<number>
+  onScenesSelectionChange?: (times: Set<number>) => void
+
   /** Delete the union of every timeline-side selection. Fires from
    *  Delete / Backspace when the timeline has keyboard focus. */
   onTimelineDelete?: () => void
@@ -141,6 +147,7 @@ export default function ThinTimeline({
   clipFillColor, boundaryColor, linkedBoundaries, selectedBoundaries,
   onConnectorSelectionChange,
   selectedClipIds, onClipsSelectionChange,
+  selectedSceneTimes, onScenesSelectionChange,
   onTimelineDelete, onTimelineDeselect,
   warpCollapsed = false, onToggleWarp,
 }: ThinTimelineProps) {
@@ -177,6 +184,8 @@ export default function ThinTimeline({
     initialIds: Set<number>
     /** Snapshot of clip selection at lasso-arm — additive starts merge from here. */
     initialClipIds: Set<string>
+    /** Snapshot of scene-cut selection at lasso-arm — same merge rules. */
+    initialSceneTimes: Set<number>
     /** Pointer id captured by root; undefined before drag threshold exceeded. */
     pointerId?: number
     /** Has the drag moved far enough to activate the lasso? */
@@ -317,14 +326,19 @@ export default function ThinTimeline({
     }
 
     // Scenes live in input space only — output side stays null so the line
-    // does not continue past the warp row.
+    // does not continue past the warp row. Selected cuts always show; the
+    // 'always-show' toggle and hover supplement that with weaker styles.
     const scenesToShow = new Set<number>()
     if (alwaysScenes) for (const s of scenes) scenesToShow.add(s)
     if (hoveredSceneTime !== null) scenesToShow.add(hoveredSceneTime)
+    if (selectedSceneTimes) for (const t of selectedSceneTimes) scenesToShow.add(t)
     for (const t of scenesToShow) {
       const inputX = timeToViewPct(t, view)
       if (!pairVisible(inputX, null)) continue
-      const style: ThroughStyle = hoveredSceneTime === t ? 'hover' : 'dotted'
+      const isSelected = selectedSceneTimes?.has(t) ?? false
+      const style: ThroughStyle = isSelected
+        ? 'selected'
+        : hoveredSceneTime === t ? 'hover' : 'dotted'
       out.push({ key: `sc-${t}`, inputX, outputX: null, kind: 'scene', style })
     }
 
@@ -346,7 +360,7 @@ export default function ThinTimeline({
   }, [
     anchors, beatAnchors, selectedAnchorIds, hoveredAnchorId,
     hoveredRegionId, regions, regionsOutput,
-    scenes, hoveredSceneTime,
+    scenes, hoveredSceneTime, selectedSceneTimes,
     alwaysAnchors, alwaysRegions, alwaysScenes,
     snapHintsIn, snapHintsOut,
     view,
@@ -522,6 +536,25 @@ export default function ThinTimeline({
     return ids
   }, [regions, view.start, view.end])
 
+  /**
+   * Scene-cut lasso — a cut is hit when its time falls inside the lasso
+   * range. Scenes live in input space only, so the multi-track span and
+   * scene-track-scoped lassos are the only paths that contribute. The other
+   * tracks (clips, markers) leave scene selection untouched.
+   */
+  const computeLassoSceneTimes = useCallback((startPct: number, endPct: number, sectionId: string | null): Set<number> => {
+    const span = view.end - view.start
+    const lo = view.start + Math.min(startPct, endPct) * span
+    const hi = view.start + Math.max(startPct, endPct) * span
+    const times = new Set<number>()
+    const allowsScenes = sectionId === null || sectionId === 'scenes'
+    if (!allowsScenes) return times
+    for (const t of scenes) {
+      if (t >= lo && t <= hi) times.add(t)
+    }
+    return times
+  }, [scenes, view.start, view.end])
+
   const onRootPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return
     if (e.shiftKey && !e.ctrlKey && !e.metaKey) return // shift+drag = pan
@@ -531,6 +564,7 @@ export default function ThinTimeline({
     const additive = e.ctrlKey || e.metaKey
     const initialIds = additive ? new Set(selectedAnchorIds) : new Set<number>()
     const initialClipIds = additive ? new Set(selectedClipIds ?? []) : new Set<string>()
+    const initialSceneTimes = additive ? new Set(selectedSceneTimes ?? []) : new Set<number>()
     const sectionId = sectionIdAt(e.clientX, e.clientY)
     // NOTE: don't capture the pointer or show a lasso yet — only arm it. If the
     // user clicks without moving past LASSO_DRAG_THRESHOLD, the click/dblclick
@@ -544,9 +578,10 @@ export default function ThinTimeline({
       startedAdditive: additive,
       initialIds,
       initialClipIds,
+      initialSceneTimes,
       active: false,
     }
-  }, [isLassoTarget, bodyPctFromClientX, sectionIdAt, selectedAnchorIds, selectedClipIds])
+  }, [isLassoTarget, bodyPctFromClientX, sectionIdAt, selectedAnchorIds, selectedClipIds, selectedSceneTimes])
 
   const onRootPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const g = lassoRef.current
@@ -566,6 +601,7 @@ export default function ThinTimeline({
       if (!g.startedAdditive) {
         onConnectorSelectionChange?.(new Set())
         onClipsSelectionChange?.(new Set())
+        onScenesSelectionChange?.(new Set())
       }
     }
 
@@ -593,7 +629,14 @@ export default function ThinTimeline({
     const mergedClips = new Set(g.initialClipIds)
     for (const id of hitClips) mergedClips.add(id)
     onClipsSelectionChange?.(mergedClips)
-  }, [bodyPctFromClientX, sectionIdAt, computeLassoIds, computeLassoClipIds, onConnectorSelectionChange, onClipsSelectionChange])
+
+    // Scenes — same again. Selection by time means we don't need a separate
+    // id-time map since cuts are uniquely identified by their value.
+    const hitScenes = computeLassoSceneTimes(g.startPct, pct, selectionSection)
+    const mergedScenes = new Set(g.initialSceneTimes)
+    for (const t of hitScenes) mergedScenes.add(t)
+    onScenesSelectionChange?.(mergedScenes)
+  }, [bodyPctFromClientX, sectionIdAt, computeLassoIds, computeLassoClipIds, computeLassoSceneTimes, onConnectorSelectionChange, onClipsSelectionChange, onScenesSelectionChange])
 
   const onRootPointerUp = useCallback(() => {
     const g = lassoRef.current
@@ -699,6 +742,7 @@ export default function ThinTimeline({
             onSceneDelete={onSceneDelete}
             onSceneContextMenu={onSceneContextMenu}
             onBackgroundContextMenu={onTimelineContextMenu}
+            selectedTimes={selectedSceneTimes}
           />
         </div>
       </div>

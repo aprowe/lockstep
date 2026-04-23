@@ -196,9 +196,9 @@ describeFeature(feature, ({ Scenario, AfterEachScenario }) => {
       // no setThumbnail dispatched — so the scene frame (30) has no cached path.
     })
     Then('a placeholder is shown in its place until the real thumbnail is available', () => {
-      const placeholder = container!.querySelector('.scene-row__thumb-img--placeholder')
+      const placeholder = container!.querySelector('.scene-band__thumb-img--placeholder')
       expect(placeholder).not.toBeNull()
-      expect(container!.querySelector('img.scene-row__thumb-img')).toBeNull()
+      expect(container!.querySelector('img.scene-band__thumb-img')).toBeNull()
     })
   })
 
@@ -220,7 +220,7 @@ describeFeature(feature, ({ Scenario, AfterEachScenario }) => {
       container = r.container
     })
     When('the user hovers over a scene marker', () => {
-      const diamond = container!.querySelector('.scene-row__diamond') as HTMLElement
+      const diamond = container!.querySelector('.scene-band__diamond') as HTMLElement
       diamond.getBoundingClientRect = () => ({
         left: 200, top: 50, right: 210, bottom: 60,
         width: 10, height: 10, x: 200, y: 50, toJSON: () => ({}),
@@ -232,11 +232,11 @@ describeFeature(feature, ({ Scenario, AfterEachScenario }) => {
       // setter is the contract: SceneRow tells the popup provider which frame
       // to render. Verify the diamond triggers mouseEnter handling without error
       // and that removing the hover clears it.
-      const diamond = container!.querySelector('.scene-row__diamond') as HTMLElement
+      const diamond = container!.querySelector('.scene-band__diamond') as HTMLElement
       fireEvent.mouseLeave(diamond)
       // Re-enter still works.
       fireEvent.mouseEnter(diamond)
-      expect(container!.querySelector('.scene-row__diamond')).not.toBeNull()
+      expect(container!.querySelector('.scene-band__diamond')).not.toBeNull()
     })
   })
 
@@ -260,7 +260,7 @@ describeFeature(feature, ({ Scenario, AfterEachScenario }) => {
       container = r.container
     })
     Then('a thumbnail of each scene marker\'s frame is shown inline inside the scene strip', () => {
-      const imgs = container!.querySelectorAll('img.scene-row__thumb-img')
+      const imgs = container!.querySelectorAll('img.scene-band__thumb-img')
       expect(imgs.length).toBe(2)
       const srcs = Array.from(imgs).map(i => (i as HTMLImageElement).src)
       expect(srcs.some(s => s.includes('30.jpg'))).toBe(true)

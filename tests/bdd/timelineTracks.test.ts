@@ -218,7 +218,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, AfterEachScenario }) => {
         // has no CSS and collapses to 0 height.
         body = container!.querySelector('.thin-row__body') as HTMLElement
       } else if (layer === 'scene_strip') {
-        body = container!.querySelector('.scene-row') as HTMLElement
+        body = container!.querySelector('.scene-band') as HTMLElement
       } else {
         // Same here — inner .thin-region-band__body has pointer-events: none.
         body = container!.querySelector('.thin-row__body') as HTMLElement
@@ -278,7 +278,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, AfterEachScenario }) => {
       if (layer === 'input_timeline') {
         target = container!.querySelector('.thin-marker') as HTMLElement
       } else if (layer === 'scene_strip') {
-        target = container!.querySelector('.scene-row__diamond') as HTMLElement
+        target = container!.querySelector('.scene-band__diamond') as HTMLElement
       } else {
         target = container!.querySelector('.thin-region') as HTMLElement
       }
@@ -343,7 +343,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, AfterEachScenario }) => {
       if (layer === 'input_timeline' || layer === 'multiple') {
         target = container!.querySelector('.thin-marker') as HTMLElement
       } else if (layer === 'scene_strip') {
-        target = container!.querySelector('.scene-row__diamond') as HTMLElement
+        target = container!.querySelector('.scene-band__diamond') as HTMLElement
       } else {
         target = container!.querySelector('.thin-region') as HTMLElement
       }
@@ -385,7 +385,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, AfterEachScenario }) => {
         )
         container = r.container
       } else if (layer === 'scene_strip') {
-        bodySelector = '.scene-row'
+        bodySelector = '.scene-band'
         container = renderWithStore(
           createElement(SceneRow, {
             scenes: [], view: VIEW, duration: 100,

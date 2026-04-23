@@ -27,6 +27,11 @@ import {
   removeAnchors,
 } from '../../src/store/slices/warpSlice'
 import { setListSelection } from '../../src/store/slices/listsSlice'
+import {
+  setCuts as setSceneCuts,
+  setSelectedCutTimes,
+  deleteCut as deleteSceneCut,
+} from '../../src/store/slices/sceneSlice'
 import { selectSelectedIdsSet } from '../../src/store/selectors'
 import { useAppSelector } from '../../src/store/hooks'
 import type { Anchor, Region, View } from '../../src/types'
@@ -35,6 +40,11 @@ import { makeStore, makeVideoInfo } from '../helpers/setup'
 const selectSelectedClipIdsSet = createSelector(
   (s: { lists: { selection: { clips: string[] } } }) => s.lists.selection.clips,
   (ids) => new Set(ids),
+)
+
+const selectSelectedSceneTimesSet = createSelector(
+  (s: { scene: { selectedCutTimes: number[] } }) => s.scene.selectedCutTimes,
+  (times) => new Set(times),
 )
 
 export interface RenderThinTimelineOptions {
@@ -50,6 +60,9 @@ export interface RenderThinTimelineOptions {
   selectedClipIds?: string[]
   /** Pre-seed warp.selectedIds (markers selection) before render. */
   selectedMarkerIds?: number[]
+  /** Pre-seed scene.selectedCutTimes before render. Times must match
+   *  entries in `scenes` for handleTimelineDelete to actually remove them. */
+  selectedSceneTimes?: number[]
   bpm?: number
   warpCollapsed?: boolean
 }
@@ -73,6 +86,7 @@ function ThinTimelineHarness(props: {
 }) {
   const selectedAnchorIds = useAppSelector(selectSelectedIdsSet)
   const selectedClipIds = useAppSelector(selectSelectedClipIdsSet)
+  const selectedSceneTimes = useAppSelector(selectSelectedSceneTimesSet)
   const blocks = useMemo<RegionBlock[]>(
     () => props.regions.map(r => ({
       id: r.id,
@@ -102,6 +116,7 @@ function ThinTimelineHarness(props: {
       regions={blocks}
       segments={[]}
       selectedClipIds={selectedClipIds}
+      selectedSceneTimes={selectedSceneTimes}
       onTimelineDelete={props.onTimelineDelete}
       onTimelineDeselect={props.onTimelineDeselect}
       warpCollapsed={props.warpCollapsed}
@@ -116,18 +131,30 @@ export function renderThinTimeline(opts: RenderThinTimelineOptions = {}) {
   const regions = opts.regions ?? []
   const anchors = opts.anchors ?? []
   const beatAnchors = opts.beatAnchors ?? anchors
+  const scenes = opts.scenes ?? []
 
-  store.dispatch(setVideo(makeVideoInfo({ duration })))
+  const videoInfo = makeVideoInfo({ duration })
+  const videoPath = videoInfo.path
+  store.dispatch(setVideo(videoInfo))
   store.dispatch(setRegions(regions))
   if (opts.activeRegionId !== undefined) {
     store.dispatch(setActiveRegionId(opts.activeRegionId))
   }
   store.dispatch(loadAnchors({ origAnchors: anchors, beatAnchors }))
+  // Seed scene cuts into sceneSlice keyed by the video path so the composed
+  // handleTimelineDelete (mirror of CenterColumn) can call deleteCut against
+  // the right path-keyed bucket.
+  if (scenes.length > 0) {
+    store.dispatch(setSceneCuts({ path: videoPath, cuts: scenes }))
+  }
   if (opts.selectedClipIds) {
     store.dispatch(setListSelection({ list: 'clips', ids: opts.selectedClipIds }))
   }
   if (opts.selectedMarkerIds) {
     store.dispatch(setSelectedAnchorIds(opts.selectedMarkerIds))
+  }
+  if (opts.selectedSceneTimes) {
+    store.dispatch(setSelectedCutTimes(opts.selectedSceneTimes))
   }
 
   // Mirror CenterColumn's composition of the union-delete and clear-all
@@ -136,6 +163,7 @@ export function renderThinTimeline(opts: RenderThinTimelineOptions = {}) {
     const s = store.getState()
     const clipIds = s.lists.selection.clips
     const markerIds = s.warp.selectedIds
+    const sceneTimes = s.scene.selectedCutTimes
     if (clipIds.length > 0) {
       for (const id of clipIds) store.dispatch(deleteRegion(id))
       store.dispatch(setListSelection({ list: 'clips', ids: [] }))
@@ -143,6 +171,12 @@ export function renderThinTimeline(opts: RenderThinTimelineOptions = {}) {
     if (markerIds.length > 0) {
       store.dispatch(removeAnchors([...markerIds]))
       store.dispatch(setSelectedAnchorIds([]))
+    }
+    if (sceneTimes.length > 0) {
+      for (const t of sceneTimes) {
+        store.dispatch(deleteSceneCut({ path: videoPath, cut: t }))
+      }
+      store.dispatch(setSelectedCutTimes([]))
     }
   }
   const handleTimelineDeselect = () => {
@@ -152,6 +186,9 @@ export function renderThinTimeline(opts: RenderThinTimelineOptions = {}) {
     }
     if (s.warp.selectedIds.length > 0) {
       store.dispatch(setSelectedAnchorIds([]))
+    }
+    if (s.scene.selectedCutTimes.length > 0) {
+      store.dispatch(setSelectedCutTimes([]))
     }
   }
 
@@ -163,7 +200,7 @@ export function renderThinTimeline(opts: RenderThinTimelineOptions = {}) {
         regions={regions}
         anchors={anchors}
         beatAnchors={beatAnchors}
-        scenes={opts.scenes ?? []}
+        scenes={scenes}
         bpm={opts.bpm ?? 120}
         warpCollapsed={opts.warpCollapsed ?? false}
         onTimelineDelete={handleTimelineDelete}
@@ -172,7 +209,7 @@ export function renderThinTimeline(opts: RenderThinTimelineOptions = {}) {
     </Provider>,
   )
 
-  return { ...(result as RenderResult), store }
+  return { ...(result as RenderResult), store, videoPath }
 }
 
 export function makeAnchor(id: number, time: number): Anchor {

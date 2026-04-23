@@ -17,6 +17,10 @@ interface SceneState {
   thresholdByPath: Record<string, number>
   /** Per-video min seconds between consecutive cuts. 0 disables. Collapses dense clusters in the UI. */
   minGapByPath: Record<string, number>
+  /** Currently-selected scene cut times (seconds). Identified by exact time
+   *  rather than index because cuts can be added/removed underneath the
+   *  selection — matching by time keeps the survivors stable. */
+  selectedCutTimes: number[]
 }
 
 const initialState: SceneState = {
@@ -27,6 +31,7 @@ const initialState: SceneState = {
   jobByPath: {},
   thresholdByPath: {},
   minGapByPath: {},
+  selectedCutTimes: [],
 }
 
 const sceneSlice = createSlice({
@@ -122,6 +127,17 @@ const sceneSlice = createSlice({
       const list = state.cutsByPath[path]
       if (!list) return
       state.cutsByPath[path] = list.filter(t => Math.abs(t - cut) >= 1e-3)
+      // Drop the matching entry from selection too — orphaned times would
+      // visually do nothing but pollute every selection-driven action.
+      state.selectedCutTimes = state.selectedCutTimes.filter(
+        t => Math.abs(t - cut) >= 1e-3,
+      )
+    },
+    /** Replace the timeline-side scene cut selection. Times are matched by
+     *  exact value when reading; lasso/Delete callers always pass canonical
+     *  times sourced from cutsByPath. */
+    setSelectedCutTimes(state, action: PayloadAction<number[]>) {
+      state.selectedCutTimes = action.payload
     },
   },
 })
@@ -138,6 +154,7 @@ export const {
   setMinGap,
   addCut,
   deleteCut,
+  setSelectedCutTimes,
 } = sceneSlice.actions
 
 export default sceneSlice.reducer

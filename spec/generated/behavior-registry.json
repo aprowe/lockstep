@@ -829,6 +829,47 @@
       "file": "spec/features/list-selection.feature",
       "line": 312
     },
+    "list-selection::c16d9138": {
+      "feature": "List Selection",
+      "scenario": "Timeline Delete also removes selected scene cuts",
+      "isOutline": false,
+      "steps": [
+        "Given the timeline has two selected scene cuts",
+        "When the user presses Delete with the timeline focused",
+        "Then the selected cuts are removed from the scene list",
+        "And the scene-cut selection is cleared"
+      ],
+      "file": "spec/features/list-selection.feature",
+      "line": 326,
+      "hints": [
+        "Selected diamonds draw with an accent ring + a brighter through-line so the user can pick them out at a glance even when the always-show-scene-lines toggle is off."
+      ]
+    },
+    "list-selection::bc0146f7": {
+      "feature": "List Selection",
+      "scenario": "Timeline Cmd+D also clears the scene-cut selection",
+      "isOutline": false,
+      "steps": [
+        "Given the timeline has two selected scene cuts",
+        "When the user presses Cmd+D with the timeline focused",
+        "Then the scene-cut selection is cleared",
+        "And the cuts themselves remain"
+      ],
+      "file": "spec/features/list-selection.feature",
+      "line": 332
+    },
+    "list-selection::5afb8d06": {
+      "feature": "List Selection",
+      "scenario": "Plain click on empty timeline clears the scene-cut selection",
+      "isOutline": false,
+      "steps": [
+        "Given the timeline has two selected scene cuts",
+        "When the user clicks the empty timeline body with no modifier keys and no drag",
+        "Then the scene-cut selection is cleared"
+      ],
+      "file": "spec/features/list-selection.feature",
+      "line": 338
+    },
     "timeline-navigation::2e61d3bc": {
       "feature": "Timeline Navigation",
       "scenario": "While playing, Previous skips targets within 0.5s behind the playhead",

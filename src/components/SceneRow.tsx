@@ -28,6 +28,9 @@ interface SceneRowProps {
   onSceneContextMenu?: (time: number, x: number, y: number) => void
   /** Right-click on the empty row background — global timeline menu. */
   onBackgroundContextMenu?: (time: number, x: number, y: number) => void
+  /** Currently-selected scene cut times — diamonds in this set get an accent
+   *  outline. Independent of the activeIdx (playhead-derived) styling. */
+  selectedTimes?: ReadonlySet<number>
 }
 
 const PLAYHEAD_MATCH_TOLERANCE = 0.05 // ~1 video frame at 20fps
@@ -35,6 +38,7 @@ const PLAYHEAD_MATCH_TOLERANCE = 0.05 // ~1 video frame at 20fps
 export default function SceneRow({
   scenes, view, duration, expanded, onSceneClick, playhead,
   onSceneDelete, onSceneAdd, onSceneContextMenu, onBackgroundContextMenu,
+  selectedTimes,
 }: SceneRowProps) {
   const video = useAppSelector(s => s.video.video)
   const thumbPaths = useAppSelector(selectThumbnailPathsFor(video?.fileHash))
@@ -112,7 +116,7 @@ export default function SceneRow({
 
   return (
     <div
-      className={`scene-row${expanded ? ' scene-row--expanded' : ''}`}
+      className={`scene-band${expanded ? ' scene-band--expanded' : ''}`}
       onDoubleClick={handleBackgroundDoubleClick}
       onContextMenu={handleBackgroundContextMenu}
     >
@@ -121,12 +125,13 @@ export default function SceneRow({
         const x = timeToViewPct(t, view)
         if (x < -2 || x > 102) return null
         const active = i === activeIdx
+        const selected = !!selectedTimes?.has(t)
         const inlineSrc = expanded ? inlineSrcs[i] ?? null : null
         return (
-          <div key={i} className="scene-row__marker" style={{ left: `${x}%` }}>
+          <div key={i} className="scene-band__marker" style={{ left: `${x}%` }}>
             <button
               type="button"
-              className={`scene-row__diamond${active ? ' scene-row__diamond--active' : ''}`}
+              className={`scene-band__diamond${active ? ' scene-band__diamond--active' : ''}${selected ? ' scene-band__diamond--selected' : ''}`}
               onClick={(e) => {
                 e.stopPropagation()
                 if (e.shiftKey && onSceneDelete) onSceneDelete(t)
@@ -150,7 +155,7 @@ export default function SceneRow({
             {expanded && (
               <button
                 type="button"
-                className={`scene-row__thumb-btn${active ? ' scene-row__thumb-btn--active' : ''}`}
+                className={`scene-band__thumb-btn${active ? ' scene-band__thumb-btn--active' : ''}`}
                 onClick={onSceneClick ? () => onSceneClick(t) : undefined}
                 onMouseEnter={() => gesture.setHoveredScene(t)}
                 onMouseLeave={() => gesture.setHoveredScene(null)}
@@ -159,17 +164,17 @@ export default function SceneRow({
               >
                 {inlineSrc ? (
                   <img
-                    className="scene-row__thumb-img"
+                    className="scene-band__thumb-img"
                     src={inlineSrc}
                     alt=""
                     draggable={false}
                   />
                 ) : (
-                  <div className="scene-row__thumb-img scene-row__thumb-img--placeholder" />
+                  <div className="scene-band__thumb-img scene-band__thumb-img--placeholder" />
                 )}
               </button>
             )}
-            {expanded && <span className="scene-row__label">{i + 1}</span>}
+            {expanded && <span className="scene-band__label">{i + 1}</span>}
           </div>
         )
       })}

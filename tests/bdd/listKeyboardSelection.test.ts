@@ -260,6 +260,89 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     })
   })
 
+  // @behavior list-selection::c16d9138
+  Scenario('Timeline Delete also removes selected scene cuts', ({ Given, When, Then, And }) => {
+    const observed: {
+      cutsRemaining: number[]
+      sceneSelection: number[]
+    } = { cutsRemaining: [], sceneSelection: [] }
+    const cuts = [12, 25, 41]
+
+    Given('the timeline has two selected scene cuts', () => {})
+    When('the user presses Delete with the timeline focused', () => {
+      const harness = renderThinTimeline({
+        scenes: cuts,
+        selectedSceneTimes: [12, 41],
+      })
+      const root = harness.container.querySelector('.thin-timeline') as HTMLElement
+      root.focus()
+      fireEvent.keyDown(root, { key: 'Delete' })
+      const s = harness.store.getState()
+      observed.cutsRemaining = [...(s.scene.cutsByPath[harness.videoPath] ?? [])]
+      observed.sceneSelection = [...s.scene.selectedCutTimes]
+    })
+    Then('the selected cuts are removed from the scene list', () => {
+      expect(observed.cutsRemaining).toEqual([25])
+    })
+    And('the scene-cut selection is cleared', () => {
+      expect(observed.sceneSelection).toEqual([])
+    })
+  })
+
+  // @behavior list-selection::bc0146f7
+  Scenario('Timeline Cmd+D also clears the scene-cut selection', ({ Given, When, Then, And }) => {
+    const observed: {
+      cutsRemaining: number[]
+      sceneSelection: number[]
+    } = { cutsRemaining: [], sceneSelection: [] }
+    const cuts = [12, 25]
+
+    Given('the timeline has two selected scene cuts', () => {})
+    When('the user presses Cmd+D with the timeline focused', () => {
+      const harness = renderThinTimeline({
+        scenes: cuts,
+        selectedSceneTimes: [12, 25],
+      })
+      const root = harness.container.querySelector('.thin-timeline') as HTMLElement
+      root.focus()
+      fireEvent.keyDown(root, { key: 'd', metaKey: true })
+      const s = harness.store.getState()
+      observed.cutsRemaining = [...(s.scene.cutsByPath[harness.videoPath] ?? [])]
+      observed.sceneSelection = [...s.scene.selectedCutTimes]
+    })
+    Then('the scene-cut selection is cleared', () => {
+      expect(observed.sceneSelection).toEqual([])
+    })
+    And('the cuts themselves remain', () => {
+      expect([...observed.cutsRemaining].sort((a, b) => a - b)).toEqual(cuts)
+    })
+  })
+
+  // @behavior list-selection::5afb8d06
+  Scenario('Plain click on empty timeline clears the scene-cut selection', ({ Given, When, Then }) => {
+    const observed: { sceneSelection: number[] } = { sceneSelection: [] }
+    const cuts = [12, 25]
+
+    Given('the timeline has two selected scene cuts', () => {})
+    When('the user clicks the empty timeline body with no modifier keys and no drag', () => {
+      const harness = renderThinTimeline({
+        scenes: cuts,
+        selectedSceneTimes: [12, 25],
+      })
+      const root = harness.container.querySelector('.thin-timeline') as HTMLElement
+      fireEvent.pointerDown(root, {
+        button: 0, pointerId: 1, clientX: 50, clientY: 50,
+      })
+      fireEvent.pointerUp(root, {
+        button: 0, pointerId: 1, clientX: 50, clientY: 50,
+      })
+      observed.sceneSelection = [...harness.store.getState().scene.selectedCutTimes]
+    })
+    Then('the scene-cut selection is cleared', () => {
+      expect(observed.sceneSelection).toEqual([])
+    })
+  })
+
   // @behavior list-selection::5253b594
   Scenario('Modifier-click on empty timeline does not clear selection', ({ Given, When, Then }) => {
     const observed: {

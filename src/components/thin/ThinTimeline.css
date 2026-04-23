@@ -78,7 +78,7 @@
 /* Stretch child strips to fill the (now-flexible) body. Both SceneRow and
  * SpeedStrip ship with a fixed height that would leave a blank gap below
  * when the parent section is taller than the strip's natural size. */
-.thin-timeline__scene-body > .scene-row,
+.thin-timeline__scene-body > .scene-band,
 .thin-timeline__speed-body > .speed-strip {
   height: 100%;
   width: 100%;
@@ -360,6 +360,12 @@
   stroke: hsla(150, 60%, 75%, 0.45);
   stroke-width: 1;
   stroke-dasharray: 2 2;
+}
+
+.thin-timeline__through-stroke--scene-selected {
+  stroke: hsla(195, 95%, 75%, 0.9);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 3px hsla(195, 90%, 65%, 0.55));
 }
 
 .thin-timeline__through-stroke--snap-snap {

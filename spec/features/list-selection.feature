@@ -313,3 +313,29 @@ Feature: List Selection
         Given the timeline has selected clips and selected markers
         When the user ctrl-clicks the empty timeline body with no drag
         Then both selections are unchanged
+
+    # ── Scene-cut selection on the timeline ─────────────────────────────────
+    # Scene cuts on the timeline get their own selection set, separate from
+    # the panel scene-segment selection (different concept — cuts vs the
+    # segments between them). Lasso writes scene.selectedCutTimes; the same
+    # focus-scoped Delete / Cmd+D / empty-click semantics apply.
+
+    # @hint Selected diamonds draw with an accent ring + a brighter
+    #       through-line so the user can pick them out at a glance even
+    #       when the always-show-scene-lines toggle is off.
+    Scenario: Timeline Delete also removes selected scene cuts
+        Given the timeline has two selected scene cuts
+        When the user presses Delete with the timeline focused
+        Then the selected cuts are removed from the scene list
+        And the scene-cut selection is cleared
+
+    Scenario: Timeline Cmd+D also clears the scene-cut selection
+        Given the timeline has two selected scene cuts
+        When the user presses Cmd+D with the timeline focused
+        Then the scene-cut selection is cleared
+        And the cuts themselves remain
+
+    Scenario: Plain click on empty timeline clears the scene-cut selection
+        Given the timeline has two selected scene cuts
+        When the user clicks the empty timeline body with no modifier keys and no drag
+        Then the scene-cut selection is cleared

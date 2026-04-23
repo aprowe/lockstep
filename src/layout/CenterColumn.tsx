@@ -26,7 +26,11 @@ import {
   setTimelineHeight as setTimelineHeightAction,
   setGridDiv as setGridDivAction,
 } from '../store/slices/uiSlice'
-import { addCut as addSceneCutAction, deleteCut as deleteSceneCutAction } from '../store/slices/sceneSlice'
+import {
+  addCut as addSceneCutAction,
+  deleteCut as deleteSceneCutAction,
+  setSelectedCutTimes as setSelectedSceneCutTimesAction,
+} from '../store/slices/sceneSlice'
 import { setListSelection, setPendingEdit } from '../store/slices/listsSlice'
 import { calcZoomToRegion, calcNewRegionBoundsFromScenes, calcNewRegionBoundsUpToNext } from '../utils/view'
 import { findPreviousTarget } from '../utils/navigation'
@@ -71,6 +75,13 @@ export default function CenterColumn() {
   const selectedClipIds = useAppSelector(s => s.lists.selection.clips)
   const selectedClipSet = useMemo(() => new Set(selectedClipIds), [selectedClipIds])
   const selectedAnchorIds = useAppSelector(selectSelectedIdsSet)
+  // Lasso-driven scene-cut selection — lives in sceneSlice (not lists.selection
+  // because scene rows in the panel address segments, not cuts; conflating the
+  // two would make panel checkboxes reflect timeline lasso state).
+  const selectedSceneCutTimes = useAppSelector(s => s.scene.selectedCutTimes)
+  const selectedSceneCutSet = useMemo(
+    () => new Set(selectedSceneCutTimes), [selectedSceneCutTimes],
+  )
 
   // Delete the union of every timeline-side selection in one shot. Fires
   // from Delete / Backspace when the timeline root has keyboard focus.
@@ -83,14 +94,23 @@ export default function CenterColumn() {
       dispatch(removeAnchorsAction([...selectedAnchorIds]))
       dispatch(setSelectedAnchorIdsAction([]))
     }
-  }, [selectedClipIds, selectedAnchorIds, dispatch])
+    if (selectedSceneCutTimes.length > 0 && videoPath) {
+      for (const t of selectedSceneCutTimes) {
+        dispatch(deleteSceneCutAction({ path: videoPath, cut: t }))
+      }
+      // deleteCut already drops matching entries from selectedCutTimes,
+      // but call setSelectedCutTimes([]) to be explicit and clear in one go.
+      dispatch(setSelectedSceneCutTimesAction([]))
+    }
+  }, [selectedClipIds, selectedAnchorIds, selectedSceneCutTimes, videoPath, dispatch])
 
   // Clear every timeline-side selection — Cmd+D and the empty-click
   // deselect (Policy B from docs/INTERACTION_DESIGN.md).
   const handleTimelineDeselect = useCallback(() => {
     if (selectedClipIds.length > 0) dispatch(setListSelection({ list: 'clips', ids: [] }))
     if (selectedAnchorIds.size > 0) dispatch(setSelectedAnchorIdsAction([]))
-  }, [selectedClipIds, selectedAnchorIds, dispatch])
+    if (selectedSceneCutTimes.length > 0) dispatch(setSelectedSceneCutTimesAction([]))
+  }, [selectedClipIds, selectedAnchorIds, selectedSceneCutTimes, dispatch])
 
   // Saved viewport from before the user zoomed into a region — restored when
   // the same zoom action toggles back out.
@@ -339,6 +359,8 @@ export default function CenterColumn() {
           }}
           selectedClipIds={selectedClipSet}
           onClipsSelectionChange={ids => dispatch(setListSelection({ list: 'clips', ids: [...ids] }))}
+          selectedSceneTimes={selectedSceneCutSet}
+          onScenesSelectionChange={times => dispatch(setSelectedSceneCutTimesAction([...times]))}
           onTimelineDelete={handleTimelineDelete}
           onTimelineDeselect={handleTimelineDeselect}
           onClipOverlayResize={(id, inP, outP) => updateRegionInOut(id, inP, outP)}

@@ -70,7 +70,7 @@ describe('ThinTimeline dblclick dispatch (lasso must not swallow clicks)', () =>
   it('double-clicking the scene row background fires onSceneAdd', () => {
     const onSceneAdd = vi.fn<(t: number) => void>()
     const { container } = renderTimeline({ onSceneAdd })
-    const sceneBody = container.querySelector('.scene-row') as HTMLElement
+    const sceneBody = container.querySelector('.scene-band') as HTMLElement
     expect(sceneBody).not.toBeNull()
     stubRect(sceneBody, 0, 1000)
     fireEvent.doubleClick(sceneBody, { clientX: 300 })
