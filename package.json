@@ -19,6 +19,8 @@
     "layouts": "tsx scripts/layouts.ts check",
     "layouts:check": "tsx scripts/layouts.ts check",
     "spec:check": "npm run behaviors:check && npm run layouts:check",
+    "screenshots": "playwright test",
+    "screenshots:install": "playwright install chromium",
     "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
@@ -32,6 +34,7 @@
   },
   "devDependencies": {
     "@amiceli/vitest-cucumber": "^6.3.0",
+    "@playwright/test": "^1.59.1",
     "@tauri-apps/cli": "^2.10.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^25.6.0",
