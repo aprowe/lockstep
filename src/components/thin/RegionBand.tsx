@@ -77,16 +77,28 @@ export default function RegionBand({
   const rafRef = useRef<number | null>(null)
   const pendingRef = useRef<PendingUpdate | null>(null)
   const pendingHintsRef = useRef<number[] | null>(null)
+  /** Edge position the drag is currently snapped to (matches a hint), or null. */
+  const pendingDragTimeRef = useRef<number | null>(null)
 
   const flushPending = useCallback(() => {
     const p = pendingRef.current
     const h = pendingHintsRef.current
+    const dt = pendingDragTimeRef.current
     pendingRef.current = null
     pendingHintsRef.current = null
+    pendingDragTimeRef.current = null
     if (p && p.kind === 'resize' && onResize) onResize(p.id, p.inPoint, p.outPoint)
     else if (p && p.kind === 'move' && onMove) onMove(p.id, p.inPoint, p.outPoint)
     if (h !== null) gesture.setSnapHints(space, h)
+    gesture.setDragTime(space, dt)
   }, [onResize, onMove, space])
+
+  /** True when a numeric value matches one of the snap-hint times (within float epsilon). */
+  const matchHint = (value: number, hints: number[]): number | null => {
+    const SNAP_EPS = 1e-6
+    for (const h of hints) if (Math.abs(h - value) < SNAP_EPS) return h
+    return null
+  }
 
   const scheduleFlush = useCallback(() => {
     if (rafRef.current !== null) return
@@ -196,6 +208,7 @@ export default function RegionBand({
       const clamped = Math.max(0, Math.min(s.snapped, g.startOutP - MIN_WIDTH_SEC))
       pendingRef.current = { kind: 'resize', id: g.id, inPoint: clamped, outPoint: g.startOutP }
       pendingHintsRef.current = s.hints
+      pendingDragTimeRef.current = matchHint(clamped, s.hints)
     } else if (g.type === 'resize-r' && onResize) {
       const rawOut = g.startOutP + dt
       const s = trySnap(rawOut, g.id)
@@ -203,6 +216,7 @@ export default function RegionBand({
       const clamped = Math.min(maxT, Math.max(s.snapped, g.startInP + MIN_WIDTH_SEC))
       pendingRef.current = { kind: 'resize', id: g.id, inPoint: g.startInP, outPoint: clamped }
       pendingHintsRef.current = s.hints
+      pendingDragTimeRef.current = matchHint(clamped, s.hints)
     } else if (g.type === 'move' && onMove) {
       const rawIn = g.startInP + dt
       const rawOut = g.startOutP + dt
@@ -216,8 +230,11 @@ export default function RegionBand({
       const maxDelta = maxT - g.startOutP             // can't push out past end
       const moveDelta = Math.max(minDelta, Math.min(maxDelta, desiredIn - g.startInP))
       const newIn = g.startInP + moveDelta
-      pendingRef.current = { kind: 'move', id: g.id, inPoint: newIn, outPoint: newIn + span }
+      const newOut = newIn + span
+      pendingRef.current = { kind: 'move', id: g.id, inPoint: newIn, outPoint: newOut }
       pendingHintsRef.current = s.hints
+      // For a move, either edge may have landed on a hint — pick whichever did.
+      pendingDragTimeRef.current = matchHint(newIn, s.hints) ?? matchHint(newOut, s.hints)
     } else {
       return
     }
