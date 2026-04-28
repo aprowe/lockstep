@@ -341,18 +341,18 @@
   background-image: linear-gradient(to bottom, hsla(150, 70%, 70%, 0.75) 50%, transparent 50%);
 }
 
-/* Snap-hint through-lines — bright green during drag, thin dashed. */
+/* Snap-hint through-lines — candidate targets shown during drag, thin dashed. */
 .thin-timeline__through-line--snap-snap {
   width: 1px;
-  background-image: linear-gradient(to bottom, hsla(140, 80%, 65%, 0.85) 50%, transparent 50%);
+  background-image: linear-gradient(to bottom, var(--snap) 50%, transparent 50%);
   background-size: 1px 4px;
   background-repeat: repeat-y;
 }
 
-/* Snap-hint that the drag is currently snapped to — yellow, bolder. */
+/* Snap-hint that the drag is currently snapped to — bolder accent. */
 .thin-timeline__through-line--snap-snap-active {
   width: 1px;
-  background-image: linear-gradient(to bottom, hsla(50, 100%, 60%, 1) 50%, transparent 50%);
+  background-image: linear-gradient(to bottom, var(--snap-active) 50%, transparent 50%);
   background-size: 1px 4px;
   background-repeat: repeat-y;
 }
@@ -437,16 +437,16 @@
 }
 
 .thin-timeline__through-stroke--snap-snap {
-  stroke: hsla(140, 80%, 65%, 0.85);
+  stroke: var(--snap);
   stroke-width: 1;
   stroke-dasharray: 2 2;
 }
 
 .thin-timeline__through-stroke--snap-snap-active {
-  stroke: hsla(50, 100%, 60%, 1);
+  stroke: var(--snap-active);
   stroke-width: 1.5;
   stroke-dasharray: 2 2;
-  filter: drop-shadow(0 0 3px hsla(50, 100%, 55%, 0.6));
+  filter: drop-shadow(0 0 3px var(--snap-active));
 }
 
 .thin-timeline__toolbar {

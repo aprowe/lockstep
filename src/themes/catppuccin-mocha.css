@@ -51,6 +51,10 @@
   --scene-cut-active-bd: #fff8e0;
   --scene-cut-rgb:       249, 226, 175;
 
+  /* ── Snap hints ─────────────────────────────────────────── */
+  --snap:        #a6e3a1;   /* catppuccin green */
+  --snap-active: #f9e2af;   /* catppuccin yellow */
+
   /* ── RGB channels for rgba() transparency ───────────────── */
   --accent-rgb:   203, 166, 247;
   --accent-2-rgb: 250, 179, 135;

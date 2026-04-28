@@ -52,6 +52,10 @@
   --scene-cut-active-bd: hsl(48, 100%, 88%);
   --scene-cut-rgb:       240, 200, 50;
 
+  /* ── Snap hints ─────────────────────────────────────────── */
+  --snap:        hsl(140, 70%, 65%);
+  --snap-active: hsl(45, 100%, 65%);
+
   /* ── RGB channels for rgba() transparency ───────────────── */
   --accent-rgb:   124, 106, 247;
   --accent-2-rgb: 244, 162, 97;

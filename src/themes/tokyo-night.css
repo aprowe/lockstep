@@ -50,6 +50,10 @@
   --scene-cut-active-bd: #fde2b3;
   --scene-cut-rgb:       224, 175, 104;
 
+  /* ── Snap hints ─────────────────────────────────────────── */
+  --snap:        #9ece6a;   /* tokyo green */
+  --snap-active: #e0af68;   /* tokyo amber */
+
   /* ── RGB channels for rgba() transparency ───────────────── */
   --accent-rgb:   122, 162, 247;
   --accent-2-rgb: 187, 154, 247;

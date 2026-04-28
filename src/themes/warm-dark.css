@@ -48,6 +48,10 @@
      --scene-cut, --scene-cut-hi, --scene-cut-bd,
      --scene-cut-active, --scene-cut-active-bd, --scene-cut-rgb.
 
+   Snap (drag-time hint lines on the timeline):
+     --snap          Candidate snap targets (rendered while dragging).
+     --snap-active   The candidate the drag is currently snapped to.
+
    RGB-channel variants (for rgba() opacity work):
      --accent-rgb, --accent-2-rgb, --fg-1-rgb, --blue-rgb,
      --beat-rgb, --scene-cut-rgb.
@@ -108,6 +112,10 @@
   --scene-cut-active:    hsl(48, 100%, 78%);
   --scene-cut-active-bd: hsl(48, 100%, 88%);
   --scene-cut-rgb:       240, 200, 50;
+
+  /* ── Snap hints ─────────────────────────────────────────── */
+  --snap:        hsl(140, 80%, 65%);
+  --snap-active: hsl(50, 100%, 60%);
 
   /* ── RGB channels for rgba() transparency ───────────────── */
   --accent-rgb:   245, 158, 11;
