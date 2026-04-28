@@ -134,7 +134,7 @@ const DEFAULT_FLEX: Record<string, number> = {
 
 type SectionSpace = 'input' | 'output' | 'warp'
 type ThroughKind = 'anchor' | 'region' | 'scene' | 'snap'
-type ThroughStyle = 'selected' | 'hover' | 'dotted' | 'snap'
+type ThroughStyle = 'selected' | 'hover' | 'dotted' | 'snap' | 'snap-active'
 
 interface ThroughLine {
   key: string
@@ -362,15 +362,21 @@ export default function ThinTimeline({
     // Snap hint times can duplicate (e.g. a marker sitting on a beat grid
      // position shows up from both sources). Dedupe before rendering or React
      // complains about duplicate keys.
+    // The hint at the currently-snapped drag time is highlighted (snap-active).
+    const SNAP_EPS = 1e-6
+    const activeIn = dragTime?.space === 'input' ? dragTime.time : null
+    const activeOut = dragTime?.space === 'output' ? dragTime.time : null
     for (const t of new Set(snapHintsIn)) {
       const inputX = timeToViewPct(t, view)
       if (!pairVisible(inputX, null)) continue
-      out.push({ key: `snap-in-${t}`, inputX, outputX: null, kind: 'snap', style: 'snap' })
+      const style: ThroughStyle = activeIn !== null && Math.abs(activeIn - t) < SNAP_EPS ? 'snap-active' : 'snap'
+      out.push({ key: `snap-in-${t}`, inputX, outputX: null, kind: 'snap', style })
     }
     for (const t of new Set(snapHintsOut)) {
       const outputX = timeToViewPct(t, view)
       if (!pairVisible(null, outputX)) continue
-      out.push({ key: `snap-out-${t}`, inputX: null, outputX, kind: 'snap', style: 'snap' })
+      const style: ThroughStyle = activeOut !== null && Math.abs(activeOut - t) < SNAP_EPS ? 'snap-active' : 'snap'
+      out.push({ key: `snap-out-${t}`, inputX: null, outputX, kind: 'snap', style })
     }
 
     return out
@@ -379,7 +385,7 @@ export default function ThinTimeline({
     hoveredRegionId, regions, regionsOutput,
     scenes, hoveredSceneTime, selectedSceneTimes,
     alwaysAnchors, alwaysRegions, alwaysScenes,
-    snapHintsIn, snapHintsOut,
+    snapHintsIn, snapHintsOut, dragTime,
     view,
   ])
 
