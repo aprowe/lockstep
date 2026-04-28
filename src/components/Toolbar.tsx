@@ -72,6 +72,9 @@ export default function Toolbar({
   const onDeleteRegionRef = useRef(onDeleteRegion); onDeleteRegionRef.current = onDeleteRegion
 
   // Global keyboard shortcuts
+  // fps is captured in a ref so the listener doesn't have to re-bind every
+  // time the parent re-renders with the same fps value.
+  const fpsRef = useRef(fps); fpsRef.current = fps
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const active = document.activeElement
@@ -82,6 +85,21 @@ export default function Toolbar({
       if (e.key === 'i' || e.key === 'I') onSetInRef.current?.()
       if (e.key === 'o' || e.key === 'O') onSetOutRef.current?.()
       if (e.key === 'Delete' && e.ctrlKey) { e.preventDefault(); onDeleteRegionRef.current?.() }
+      // Arrow stepping. Direction comes from the key, magnitude from the modifier:
+      //   plain  → 1 frame, Shift → 10 frames, Alt → 1 second
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        const dir = e.key === 'ArrowRight' ? 1 : -1
+        const f = fpsRef.current
+        let delta: number
+        if (e.altKey) delta = dir * 1
+        else if (e.shiftKey) delta = dir * (f > 0 ? 10 / f : 0)
+        else delta = dir * (f > 0 ? 1 / f : 0)
+        const p = playerRef.current
+        if (!p || delta === 0) return
+        e.preventDefault()
+        p.pause()
+        p.seek(p.currentTime + delta)
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)

@@ -20,6 +20,12 @@ export interface HotkeyDef {
 export const HOTKEYS: readonly HotkeyDef[] = [
   // ── Playback ────────────────────────────────────────────────────────────
   { id: 'play-pause',       keys: 'Space',           label: 'Play / pause',           category: 'Playback' },
+  { id: 'step-back-frame',  keys: 'Left',            label: 'Step back 1 frame',      category: 'Playback' },
+  { id: 'step-fwd-frame',   keys: 'Right',           label: 'Step forward 1 frame',   category: 'Playback' },
+  { id: 'step-back-10',     keys: 'Shift+Left',      label: 'Step back 10 frames',    category: 'Playback' },
+  { id: 'step-fwd-10',      keys: 'Shift+Right',     label: 'Step forward 10 frames', category: 'Playback' },
+  { id: 'step-back-sec',    keys: 'Alt+Left',        label: 'Step back 1 second',     category: 'Playback' },
+  { id: 'step-fwd-sec',     keys: 'Alt+Right',       label: 'Step forward 1 second',  category: 'Playback' },
 
   // ── Markers ─────────────────────────────────────────────────────────────
   { id: 'mark',             keys: 'M',               label: 'Drop marker at playhead', category: 'Markers' },
