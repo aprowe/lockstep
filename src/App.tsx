@@ -320,7 +320,6 @@ export default function App() {
     redo: () => dispatch(redoAction()),
     selectAll: () => dispatch(selectAllWarp()),
     deselect: () => dispatch(deselectAllWarp()),
-    openSettings: () => setSettingsOpen(true),
   }), [video, anchorCount])
 
   const viewMenu: MenuDef = useMemo(() => buildViewMenu({
@@ -331,8 +330,23 @@ export default function App() {
     togglePanel: id => dockHandleRef.current?.togglePanel(id),
     panels: PANEL_LIST,
     visiblePanelIds,
-    showShortcuts: () => setHotkeysOpen(true),
   }), [visiblePanelIds])
+
+  // The HotkeySheet was previously opened via a View menu entry whose `?`
+  // shortcut was auto-registered by MenuBar. The menu item is gone (the spec
+  // doesn't list it), so register the shortcut directly here to keep the
+  // help dialog reachable from the keyboard.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '?') return
+      const t = document.activeElement as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
+      e.preventDefault()
+      setHotkeysOpen(true)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const canExport = !!video
 

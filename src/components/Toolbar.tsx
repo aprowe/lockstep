@@ -167,11 +167,11 @@ export default function Toolbar({
             <IconCreateScene size={16} />
           </button>
           <div className="tb-pair">
-            <button data-layout-id="prev-scene" className="tb-btn" onClick={onPrevScene} disabled={!onPrevScene} title="Previous scene marker">
-              <IconPrevScene size={16} />
-            </button>
             <button data-layout-id="next-scene" className="tb-btn" onClick={onNextScene} disabled={!onNextScene} title="Next scene marker">
               <IconNextScene size={16} />
+            </button>
+            <button data-layout-id="prev-scene" className="tb-btn" onClick={onPrevScene} disabled={!onPrevScene} title="Previous scene marker">
+              <IconPrevScene size={16} />
             </button>
           </div>
         </div>

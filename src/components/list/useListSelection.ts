@@ -104,17 +104,15 @@ export function useListSelection({
     (e: KeyboardEvent | React.KeyboardEvent): boolean => {
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedIds.size === 0) return false
-        // Pick the survivor before deletion: the row immediately after the
-        // last selected item, or the row before the first selected item if
-        // we're at the end. Falls through to no survivor when everything
-        // visible is being deleted.
+        // Park the anchor at the row that would have come next so a
+        // subsequent shift+click resumes from a sensible spot, but leave
+        // the selection itself empty per spec (list-selection feature:
+        // "Delete key on focused list removes selection" → "the
+        // selection is cleared").
         const survivor = pickSurvivor(itemIds, selectedIds)
         onDelete?.([...selectedIds])
-        if (survivor !== null) {
-          onSelectionChange([survivor])
-          anchorRef.current = survivor
-          onActivate?.(survivor)
-        }
+        onSelectionChange([])
+        anchorRef.current = survivor
         return true
       }
       // Cmd/Ctrl+A — select every visible row in this list. Scoped to

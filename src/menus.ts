@@ -47,7 +47,6 @@ interface EditMenuDeps {
   redo: () => void
   selectAll: () => void
   deselect: () => void
-  openSettings: () => void
 }
 
 export function buildEditMenu(d: EditMenuDeps): MenuDef {
@@ -59,8 +58,6 @@ export function buildEditMenu(d: EditMenuDeps): MenuDef {
       { separator: true },
       { label: 'Select All', shortcut: 'Ctrl+A',       action: d.selectAll, disabled: !d.video || d.anchorCount === 0 },
       { label: 'Deselect',   shortcut: 'Escape',       action: d.deselect,  disabled: !d.video },
-      { separator: true },
-      { label: 'Settings…',                            action: d.openSettings },
     ],
   }
 }
@@ -77,7 +74,6 @@ interface ViewMenuDeps {
   panels: Array<{ id: string; title: string }>
   /** Set of currently-visible panel ids (for the ✓ check state). */
   visiblePanelIds: ReadonlySet<string>
-  showShortcuts: () => void
 }
 
 export function buildViewMenu(d: ViewMenuDeps): MenuDef {
@@ -87,8 +83,6 @@ export function buildViewMenu(d: ViewMenuDeps): MenuDef {
       { label: 'Increase UI Scale', shortcut: 'Ctrl+=', action: d.increaseUiScale },
       { label: 'Decrease UI Scale', shortcut: 'Ctrl+-', action: d.decreaseUiScale },
       { label: 'Reset UI Scale',    shortcut: 'Ctrl+0', action: d.resetUiScale },
-      { separator: true },
-      { label: 'Keyboard Shortcuts…', shortcut: '?',    action: d.showShortcuts },
       { separator: true },
       { label: 'Reset Panel Layout',                    action: d.resetPanelLayout },
       { separator: true },
