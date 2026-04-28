@@ -320,6 +320,7 @@ export default function App() {
     redo: () => dispatch(redoAction()),
     selectAll: () => dispatch(selectAllWarp()),
     deselect: () => dispatch(deselectAllWarp()),
+    openSettings: () => setSettingsOpen(true),
   }), [video, anchorCount])
 
   const viewMenu: MenuDef = useMemo(() => buildViewMenu({

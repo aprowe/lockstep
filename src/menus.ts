@@ -47,6 +47,7 @@ interface EditMenuDeps {
   redo: () => void
   selectAll: () => void
   deselect: () => void
+  openSettings: () => void
 }
 
 export function buildEditMenu(d: EditMenuDeps): MenuDef {
@@ -58,6 +59,8 @@ export function buildEditMenu(d: EditMenuDeps): MenuDef {
       { separator: true },
       { label: 'Select All', shortcut: 'Ctrl+A',       action: d.selectAll, disabled: !d.video || d.anchorCount === 0 },
       { label: 'Deselect',   shortcut: 'Escape',       action: d.deselect,  disabled: !d.video },
+      { separator: true },
+      { label: 'Settings…',                            action: d.openSettings },
     ],
   }
 }

@@ -26,6 +26,7 @@ function defaultDeps() {
     redo: noop,
     selectAll: noop,
     deselect: noop,
+    openSettings: noop,
     increaseUiScale: noop,
     decreaseUiScale: noop,
     resetUiScale: noop,
