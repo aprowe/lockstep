@@ -33,6 +33,7 @@ function defaultDeps() {
     togglePanel: (_id: string) => {},
     panels: [],
     visiblePanelIds: new Set<string>(),
+    showShortcuts: noop,
   }
 }
 

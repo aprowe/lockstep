@@ -139,6 +139,20 @@ test.describe('Lockstep guide screenshots', () => {
     })
   })
 
+  // ── 09 — keyboard shortcuts cheat sheet ─────────────────────────────────
+  test('09-hotkey-sheet', async ({ page }) => {
+    await page.goto('/')
+    await page.waitForFunction(() => Boolean((window as unknown as { __STORE__?: unknown }).__STORE__))
+    await page.evaluate(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: '?' }))
+    })
+    await settle(page)
+    await page.screenshot({
+      path: path.join(OUT_DIR, '09-hotkey-sheet.png'),
+      fullPage: false,
+    })
+  })
+
   // 02 (drag overlay) and 08 (file manager view) are intentionally absent —
   // they need OS-level capture (real drag, real Explorer/Finder). Use a tool
   // like Snipping Tool / screencapture and save into docs/screenshots/.

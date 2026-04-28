@@ -19,6 +19,7 @@ import ContextMenu from './components/ContextMenu'
 import type { ContextMenuState } from './components/ContextMenu'
 import ThumbnailPopup, { ThumbnailHoverProvider } from './components/ThumbnailPopup'
 import SettingsDialog from './components/SettingsDialog'
+import HotkeySheet from './components/HotkeySheet'
 import { snapAllToBeat } from './utils/quantize'
 import { undo as undoAction, redo as redoAction } from './store/slices/historySlice'
 import {
@@ -162,6 +163,18 @@ export default function App() {
   const [isDragOver, setIsDragOver] = useState(false)
   const [pendingZoom, setPendingZoom] = useState<{ start: number; end: number } | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [hotkeysOpen, setHotkeysOpen] = useState(false)
+
+  // ? opens the keyboard shortcuts cheat sheet (definition lives in src/hotkeys.ts).
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
+      if (e.key === '?') { e.preventDefault(); setHotkeysOpen(o => !o) }
+    }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [])
 
   const playerRef = useRef<VideoPlayerHandle>(null)
 
@@ -316,6 +329,7 @@ export default function App() {
     togglePanel: id => dockHandleRef.current?.togglePanel(id),
     panels: PANEL_LIST,
     visiblePanelIds,
+    showShortcuts: () => setHotkeysOpen(true),
   }), [visiblePanelIds])
 
   const canExport = !!video
@@ -403,6 +417,7 @@ export default function App() {
       />
       <ThumbnailPopup />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <HotkeySheet open={hotkeysOpen} onClose={() => setHotkeysOpen(false)} />
     </div>
     </ThumbnailHoverProvider>
   )
