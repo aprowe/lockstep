@@ -34,6 +34,24 @@ interface UseListSelectionOpts {
   onDelete?: (ids: string[]) => void
 }
 
+/** After deleting the selected ids, return the id that should take focus —
+ *  the row right after the last deleted, or right before the first deleted
+ *  if we're at the end. Null when no survivor exists (everything deleted). */
+function pickSurvivor(itemIds: string[], selectedIds: ReadonlySet<string>): string | null {
+  let firstIdx = -1
+  let lastIdx = -1
+  for (let i = 0; i < itemIds.length; i++) {
+    if (selectedIds.has(itemIds[i])) {
+      if (firstIdx < 0) firstIdx = i
+      lastIdx = i
+    }
+  }
+  if (firstIdx < 0) return null
+  if (lastIdx + 1 < itemIds.length) return itemIds[lastIdx + 1]
+  if (firstIdx - 1 >= 0) return itemIds[firstIdx - 1]
+  return null
+}
+
 export function useListSelection({
   itemIds, selectedIds, onSelectionChange, onActivate, onDelete,
 }: UseListSelectionOpts): ListSelectionApi {
@@ -86,7 +104,17 @@ export function useListSelection({
     (e: KeyboardEvent | React.KeyboardEvent): boolean => {
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedIds.size === 0) return false
+        // Pick the survivor before deletion: the row immediately after the
+        // last selected item, or the row before the first selected item if
+        // we're at the end. Falls through to no survivor when everything
+        // visible is being deleted.
+        const survivor = pickSurvivor(itemIds, selectedIds)
         onDelete?.([...selectedIds])
+        if (survivor !== null) {
+          onSelectionChange([survivor])
+          anchorRef.current = survivor
+          onActivate?.(survivor)
+        }
         return true
       }
       // Cmd/Ctrl+A — select every visible row in this list. Scoped to
