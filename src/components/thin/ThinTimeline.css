@@ -107,39 +107,128 @@
   height: 100%;
 }
 
-/* Subtle diagonal-stripe texture on the marker-in / warp / marker-out rows —
- * makes the three tracks read as a related "warp stack" even without labels,
- * and gives the eye something to land on when the rows grow tall. Stripes
- * run the opposite direction on the input vs output bands (visually echoing
- * the warp connector's slant direction at rest) and the warp row uses a
- * different hue so it remains the visual centerpiece. */
+/* ── Track styling — three layers ─────────────────────────────────
+ *  1. Per-space gutter — a 3px colored stripe on the left edge of
+ *     every section, colored by data-space (input / warp / output).
+ *     The eye sees three groups before any text reads.
+ *  2. Subtle warp-stack tint — markerin + warp + markerout share a
+ *     barely-perceptible warm wash so they read as a triplet without
+ *     fighting the underlying row content.
+ *  3. Per-track texture vocabulary — each track type picks up its
+ *     own subtle material (dotted grain for scenes, hatch for
+ *     markers, cross-hatch for warp, pinstripe for beats, speed
+ *     lines for the speed strip), so a track is identifiable from
+ *     its surface alone.
+ */
+
+/* 1 ─ Group gutters. Pseudo-element sits above the row's background
+ *     and below the interactive overlay (z=3) so it survives row bg
+ *     repaints but doesn't block the lasso. */
+.thin-timeline__section::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  pointer-events: none;
+  z-index: 2;
+}
+.thin-timeline__section[data-space="input"]::before  { background: hsla(195, 75%, 55%, 0.45); }
+.thin-timeline__section[data-space="warp"]::before   { background: hsla(32, 90%, 55%, 0.55); }
+.thin-timeline__section[data-space="output"]::before { background: hsla(280, 55%, 60%, 0.45); }
+
+/* 2 ─ Warp-stack tint. Whisper-quiet warm wash across the three rows
+ *     that describe the same anchor data. ~0.04 alpha is enough to
+ *     read as one block in peripheral vision but not enough to look
+ *     like the rows have a different background color outright. */
+.thin-timeline__section[data-section="markerin"] .thin-row__body,
+.thin-timeline__section[data-section="markerout"] .thin-row__body,
+.thin-timeline__section[data-section="warp"] .warp-connector {
+  background-color: hsla(32, 35%, 50%, 0.04);
+}
+
+/* 3 ─ Per-track textures. */
+
+/* Scenes — dotted grain. Cuts are discrete events. */
+.thin-timeline__section[data-section="scenes"] .thin-timeline__scene-body {
+  background-image:
+    radial-gradient(hsla(48, 80%, 70%, 0.05) 1px, transparent 1px),
+    radial-gradient(hsla(48, 80%, 70%, 0.04) 1px, transparent 1px);
+  background-size: 4px 4px, 9px 9px;
+  background-position: 0 0, 2px 2px;
+}
+
+/* Clip In — top-edge highlight. The clip blocks themselves carry the
+ *  eye; only a faint tint at the top so it reads as a "container" row. */
+.thin-timeline__section[data-section="clipin"] .thin-row__body {
+  background-image: linear-gradient(180deg, hsla(0, 0%, 100%, 0.020), transparent 70%);
+}
+
+/* Clip Out — mirrored: bottom-edge highlight. */
+.thin-timeline__section[data-section="clipout"] .thin-row__body {
+  background-image: linear-gradient(0deg, hsla(0, 0%, 100%, 0.020), transparent 70%);
+}
+
+/* Marker In — diagonal hatch sloping into the warp connector's
+ *  default slant direction. */
 .thin-timeline__section[data-section="markerin"] .thin-row--markers .thin-row__body {
   background-image: repeating-linear-gradient(
     45deg,
     transparent 0,
     transparent 5px,
-    hsla(195, 55%, 60%, 0.07) 5px,
-    hsla(195, 55%, 60%, 0.07) 6px
+    hsla(195, 55%, 60%, 0.08) 5px,
+    hsla(195, 55%, 60%, 0.08) 6px
   );
 }
 
+/* Marker Out — opposite diagonal so the two marker bands echo the
+ *  warp connector's left/right slant directions. */
 .thin-timeline__section[data-section="markerout"] .thin-row--markers .thin-row__body {
   background-image: repeating-linear-gradient(
     -45deg,
     transparent 0,
     transparent 5px,
-    hsla(280, 55%, 65%, 0.07) 5px,
-    hsla(280, 55%, 65%, 0.07) 6px
+    hsla(280, 55%, 65%, 0.08) 5px,
+    hsla(280, 55%, 65%, 0.08) 6px
   );
 }
 
+/* Warp — cross-hatch. Reads as the "transformation" layer between
+ *  input and output. */
 .thin-timeline__section[data-section="warp"] .warp-connector {
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      transparent 0,
+      transparent 6px,
+      hsla(32, 80%, 70%, 0.05) 6px,
+      hsla(32, 80%, 70%, 0.05) 7px),
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0,
+      transparent 6px,
+      hsla(32, 80%, 70%, 0.05) 6px,
+      hsla(32, 80%, 70%, 0.05) 7px);
+}
+
+/* Beat — vertical pinstripe echoing the grid direction. */
+.thin-timeline__section[data-section="beat"] .thin-row__body {
   background-image: repeating-linear-gradient(
     90deg,
     transparent 0,
-    transparent 9px,
-    hsla(220, 40%, 65%, 0.05) 9px,
-    hsla(220, 40%, 65%, 0.05) 10px
+    transparent 7px,
+    hsla(45, 80%, 70%, 0.06) 7px,
+    hsla(45, 80%, 70%, 0.06) 8px
+  );
+}
+
+/* Speed — horizontal "speed lines". */
+.thin-timeline__section[data-section="speed"] .thin-timeline__speed-body {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0,
+    transparent 4px,
+    hsla(195, 70%, 60%, 0.05) 4px,
+    hsla(195, 70%, 60%, 0.05) 5px
   );
 }
 
