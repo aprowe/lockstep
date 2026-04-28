@@ -700,15 +700,19 @@ export default function ThinTimeline({
   const onRootPointerUp = useCallback(() => {
     const g = lassoRef.current
     if (!g) return
-    // Plain click on empty timeline body (no drag, no modifier) clears
-    // every timeline-side selection — Policy B from the interaction
-    // design doc. The lasso started but never crossed the drag
-    // threshold, so g.active is false; startedAdditive false means no
-    // ctrl/meta was held.
-    if (!g.active && !g.startedAdditive) onTimelineDeselect?.()
+    // Plain click on empty timeline body (no drag, no modifier):
+    //   - clear every timeline-side selection (Policy B from INTERACTION_DESIGN)
+    //   - move the input playhead to the click position
+    // Drag is handled by the ruler row itself (continuous scrub) — every
+    // other track only seeks on click, not on drag.
+    if (!g.active && !g.startedAdditive) {
+      onTimelineDeselect?.()
+      const t = view.start + g.startPct * (view.end - view.start)
+      onSeek?.(t)
+    }
     lassoRef.current = null
     setLassoRange(null)
-  }, [onTimelineDeselect])
+  }, [onTimelineDeselect, onSeek, view.start, view.end])
 
   // Keyboard scope is "the timeline has focus" — root div is tabIndex=0.
   // Delete / Backspace → delete union of clip + marker selections.
