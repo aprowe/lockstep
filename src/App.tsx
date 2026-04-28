@@ -19,6 +19,8 @@ import ContextMenu from './components/ContextMenu'
 import type { ContextMenuState } from './components/ContextMenu'
 import ThumbnailPopup, { ThumbnailHoverProvider } from './components/ThumbnailPopup'
 import SettingsDialog from './components/SettingsDialog'
+import HotkeySheet from './components/HotkeySheet'
+import { IconSettings, IconDropVideo } from './components/icons'
 import { snapAllToBeat } from './utils/quantize'
 import { undo as undoAction, redo as redoAction } from './store/slices/historySlice'
 import {
@@ -162,6 +164,18 @@ export default function App() {
   const [isDragOver, setIsDragOver] = useState(false)
   const [pendingZoom, setPendingZoom] = useState<{ start: number; end: number } | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [hotkeysOpen, setHotkeysOpen] = useState(false)
+
+  // ? opens the keyboard shortcuts cheat sheet (definition lives in src/hotkeys.ts).
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
+      if (e.key === '?') { e.preventDefault(); setHotkeysOpen(o => !o) }
+    }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [])
 
   const playerRef = useRef<VideoPlayerHandle>(null)
 
@@ -316,6 +330,7 @@ export default function App() {
     togglePanel: id => dockHandleRef.current?.togglePanel(id),
     panels: PANEL_LIST,
     visiblePanelIds,
+    showShortcuts: () => setHotkeysOpen(true),
   }), [visiblePanelIds])
 
   const canExport = !!video
@@ -342,10 +357,7 @@ export default function App() {
               title="Settings"
               aria-label="Settings"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
+              <IconSettings size={16} />
             </button>
             <button
               className="menubar__export-btn"
@@ -375,9 +387,7 @@ export default function App() {
       {isDragOver && (
         <div className="app-drop-overlay">
           <div className="app-drop-overlay__inner">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
-            </svg>
+            <IconDropVideo size={48} />
             <span>Drop video or folder</span>
           </div>
         </div>
@@ -403,6 +413,7 @@ export default function App() {
       />
       <ThumbnailPopup />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <HotkeySheet open={hotkeysOpen} onClose={() => setHotkeysOpen(false)} />
     </div>
     </ThumbnailHoverProvider>
   )

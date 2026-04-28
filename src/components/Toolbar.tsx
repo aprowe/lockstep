@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 import type { VideoPlayerHandle } from './VideoPlayer'
 import {
-  IconPlay, IconPrevFrame, IconNextFrame,
+  IconPlay, IconPause, IconPrevFrame, IconNextFrame,
   IconCreateMarker, IconPrevMarker, IconNextMarker,
   IconCreateRegion, IconSetRegionStart, IconSetRegionEnd,
   IconGoToRegionStart, IconGoToRegionEnd,
-  IconPrevRegion, IconNextRegion,
+  IconPrevRegion, IconNextRegion, IconZoomToRegion,
+  IconCreateScene, IconPrevScene, IconNextScene,
 } from './icons'
 import { formatFrames } from '../utils/time'
+import { tooltipFor } from '../hotkeys'
 import './Toolbar.css'
 
 function pad(n: number) { return String(Math.floor(n)).padStart(2, '0') }
@@ -100,7 +102,7 @@ export default function Toolbar({
       {/* Left: markers + regions */}
       <div className="tb-side tb-side--left">
         <div className="tb-group">
-          <button data-layout-id="new-marker" className="tb-btn tb-btn--mark" onClick={() => onMark?.(playerRef.current?.currentTime ?? 0)} disabled={!onMark} title="Place marker (M)">
+          <button data-layout-id="new-marker" className="tb-btn tb-btn--mark" onClick={() => onMark?.(playerRef.current?.currentTime ?? 0)} disabled={!onMark} title={tooltipFor('Place marker', 'mark')}>
             <IconCreateMarker size={20} />
           </button>
           <div className="tb-pair">
@@ -120,10 +122,10 @@ export default function Toolbar({
             <IconCreateRegion size={16} />
           </button>
           <div className="tb-pair">
-            <button data-layout-id="set-in-region" className="tb-btn tb-btn--inout" onClick={onSetIn} disabled={!onSetIn} title="Set In (I)">
+            <button data-layout-id="set-in-region" className="tb-btn tb-btn--inout" onClick={onSetIn} disabled={!onSetIn} title={tooltipFor('Set In', 'set-in')}>
               <IconSetRegionStart size={16} />
             </button>
-            <button data-layout-id="set-out-region" className="tb-btn tb-btn--inout" onClick={onSetOut} disabled={!onSetOut} title="Set Out (O)">
+            <button data-layout-id="set-out-region" className="tb-btn tb-btn--inout" onClick={onSetOut} disabled={!onSetOut} title={tooltipFor('Set Out', 'set-out')}>
               <IconSetRegionEnd size={16} />
             </button>
           </div>
@@ -136,10 +138,7 @@ export default function Toolbar({
             </button>
           </div>
           <button data-layout-id="zoom-to-region" className="tb-btn" onClick={onZoomToRegion} disabled={!onZoomToRegion} title="Zoom to region">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M4 5v14M20 5v14" stroke="currentColor" strokeWidth="2" fill="none"/>
-              <path d="M7 12h10M7 12l3-3M7 12l3 3M17 12l-3-3M17 12l-3 3"/>
-            </svg>
+            <IconZoomToRegion size={16} />
           </button>
         </div>
 
@@ -147,22 +146,14 @@ export default function Toolbar({
 
         <div className="tb-group">
           <button data-layout-id="new-scene" className="tb-btn tb-btn--scene" onClick={onNewScene} disabled={!onNewScene} title="New scene marker at playhead">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2l4 10-4 10-4-10z"/>
-            </svg>
+            <IconCreateScene size={16} />
           </button>
           <div className="tb-pair">
-            <button data-layout-id="next-scene" className="tb-btn" onClick={onNextScene} disabled={!onNextScene} title="Next scene marker">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M10 3l7 9-7 9z"/>
-                <path d="M5 4v16" stroke="currentColor" strokeWidth="2" fill="none"/>
-              </svg>
-            </button>
             <button data-layout-id="prev-scene" className="tb-btn" onClick={onPrevScene} disabled={!onPrevScene} title="Previous scene marker">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M14 3l-7 9 7 9z"/>
-                <path d="M19 4v16" stroke="currentColor" strokeWidth="2" fill="none"/>
-              </svg>
+              <IconPrevScene size={16} />
+            </button>
+            <button data-layout-id="next-scene" className="tb-btn" onClick={onNextScene} disabled={!onNextScene} title="Next scene marker">
+              <IconNextScene size={16} />
             </button>
           </div>
         </div>
@@ -172,10 +163,8 @@ export default function Toolbar({
 
       {/* Center: play controls */}
       <div className="tb-group tb-group--center">
-        <button data-layout-id="play" className="tb-btn tb-btn--play" onClick={toggle} title={playing ? 'Pause' : 'Play'}>
-          {playing
-            ? <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>
-            : <IconPlay size={16} />}
+        <button data-layout-id="play" className="tb-btn tb-btn--play" onClick={toggle} title={tooltipFor(playing ? 'Pause' : 'Play', 'play-pause')}>
+          {playing ? <IconPause size={16} /> : <IconPlay size={16} />}
         </button>
         <div className="tb-pair">
           <button data-layout-id="prev-frame" className="tb-btn" onClick={() => step(-1)} title="Step back 1 frame">
