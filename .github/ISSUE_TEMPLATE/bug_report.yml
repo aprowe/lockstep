@@ -1,0 +1,68 @@
+name: Bug report
+description: Something isn't working the way it should
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: When I do X, Y happens instead of Z.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a video
+        2. Drop a marker at 0:05
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: I expected ...
+    validations:
+      required: false
+
+  - type: input
+    id: video
+    attributes:
+      label: Video file (if relevant)
+      description: Codec, resolution, length, source — anything that might matter.
+      placeholder: 1080p H.264, ~2 min, iPhone export
+    validations:
+      required: false
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Lockstep version / commit
+      placeholder: v0.x.x or commit sha
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Help → Open Log Folder. Paste relevant lines or attach the file.
+      render: shell
+    validations:
+      required: false
