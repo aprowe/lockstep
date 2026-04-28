@@ -15,6 +15,10 @@ import BeatsTrack from './BeatsTrack'
 import RegionBand, { type RegionBlock } from './RegionBand'
 import ThumbnailStripTrack from './ThumbnailStripTrack'
 import ThumbnailQueueDebug from '../ThumbnailQueueDebug'
+import {
+  IconWarpToggle, IconAlwaysAnchors, IconAlwaysRegions, IconAlwaysScenes,
+  IconThumbStrip, IconQueueDebug, IconFollowDrag,
+} from '../icons'
 import './ThinTimeline.css'
 
 interface ThinTimelineProps {
@@ -1178,16 +1182,7 @@ export default function ThinTimeline({
           title={warpCollapsed ? 'Show warp views (warp, marker out, clip out, speed)' : 'Hide warp views'}
           aria-pressed={!warpCollapsed}
         >
-          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-            <path
-              d="M2 4 L14 4 M2 8 L10 12 M14 8 L6 12"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <IconWarpToggle aria-hidden="true" />
         </button>
 
         <span className="thin-toolbar__sep" />
@@ -1199,10 +1194,7 @@ export default function ThinTimeline({
           title="Always show through-lines for markers"
           aria-pressed={alwaysAnchors}
         >
-          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M8 1 L8 15" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2 2" />
-            <circle cx="8" cy="8" r="2" fill="currentColor" />
-          </svg>
+          <IconAlwaysAnchors aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -1211,10 +1203,7 @@ export default function ThinTimeline({
           title="Always show through-lines for clip/region edges"
           aria-pressed={alwaysRegions}
         >
-          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-            <rect x="3" y="6" width="10" height="4" fill="none" stroke="currentColor" strokeWidth="1.2" />
-            <path d="M3 1 L3 15 M13 1 L13 15" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" />
-          </svg>
+          <IconAlwaysRegions aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -1223,10 +1212,7 @@ export default function ThinTimeline({
           title="Always show through-lines for scene changes"
           aria-pressed={alwaysScenes}
         >
-          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M8 1 L8 15" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" />
-            <path d="M8 5 L11 8 L8 11 L5 8 Z" fill="currentColor" />
-          </svg>
+          <IconAlwaysScenes aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -1235,11 +1221,7 @@ export default function ThinTimeline({
           title="Show a thumbnail at each scene marker"
           aria-pressed={thumbStripEnabled}
         >
-          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-            <rect x="1" y="5" width="4" height="6" fill="none" stroke="currentColor" strokeWidth="1" />
-            <rect x="6" y="5" width="4" height="6" fill="none" stroke="currentColor" strokeWidth="1" />
-            <rect x="11" y="5" width="4" height="6" fill="none" stroke="currentColor" strokeWidth="1" />
-          </svg>
+          <IconThumbStrip aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -1248,10 +1230,7 @@ export default function ThinTimeline({
           title="Thumbnail queue debug panel"
           aria-pressed={queueDebugOpen}
         >
-          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-            <rect x="2" y="3" width="12" height="10" fill="none" stroke="currentColor" strokeWidth="1" />
-            <path d="M4 6 L12 6 M4 9 L10 9 M4 11 L8 11" stroke="currentColor" strokeWidth="1" />
-          </svg>
+          <IconQueueDebug aria-hidden="true" />
         </button>
 
         <span className="thin-toolbar__sep" />
@@ -1263,11 +1242,7 @@ export default function ThinTimeline({
           title="Playhead follows dragged markers"
           aria-pressed={followDrag}
         >
-          <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M8 2 L8 14" stroke="currentColor" strokeWidth="1.5" />
-            <path d="M3 8 L13 8" stroke="currentColor" strokeWidth="1" strokeDasharray="2 2" />
-            <circle cx="8" cy="8" r="2" fill="currentColor" />
-          </svg>
+          <IconFollowDrag aria-hidden="true" />
         </button>
       </div>
 
