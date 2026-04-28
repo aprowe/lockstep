@@ -9,6 +9,7 @@ import {
   IconPrevRegion, IconNextRegion,
 } from './icons'
 import { formatFrames } from '../utils/time'
+import { tooltipFor } from '../hotkeys'
 import './Toolbar.css'
 
 function pad(n: number) { return String(Math.floor(n)).padStart(2, '0') }
@@ -100,7 +101,7 @@ export default function Toolbar({
       {/* Left: markers + regions */}
       <div className="tb-side tb-side--left">
         <div className="tb-group">
-          <button data-layout-id="new-marker" className="tb-btn tb-btn--mark" onClick={() => onMark?.(playerRef.current?.currentTime ?? 0)} disabled={!onMark} title="Place marker (M)">
+          <button data-layout-id="new-marker" className="tb-btn tb-btn--mark" onClick={() => onMark?.(playerRef.current?.currentTime ?? 0)} disabled={!onMark} title={tooltipFor('Place marker', 'mark')}>
             <IconCreateMarker size={20} />
           </button>
           <div className="tb-pair">
@@ -120,10 +121,10 @@ export default function Toolbar({
             <IconCreateRegion size={16} />
           </button>
           <div className="tb-pair">
-            <button data-layout-id="set-in-region" className="tb-btn tb-btn--inout" onClick={onSetIn} disabled={!onSetIn} title="Set In (I)">
+            <button data-layout-id="set-in-region" className="tb-btn tb-btn--inout" onClick={onSetIn} disabled={!onSetIn} title={tooltipFor('Set In', 'set-in')}>
               <IconSetRegionStart size={16} />
             </button>
-            <button data-layout-id="set-out-region" className="tb-btn tb-btn--inout" onClick={onSetOut} disabled={!onSetOut} title="Set Out (O)">
+            <button data-layout-id="set-out-region" className="tb-btn tb-btn--inout" onClick={onSetOut} disabled={!onSetOut} title={tooltipFor('Set Out', 'set-out')}>
               <IconSetRegionEnd size={16} />
             </button>
           </div>
@@ -172,7 +173,7 @@ export default function Toolbar({
 
       {/* Center: play controls */}
       <div className="tb-group tb-group--center">
-        <button data-layout-id="play" className="tb-btn tb-btn--play" onClick={toggle} title={playing ? 'Pause' : 'Play'}>
+        <button data-layout-id="play" className="tb-btn tb-btn--play" onClick={toggle} title={tooltipFor(playing ? 'Pause' : 'Play', 'play-pause')}>
           {playing
             ? <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>
             : <IconPlay size={16} />}
