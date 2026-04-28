@@ -97,6 +97,10 @@
   color: var(--fg-3);
 }
 
+.settings-row__faint {
+  color: var(--fg-4);
+}
+
 .settings-row__control {
   display: flex;
   align-items: center;

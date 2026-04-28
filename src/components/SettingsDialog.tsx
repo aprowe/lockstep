@@ -11,6 +11,22 @@ import {
 import { clearAllThumbnails } from '../api/thumbnails'
 import './SettingsDialog.css'
 
+/** Rough JPEG-on-disk estimate. ffmpeg encodes thumbs at -q:v 5 which lands
+ *  somewhere around 0.25 bytes/pixel for typical video content. Aspect is
+ *  unknown until a video is loaded, so we assume 16:9 for the estimate. */
+const BYTES_PER_PIXEL = 0.25
+function estimateCacheBytes(frames: number, width: number): number {
+  const height = Math.round((width * 9) / 16)
+  return frames * width * height * BYTES_PER_PIXEL
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${Math.round(n)} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`
+}
+
 const THEME_LABELS: Record<Theme, string> = {
   'warm-dark':       'Warm Dark',
   'neon-rhythm':     'Neon Rhythm',
@@ -109,7 +125,11 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
             <div className="settings-row">
               <label className="settings-row__label">
                 <span className="settings-row__title">Cache size (per video)</span>
-                <span className="settings-row__hint">Max cached frames before oldest get evicted.</span>
+                <span className="settings-row__hint">
+                  Max cached frames before oldest get evicted.
+                  {' '}~{formatBytes(estimateCacheBytes(maxCachedFrames, thumbWidth))} per video
+                  {' '}<span className="settings-row__faint">(estimated, 16:9)</span>
+                </span>
               </label>
               <div className="settings-row__control">
                 <input
