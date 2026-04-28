@@ -229,14 +229,17 @@ export default function ExportDialog({
 
   useEffect(() => {
     if (!open) return
+    // Capture phase + stopImmediatePropagation so Escape closes this modal
+    // without also firing the menu-bar "Escape → Deselect" shortcut.
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        e.stopPropagation()
+        e.stopImmediatePropagation()
+        e.preventDefault()
         handleClose()
       }
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
   }, [open, status]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const activeRegion = regions.find(r => r.id === activeRegionId) ?? null

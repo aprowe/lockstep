@@ -50,11 +50,17 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
 
   useEffect(() => {
     if (!open) return
+    // Capture phase + stopImmediatePropagation so Escape closes this modal
+    // without also firing the menu-bar "Escape → Deselect" shortcut.
     const h = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation()
+        e.preventDefault()
+        onClose()
+      }
     }
-    window.addEventListener('keydown', h)
-    return () => window.removeEventListener('keydown', h)
+    window.addEventListener('keydown', h, true)
+    return () => window.removeEventListener('keydown', h, true)
   }, [open, onClose])
 
   if (!open) return null
