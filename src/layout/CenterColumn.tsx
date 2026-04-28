@@ -26,6 +26,7 @@ import {
   setTimelineHeight as setTimelineHeightAction,
   setGridDiv as setGridDivAction,
 } from '../store/slices/uiSlice'
+import { openFileThunk } from '../store/thunks/videoThunks'
 import {
   addCut as addSceneCutAction,
   deleteCut as deleteSceneCutAction,
@@ -157,6 +158,14 @@ export default function CenterColumn() {
             ? 'Open a file or folder to get started'
             : 'Select a video from the Files panel'}
         </p>
+        {folderVideos.length === 0 && (
+          <button
+            className="vj-center__load-btn"
+            onClick={() => dispatch(openFileThunk())}
+          >
+            Load Video
+          </button>
+        )}
       </div>
     )
   }

@@ -53,6 +53,11 @@
   background: var(--bg-1);
 }
 
+.vj-center--empty {
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
 .vj-center__hint {
   font-family: var(--font-family);
   font-size: var(--t-xl);
@@ -61,6 +66,22 @@
   text-transform: uppercase;
   margin: 0;
 }
+
+.vj-center__load-btn {
+  font-family: var(--font-family);
+  font-size: var(--t-md);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  padding: var(--sp-3) var(--sp-7);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.vj-center__load-btn:hover { background: var(--accent-hi); }
 
 /* ── Video breadcrumb ───────────────────────────────────── */
 .vj-breadcrumb {
