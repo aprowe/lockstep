@@ -33,3 +33,9 @@ export const store = configureStore({
 
 export type RootState = ReturnType<typeof store.getState>
 export type AppDispatch = typeof store.dispatch
+
+// Dev-only: expose the store so Playwright screenshot tests can seed state.
+// Stripped from production builds via Vite's import.meta.env.DEV constant.
+if (import.meta.env.DEV) {
+  ;(window as unknown as { __STORE__: typeof store }).__STORE__ = store
+}
