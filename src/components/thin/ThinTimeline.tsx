@@ -3,7 +3,7 @@ import { useAppDispatch, useAppSelector } from '../../store/hooks'
 import { setHoverFrames } from '../../store/slices/thumbnailsSlice'
 import { gesture, useGesture } from '../../store/gesture'
 import type { Anchor, View, WarpSegment } from '../../types'
-import { clampView, timeToViewPct } from '../../utils/view'
+import { clampView, timeToViewPct, MIN_VISIBLE } from '../../utils/view'
 import SceneRow from '../SceneRow'
 import SpeedStrip from '../SpeedStrip'
 import WarpConnector from '../WarpConnector'
@@ -453,10 +453,15 @@ export default function ThinTimeline({
     // Vertical wheel = zoom toward the cursor's view-time.
     const cursorTime = view.start + ((e.clientX - rect.left) / rect.width) * span
     const factor = e.deltaY > 0 ? 1.15 : 1 / 1.15
-    const newSpan = span * factor
+    // If we're already at the zoom floor or ceiling, bail — otherwise the
+    // span gets clamped to a fixed value but `start` still slides toward
+    // the cursor, which the user sees as the window scooting forward.
+    const rawSpan = span * factor
+    const clampedSpan = Math.max(MIN_VISIBLE, Math.min(maxDuration, rawSpan))
+    if (Math.abs(clampedSpan - span) < 1e-6) return
     const ratio = (cursorTime - view.start) / span
-    const ns = cursorTime - ratio * newSpan
-    onViewChange(clampView(ns, ns + newSpan, maxDuration))
+    const ns = cursorTime - ratio * clampedSpan
+    onViewChange(clampView(ns, ns + clampedSpan, maxDuration))
   }, [view.start, view.end, maxDuration, onViewChange])
 
   useEffect(() => {
