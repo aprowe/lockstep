@@ -49,6 +49,19 @@ pub fn video_duration(path: &str) -> Result<f64, String> {
         .ok_or_else(|| "ffprobe: missing duration".to_string())
 }
 
+/// True if `path` contains at least one audio stream. RIFE'd videos are silent,
+/// so post-processing has to branch on this before asking ffmpeg for audio.
+pub fn has_audio_stream(path: &str) -> bool {
+    let Ok(info) = ffprobe_json(path) else { return false };
+    info["streams"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .any(|s| s["codec_type"].as_str() == Some("audio"))
+        })
+        .unwrap_or(false)
+}
+
 pub fn ffprobe_json(path: &str) -> Result<serde_json::Value, String> {
     let bin = find_bin("ffprobe");
     let mut cmd = Command::new(&bin);

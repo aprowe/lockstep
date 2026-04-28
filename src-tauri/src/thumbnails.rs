@@ -307,19 +307,12 @@ fn evict_overflow(st: &mut VideoState) {
         .collect();
     scored.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
     let excess = st.ready.len() - st.max_cached_frames;
-    let dropped: Vec<i64> = scored.iter().take(excess).map(|(f, _)| *f).collect();
     for (f, _) in scored.into_iter().take(excess) {
         let p = thumb_path(&st.cache_dir, f);
         let _ = std::fs::remove_file(&p);
         st.ready.remove(&f);
         st.frame_touched_at.remove(&f);
     }
-    eprintln!(
-        "[thumb] evict {} frame(s): {:?}{}",
-        dropped.len(),
-        &dropped[..dropped.len().min(8)],
-        if dropped.len() > 8 { " …" } else { "" },
-    );
 }
 
 /// Stamp the required-window cached frames as "just used" — recency term
@@ -393,14 +386,6 @@ fn extract_frame(
     .stdout(Stdio::null())
     .stderr(Stdio::piped());
 
-    // Dev-time tracing: one line per extraction so we can see the worker loop
-    // in the terminal and spot repeat-offender frames (thrashing symptom).
-    let pri = if high_priority { "HIGH" } else { "low " };
-    eprintln!(
-        "[thumb] {pri} extract t={time:.3}s w={width} -> {}",
-        out_path.file_name().and_then(|s| s.to_str()).unwrap_or("?")
-    );
-
     // Background thumb workers run at BELOW_NORMAL so a long queue can't fight
     // the UI thread / scene detection for CPU. Playhead-window frames keep
     // normal priority because the user is waiting on them right now.
@@ -446,13 +431,6 @@ fn schedule<R: Runtime>(
                 return;
             }
             let Some(frame) = pick_next(&st) else {
-                eprintln!(
-                    "[thumb] idle ready={} in_flight={} workers={} cap={}",
-                    st.ready.len(),
-                    st.in_flight.len(),
-                    st.workers_running,
-                    st.max_cached_frames,
-                );
                 return;
             };
             st.in_flight.insert(frame);
@@ -462,13 +440,6 @@ fn schedule<R: Runtime>(
             let width = st.thumb_width;
             let playhead = st.context.playhead_frame;
             let out_path = thumb_path(&st.cache_dir, frame);
-            eprintln!(
-                "[thumb] pick frame={} ready={} in_flight={} workers={}",
-                frame,
-                st.ready.len(),
-                st.in_flight.len(),
-                st.workers_running,
-            );
             Some((frame, video_path, fps, width, playhead, out_path))
         };
 

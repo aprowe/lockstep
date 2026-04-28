@@ -13,6 +13,34 @@ pub mod video;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .targets([
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                        file_name: Some("lockstep".into()),
+                    }),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Webview),
+                ])
+                .level(log::LevelFilter::Info)
+                .level_for("lockstep_lib", log::LevelFilter::Debug)
+                .max_file_size(10 * 1024 * 1024)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+                .build(),
+        )
+        .setup(|app| {
+            use tauri::Manager;
+            if let Ok(dir) = app.path().app_log_dir() {
+                log::info!(
+                    "lockstep starting (v{}) — logs at {}",
+                    env!("CARGO_PKG_VERSION"),
+                    dir.display()
+                );
+            } else {
+                log::info!("lockstep starting (v{})", env!("CARGO_PKG_VERSION"));
+            }
+            Ok(())
+        })
         .manage(thumbnails::ThumbnailsState::new())
         .manage(commands::SceneDetectionState::default())
         .invoke_handler(tauri::generate_handler![

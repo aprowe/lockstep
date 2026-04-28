@@ -11,12 +11,19 @@ export interface SceneDetectionProgressPayload {
   cut?: number
   /** Final sorted cut list, only present on `status: 'done'`. */
   cuts?: number[]
+  /** Echo of the scan window the backend ran with, when one was supplied.
+   *  Lets the slice replace only the cuts inside the scanned range on 'done'
+   *  instead of trampling cuts outside it. */
+  window?: { start: number; end: number } | null
   error?: string
 }
 
 export async function startSceneDetection(params: {
   path: string
   threshold?: number
+  /** Source-time scan window. When omitted the full file is scanned. */
+  start?: number
+  end?: number
 }): Promise<string> {
   return invoke<string>('start_scene_detection', { req: params })
 }

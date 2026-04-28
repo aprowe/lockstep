@@ -41,9 +41,8 @@ import {
   resetVideoDataThunk,
   openJsonFileThunk,
 } from './store/thunks/videoThunks'
-import { detectScenesThunk, ensureSceneListener, cancelSceneDetectionThunk } from './store/thunks/sceneThunks'
+import { ensureSceneListener } from './store/thunks/sceneThunks'
 import { setMinGap as setSceneMinGapAction, addCut as addSceneCutAction, deleteCut as deleteSceneCutAction } from './store/slices/sceneSlice'
-import { visibleSceneCuts } from './utils/sceneFilter'
 import { useAppDispatch, useAppSelector } from './store/hooks'
 import { setDetectingBpm as setDetectingBpmAction } from './store/slices/videoSlice'
 import {
@@ -102,7 +101,6 @@ export default function App() {
   const folderVideos = useAppSelector(s => s.video.folderVideos)
   const markerCountByPath = useAppSelector(s => s.video.markerCountByPath)
   const detectingBpm = useAppSelector(s => s.video.detectingBpm)
-  const markersLoaded = useAppSelector(s => s.video.markersLoaded)
   const regions = useAppSelector(s => s.region.regions)
   const activeRegionId = useAppSelector(s => s.region.activeRegionId)
   const activeRegion = useAppSelector(selectActiveRegionRedux)
@@ -111,17 +109,6 @@ export default function App() {
   const trimToLoop = useAppSelector(s => s.warp.trimToLoop)
   const addToEnd = useAppSelector(s => s.warp.addToEnd)
   const videoPath = video?.path ?? null
-  const sceneCuts = useAppSelector(s => videoPath ? s.scene.cutsByPath[videoPath] : undefined)
-  const userSceneCuts = useAppSelector(s => videoPath ? s.scene.userCutsByPath[videoPath] : undefined)
-  const sceneStatus = useAppSelector(s => videoPath ? s.scene.statusByPath[videoPath] : undefined) ?? 'idle'
-  const sceneProgress = useAppSelector(s => videoPath ? s.scene.progressByPath[videoPath] : undefined) ?? 0
-  const sceneError = useAppSelector(s => videoPath ? s.scene.errorByPath[videoPath] : undefined)
-  const sceneThreshold = useAppSelector(s => videoPath ? s.scene.thresholdByPath[videoPath] : undefined) ?? 10
-  const sceneMinGap = useAppSelector(s => videoPath ? s.scene.minGapByPath[videoPath] : undefined) ?? 2
-  const filteredSceneCuts = useMemo(
-    () => visibleSceneCuts(sceneCuts ?? [], userSceneCuts ?? [], sceneMinGap),
-    [sceneCuts, userSceneCuts, sceneMinGap],
-  )
 
   // ── Dispatch helpers ────────────────────────────────────────────────────
   const openFile = () => dispatch(openFileThunk())
@@ -266,15 +253,10 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
-  // ── Scene detection: register listener + auto-trigger on video load ──────
+  // ── Scene detection: register listener (detection itself is user-driven
+  //     from the Scenes panel — we never kick it off automatically). ───────
 
   useEffect(() => { dispatch(ensureSceneListener()) }, [dispatch])
-
-  useEffect(() => {
-    if (!videoPath || !markersLoaded) return
-    if (sceneStatus === 'analyzing' || sceneStatus === 'done' || sceneStatus === 'error') return
-    dispatch(detectScenesThunk({ path: videoPath }))
-  }, [videoPath, sceneStatus, markersLoaded, dispatch])
 
   // ── Seek to region start when active region changes ──────────────────────
 

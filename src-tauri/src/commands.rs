@@ -4,7 +4,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::ffmpeg::video_duration;
 use crate::processor::{estimate_bpm, remap_video, InterpMethod, WarpOptions};
-use crate::scene::{detect_cuts, DEFAULT_THRESHOLD};
+use crate::scene::{detect_cuts, ScanWindow, DEFAULT_THRESHOLD};
 use crate::video::{get_video_info, VideoInfo};
 
 /// Shared cancel flag for the currently running scene-detection job. Flipping
@@ -35,10 +35,15 @@ pub async fn open_folder(app: AppHandle) -> Result<Vec<VideoEntry>, String> {
         None => return Err("cancelled".to_string()),
     };
 
+    log::info!("open_folder: {}", folder_path.display());
+
     let video_exts = ["mp4", "mov", "avi", "mkv", "webm", "m4v"];
     let mut entries = Vec::new();
 
-    let dir = std::fs::read_dir(&folder_path).map_err(|e| e.to_string())?;
+    let dir = std::fs::read_dir(&folder_path).map_err(|e| {
+        log::error!("open_folder: read_dir failed for {}: {e}", folder_path.display());
+        e.to_string()
+    })?;
     for entry in dir.flatten() {
         let path = entry.path();
         if !path.is_file() {
@@ -63,6 +68,7 @@ pub async fn open_folder(app: AppHandle) -> Result<Vec<VideoEntry>, String> {
     }
 
     entries.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    log::info!("open_folder: {} videos found", entries.len());
     Ok(entries)
 }
 
@@ -106,7 +112,20 @@ pub async fn list_folder_videos(path: String) -> Result<Vec<VideoEntry>, String>
 
 #[tauri::command]
 pub async fn load_video(path: String) -> Result<VideoInfo, String> {
-    get_video_info(&path)
+    log::info!("load_video: {path}");
+    match get_video_info(&path) {
+        Ok(info) => {
+            log::info!(
+                "load_video ok: {path} ({:.3}s, {:.3} fps)",
+                info.duration, info.fps
+            );
+            Ok(info)
+        }
+        Err(e) => {
+            log::error!("load_video failed for {path}: {e}");
+            Err(e)
+        }
+    }
 }
 
 // ── Open Video ───────────────────────────────────────────────────────────────
@@ -126,7 +145,15 @@ pub async fn open_video(app: AppHandle) -> Result<VideoInfo, String> {
         None => return Err("cancelled".to_string()),
     };
 
-    get_video_info(&path.to_string_lossy())
+    let path_str = path.to_string_lossy().to_string();
+    log::info!("open_video: {path_str}");
+    match get_video_info(&path_str) {
+        Ok(info) => Ok(info),
+        Err(e) => {
+            log::error!("open_video failed for {path_str}: {e}");
+            Err(e)
+        }
+    }
 }
 
 // ── Analyze Anchors (BPM estimation) ────────────────────────────────────────
@@ -202,6 +229,20 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
     let out_path = out_dir.join(format!("warped_{}.mp4", &job_id));
     let out_path_str = out_path.to_string_lossy().to_string();
 
+    log::info!(
+        "start_warp[{job_id}]: path={} bpm={:.3} anchors={} clip={:?}→{:?} interp={:?}@{:?} normalize_bpm={} trim_to_loop={} trigger={}",
+        req.path,
+        req.bpm,
+        req.orig_times.len(),
+        req.clip_in,
+        req.clip_out,
+        req.interp_method,
+        req.interp_fps,
+        req.normalize_bpm,
+        req.trim_to_loop,
+        req.trigger_mode,
+    );
+
     let app_clone = app.clone();
     let job_id_clone = job_id.clone();
     let out_path_clone = out_path_str.clone();
@@ -252,6 +293,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
 
         match result {
             Ok(Ok(())) => {
+                log::info!("start_warp[{job_id_clone}]: done → {out_path_clone}");
                 let _ = app_clone.emit(
                     "warp-progress",
                     serde_json::json!({
@@ -263,6 +305,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
                 );
             }
             Ok(Err(e)) => {
+                log::error!("start_warp[{job_id_clone}]: failed: {e}");
                 let _ = app_clone.emit(
                     "warp-progress",
                     serde_json::json!({
@@ -273,6 +316,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
                 );
             }
             Err(e) => {
+                log::error!("start_warp[{job_id_clone}]: panicked: {e}");
                 let _ = app_clone.emit(
                     "warp-progress",
                     serde_json::json!({
@@ -308,6 +352,11 @@ pub async fn start_diagnostic(app: AppHandle, req: DiagnosticRequest) -> Result<
     let suffix = if req.mode == "overlay" { "overlay" } else { "diagnostic" };
     let out_path = out_dir.join(format!("{suffix}_{}.mp4", &job_id));
     let out_path_str = out_path.to_string_lossy().to_string();
+
+    log::info!(
+        "start_diagnostic[{job_id}]: mode={} path={} bpm={:.3} beat_zero={:.3}",
+        req.mode, req.path, req.bpm, req.beat_zero_time
+    );
 
     let app_clone = app.clone();
     let jid = job_id.clone();
@@ -351,22 +400,31 @@ pub async fn start_diagnostic(app: AppHandle, req: DiagnosticRequest) -> Result<
         .await;
 
         let status_payload = match result {
-            Ok(Ok(())) => serde_json::json!({
-                "job_id": &jid,
-                "percent": 1.0,
-                "status": "done",
-                "output_path": &out_clone
-            }),
-            Ok(Err(e)) => serde_json::json!({
-                "job_id": &jid,
-                "status": "error",
-                "error": e
-            }),
-            Err(e) => serde_json::json!({
-                "job_id": &jid,
-                "status": "error",
-                "error": e.to_string()
-            }),
+            Ok(Ok(())) => {
+                log::info!("start_diagnostic[{jid}]: done → {out_clone}");
+                serde_json::json!({
+                    "job_id": &jid,
+                    "percent": 1.0,
+                    "status": "done",
+                    "output_path": &out_clone
+                })
+            }
+            Ok(Err(e)) => {
+                log::error!("start_diagnostic[{jid}]: failed: {e}");
+                serde_json::json!({
+                    "job_id": &jid,
+                    "status": "error",
+                    "error": e
+                })
+            }
+            Err(e) => {
+                log::error!("start_diagnostic[{jid}]: panicked: {e}");
+                serde_json::json!({
+                    "job_id": &jid,
+                    "status": "error",
+                    "error": e.to_string()
+                })
+            }
         };
         let _ = app_clone.emit("diagnostic-progress", status_payload);
     });
@@ -396,9 +454,17 @@ pub async fn save_output(app: AppHandle, req: SaveRequest) -> Result<String, Str
     match dest {
         Some(path) => {
             let dest_path = path.into_path().map_err(|e| e.to_string())?;
-            std::fs::copy(&req.source_path, &dest_path)
-                .map_err(|e| format!("Save failed: {e}"))?;
-            Ok(dest_path.to_string_lossy().to_string())
+            std::fs::copy(&req.source_path, &dest_path).map_err(|e| {
+                log::error!(
+                    "save_output: copy {} → {} failed: {e}",
+                    req.source_path,
+                    dest_path.display()
+                );
+                format!("Save failed: {e}")
+            })?;
+            let dest_str = dest_path.to_string_lossy().to_string();
+            log::info!("save_output: {} → {dest_str}", req.source_path);
+            Ok(dest_str)
         }
         None => Err("cancelled".to_string()),
     }
@@ -433,12 +499,22 @@ pub struct SaveToFolderRequest {
 #[tauri::command]
 pub async fn save_to_folder(req: SaveToFolderRequest) -> Result<String, String> {
     let dest_folder = std::path::Path::new(&req.dest_folder);
-    std::fs::create_dir_all(dest_folder)
-        .map_err(|e| format!("Save failed: could not create {}: {e}", dest_folder.display()))?;
+    std::fs::create_dir_all(dest_folder).map_err(|e| {
+        log::error!("save_to_folder: create {} failed: {e}", dest_folder.display());
+        format!("Save failed: could not create {}: {e}", dest_folder.display())
+    })?;
     let dest = dest_folder.join(&req.file_name);
-    std::fs::copy(&req.source_path, &dest)
-        .map_err(|e| format!("Save failed: {e}"))?;
-    Ok(dest.to_string_lossy().to_string())
+    std::fs::copy(&req.source_path, &dest).map_err(|e| {
+        log::error!(
+            "save_to_folder: copy {} → {} failed: {e}",
+            req.source_path,
+            dest.display()
+        );
+        format!("Save failed: {e}")
+    })?;
+    let dest_str = dest.to_string_lossy().to_string();
+    log::info!("save_to_folder: {} → {dest_str}", req.source_path);
+    Ok(dest_str)
 }
 
 // ── Write Text File ───────────────────────────────────────────────────────────
@@ -707,6 +783,11 @@ pub struct SceneDetectRequest {
     pub path: String,
     /// Optional scdet threshold. Higher = fewer, more confident cuts. Defaults to 10.
     pub threshold: Option<f64>,
+    /// Optional scan window (source-time seconds). When both are provided and
+    /// `end > start`, scdet only sees this slice and reported cut times are
+    /// shifted back into source time before they reach the UI.
+    pub start: Option<f64>,
+    pub end: Option<f64>,
 }
 
 #[tauri::command]
@@ -716,6 +797,15 @@ pub async fn start_scene_detection(
 ) -> Result<String, String> {
     let job_id = uuid::Uuid::new_v4().to_string();
     let threshold = req.threshold.unwrap_or(DEFAULT_THRESHOLD);
+    let window = match (req.start, req.end) {
+        (Some(s), Some(e)) if e > s => Some(ScanWindow { start: s.max(0.0), end: e }),
+        _ => None,
+    };
+
+    log::info!(
+        "start_scene_detection[{job_id}]: path={} threshold={threshold} window={:?}",
+        req.path, window
+    );
 
     // Reset the cancel flag for this run. If a previous job is still winding
     // down, it sees its own stale reference via Arc::clone below and bails.
@@ -769,12 +859,22 @@ pub async fn start_scene_detection(
                     );
                 }
             };
-            detect_cuts(&path_for_block, threshold, duration, progress, on_cut, cancel_for_block)
+            detect_cuts(&path_for_block, threshold, duration, window, progress, on_cut, cancel_for_block)
         })
         .await;
 
+        // Echo the scan window back on the terminal events so the frontend
+        // can merge windowed results into existing cuts (replacing only the
+        // cuts that fell inside the scanned range).
+        let window_json = window.map(|w| serde_json::json!({ "start": w.start, "end": w.end }));
+
         match result {
             Ok(Ok(cuts)) => {
+                log::info!(
+                    "start_scene_detection[{jid}]: done, {} cut(s) in {}",
+                    cuts.len(),
+                    path
+                );
                 let _ = app_clone.emit(
                     "scene-detection-progress",
                     serde_json::json!({
@@ -783,11 +883,17 @@ pub async fn start_scene_detection(
                         "percent": 1.0,
                         "status": "done",
                         "cuts": cuts,
+                        "window": window_json,
                     }),
                 );
             }
             Ok(Err(e)) => {
                 let status = if e == "cancelled" { "cancelled" } else { "error" };
+                if status == "cancelled" {
+                    log::info!("start_scene_detection[{jid}]: cancelled");
+                } else {
+                    log::error!("start_scene_detection[{jid}]: failed: {e}");
+                }
                 let _ = app_clone.emit(
                     "scene-detection-progress",
                     serde_json::json!({
@@ -795,10 +901,12 @@ pub async fn start_scene_detection(
                         "path": &path,
                         "status": status,
                         "error": e,
+                        "window": window_json,
                     }),
                 );
             }
             Err(e) => {
+                log::error!("start_scene_detection[{jid}]: panicked: {e}");
                 let _ = app_clone.emit(
                     "scene-detection-progress",
                     serde_json::json!({
@@ -806,6 +914,7 @@ pub async fn start_scene_detection(
                         "path": &path,
                         "status": "error",
                         "error": e.to_string(),
+                        "window": window_json,
                     }),
                 );
             }

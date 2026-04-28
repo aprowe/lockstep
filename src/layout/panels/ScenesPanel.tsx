@@ -11,14 +11,22 @@ import { visibleSceneCuts } from '../../utils/sceneFilter'
 import { useDockBridge } from '../DockContext'
 import './ScenesPanel.css'
 
+// Stable empty-array sentinel — `?? []` in a selector allocates a fresh
+// array every render, which would re-key `filteredCuts` → `allItems` →
+// the items prop ListPanel feeds into its `stripFrames` useMemo. With an
+// unstable items ref, ListPanel's `setStripFrames` effect dispatches on
+// every render and (in `always` mode) state churn turns into an infinite
+// render loop. Sharing one frozen `[]` keeps the default identity stable.
+const EMPTY_CUTS: readonly number[] = Object.freeze([]) as readonly number[]
+
 export default function ScenesPanel() {
   const dispatch = useAppDispatch()
   const { seek } = useDockBridge()
   const video = useAppSelector(s => s.video.video)
   const videoPath = video?.path ?? null
   const regions = useAppSelector(s => s.region.regions)
-  const cuts = useAppSelector(s => videoPath ? s.scene.cutsByPath[videoPath] ?? [] : [])
-  const userCuts = useAppSelector(s => videoPath ? s.scene.userCutsByPath[videoPath] ?? [] : [])
+  const cuts = useAppSelector(s => (videoPath ? s.scene.cutsByPath[videoPath] : undefined) ?? (EMPTY_CUTS as number[]))
+  const userCuts = useAppSelector(s => (videoPath ? s.scene.userCutsByPath[videoPath] : undefined) ?? (EMPTY_CUTS as number[]))
   const status = useAppSelector(s => videoPath ? s.scene.statusByPath[videoPath] ?? 'idle' : 'idle')
   const progress = useAppSelector(s => videoPath ? s.scene.progressByPath[videoPath] ?? 0 : 0)
   const error = useAppSelector(s => videoPath ? s.scene.errorByPath[videoPath] : undefined)
@@ -26,6 +34,7 @@ export default function ScenesPanel() {
   const minGap = useAppSelector(s => videoPath ? s.scene.minGapByPath[videoPath] : undefined) ?? 2
   const filterMode = useAppSelector(s => s.lists.filterMode.scenes)
   const activeRegion = useAppSelector(selectActiveRegion)
+  const view = useAppSelector(s => s.ui.view)
 
   const [draftThreshold, setDraftThreshold] = useState(String(threshold))
   // Keep the threshold input in sync when upstream changes (e.g. new video).
@@ -82,6 +91,21 @@ export default function ScenesPanel() {
 
   if (!video) return <div className="vj-empty-panel">No video</div>
 
+  const startScan = (window?: { start: number; end: number }) => {
+    const t = Number.parseFloat(draftThreshold)
+    if (!videoPath || !Number.isFinite(t) || t < 0) return
+    dispatch(detectScenesThunk({ path: videoPath, threshold: t, window }))
+  }
+
+  // "Scan view" only makes sense when the timeline view is a strict sub-range
+  // of the file — if it covers the whole video, both buttons would do the
+  // same work, so disable the scoped one.
+  const viewSpansFullVideo =
+    view.start <= 1e-3 && view.end >= video.duration - 1e-3
+  const viewWindow = { start: Math.max(0, view.start), end: Math.min(video.duration, view.end) }
+  const viewIsValid = viewWindow.end - viewWindow.start > 1e-3 && !viewSpansFullVideo
+  const scanDisabled = status === 'analyzing'
+
   const subHeader = (
     <>
       <div className="scenes-panel__row">
@@ -98,15 +122,11 @@ export default function ScenesPanel() {
         <button
           type="button"
           className="scenes-panel__btn"
-          onClick={() => {
-            const t = Number.parseFloat(draftThreshold)
-            if (videoPath && Number.isFinite(t) && t >= 0) {
-              dispatch(detectScenesThunk({ path: videoPath, threshold: t }))
-            }
-          }}
-          disabled={status === 'analyzing'}
+          onClick={() => startScan()}
+          disabled={scanDisabled}
+          title="Scan the whole video for scene cuts"
         >
-          {thresholdChanged ? 'Apply' : 'Recompute'}
+          {thresholdChanged ? 'Apply' : 'Scan'}
         </button>
       </div>
       <div className="scenes-panel__row">
@@ -125,8 +145,19 @@ export default function ScenesPanel() {
           }}
         />
         <span className="scenes-panel__unit">s</span>
-        {/* No trailing button on this row — cell stays empty for alignment. */}
-        <span />
+        <button
+          type="button"
+          className="scenes-panel__btn scenes-panel__btn--secondary"
+          onClick={() => startScan(viewWindow)}
+          disabled={scanDisabled || !viewIsValid}
+          title={
+            viewIsValid
+              ? `Scan only the current view (${viewWindow.start.toFixed(2)}s → ${viewWindow.end.toFixed(2)}s)`
+              : 'Zoom in to enable a scoped scan'
+          }
+        >
+          Scan View
+        </button>
       </div>
       {status === 'analyzing' && (
         <div className="scenes-panel__progress" role="progressbar" aria-valuenow={Math.round(progress * 100)}>

@@ -13,8 +13,8 @@
   background: var(--bg-3);
   border: 1px solid var(--border-hi);
   border-radius: 8px;
-  width: 380px;
-  max-height: 90vh;
+  width: min(720px, 92vw);
+  max-height: 92vh;
   display: flex;
   flex-direction: column;
   font-family: var(--font-family);
@@ -351,7 +351,7 @@
 
 /* ── Output log ────────────────────────────────────────────── */
 .export-dialog__log {
-  height: 120px;
+  height: 320px;
   overflow-y: auto;
   padding: var(--sp-3) var(--sp-4);
   background: var(--bg-inset);

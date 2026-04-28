@@ -236,9 +236,29 @@ where
     let src_dir = tmp.path().join("src");
     std::fs::create_dir(&src_dir).map_err(|e| e.to_string())?;
 
-    progress(0.05, "Extracting source frames...");
+    // Extract only the source-time range the time map actually references,
+    // instead of dumping every frame of the full input (which was O(minutes)
+    // for long videos and 95%+ wasted work).
+    let clip_src_start = time_map[0].0.max(0.0);
+    let clip_src_end = time_map.last().unwrap().0.max(clip_src_start);
+    let clip_src_dur = (clip_src_end - clip_src_start).max(0.0);
+    let src_start_str = format!("{clip_src_start:.6}");
+    let src_dur_str = format!("{clip_src_dur:.6}");
+
+    progress(
+        0.05,
+        &format!(
+            "Extracting source frames: {clip_src_start:.3}s → {clip_src_end:.3}s ({clip_src_dur:.3}s) → {}",
+            src_dir.display()
+        ),
+    );
+    // `-ss` before `-i` fast-seeks to the nearest keyframe; modern ffmpeg then
+    // decodes forward to the exact timestamp, so the first extracted PNG
+    // corresponds to t_src ≈ clip_src_start.
     run_ffmpeg(&[
         "-y", "-hide_banner", "-loglevel", "error",
+        "-ss", &src_start_str,
+        "-t", &src_dur_str,
         "-i", input,
         &src_dir.join("%08d.png").to_string_lossy(),
     ])?;
@@ -249,6 +269,11 @@ where
     }
     let last_src_idx = (src_frames.len() - 1) as f64;
 
+    progress(
+        0.09,
+        &format!("Extracted {} source frames", src_frames.len()),
+    );
+
     let t_out_min = time_map[0].1;
     let t_out_max = time_map.last().unwrap().1;
     let out_dur = (t_out_max - t_out_min).max(0.0);
@@ -257,28 +282,36 @@ where
     let final_dir = tmp.path().join("final");
     std::fs::create_dir(&final_dir).map_err(|e| e.to_string())?;
 
-    eprintln!(
+    log::debug!(
         "[rife-warped] src_fps={src_fps:.4} target_fps={target_fps} n_out={n_out} \
-         t_out_min={t_out_min:.6} t_out_max={t_out_max:.6} src_frames={}",
+         t_out_min={t_out_min:.6} t_out_max={t_out_max:.6} \
+         clip_src_start={clip_src_start:.6} clip_src_end={clip_src_end:.6} \
+         src_frames={}",
         src_frames.len()
     );
-    eprintln!("[rife-warped] frame_times: n | t_out | t_src | idx_f | a | b | alpha");
+    log::trace!("[rife-warped] frame_times: n | t_out | t_src | idx_f | a | b | alpha");
 
     let mut plans: Vec<Plan> = Vec::with_capacity(n_out as usize);
     for n in 0..n_out {
         let t_out = t_out_min + n as f64 / target_fps as f64;
         let t_src = invert_time_map(time_map, t_out);
-        let idx_f = (t_src * src_fps).max(0.0).min(last_src_idx);
+        // Offset by clip_src_start: src_frames[0] now corresponds to the clip's
+        // starting source time, not t_src=0.
+        let idx_f = ((t_src - clip_src_start) * src_fps)
+            .max(0.0)
+            .min(last_src_idx);
         let a = idx_f.floor() as usize;
         let b = (a + 1).min(src_frames.len() - 1);
         let alpha = idx_f - a as f64;
 
-        eprintln!(
+        log::trace!(
             "[rife-warped] {n:4} | t_out={t_out:.6} | t_src={t_src:.6} | idx_f={idx_f:.4} | a={a} | b={b} | α={alpha:.4}"
         );
 
-        let t_a = a as f64 / src_fps;
-        let t_b = b as f64 / src_fps;
+        // Scene-cut detection is in absolute source time, so add clip_src_start
+        // back when comparing against `scene_cuts`.
+        let t_a = clip_src_start + a as f64 / src_fps;
+        let t_b = clip_src_start + b as f64 / src_fps;
         let straddles_cut = scene_cuts.iter().any(|&c| c > t_a && c <= t_b);
 
         if a == b {

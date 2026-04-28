@@ -11,6 +11,11 @@ import './SceneRow.css'
 interface SceneRowProps {
   /** Scene change times in orig (input) seconds. */
   scenes: number[]
+  /** Source-time ranges that have actually been scanned for cuts. Renders as
+   *  a faint accent stripe inside the scene band so the operator can tell
+   *  which slices of the file have been analysed (vs. having no cuts because
+   *  none were found vs. because the scanner never ran there). */
+  scannedRanges?: ReadonlyArray<{ start: number; end: number }>
   view: View
   /** Clip duration — used to clamp projection. */
   duration: number
@@ -40,7 +45,7 @@ interface SceneRowProps {
 const PLAYHEAD_MATCH_TOLERANCE = 0.05 // ~1 video frame at 20fps
 
 export default function SceneRow({
-  scenes, view, duration, expanded, onSceneClick, playhead,
+  scenes, scannedRanges, view, duration, expanded, onSceneClick, playhead,
   onSceneDelete, onSceneAdd, onSceneContextMenu, onBackgroundContextMenu,
   selectedTimes, userTimes,
 }: SceneRowProps) {
@@ -118,12 +123,37 @@ export default function SceneRow({
     [onBackgroundContextMenu, view.start, view.end],
   )
 
+  // Project each scanned range into viewport-relative percentages and clip
+  // to the visible window. Computed inline (cheap — typically 1–2 ranges)
+  // so a partially-scanned file doesn't pay any cost when nothing's set.
+  const visibleScannedRanges = (scannedRanges ?? [])
+    .map(r => {
+      const start = Math.max(view.start, Math.max(0, r.start))
+      // Clamp Infinity (the "open-ended through the file" sentinel from
+      // loadCached) and out-of-bounds ends against both view and duration.
+      const end = Math.min(view.end, Math.min(duration, r.end))
+      return { start, end }
+    })
+    .filter(r => r.end > r.start)
+
   return (
     <div
       className={`scene-band${expanded ? ' scene-band--expanded' : ''}`}
       onDoubleClick={handleBackgroundDoubleClick}
       onContextMenu={handleBackgroundContextMenu}
     >
+      {visibleScannedRanges.map((r, i) => {
+        const left = timeToViewPct(r.start, view)
+        const right = timeToViewPct(r.end, view)
+        return (
+          <div
+            key={`scanned-${i}`}
+            className="scene-band__scanned"
+            style={{ left: `${left}%`, width: `${right - left}%` }}
+            aria-hidden
+          />
+        )
+      })}
       {scenes.map((t, i) => {
         if (t < 0 || t > duration) return null
         const x = timeToViewPct(t, view)

@@ -346,7 +346,6 @@ impl Canvas {
         // Beat ticks
         if bpm > 0.0 {
             let beat_interval = 60.0 / bpm;
-            let mut bt = beat_zero % (duration + beat_interval);
             // Walk from 0 so we see all beats even before beat_zero
             let mut b = beat_zero - (beat_zero / beat_interval).ceil() * beat_interval;
             while b < 0.0 { b += beat_interval; }
@@ -360,7 +359,6 @@ impl Canvas {
                 let tick_h = ((h as f64) * (0.4 + beat_flash * 0.6)) as i32;
                 self.line(bx, y - tick_h, bx, y + tick_h, tc, 1);
                 b += beat_interval;
-                bt += beat_interval;
                 if b - beat_zero > duration + beat_interval { break; }
             }
         }
@@ -609,7 +607,7 @@ where
         .spawn()
         .map_err(|e| format!("Failed to start ffmpeg encoder: {e}"))?;
 
-    let stdin = encoder.stdin.as_mut().ok_or("No stdin")?;
+    let mut stdin = encoder.stdin.take().ok_or("No stdin")?;
 
     // Build a set of keyframe timestamps for per-frame lookup
     let kf_set: std::collections::HashSet<u64> = meta
@@ -714,7 +712,7 @@ where
         .collect();
 
     let dec_stdout = decoder.stdout.as_mut().ok_or("No decoder stdout")?;
-    let enc_stdin = encoder.stdin.as_mut().ok_or("No encoder stdin")?;
+    let mut enc_stdin = encoder.stdin.take().ok_or("No encoder stdin")?;
     let mut buf = vec![0u8; frame_size];
     let mut frame_idx = 0u64;
 

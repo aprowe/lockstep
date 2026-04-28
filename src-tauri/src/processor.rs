@@ -99,16 +99,26 @@ pub fn remap_video<F>(
 where
     F: Fn(f64, &str) + Send,
 {
+    progress(0.0, &format!("Input: {input_path}"));
+    progress(0.0, &format!("Output (temp): {output_path}"));
+
     // ── Stage 1: Time map ──
     let duration = video_duration(input_path)?;
     let clip_start = opts.clip_in.unwrap_or(0.0).max(0.0);
     let clip_end = opts.clip_out.unwrap_or(duration).min(duration);
+    progress(
+        0.0,
+        &format!(
+            "Duration: {duration:.3}s · clip: {clip_start:.3}s → {clip_end:.3}s · method: {:?} · fps: {:?}",
+            opts.interp_method, opts.interp_fps,
+        ),
+    );
 
     // Trigger mode is raw 1.0x playback at anchor points — PCHIP smoothing +
     // RIFE both assume a densified, stretchable time map and would fight it.
     let smooth = !opts.no_smooth && !opts.trigger_mode;
     if !smooth {
-        eprintln!("[warp] PCHIP smoothing disabled; using raw piecewise-linear time map");
+        log::info!("[warp] PCHIP smoothing disabled; using raw piecewise-linear time map");
     }
     let time_map = build_time_map(
         &opts.orig_times,
@@ -118,38 +128,47 @@ where
         smooth,
     );
 
-    // ── Stage 2: Segments ──
     let tmp_dir = TempDir::new().map_err(|e| e.to_string())?;
     let tmp_path = tmp_dir.path();
+    progress(0.01, &format!("Scratch dir: {}", tmp_path.display()));
 
-    let plans = plan_segments(&time_map, opts.trigger_mode);
-    let segment_files = encode_segments(
-        input_path,
-        &plans,
-        opts.interp_fps,
-        opts.interp_method,
-        tmp_path,
-        progress,
-    )?;
+    // RIFE replaces the video track wholesale and RIFE'd exports are silent by
+    // design (see rife_pass.rs), so when RIFE is selected we skip the segment
+    // encode + concat entirely. Trigger mode still uses the segment path — it's
+    // 1.0x playback with freeze-pads that the warp-aware pair selector can't
+    // express.
+    let use_rife = !opts.trigger_mode
+        && matches!(opts.interp_method, InterpMethod::Rife)
+        && opts.interp_fps.is_some();
 
-    // ── Stage 3: Concat ──
-    concat_segments(&segment_files, tmp_path, output_path, progress)?;
+    if use_rife {
+        progress(0.05, "RIFE mode: skipping segment encode + concat");
+        let fps = opts.interp_fps.unwrap();
+        apply_warp_aware_rife(
+            input_path,
+            &time_map,
+            &opts.scene_cuts,
+            fps,
+            output_path,
+            tmp_path,
+            progress,
+        )?;
+    } else {
+        // ── Stage 2: Segments ──
+        let plans = plan_segments(&time_map, opts.trigger_mode);
+        progress(0.01, &format!("Planned {} segment(s)", plans.len()));
+        let segment_files = encode_segments(
+            input_path,
+            &plans,
+            opts.interp_fps,
+            opts.interp_method,
+            tmp_path,
+            progress,
+        )?;
 
-    // ── Stage 4 (optional): warp-aware RIFE, replacing the video track ──
-    // Skipped in trigger mode: 1.0x playback doesn't benefit from RIFE and the
-    // freeze-pads would confuse the warp-aware pair selection.
-    if !opts.trigger_mode {
-        if let (Some(fps), InterpMethod::Rife) = (opts.interp_fps, opts.interp_method) {
-            apply_warp_aware_rife(
-                input_path,
-                &time_map,
-                &opts.scene_cuts,
-                fps,
-                output_path,
-                tmp_path,
-                progress,
-            )?;
-        }
+        // ── Stage 3: Concat ──
+        progress(0.82, &format!("Concat target: {output_path}"));
+        concat_segments(&segment_files, tmp_path, output_path, progress)?;
     }
 
     // ── Stage 5: Post-processing ──

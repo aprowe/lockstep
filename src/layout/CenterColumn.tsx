@@ -30,6 +30,7 @@ import {
   addCut as addSceneCutAction,
   deleteCut as deleteSceneCutAction,
   setSelectedCutTimes as setSelectedSceneCutTimesAction,
+  type ScannedRange,
 } from '../store/slices/sceneSlice'
 import { setListSelection, setPendingEdit } from '../store/slices/listsSlice'
 import { calcZoomToRegion, calcNewRegionBoundsFromScenes, calcNewRegionBoundsUpToNext } from '../utils/view'
@@ -39,6 +40,10 @@ import type { View } from '../types'
 import { useDockBridge } from './DockContext'
 
 const MIN_TIMELINE = 60
+/** Stable empty default for the scanned-ranges selector. Allocating
+ *  `[]` inline would change identity every render and re-key WarpView's
+ *  scenes-track props, which on a busy panel becomes a measurable cost. */
+const EMPTY_SCANNED_RANGES: readonly ScannedRange[] = Object.freeze([]) as readonly ScannedRange[]
 /** Reserved space for everything *above* the timeline inside .vj-center —
  *  breadcrumb (~40) + minimum video pane (~125) + toolbar (~50) + resizer (~5).
  *  Without enough headroom here the player gets squeezed to nothing and the
@@ -70,6 +75,24 @@ export default function CenterColumn() {
   const sceneCuts = useAppSelector(s => videoPath ? s.scene.cutsByPath[videoPath] ?? [] : [])
   const userSceneCuts = useAppSelector(s => videoPath ? s.scene.userCutsByPath[videoPath] ?? [] : [])
   const sceneMinGap = useAppSelector(s => videoPath ? s.scene.minGapByPath[videoPath] : undefined) ?? 2
+  const scannedSceneRanges = useAppSelector(s =>
+    videoPath ? s.scene.scannedRangesByPath[videoPath] ?? EMPTY_SCANNED_RANGES : EMPTY_SCANNED_RANGES,
+  )
+  // Live scan progress drives a synthetic partial range so the scanned-tint
+  // on the scene track grows in lockstep with the panel's progress bar
+  // instead of popping in only when the scan completes.
+  const sceneStatus = useAppSelector(s => videoPath ? s.scene.statusByPath[videoPath] ?? 'idle' : 'idle')
+  const sceneProgress = useAppSelector(s => videoPath ? s.scene.progressByPath[videoPath] ?? 0 : 0)
+  const sceneScanWindow = useAppSelector(s => videoPath ? s.scene.scanWindowByPath[videoPath] : undefined)
+  const effectiveScannedRanges = useMemo<readonly ScannedRange[]>(() => {
+    if (sceneStatus !== 'analyzing' || !sceneScanWindow || !video) return scannedSceneRanges
+    const winEnd = Number.isFinite(sceneScanWindow.end) ? sceneScanWindow.end : video.duration
+    const span = winEnd - sceneScanWindow.start
+    if (span <= 0) return scannedSceneRanges
+    const liveEnd = sceneScanWindow.start + span * sceneProgress
+    if (liveEnd <= sceneScanWindow.start) return scannedSceneRanges
+    return [...scannedSceneRanges, { start: sceneScanWindow.start, end: liveEnd }]
+  }, [scannedSceneRanges, sceneStatus, sceneProgress, sceneScanWindow, video])
   const filteredSceneCuts = visibleSceneCuts(sceneCuts, userSceneCuts, sceneMinGap)
   // Multi-selection set from the clips list — surfaced on the timeline so
   // drag/edit gestures show which clips are about to be affected.
@@ -332,6 +355,7 @@ export default function CenterColumn() {
         <WarpView
           onSeek={t => playerRef.current?.seek(t)}
           scenes={filteredSceneCuts}
+          scannedRanges={effectiveScannedRanges}
           onSceneAdd={t => {
             if (videoPath) dispatch(addSceneCutAction({ path: videoPath, cut: t }))
           }}

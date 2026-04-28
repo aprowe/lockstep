@@ -62,6 +62,10 @@ interface WarpViewProps {
   onClipOverlayZoom?: (id: string) => void
   /** Detected scene cut times in input (orig) seconds. */
   scenes?: number[]
+  /** Source-time ranges that have actually been scanned for cuts. Drives the
+   *  subtle "scanned" tint on the scene track so the user can see what
+   *  ffmpeg has covered vs. what's still un-scanned. */
+  scannedRanges?: ReadonlyArray<{ start: number; end: number }>
   /** Add a scene cut at this time (click on empty scene row background). */
   onSceneAdd?: (time: number) => void
   /** Delete the scene cut at this time (shift-click or right-click on diamond). */
@@ -83,6 +87,7 @@ export default function WarpView({
   onClipOverlayContextMenu,
   onClipOverlayZoom,
   scenes: scenesProp,
+  scannedRanges,
   onSceneAdd,
   onSceneDelete,
   onRegionAdd,
@@ -616,6 +621,7 @@ export default function WarpView({
         bpm={bpm}
         beatOffset={beatOffset}
         scenes={scenes}
+        scannedRanges={scannedRanges}
         onSceneAdd={onSceneAdd}
         onSceneDelete={onSceneDelete}
         onSceneContextMenu={handleSceneContextMenu}

@@ -20,6 +20,10 @@ interface ExportJob {
   /** Beat count for filename interpolation. For region jobs this is the
    *  region span at its bpm; null falls back to the global loop-beats. */
   beats: number | null
+  /** 0-based index of the source region within the *full* regions list, so
+   *  `{n}` in the filename pattern stays stable even when exporting a subset.
+   *  -1 for non-region jobs (full-video export). */
+  regionIndex: number
 }
 
 interface ExportDialogProps {
@@ -43,6 +47,8 @@ type InterpMethod = 'minterpolate' | 'rife'
 
 /**
  * Available tokens: {name} {stem} {bpm} {beats} {in} {out} {n}
+ * `n` is the 1-based index of the source clip within the full regions list
+ * (so export order / filtering doesn't renumber it).
  */
 function applyPattern(pattern: string, opts: {
   name: string
@@ -51,7 +57,8 @@ function applyPattern(pattern: string, opts: {
   beats: number | null
   clipIn: number | null
   clipOut: number | null
-  index: number
+  /** 1-based clip number; 0 means "not a region" (full video). */
+  clipNumber: number
 }): string {
   const pad2 = (n: number) => String(Math.floor(n)).padStart(2, '0')
   const fmtSec = (s: number | null) => {
@@ -66,7 +73,7 @@ function applyPattern(pattern: string, opts: {
     .replace(/\{beats\}/g, opts.beats !== null ? String(opts.beats) : '')
     .replace(/\{in\}/g, fmtSec(opts.clipIn))
     .replace(/\{out\}/g, fmtSec(opts.clipOut))
-    .replace(/\{n\}/g, String(opts.index + 1).padStart(2, '0'))
+    .replace(/\{n\}/g, String(Math.max(1, opts.clipNumber)).padStart(2, '0'))
 }
 
 // ── Marker sidecar ────────────────────────────────────────────────────────────
@@ -151,7 +158,7 @@ export default function ExportDialog({
   // Output settings — default folder is last-used export folder, then video's parent folder
   const videoFolder = useMemo(() => videoPath ? parentFolder(videoPath) : null, [videoPath])
   const destFolder = lastExportFolder ?? videoFolder
-  const [namePattern, setNamePattern] = useState('{name}_{bpm}bpm')
+  const [namePattern, setNamePattern] = useState('{stem}_clip{n}_{bpm}bpm_{beats}b')
   const baseName = originalName.replace(/\.[^.]+$/, '')  // stem of source video
 
   useEffect(() => {
@@ -229,6 +236,9 @@ export default function ExportDialog({
 
   const buildJobs = (): ExportJob[] => {
     if (mode === 'current') {
+      const activeIdx = activeRegion
+        ? regions.findIndex(r => r.id === activeRegion.id)
+        : -1
       return [{
         label: activeRegion ? activeRegion.name : baseName,
         clipIn: activeRegion?.inPoint ?? null,
@@ -237,6 +247,7 @@ export default function ExportDialog({
         addToEnd: activeRegion?.addToEnd ?? addToEnd,
         triggerMode: activeRegion?.triggerMode ?? false,
         beats: beatsForRegion(activeRegion),
+        regionIndex: activeIdx,
       }]
     }
     const list = mode === 'all' ? regions : regions.filter(r => selectedRegionIds.has(r.id))
@@ -248,6 +259,7 @@ export default function ExportDialog({
         bpm,
         addToEnd,
         beats: loopBeats,
+        regionIndex: -1,
       }]
     }
     return list.map(r => ({
@@ -258,18 +270,27 @@ export default function ExportDialog({
       addToEnd: r.addToEnd,
       triggerMode: r.triggerMode ?? false,
       beats: beatsForRegion(r),
+      // {n} should track the clip's position in the *full* list, not in the
+      // filtered export subset — exporting clips 2 and 5 should still yield
+      // _clip02_ and _clip05_ in the filenames.
+      regionIndex: regions.findIndex(rr => rr.id === r.id),
     }))
   }
 
   const getFileName = (job: ExportJob, index: number) => {
+    // Filename BPM must reflect the *output* BPM, not the source — backend
+    // normalizes to 120 when `normalizeBpm` is on, so the file we ship is at
+    // 120bpm regardless of the region's authored tempo.
+    const effectiveBpm = normalizeBpm ? normBpmTarget : job.bpm
+    const clipNumber = job.regionIndex >= 0 ? job.regionIndex + 1 : index + 1
     const name = applyPattern(namePattern, {
       name: job.label,
       stem: baseName,
-      bpm: job.bpm,
+      bpm: effectiveBpm,
       beats: job.beats,
       clipIn: job.clipIn,
       clipOut: job.clipOut,
-      index,
+      clipNumber,
     })
     return `${name}.mp4`
   }

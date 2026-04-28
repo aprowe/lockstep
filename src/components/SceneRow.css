@@ -9,6 +9,18 @@
   cursor: copy;
 }
 
+/* Subtle "this slice has been scanned" indicator. Sits behind the diamonds
+ * as a faint accent wash across the full height of the scene band so the
+ * operator can see at a glance which spans have been analysed, while staying
+ * quiet enough not to compete with the diamonds for attention. */
+.scene-band__scanned {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(var(--accent-rgb), 0.08);
+  pointer-events: none;
+}
+
 .scene-band--expanded {
   height: calc(66px * var(--ui-scale));
 }

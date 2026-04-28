@@ -14,6 +14,8 @@
   flex-direction: row;
   min-height: 0;
   overflow: hidden;
+  /* Anchor for the absolutely-positioned ExportProgressBar overlay. */
+  position: relative;
 }
 
 /* ── Empty / no-video state ─────────────────────────────── */

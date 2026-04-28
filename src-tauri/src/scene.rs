@@ -26,12 +26,26 @@ use crate::ffmpeg::find_bin;
 /// 10 is ffmpeg's documented default and matches typical cut detection needs.
 pub const DEFAULT_THRESHOLD: f64 = 10.0;
 
+/// Half-open scan window in source-time seconds. When `Some`, ffmpeg seeks to
+/// `start` before opening the demuxer and reads through `end`; cut times
+/// emitted by `scdet` are then in window-relative seconds and the caller
+/// shifts them back into source time. `None` (the default) scans the full
+/// file from t=0.
+#[derive(Clone, Copy, Debug)]
+pub struct ScanWindow {
+    pub start: f64,
+    pub end: f64,
+}
+
 /// Run scene-cut detection and return cut times in seconds, sorted ascending.
 ///
 /// `on_progress` receives a rough 0.0–1.0 progress fraction as ffmpeg streams
 /// `time=HH:MM:SS.xx` status lines; it's called best-effort and may not fire
 /// if the duration is unknown. `on_cut` fires once per detected cut (in the
 /// order ffmpeg reports them) so callers can stream results to the UI.
+///
+/// `window` constrains the scan to a sub-range of the file; when `Some`,
+/// returned cut times are in absolute (source-time) seconds.
 ///
 /// If `cancel` flips to true, the running ffmpeg child is killed and the
 /// function returns `Err("cancelled")`. ffmpeg is spawned at
@@ -41,6 +55,7 @@ pub fn detect_cuts<F, G>(
     video_path: &str,
     threshold: f64,
     duration: Option<f64>,
+    window: Option<ScanWindow>,
     mut on_progress: F,
     mut on_cut: G,
     cancel: Arc<AtomicBool>,
@@ -51,20 +66,30 @@ where
 {
     let filter = format!("scdet=t={threshold}");
     let mut cmd = Command::new(find_bin("ffmpeg"));
-    cmd.args([
-        "-hide_banner",
-        "-nostats",
-        "-i",
-        video_path,
-        "-vf",
-        &filter,
-        "-an",
-        "-f",
-        "null",
-        "-",
-    ])
-    .stdout(Stdio::null())
-    .stderr(Stdio::piped());
+    cmd.arg("-hide_banner").arg("-nostats");
+    // `-ss <start>` *before* `-i` is the fast path — ffmpeg seeks the demuxer
+    // to roughly the requested timestamp, then keyframe-aligns. `-t <length>`
+    // (output-side) bounds the read window. We deliberately use `-t` instead
+    // of `-to` so the value is a duration (window-relative), independent of
+    // the input seek. Cut times emitted by scdet are then relative to the
+    // demuxer's seek point; we add `start` back below.
+    let window_offset = window.map(|w| w.start.max(0.0)).unwrap_or(0.0);
+    let start_str;
+    let length_str;
+    if let Some(w) = window {
+        if w.start > 0.0 {
+            start_str = format!("{:.3}", w.start.max(0.0));
+            cmd.arg("-ss").arg(&start_str);
+        }
+        let length = (w.end - w.start).max(0.0);
+        if length > 0.0 {
+            length_str = format!("{:.3}", length);
+            cmd.arg("-t").arg(&length_str);
+        }
+    }
+    cmd.arg("-i").arg(video_path);
+    cmd.args(["-vf", &filter, "-an", "-f", "null", "-"]);
+    cmd.stdout(Stdio::null()).stderr(Stdio::piped());
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS);
 
@@ -92,11 +117,21 @@ where
         tail.push(line.clone());
 
         if let Some(t) = parse_cut_time(&line) {
-            cuts.push(t);
-            on_cut(t);
+            // scdet reports times relative to the demuxer's seek point. When
+            // a window is set, shift back into source-time so callers and the
+            // UI see absolute cut positions.
+            let absolute = t + window_offset;
+            cuts.push(absolute);
+            on_cut(absolute);
         } else if let (Some(t), Some(dur)) = (parse_progress_time(&line), duration) {
-            if dur > 0.0 {
-                on_progress((t / dur).clamp(0.0, 1.0));
+            // Progress is also seek-relative; report it as a fraction of the
+            // window when one is set, otherwise as a fraction of the file.
+            let span = window
+                .map(|w| (w.end - w.start).max(0.0))
+                .filter(|s| *s > 0.0)
+                .unwrap_or(dur);
+            if span > 0.0 {
+                on_progress((t / span).clamp(0.0, 1.0));
             }
         }
     }

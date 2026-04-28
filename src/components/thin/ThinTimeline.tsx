@@ -56,6 +56,9 @@ interface ThinTimelineProps {
   gridDiv?: number
 
   scenes: number[]
+  /** Source-time ranges already scanned for cuts. The scene track shades
+   *  these so the user can tell which slices have been analysed. */
+  scannedRanges?: ReadonlyArray<{ start: number; end: number }>
   onSceneAdd?: (time: number) => void
   onSceneDelete?: (time: number) => void
   onSceneContextMenu?: (time: number, x: number, y: number) => void
@@ -148,7 +151,7 @@ export default function ThinTimeline({
   onBeatAnchorDelete, onBeatAnchorSelect, onBeatAnchorContextMenu, onBeatAnchorsChange,
   snapInterval, snapOffset = 0, snapTargetsInput, snapTargetsOutput,
   bpm, beatOffset = 0, gridDiv = 1,
-  scenes, onSceneAdd, onSceneDelete, onSceneContextMenu,
+  scenes, scannedRanges, onSceneAdd, onSceneDelete, onSceneContextMenu,
   onRegionAdd, onTimelineContextMenu,
   regions, regionsOutput,
   onRegionSelect, onRegionContextMenu,
@@ -775,6 +778,7 @@ export default function ThinTimeline({
         <div className="thin-timeline__scene-body">
           <SceneRow
             scenes={scenes}
+            scannedRanges={scannedRanges}
             view={view}
             duration={duration}
             playhead={playhead}
