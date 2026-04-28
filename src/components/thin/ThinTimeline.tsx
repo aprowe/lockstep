@@ -1120,6 +1120,7 @@ export default function ThinTimeline({
         onViewChange={onViewChange}
         anchors={anchors}
         regions={regions}
+        playhead={playhead}
       />
 
       {sections.map((s, i) => (

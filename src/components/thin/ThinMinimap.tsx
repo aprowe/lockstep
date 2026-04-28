@@ -9,6 +9,8 @@ interface ThinMinimapProps {
   onViewChange: (v: View) => void
   anchors?: Anchor[]
   regions?: RegionBlock[]
+  /** Current playhead time in seconds (input space). Hidden when undefined. */
+  playhead?: number
   label?: string
 }
 
@@ -17,7 +19,7 @@ interface ThinMinimapProps {
  * Timeline minimap — just wraps it in the thin rail + body convention.
  */
 export default function ThinMinimap({
-  duration, view, onViewChange, anchors, regions, label = 'Overview',
+  duration, view, onViewChange, anchors, regions, playhead, label = 'Overview',
 }: ThinMinimapProps) {
   const drag = useRef<{ lastX: number; width: number } | null>(null)
 
@@ -73,6 +75,12 @@ export default function ThinMinimap({
           className={`minimap-viewport${visibleSpan >= duration - 0.001 ? ' minimap-viewport--full' : ''}`}
           style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
         />
+        {playhead !== undefined && duration > 0 && (
+          <div
+            className="minimap-playhead"
+            style={{ left: `${(playhead / duration) * 100}%` }}
+          />
+        )}
       </div>
     </div>
   )
