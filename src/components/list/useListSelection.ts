@@ -103,9 +103,31 @@ export function useListSelection({
         onSelectionChange([])
         return true
       }
+      // Up / Down — move the selection to the prev/next visible row and
+      // fire activate, matching plain-click semantics. Anchor follows so
+      // a subsequent shift+click extends from the new position.
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        if (itemIds.length === 0) return false
+        const dir = e.key === 'ArrowDown' ? 1 : -1
+        // Pick the cursor — anchor first, else last selected, else edge.
+        let cursor = anchorRef.current
+        if (!cursor || !itemIds.includes(cursor)) {
+          for (const id of itemIds) if (selectedIds.has(id)) cursor = id
+        }
+        const idx = cursor ? itemIds.indexOf(cursor) : -1
+        const nextIdx = idx < 0
+          ? (dir > 0 ? 0 : itemIds.length - 1)
+          : Math.max(0, Math.min(itemIds.length - 1, idx + dir))
+        const nextId = itemIds[nextIdx]
+        if (nextId === cursor) return true   // already at the edge — swallow but no-op
+        onSelectionChange([nextId])
+        anchorRef.current = nextId
+        onActivate?.(nextId)
+        return true
+      }
       return false
     },
-    [selectedIds, onDelete, itemIds, onSelectionChange],
+    [selectedIds, onDelete, itemIds, onSelectionChange, onActivate],
   )
 
   return { isSelected, handleRowClick, handleKeyDown }

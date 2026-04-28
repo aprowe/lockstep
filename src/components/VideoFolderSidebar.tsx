@@ -49,7 +49,23 @@ export default function VideoFolderSidebar({
           </button>
         </div>
       ) : (
-        <div className="vf-sidebar__list">
+        <div
+          className="vf-sidebar__list"
+          tabIndex={0}
+          onKeyDown={e => {
+            if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+            if (videos.length === 0) return
+            const dir = e.key === 'ArrowDown' ? 1 : -1
+            const idx = videos.findIndex(v => v.path === selectedPath)
+            const nextIdx = idx < 0
+              ? (dir > 0 ? 0 : videos.length - 1)
+              : Math.max(0, Math.min(videos.length - 1, idx + dir))
+            const next = videos[nextIdx]
+            if (!next || next.path === selectedPath) { e.preventDefault(); return }
+            e.preventDefault()
+            onSelectVideo(next.path)
+          }}
+        >
           {videos.map(v => {
             const count = markerCountByPath[v.path]
             return (
