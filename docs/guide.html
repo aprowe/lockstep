@@ -11,15 +11,18 @@ body {
   background: #0B0F14;
   color: #EAF2FF;
   font-family: 'SF Mono', 'Fira Code', 'Consolas', 'Courier New', monospace;
-  padding: 56px 40px;
   min-height: 100vh;
   line-height: 1.65;
   font-size: 16px;
+  display: grid;
+  grid-template-columns: 260px 1fr;
 }
 
 main {
   max-width: 980px;
+  width: 100%;
   margin: 0 auto;
+  padding: 56px 48px;
 }
 
 header {
@@ -44,48 +47,70 @@ header p {
   max-width: 65ch;
 }
 
-nav.toc {
-  margin-bottom: 64px;
-  padding: 24px 28px;
+nav.sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 56px 28px;
   background: #0E141B;
-  border: 1px solid rgba(0,229,255,0.07);
-  border-radius: 8px;
+  border-right: 1px solid rgba(0,229,255,0.07);
 }
 
-nav.toc h2 {
-  font-size: 12px;
+nav.sidebar .brand {
+  font-size: 13px;
+  letter-spacing: 0.28em;
+  color: #00E5FF;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+nav.sidebar .brand-sub {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  color: #5A6A7A;
+  text-transform: uppercase;
+  margin-bottom: 32px;
+}
+
+nav.sidebar h2 {
+  font-size: 11px;
   letter-spacing: 0.25em;
   color: #5A6A7A;
   text-transform: uppercase;
   margin-bottom: 16px;
 }
 
-nav.toc ol {
+nav.sidebar ol {
   list-style: none;
   counter-reset: step;
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px 22px;
+  flex-direction: column;
+  gap: 12px;
 }
 
-nav.toc li {
+nav.sidebar li {
   counter-increment: step;
-  font-size: 15px;
+  font-size: 14px;
+  line-height: 1.4;
 }
 
-nav.toc li::before {
-  content: counter(step, decimal-leading-zero) ".";
-  color: rgba(0,229,255,0.4);
-  margin-right: 8px;
+nav.sidebar li::before {
+  content: counter(step, decimal-leading-zero);
+  color: rgba(0,229,255,0.35);
+  margin-right: 10px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
 }
 
-nav.toc a {
+nav.sidebar a {
   color: #9AA7B5;
   text-decoration: none;
   transition: color 120ms;
 }
 
-nav.toc a:hover { color: #00E5FF; }
+nav.sidebar a:hover { color: #00E5FF; }
 
 section {
   margin-bottom: 72px;
@@ -263,14 +288,9 @@ footer {
 </style>
 </head>
 <body>
-<main>
-
-<header>
-  <h1>Lockstep — User Guide</h1>
-  <p>Warp any video to the beat of any music. Drop markers on the moments you want to hit, line them up to a beat grid, and Lockstep time-stretches everything in between so your cuts land on the beat.</p>
-</header>
-
-<nav class="toc">
+<nav class="sidebar">
+  <div class="brand">Lockstep</div>
+  <div class="brand-sub">User Guide</div>
   <h2>Contents</h2>
   <ol>
     <li><a href="#install">Install</a></li>
@@ -281,11 +301,16 @@ footer {
     <li><a href="#align">Align to the beat</a></li>
     <li><a href="#regions">Regions</a></li>
     <li><a href="#export">Export</a></li>
-    <li><a href="#projects">Saving your work</a></li>
     <li><a href="#shortcuts">Keyboard shortcuts</a></li>
-    <li><a href="#troubleshoot">Troubleshooting</a></li>
   </ol>
 </nav>
+
+<main>
+
+<header>
+  <h1>Lockstep — User Guide</h1>
+  <p>Chop a video into clips, snap each one to a BPM grid, time-stretch the motion inside so the beats land where they should, then export each clip as its own file.</p>
+</header>
 
 <!-- ========== 1. INSTALL ========== -->
 <section id="install">
@@ -295,7 +320,7 @@ footer {
 
   <ul>
     <li><strong style="color:#EAF2FF">Windows</strong> — <code>.msi</code> or <code>.exe</code> installer</li>
-    <li><strong style="color:#EAF2FF">macOS</strong> — <code>.dmg</code></li>
+    <li><strong style="color:#EAF2FF">macOS</strong> — in development</li>
     <li><strong style="color:#EAF2FF">Linux</strong> — <code>.AppImage</code> or <code>.deb</code></li>
   </ul>
 
@@ -328,42 +353,23 @@ footer {
   <span class="section-num">03</span>
   <h2>Load a video</h2>
 
-  <p>Three ways to open something:</p>
+  <p>A few ways to open something:</p>
   <ol>
-    <li><strong style="color:#EAF2FF">Drag and drop</strong> — drop a video file, a folder, or a <code>.json</code> project file onto the window</li>
+    <li><strong style="color:#EAF2FF">Load Video button</strong> — click the orange <em>Load Video</em> button in the middle of the empty player</li>
     <li><strong style="color:#EAF2FF">File menu</strong> — File → Open Video… or File → Open Folder…</li>
-    <li><strong style="color:#EAF2FF">Folder sidebar</strong> — once a folder is open, click any video to switch to it</li>
+    <li><strong style="color:#EAF2FF">Files sidebar</strong> — once a folder is open, switch to the <em>Files</em> tab in the left sidebar and click any video to load it</li>
   </ol>
-
-  <figure class="shot">
-    <div class="shot-frame">
-      <div class="label">Screenshot</div>
-      <div class="filename">screenshots/02-drag-drop.png</div>
-      <div class="hint">Window with a video being dragged in from the OS file manager — drop overlay visible if there is one.</div>
-    </div>
-    <figcaption>Drop a video, folder, or project file directly onto the window.</figcaption>
-  </figure>
-
-  <div class="callout">
-    <strong>Tip</strong> Opening a folder lets you batch-process: load it once, then walk through every clip and export them all together at the end.
-  </div>
 </section>
 
 <!-- ========== 4. BPM ========== -->
 <section id="bpm">
   <span class="section-num">04</span>
   <h2>Set the BPM</h2>
-  <p>The beat grid drives everything. Set the BPM first so you have something to align against.</p>
-
-  <h3>Tap tempo</h3>
-  <p>Press <kbd>T</kbd> in time with the music — Lockstep estimates the BPM from your taps. Four or more taps gives a stable reading.</p>
-
-  <h3>Type a BPM directly</h3>
-  <p>If you already know the BPM (e.g. from your DAW), enter it in the region info panel.</p>
+  <p>The beat grid drives everything. BPM is set per clip — pick a clip in the sidebar (or create one — see <a href="#regions" style="color:#00E5FF;text-decoration:none;">Regions</a>) and type the BPM into the <strong style="color:#EAF2FF">Clip Info</strong> panel.</p>
 
   <figure class="shot">
-    <img src="screenshots/03-bpm-panel.png" alt="Close-up of the region info panel showing BPM, beats, in/out times">
-    <figcaption>BPM controls live in the region info panel on the right.</figcaption>
+    <img src="screenshots/03-bpm-panel.png" alt="Close-up of the Clip Info panel showing BPM, beats, in/out times">
+    <figcaption>BPM and beat count live in the Clip Info panel.</figcaption>
   </figure>
 </section>
 
@@ -375,7 +381,8 @@ footer {
 
   <ol>
     <li>Scrub or play to the moment you care about</li>
-    <li>Press <kbd>M</kbd> (or use the toolbar mark button) to drop a marker at the playhead</li>
+    <li>Press <kbd>M</kbd> or use the toolbar mark button to drop a marker at the playhead</li>
+    <li>Or double-click anywhere on the timeline to drop one right at that point</li>
     <li>Repeat for every key moment in the clip</li>
   </ol>
 
@@ -396,14 +403,14 @@ footer {
   <p>Each marker has two handles: where it <em>is</em> in the source video, and where it <em>should land</em> on the beat grid. Drag the beat-side handle onto the bar or beat where the moment should hit.</p>
 
   <figure class="shot">
-    <img src="screenshots/05-align-handle.png" alt="Timeline with markers aligned to beats — slanted connectors show stretching">
-    <figcaption>Drag the beat-side handle to set where each moment lands. Slanted connectors show segments being stretched or compressed.</figcaption>
+    <img src="screenshots/05-align-handle.png" alt="Timeline with marker-out handles dragged onto beats and per-segment speed shown on the Speed track">
+    <figcaption>Drag the beat-side handle to set where each moment lands. Per-segment speed is shown on the Speed track at the bottom.</figcaption>
   </figure>
 
-  <p>The visual connector between the source and beat positions tells you at a glance whether a segment will be sped up (slanted forward) or slowed down (slanted back).</p>
+  <p>The exact playback rate for each segment shows up on the <strong style="color:#EAF2FF">Speed</strong> row at the bottom of the timeline (e.g. <code>0.87×</code>, <code>1.08×</code>) — that's the source of truth for what's being stretched or compressed.</p>
 
   <h3>Snapping</h3>
-  <p>Beat-side handles snap to the beat grid by default. Hold a modifier (configurable in Settings) to drag freely between beats.</p>
+  <p>Marker handles snap to the beat grid.</p>
 </section>
 
 <!-- ========== 7. REGIONS ========== -->
@@ -418,11 +425,7 @@ footer {
   </figure>
 
   <h3>Creating a region</h3>
-  <ol>
-    <li>Set in/out points with <kbd>I</kbd> and <kbd>O</kbd></li>
-    <li>Right-click the timeline (or use the region sidebar) to create a region from the current in/out</li>
-    <li>Name it, set its BPM</li>
-  </ol>
+  <p>Add a region from the <em>Clips</em> sidebar. By default a new region snaps to the gap between the two detected scenes around the playhead. To change its bounds, drag its edges directly on the timeline — that's the quickest way to fine-tune the in and out. Then set its BPM in the Clip Info panel.</p>
 
   <h3>Lock mode</h3>
   <p>Each region has a <code>lock</code> setting that controls what stays fixed when you resize it:</p>
@@ -447,15 +450,14 @@ footer {
   <ul>
     <li><strong style="color:#EAF2FF">Single export</strong> — render the whole video, or just one region</li>
     <li><strong style="color:#EAF2FF">Batch export</strong> — render every region at once into a chosen folder</li>
-    <li><strong style="color:#EAF2FF">Diagnostic mode</strong> — overlays the beat grid on the output so you can verify alignment frame-by-frame</li>
   </ul>
 
   <div class="callout">
-    <strong>Note</strong> Export runs in the background. You'll see progress at the bottom of the window; you can keep editing while it works.
+    <strong>Note</strong> Export runs in the background. Progress shows in the top-right of the window; you can keep editing while it works.
   </div>
 </section>
 
-<!-- ========== 9. PROJECTS ========== -->
+<!-- ========== 9. PROJECTS (commented out — section will change) ==========
 <section id="projects">
   <span class="section-num">09</span>
   <h2>Saving your work</h2>
@@ -465,58 +467,37 @@ footer {
   <p>Every change is saved to Lockstep's app data folder, keyed by a content hash of the video. Rename or move the file and it'll still find your work — as long as the file's bytes haven't changed.</p>
 
   <h3>Sidecar JSON</h3>
-  <p>Use <strong style="color:#EAF2FF">File → Save Project</strong> to write a <code>.json</code> file next to the video. Drop that <code>.json</code> back onto Lockstep later (on any machine) and the sibling video opens with everything restored.</p>
-
-  <figure class="shot">
-    <div class="shot-frame">
-      <div class="label">Screenshot</div>
-      <div class="filename">screenshots/08-sidecar.png</div>
-      <div class="hint">File manager view showing a video file alongside its <code>.json</code> sidecar. Optional: a second shot of the JSON being dragged back onto the window.</div>
-    </div>
-    <figcaption>Sidecar files travel with the video — easy to share, easy to back up.</figcaption>
-  </figure>
+  <p>Use <strong style="color:#EAF2FF">File &rarr; Save Project</strong> to write a <code>.json</code> file next to the video. Drop that <code>.json</code> back onto Lockstep later (on any machine) and the sibling video opens with everything restored.</p>
 </section>
+========== END PROJECTS ========== -->
 
 <!-- ========== 10. SHORTCUTS ========== -->
 <section id="shortcuts">
   <span class="section-num">10</span>
   <h2>Keyboard shortcuts</h2>
+  <p>Lockstep ships its own shortcut sheet — open it from the <strong style="color:#EAF2FF">View</strong> menu to see the current bindings, grouped by Playback, Markers, and Regions.</p>
 
-  <table class="shortcuts">
-    <thead>
-      <tr><th>Action</th><th>Shortcut</th></tr>
-    </thead>
-    <tbody>
-      <tr><td>Play / pause</td><td><kbd>Space</kbd></td></tr>
-      <tr><td>Drop marker at playhead</td><td><kbd>M</kbd></td></tr>
-      <tr><td>Tap tempo</td><td><kbd>T</kbd></td></tr>
-      <tr><td>Set in point</td><td><kbd>I</kbd></td></tr>
-      <tr><td>Set out point</td><td><kbd>O</kbd></td></tr>
-      <tr><td>Jump to previous marker</td><td><kbd>[</kbd></td></tr>
-      <tr><td>Jump to next marker</td><td><kbd>]</kbd></td></tr>
-      <tr><td>Undo</td><td><kbd>Ctrl</kbd> + <kbd>Z</kbd></td></tr>
-      <tr><td>Redo</td><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td></tr>
-    </tbody>
-  </table>
+  <figure class="shot">
+    <img src="screenshots/09-hotkey-sheet.png" alt="In-app keyboard shortcuts panel">
+    <figcaption>The in-app shortcut sheet always reflects the current bindings.</figcaption>
+  </figure>
 </section>
 
-<!-- ========== 11. TROUBLESHOOT ========== -->
+<!-- ========== 11. TROUBLESHOOT (commented out for now) ==========
 <section id="troubleshoot">
   <span class="section-num">11</span>
   <h2>Troubleshooting</h2>
 
   <h3>Video won't load</h3>
-  <p>Lockstep supports anything FFmpeg can read — which is most things. If a file refuses to open, check the log file (Help → Open Log Folder) for an FFmpeg error.</p>
+  <p>Lockstep supports anything FFmpeg can read — which is most things. If a file refuses to open, check the log file (Help &rarr; Open Log Folder) for an FFmpeg error.</p>
 
   <h3>Export sounds chipmunked or muddy</h3>
-  <p>Time-stretching audio outside ~0.5×–2.0× starts to artifact. If a region is doing extreme stretching, consider splitting it into smaller regions with intermediate beats.</p>
-
-  <h3>Tap tempo is off</h3>
-  <p>Tap on the downbeat consistently and give it at least 4–8 taps. If a tap feels wrong, just keep going — the latest taps weight the estimate more than older ones.</p>
+  <p>Time-stretching audio outside ~0.5x-2.0x starts to artifact. If a region is doing extreme stretching, consider splitting it into smaller regions with intermediate beats.</p>
 
   <h3>I lost my work</h3>
   <p>Open the same video again — Lockstep restores per-file state automatically. If the file's bytes have changed (re-encoded, edited externally), the hash won't match and you'll get a fresh slate. Use sidecar JSONs for important projects.</p>
 </section>
+========== END TROUBLESHOOT ========== -->
 
 <footer>
   Lockstep — built with Tauri, Rust, React, and FFmpeg.
