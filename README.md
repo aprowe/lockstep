@@ -1,8 +1,12 @@
-# Lockstep
+<p align="center">
+  <img src="./docs/brand/lockstep-mark.png" alt="Lockstep" width="128" height="128">
+</p>
 
-**Cut, sample, and warp video to any beat.**
+<h1 align="center">Lockstep</h1>
 
-Chop a video into clips, snap each one to a BPM grid, time-stretch the motion inside so the beats land where they should, then export each clip as its own file.
+<p align="center"><strong>Cut, sample, and warp video to any beat.</strong></p>
+
+<p align="center">Chop a video into clips, snap each one to a BPM grid, time-stretch the motion inside so the beats land where they should, then export each clip as its own file.</p>
 
 ![Lockstep main window](./docs/screenshots/hero.png)
 

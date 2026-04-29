@@ -14,9 +14,14 @@
 
 .menubar__menus {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   height: 100%;
   -webkit-app-region: no-drag;
+}
+
+.menubar__menus > div {
+  display: flex;
+  align-items: stretch;
 }
 
 /* ── Top-level menu trigger ─────────────────────────────── */
@@ -42,9 +47,10 @@
 /* ── Dropdown panel ─────────────────────────────────────── */
 .menubar__dropdown {
   position: absolute;
-  top: var(--sz-menubar);
+  top: 100%;
   left: 0;
-  min-width: 220px;
+  min-width: 280px;
+  white-space: nowrap;
   background: var(--bg-3);
   border: 1px solid var(--border-hi);
   border-radius: 4px;

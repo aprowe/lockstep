@@ -22,6 +22,12 @@
      tokens.  Set to 1.2 to zoom the whole UI by 20 %.      */
   --ui-scale: 1;
 
+  /* ── Brand display font ─────────────────────────────────────
+     Used by the wordmark (LockstepLogo) and any UI surface that
+     wants the Lockstep display face. Body text continues to use
+     --font-family from the active theme. */
+  --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+
   /* ── Typography ─────────────────────────────────────────── */
   --t-2xs:  calc(9px  * var(--ui-scale));
   --t-xs:   calc(10px * var(--ui-scale));
