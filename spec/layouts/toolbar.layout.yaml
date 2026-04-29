@@ -27,8 +27,8 @@ groups:
     - Zoom to Region
 
   - - New Scene
-    - Next Scene
     - Prev Scene
+    - Next Scene
 
   - - Play
     - Prev Frame

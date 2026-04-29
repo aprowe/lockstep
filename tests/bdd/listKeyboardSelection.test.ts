@@ -666,8 +666,8 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     })
   })
 
-  // @behavior list-selection::0c8fc530
-  Scenario('Delete key on focused list removes selection', ({ Given, When, Then, And }) => {
+  // @behavior list-selection::a6138eae
+  Scenario('Delete key on focused list removes selection and focuses the survivor', ({ Given, When, Then, And }) => {
     const observed: {
       regionsAfter: string[]
       selectionAfter: string[]
@@ -691,8 +691,8 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     Then('every selected row is removed', () => {
       expect(observed.regionsAfter).toEqual([c.id])
     })
-    And('the selection is cleared', () => {
-      expect(observed.selectionAfter).toEqual([])
+    And('the row immediately after the deleted selection is focused', () => {
+      expect(observed.selectionAfter).toEqual([c.id])
     })
   })
 
