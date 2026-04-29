@@ -164,21 +164,17 @@
               "label": "New Marker"
             },
             {
-              "id": "prev-marker",
-              "label": "Prev Marker"
+              "id": "new-region",
+              "label": "New Region"
             },
             {
-              "id": "next-marker",
-              "label": "Next Marker"
+              "id": "new-scene",
+              "label": "New Scene"
             }
           ]
         },
         {
           "items": [
-            {
-              "id": "new-region",
-              "label": "New Region"
-            },
             {
               "id": "set-in-region",
               "label": "Set In Region"
@@ -186,6 +182,18 @@
             {
               "id": "set-out-region",
               "label": "Set Out Region"
+            }
+          ]
+        },
+        {
+          "items": [
+            {
+              "id": "prev-marker",
+              "label": "Prev Marker"
+            },
+            {
+              "id": "next-marker",
+              "label": "Next Marker"
             },
             {
               "id": "jump-to-region-start",
@@ -198,14 +206,6 @@
             {
               "id": "zoom-to-region",
               "label": "Zoom to Region"
-            }
-          ]
-        },
-        {
-          "items": [
-            {
-              "id": "new-scene",
-              "label": "New Scene"
             },
             {
               "id": "prev-scene",
