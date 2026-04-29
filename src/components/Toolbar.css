@@ -11,14 +11,9 @@
 }
 
 .tb-side {
-  flex: 1;
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-}
-
-.tb-side--right {
-  justify-content: flex-end;
 }
 
 .tb-group {
@@ -57,6 +52,16 @@
   flex-shrink: 0;
 }
 
+/* Implicit spacers flanking the center group — left and right side clusters
+ * shrink to natural width and these flex:1 spacers absorb the remainder
+ * equally, so play / frame / time stays centered between the nav cluster on
+ * the left and the speed/grid dropdowns on the right regardless of how many
+ * buttons each side carries. */
+.tb-sep-implicit {
+  flex: 1 1 auto;
+  min-width: var(--sp-3);
+}
+
 /* ── Buttons ─────────────────────────────────────────────── */
 .tb-btn {
   display: flex;
@@ -87,25 +92,49 @@
 }
 .tb-btn--play:hover { background: rgba(var(--accent-rgb), 0.1); }
 
-.tb-btn--mark {
-  color: var(--accent-2);
-  border-color: rgba(var(--accent-2-rgb), 0.3);
+/* ── Action-typed clusters ──────────────────────────────
+ * Buttons are grouped by what they *do*, not what they act on:
+ *   --create  → all "new X" actions
+ *   --inout   → set in / set out boundary actions
+ *   --nav     → prev/next/jump/zoom
+ * Each button still carries its item hue (mark blue, region red, scene
+ * yellow) via the per-button --btn-color set below. Cluster bg fills are
+ * neutral so they don't compete with the item colors inside them. */
+
+/* Per-button item hue — drives `color` and tinted borders/hover bg via
+ * --btn-color. Decoupled from cluster membership so buttons can move
+ * between clusters without re-skinning. */
+.tb-btn--mark        { --btn-color: var(--space-input); }
+.tb-btn--region      { --btn-color: var(--error); }
+.tb-btn--scene       { --btn-color: var(--scene-cut); }
+.tb-btn--inout       { --btn-color: var(--error); }
+.tb-btn--nav-marker  { --btn-color: var(--space-input); }
+.tb-btn--nav-region  { --btn-color: var(--error); }
+.tb-btn--nav-scene   { --btn-color: var(--scene-cut); }
+
+/* All item-hued buttons share the same full-color treatment — `--btn-color`
+ * comes from the per-button modifier and drives icon, border tint, hover bg. */
+.tb-btn--mark,
+.tb-btn--region,
+.tb-btn--scene,
+.tb-btn--inout,
+.tb-btn--nav-marker,
+.tb-btn--nav-region,
+.tb-btn--nav-scene {
+  color: var(--btn-color);
+  border-color: color-mix(in srgb, var(--btn-color) 38%, transparent);
   letter-spacing: 0.05em;
 }
-.tb-btn--mark:hover { background: rgba(var(--accent-2-rgb), 0.1); color: var(--accent-2); }
-
-.tb-btn--inout {
-  color: var(--blue-soft);
-  border-color: rgba(122, 184, 224, 0.25);
-  letter-spacing: 0.05em;
+.tb-btn--mark:hover:not(:disabled),
+.tb-btn--region:hover:not(:disabled),
+.tb-btn--scene:hover:not(:disabled),
+.tb-btn--inout:hover:not(:disabled),
+.tb-btn--nav-marker:hover:not(:disabled),
+.tb-btn--nav-region:hover:not(:disabled),
+.tb-btn--nav-scene:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--btn-color) 12%, transparent);
+  color: color-mix(in srgb, var(--btn-color) 60%, white);
 }
-.tb-btn--inout:hover { background: rgba(122, 184, 224, 0.1); color: #9fd0f0; }
-
-.tb-btn--region {
-  color: var(--tan);
-  border-color: rgba(194, 168, 112, 0.25);
-}
-.tb-btn--region:hover { background: rgba(194, 168, 112, 0.1); color: var(--tan-hi); }
 
 .tb-btn--tap {
   width: auto;
@@ -128,23 +157,48 @@
 .tb-time__current { color: var(--fg-1); }
 .tb-time__sep     { color: var(--fg-4); }
 .tb-time__total   { color: var(--fg-2); }
-.tb-time__frames {
-  color: var(--fg-4);
-  font-size: 10px;
+/* Vertical stack for the secondary counts (frames over beats). The divider
+ * + left padding live on the wrapper so the two rows align without each
+ * carrying its own border. */
+.tb-time__counts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
   margin-left: 8px;
-  padding-left: 8px;
+  padding-left: 10px;
   border-left: 1px solid var(--border);
+  line-height: 1;
+}
+
+.tb-time__frames,
+.tb-time__beats {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--fg-2);
+}
+
+.tb-time__frames {
   cursor: pointer;
   transition: color 0.1s;
 }
-.tb-time__frames:hover { color: var(--fg-2); }
+.tb-time__frames:hover { color: var(--fg-1); }
 
-.tb-time__beats {
+.tb-time__count-value {
+  display: inline-block;
+  min-width: 4ch;
+  text-align: right;
+  font-family: var(--font-family);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tb-time__count-label {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--fg-4);
-  font-size: 10px;
-  margin-left: 8px;
-  padding-left: 8px;
-  border-left: 1px solid var(--border);
 }
 
 .tb-time__frames-input {

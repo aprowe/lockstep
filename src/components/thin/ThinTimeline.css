@@ -523,14 +523,31 @@
 
 .thin-toolbar__btn:hover {
   background: var(--bg-2);
-  color: var(--fg-1);
+  opacity: 1;
 }
 
+/* Active state lifts the button's own color into the background + border so
+ * it reads as a clearly engaged toggle, not just a slightly brighter icon.
+ * `--btn-color` is set per button below; `color-mix` lets one rule cover the
+ * whole bar without per-button active overrides. */
 .thin-toolbar__btn--active {
-  background: var(--bg-2);
-  border-color: var(--border-hi);
-  color: var(--fg-1);
+  background: color-mix(in srgb, var(--btn-color, var(--fg-1)) 5%, transparent);
+  border-color: color-mix(in srgb, var(--btn-color, var(--fg-1)) 65%, transparent);
+  color: color-mix(in srgb, var(--btn-color, var(--fg-1)) 92%, white);
+  opacity: 1;
 }
+
+/* Icon color = the item the button controls. Color shows in every state;
+ * inactive buttons just dim via opacity so the bar still reads as a single
+ * row of related controls until you engage one. */
+.thin-toolbar__btn { opacity: 0.78; color: var(--btn-color, var(--fg-3)); }
+.thin-toolbar__btn--warp    { --btn-color: var(--space-warp); }
+.thin-toolbar__btn--thumbs  { --btn-color: var(--scene-cut); }
+.thin-toolbar__btn--follow  { --btn-color: var(--playhead); }
+.thin-toolbar__btn--anchors { --btn-color: var(--space-input); }
+.thin-toolbar__btn--regions { --btn-color: var(--error); }
+.thin-toolbar__btn--scenes  { --btn-color: var(--scene-cut); }
+.thin-toolbar__btn--debug   { --btn-color: var(--blue); }
 
 .thin-toolbar__sep {
   display: inline-block;

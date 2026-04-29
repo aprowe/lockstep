@@ -9,7 +9,7 @@ import {
   IconPrevRegion, IconNextRegion, IconZoomToRegion,
   IconCreateScene, IconPrevScene, IconNextScene,
 } from './icons'
-import { formatFrames } from '../utils/time'
+import { secondsToFrames } from '../utils/time'
 import { tooltipFor } from '../hotkeys'
 import './Toolbar.css'
 
@@ -54,14 +54,17 @@ interface ToolbarProps {
   onNewScene?: () => void
   onPrevScene?: () => void
   onNextScene?: () => void
-  clipBeatCount?: number | null
+  /** Beat position of the playhead — relative to the active region's
+   *  in-point if there is one, else to the warp's beat-zero. Null when
+   *  no BPM is set yet. */
+  currentBeat?: number | null
 }
 
 export default function Toolbar({
   playerRef, duration, fps, playing, currentTime,
   onMark, onJumpPrev, onJumpNext, onZoomToRegion, onSetIn, onSetOut,
   gridDiv, onGridDivChange, onNewRegion, onPrevRegion, onNextRegion, onJumpRegionStart, onJumpRegionEnd, onDeleteRegion,
-  onNewScene, onPrevScene, onNextScene, clipBeatCount,
+  onNewScene, onPrevScene, onNextScene, currentBeat,
 }: ToolbarProps) {
   const [speed, setSpeed] = useState(1)
   const [editingFrame, setEditingFrame] = useState(false)
@@ -117,61 +120,65 @@ export default function Toolbar({
   return (
     <div className="toolbar">
 
-      {/* Left: markers + regions */}
+      {/* Left clusters: create | in/out | navigate.
+       *  Grouping by *action type* (rather than item type) — every "create"
+       *  action lives in one cluster, every nav action in another. Each
+       *  button still carries its item hue (marker blue / region red /
+       *  scene yellow) via the .tb-btn--<kind> modifier. */}
       <div className="tb-side tb-side--left">
-        <div className="tb-group">
+        <div className="tb-group tb-group--create">
           <button data-layout-id="new-marker" className="tb-btn tb-btn--mark" onClick={() => onMark?.(playerRef.current?.currentTime ?? 0)} disabled={!onMark} title={tooltipFor('Place marker', 'mark')}>
-            <IconCreateMarker size={20} />
+            <IconCreateMarker size={22} />
           </button>
-          <div className="tb-pair">
-            <button data-layout-id="prev-marker" className="tb-btn" onClick={onJumpPrev} disabled={!onJumpPrev} title="Previous marker">
-              <IconPrevMarker size={20} />
-            </button>
-            <button data-layout-id="next-marker" className="tb-btn" onClick={onJumpNext} disabled={!onJumpNext} title="Next marker">
-              <IconNextMarker size={20} />
-            </button>
-          </div>
+          <button data-layout-id="new-region" className="tb-btn tb-btn--region" onClick={onNewRegion} disabled={!onNewRegion} title="New region">
+            <IconCreateRegion size={22} />
+          </button>
+          <button data-layout-id="new-scene" className="tb-btn tb-btn--scene" onClick={onNewScene} disabled={!onNewScene} title="New scene marker at playhead">
+            <IconCreateScene size={22} />
+          </button>
         </div>
 
         <div data-layout-sep className="tb-sep" />
 
-        <div className="tb-group">
-          <button data-layout-id="new-region" className="tb-btn tb-btn--region" onClick={onNewRegion} disabled={!onNewRegion} title="New region">
-            <IconCreateRegion size={16} />
-          </button>
+        <div className="tb-group tb-group--inout">
           <div className="tb-pair">
             <button data-layout-id="set-in-region" className="tb-btn tb-btn--inout" onClick={onSetIn} disabled={!onSetIn} title={tooltipFor('Set In', 'set-in')}>
-              <IconSetRegionStart size={16} />
+              <IconSetRegionStart size={22} />
             </button>
             <button data-layout-id="set-out-region" className="tb-btn tb-btn--inout" onClick={onSetOut} disabled={!onSetOut} title={tooltipFor('Set Out', 'set-out')}>
-              <IconSetRegionEnd size={16} />
+              <IconSetRegionEnd size={22} />
             </button>
           </div>
-          <div className="tb-pair">
-            <button data-layout-id="jump-to-region-start" className="tb-btn" onClick={onJumpRegionStart} disabled={!onJumpRegionStart} title="Jump to region start">
-              <IconGoToRegionStart size={16} />
-            </button>
-            <button data-layout-id="jump-to-region-end" className="tb-btn" onClick={onJumpRegionEnd} disabled={!onJumpRegionEnd} title="Jump to region end">
-              <IconGoToRegionEnd size={16} />
-            </button>
-          </div>
-          <button data-layout-id="zoom-to-region" className="tb-btn" onClick={onZoomToRegion} disabled={!onZoomToRegion} title="Zoom to region">
-            <IconZoomToRegion size={16} />
-          </button>
         </div>
 
         <div data-layout-sep className="tb-sep" />
 
-        <div className="tb-group">
-          <button data-layout-id="new-scene" className="tb-btn tb-btn--scene" onClick={onNewScene} disabled={!onNewScene} title="New scene marker at playhead">
-            <IconCreateScene size={16} />
+        <div className="tb-group tb-group--nav">
+          <div className="tb-pair">
+            <button data-layout-id="prev-marker" className="tb-btn tb-btn--nav-marker" onClick={onJumpPrev} disabled={!onJumpPrev} title="Previous marker">
+              <IconPrevMarker size={22} />
+            </button>
+            <button data-layout-id="next-marker" className="tb-btn tb-btn--nav-marker" onClick={onJumpNext} disabled={!onJumpNext} title="Next marker">
+              <IconNextMarker size={22} />
+            </button>
+          </div>
+          <div className="tb-pair">
+            <button data-layout-id="jump-to-region-start" className="tb-btn tb-btn--nav-region" onClick={onJumpRegionStart} disabled={!onJumpRegionStart} title="Jump to region start">
+              <IconGoToRegionStart size={22} />
+            </button>
+            <button data-layout-id="jump-to-region-end" className="tb-btn tb-btn--nav-region" onClick={onJumpRegionEnd} disabled={!onJumpRegionEnd} title="Jump to region end">
+              <IconGoToRegionEnd size={22} />
+            </button>
+          </div>
+          <button data-layout-id="zoom-to-region" className="tb-btn tb-btn--nav-region" onClick={onZoomToRegion} disabled={!onZoomToRegion} title="Zoom to region">
+            <IconZoomToRegion size={22} />
           </button>
           <div className="tb-pair">
-            <button data-layout-id="prev-scene" className="tb-btn" onClick={onPrevScene} disabled={!onPrevScene} title="Previous scene marker">
-              <IconPrevScene size={16} />
+            <button data-layout-id="prev-scene" className="tb-btn tb-btn--nav-scene" onClick={onPrevScene} disabled={!onPrevScene} title="Previous scene marker">
+              <IconPrevScene size={22} />
             </button>
-            <button data-layout-id="next-scene" className="tb-btn" onClick={onNextScene} disabled={!onNextScene} title="Next scene marker">
-              <IconNextScene size={16} />
+            <button data-layout-id="next-scene" className="tb-btn tb-btn--nav-scene" onClick={onNextScene} disabled={!onNextScene} title="Next scene marker">
+              <IconNextScene size={22} />
             </button>
           </div>
         </div>
@@ -182,62 +189,66 @@ export default function Toolbar({
       {/* Center: play controls */}
       <div className="tb-group tb-group--center">
         <button data-layout-id="play" className="tb-btn tb-btn--play" onClick={toggle} title={tooltipFor(playing ? 'Pause' : 'Play', 'play-pause')}>
-          {playing ? <IconPause size={16} /> : <IconPlay size={16} />}
+          {playing ? <IconPause size={22} /> : <IconPlay size={22} />}
         </button>
         <div className="tb-pair">
           <button data-layout-id="prev-frame" className="tb-btn" onClick={() => step(-1)} title="Step back 1 frame">
-            <IconPrevFrame size={16} />
+            <IconPrevFrame size={22} />
           </button>
           <button data-layout-id="next-frame" className="tb-btn" onClick={() => step(1)} title="Step forward 1 frame">
-            <IconNextFrame size={16} />
+            <IconNextFrame size={22} />
           </button>
         </div>
         <div className="tb-time">
           <span data-layout-id="play-time" className="tb-time__current">{fmt(currentTime)}</span>
           <span className="tb-time__sep">/</span>
           <span className="tb-time__total">{fmt(duration)}</span>
-          {editingFrame ? (
-            <input
-              data-layout-id="frame-count"
-              className="tb-time__frames-input"
-              data-testid="frame-count-input"
-              type="number"
-              value={frameInput}
-              autoFocus
-              onChange={e => setFrameInput(e.target.value)}
-              onBlur={() => {
-                const n = parseInt(frameInput, 10)
-                if (fps > 0 && Number.isFinite(n) && n >= 0) {
-                  playerRef.current?.seek(n / fps)
-                }
-                setEditingFrame(false)
-              }}
-              onKeyDown={e => {
-                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                if (e.key === 'Escape') setEditingFrame(false)
-                e.stopPropagation()
-              }}
-            />
-          ) : (
+          <div className="tb-time__counts">
+            {editingFrame ? (
+              <input
+                data-layout-id="frame-count"
+                className="tb-time__frames-input"
+                data-testid="frame-count-input"
+                type="number"
+                value={frameInput}
+                autoFocus
+                onChange={e => setFrameInput(e.target.value)}
+                onBlur={() => {
+                  const n = parseInt(frameInput, 10)
+                  if (fps > 0 && Number.isFinite(n) && n >= 0) {
+                    playerRef.current?.seek(n / fps)
+                  }
+                  setEditingFrame(false)
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                  if (e.key === 'Escape') setEditingFrame(false)
+                  e.stopPropagation()
+                }}
+              />
+            ) : (
+              <span
+                data-layout-id="frame-count"
+                className="tb-time__frames"
+                data-testid="frame-count"
+                onClick={() => { setFrameInput(String(Math.round(currentTime * fps))); setEditingFrame(true) }}
+                title="Click to edit frame"
+              >
+                <span className="tb-time__count-value">{secondsToFrames(currentTime, fps)}</span>
+                <span className="tb-time__count-label">frames</span>
+              </span>
+            )}
             <span
-              data-layout-id="frame-count"
-              className="tb-time__frames"
-              data-testid="frame-count"
-              onClick={() => { setFrameInput(String(Math.round(currentTime * fps))); setEditingFrame(true) }}
-              title="Click to edit frame"
+              data-layout-id="beat-count-clip-based"
+              className="tb-time__beats"
+              title={currentBeat != null ? 'Beat position at playhead' : 'No BPM set'}
             >
-              {formatFrames(currentTime, fps)}
+              <span className="tb-time__count-value">
+                {currentBeat != null ? currentBeat.toFixed(1) : '—'}
+              </span>
+              <span className="tb-time__count-label">beats</span>
             </span>
-          )}
-          <span
-            data-layout-id="beat-count-clip-based"
-            className="tb-time__beats"
-            title={clipBeatCount != null ? 'Total beats in active clip' : 'No active clip'}
-          >
-            {clipBeatCount != null && clipBeatCount > 0
-              ? `${clipBeatCount.toFixed(1)}b`
-              : '—b'}
-          </span>
+          </div>
         </div>
       </div>
 

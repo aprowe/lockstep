@@ -344,13 +344,14 @@ export default function CenterColumn() {
           const next = [...filteredSceneCuts].sort((a, b) => a - b).find(t => t > playhead + 0.001)
           if (next !== undefined) playerRef.current?.seek(next)
         } : undefined}
-        clipBeatCount={activeRegion ? (() => {
+        currentBeat={(() => {
           const bpm = warpData?.bpm ?? 0
           if (bpm <= 0) return null
-          const beat = 60 / bpm
-          const beatSpan = (activeRegion.outBeatTime ?? activeRegion.outPoint) - (activeRegion.inBeatTime ?? activeRegion.inPoint)
-          return beatSpan / beat
-        })() : null}
+          // Beat zero anchors at the active region's in-point when one is
+          // set; otherwise it falls back to the warp's beat-zero time, or 0.
+          const beatZero = activeRegion?.inPoint ?? warpData?.beatZeroTime ?? 0
+          return (playhead - beatZero) * (bpm / 60)
+        })()}
       />
 
       <div

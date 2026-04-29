@@ -1260,22 +1260,46 @@ export default function ThinTimeline({
         </div>
       )}
 
+      {/* Order: view toggles → drag behavior → through-line toggles → debug.
+       *  Each `--<kind>` modifier hooks the icon color to the item it controls
+       *  when active, so e.g. the scenes toggle lights up in scene-cut yellow. */}
       <div className="thin-timeline__toolbar">
         <button
           type="button"
-          className={`thin-toolbar__btn${warpCollapsed ? '' : ' thin-toolbar__btn--active'}`}
+          className={`thin-toolbar__btn thin-toolbar__btn--warp${warpCollapsed ? '' : ' thin-toolbar__btn--active'}`}
           onClick={onToggleWarp}
           title={warpCollapsed ? 'Show warp views (warp, marker out, clip out, speed)' : 'Hide warp views'}
           aria-pressed={!warpCollapsed}
         >
           <IconWarpToggle aria-hidden="true" size={18} />
         </button>
+        <button
+          type="button"
+          className={`thin-toolbar__btn thin-toolbar__btn--thumbs${thumbStripEnabled ? ' thin-toolbar__btn--active' : ''}`}
+          onClick={() => setThumbStripEnabled(v => !v)}
+          title="Show a thumbnail at each scene marker"
+          aria-pressed={thumbStripEnabled}
+        >
+          <IconThumbStrip aria-hidden="true" size={18} />
+        </button>
 
         <span className="thin-toolbar__sep" />
 
         <button
           type="button"
-          className={`thin-toolbar__btn${alwaysAnchors ? ' thin-toolbar__btn--active' : ''}`}
+          className={`thin-toolbar__btn thin-toolbar__btn--follow${followDrag ? ' thin-toolbar__btn--active' : ''}`}
+          onClick={() => setFollowDrag(v => !v)}
+          title="Playhead follows dragged markers"
+          aria-pressed={followDrag}
+        >
+          <IconFollowDrag aria-hidden="true" size={18} />
+        </button>
+
+        <span className="thin-toolbar__sep" />
+
+        <button
+          type="button"
+          className={`thin-toolbar__btn thin-toolbar__btn--anchors${alwaysAnchors ? ' thin-toolbar__btn--active' : ''}`}
           onClick={() => setAlwaysAnchors(v => !v)}
           title="Always show through-lines for markers"
           aria-pressed={alwaysAnchors}
@@ -1284,7 +1308,7 @@ export default function ThinTimeline({
         </button>
         <button
           type="button"
-          className={`thin-toolbar__btn${alwaysRegions ? ' thin-toolbar__btn--active' : ''}`}
+          className={`thin-toolbar__btn thin-toolbar__btn--regions${alwaysRegions ? ' thin-toolbar__btn--active' : ''}`}
           onClick={() => setAlwaysRegions(v => !v)}
           title="Always show through-lines for clip/region edges"
           aria-pressed={alwaysRegions}
@@ -1293,42 +1317,24 @@ export default function ThinTimeline({
         </button>
         <button
           type="button"
-          className={`thin-toolbar__btn${alwaysScenes ? ' thin-toolbar__btn--active' : ''}`}
+          className={`thin-toolbar__btn thin-toolbar__btn--scenes${alwaysScenes ? ' thin-toolbar__btn--active' : ''}`}
           onClick={() => setAlwaysScenes(v => !v)}
           title="Always show through-lines for scene changes"
           aria-pressed={alwaysScenes}
         >
           <IconAlwaysScenes aria-hidden="true" size={18} />
         </button>
-        <button
-          type="button"
-          className={`thin-toolbar__btn${thumbStripEnabled ? ' thin-toolbar__btn--active' : ''}`}
-          onClick={() => setThumbStripEnabled(v => !v)}
-          title="Show a thumbnail at each scene marker"
-          aria-pressed={thumbStripEnabled}
-        >
-          <IconThumbStrip aria-hidden="true" size={18} />
-        </button>
-        <button
-          type="button"
-          className={`thin-toolbar__btn${queueDebugOpen ? ' thin-toolbar__btn--active' : ''}`}
-          onClick={() => setQueueDebugOpen(v => !v)}
-          title="Thumbnail queue debug panel"
-          aria-pressed={queueDebugOpen}
-        >
-          <IconQueueDebug aria-hidden="true" size={18} />
-        </button>
 
         <span className="thin-toolbar__sep" />
 
         <button
           type="button"
-          className={`thin-toolbar__btn${followDrag ? ' thin-toolbar__btn--active' : ''}`}
-          onClick={() => setFollowDrag(v => !v)}
-          title="Playhead follows dragged markers"
-          aria-pressed={followDrag}
+          className={`thin-toolbar__btn thin-toolbar__btn--debug${queueDebugOpen ? ' thin-toolbar__btn--active' : ''}`}
+          onClick={() => setQueueDebugOpen(v => !v)}
+          title="Thumbnail queue debug panel"
+          aria-pressed={queueDebugOpen}
         >
-          <IconFollowDrag aria-hidden="true" size={18} />
+          <IconQueueDebug aria-hidden="true" size={18} />
         </button>
       </div>
 
