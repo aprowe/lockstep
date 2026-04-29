@@ -44,6 +44,31 @@
   color: var(--fg-1);
 }
 
+/* ── Brand trigger (wears the menubar__trigger hat too) ─── */
+.menubar__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-4) 0 var(--sp-3);
+  color: var(--fg-1);
+  font-family: var(--font-display, var(--font-family));
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.menubar__brand-mark {
+  color: #ffcb2d;
+  flex-shrink: 0;
+}
+
+.menubar__brand-name {
+  line-height: 1;
+}
+
+.menubar__dropdown--brand {
+  min-width: 200px;
+}
+
 /* ── Dropdown panel ─────────────────────────────────────── */
 .menubar__dropdown {
   position: absolute;

@@ -7,7 +7,7 @@ import ExportProgressBar from './components/ExportProgressBar'
 import ExportDialog from './components/ExportDialog'
 import Toolbar from './components/Toolbar'
 import MenuBar from './components/MenuBar'
-import type { MenuDef } from './components/MenuBar'
+import type { MenuDef, MenuEntry } from './components/MenuBar'
 import { buildFileMenu, buildEditMenu, buildViewMenu } from './menus'
 import { stepUiScale, resetUiScale, UI_SCALE_STEP } from './uiScale'
 import { calcZoomToRegion, calcNewRegionBoundsFromScenes, calcNewRegionBoundsUpToNext } from './utils/view'
@@ -19,6 +19,7 @@ import ContextMenu from './components/ContextMenu'
 import type { ContextMenuState } from './components/ContextMenu'
 import ThumbnailPopup, { ThumbnailHoverProvider } from './components/ThumbnailPopup'
 import SettingsDialog from './components/SettingsDialog'
+import AboutDialog from './components/AboutDialog'
 import HotkeySheet from './components/HotkeySheet'
 import { IconSettings, IconDropVideo } from './components/icons'
 import { snapAllToBeat } from './utils/quantize'
@@ -164,6 +165,7 @@ export default function App() {
   const [isDragOver, setIsDragOver] = useState(false)
   const [pendingZoom, setPendingZoom] = useState<{ start: number; end: number } | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
   const [hotkeysOpen, setHotkeysOpen] = useState(false)
 
   // ? opens the keyboard shortcuts cheat sheet (definition lives in src/hotkeys.ts).
@@ -334,6 +336,17 @@ export default function App() {
     showShortcuts: () => setHotkeysOpen(true),
   }), [visiblePanelIds])
 
+  const brandMenu: MenuEntry[] = useMemo(() => [
+    { label: 'About Lockstep', action: () => setAboutOpen(true) },
+    { separator: true },
+    { label: 'Settings…', shortcut: 'Ctrl+,', action: () => setSettingsOpen(true) },
+    { separator: true },
+    { label: 'Quit', shortcut: 'Ctrl+Q', action: async () => {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window')
+      try { await getCurrentWindow().close() } catch { /* non-Tauri context */ }
+    } },
+  ], [])
+
   const canExport = !!video
 
   const clipIn = activeRegion?.inPoint ?? undefined
@@ -350,6 +363,7 @@ export default function App() {
       {/* Menu bar */}
       <MenuBar
         menus={[fileMenu, editMenu, viewMenu]}
+        brandMenu={brandMenu}
         rightContent={
           <div className="menubar__right-actions">
             <button
@@ -414,6 +428,7 @@ export default function App() {
       />
       <ThumbnailPopup />
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <HotkeySheet open={hotkeysOpen} onClose={() => setHotkeysOpen(false)} />
     </div>
     </ThumbnailHoverProvider>

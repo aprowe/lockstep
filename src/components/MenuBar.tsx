@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import WindowControls from './WindowControls'
+import { LockstepMark } from './LockstepMark'
 import './MenuBar.css'
 
 interface MenuItem {
@@ -25,6 +27,7 @@ interface MenuDef {
 
 interface MenuBarProps {
   menus: MenuDef[]
+  brandMenu?: MenuEntry[]
   rightContent?: React.ReactNode
 }
 
@@ -34,7 +37,11 @@ function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 }
 
-export default function MenuBar({ menus, rightContent }: MenuBarProps) {
+// Brand uses a sentinel index so it shares the same single-open state as the other
+// menus — opening one closes the rest, and hover-switches work uniformly.
+const BRAND_IDX = -1
+
+export default function MenuBar({ menus, brandMenu, rightContent }: MenuBarProps) {
   const [openIdx, setOpenIdx] = useState<number | null>(null)
   const barRef = useRef<HTMLDivElement>(null)
 
@@ -90,6 +97,46 @@ export default function MenuBar({ menus, rightContent }: MenuBarProps) {
   return (
     <div className="menubar" ref={barRef}>
       <div className="menubar__menus">
+        {brandMenu && (
+          <div className="menubar__brand-wrap" style={{ position: 'relative' }}>
+            <button
+              className={`menubar__trigger menubar__brand${openIdx === BRAND_IDX ? ' menubar__trigger--open menubar__brand--open' : ''}`}
+              onClick={() => setOpenIdx(openIdx === BRAND_IDX ? null : BRAND_IDX)}
+              onMouseEnter={() => { if (openIdx !== null) setOpenIdx(BRAND_IDX) }}
+              aria-label="Lockstep"
+            >
+              <LockstepMark size={16} compact className="menubar__brand-mark" />
+              <span className="menubar__brand-name">Lockstep</span>
+            </button>
+
+            {openIdx === BRAND_IDX && (
+              <div className="menubar__dropdown menubar__dropdown--brand">
+                {brandMenu.map((item, j) => {
+                  if ('separator' in item && item.separator) {
+                    return <div key={j} className="menubar__sep" />
+                  }
+                  const mi = item as MenuItem
+                  return (
+                    <button
+                      key={j}
+                      className="menubar__item"
+                      disabled={mi.disabled}
+                      onClick={() => { mi.action?.(); setOpenIdx(null) }}
+                    >
+                      <span className="menubar__item-label">{mi.label}</span>
+                      {mi.shortcut && (
+                        <span className="menubar__item-shortcut">
+                          {formatShortcut(mi.shortcut)}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {menus.map((menu, i) => (
           <div key={menu.label} style={{ position: 'relative' }}>
             <button
@@ -139,6 +186,8 @@ export default function MenuBar({ menus, rightContent }: MenuBarProps) {
       <div className="menubar__spacer" />
 
       {rightContent}
+
+      <WindowControls />
     </div>
   )
 }
