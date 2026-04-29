@@ -908,6 +908,7 @@ export default function ThinTimeline({
         duration={duration}
         selectedIds={selectedAnchorIds}
         snapTargets={snapTargetsInput}
+        regions={regions}
         onSeek={onSeek}
         onAdd={onAnchorAdd}
         onDelete={onAnchorDelete}
@@ -968,6 +969,7 @@ export default function ThinTimeline({
           snapInterval={snapInterval}
           snapOffset={snapOffset}
           snapTargets={snapTargetsOutput}
+          regions={regionsOutput}
           onSeek={onSeekBeat}
           onDelete={onBeatAnchorDelete}
           onSelect={onBeatAnchorSelect}

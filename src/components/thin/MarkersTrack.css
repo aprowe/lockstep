@@ -2,6 +2,18 @@
   cursor: copy;
 }
 
+/* Faint region tint behind the markers — inherits --clip-h/s/l from a
+ * .clip-overlay--color-N modifier. Sits below the marker buttons and the
+ * background hit layer so it doesn't intercept pointer events. */
+.thin-markers__region-bg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.05);
+  pointer-events: none;
+  z-index: 0;
+}
+
 /* Warp markers read as an upward-pointing triangle sitting at the bottom of
  * the row with a vertical line running up from its apex. Mirror of the
  * playhead arrow (which points down from the top). Button itself is a

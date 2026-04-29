@@ -7,6 +7,8 @@ export const THEMES = [
   'tokyo-night',
   'catppuccin-mocha',
   'obsidian-bloom',
+  'paper-light',
+  'slate-light',
 ] as const
 export type Theme = typeof THEMES[number]
 

@@ -11,6 +11,8 @@
 @import './themes/tokyo-night.css';
 @import './themes/catppuccin-mocha.css';
 @import './themes/obsidian-bloom.css';
+@import './themes/paper-light.css';
+@import './themes/slate-light.css';
 
 /* ═══════════════════════════════════════════════════════════
    Scale & structural tokens — theme-independent.

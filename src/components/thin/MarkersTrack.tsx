@@ -4,6 +4,7 @@ import { timeToViewPct } from '../../utils/view'
 import { computeSnap, pixelsToSeconds, type SnapTarget } from '../../utils/snap'
 import { gesture, type Space } from '../../store/gesture'
 import TrackRow from './TrackRow'
+import type { RegionBlock } from './RegionBand'
 import './MarkersTrack.css'
 
 interface MarkersTrackProps {
@@ -35,6 +36,11 @@ interface MarkersTrackProps {
   onBackgroundContextMenu?: (time: number, x: number, y: number) => void
   /** Fires during drag — caller swaps the anchor list in its store. */
   onAnchorsChange?: (next: Anchor[]) => void
+  /** Regions whose footprint paints a faint hued background behind the
+   *  markers, so each marker track visually inherits its parent clip's color
+   *  identity. Pass the input-space regions for Marker In and the
+   *  output-space regions for Marker Out. */
+  regions?: ReadonlyArray<Pick<RegionBlock, 'id' | 'inPoint' | 'outPoint' | 'colorIndex'>>
 }
 
 type DragState = {
@@ -65,6 +71,7 @@ export default function MarkersTrack({
   space,
   snapInterval, snapOffset = 0, snapTargets,
   onSeek, onAdd, onDelete, onSelect, onContextMenu, onBackgroundContextMenu, onAnchorsChange,
+  regions,
 }: MarkersTrackProps) {
   const bodyRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<DragState | null>(null)
@@ -262,6 +269,18 @@ export default function MarkersTrack({
         ref={bodyRef}
         className={`thin-markers__body thin-markers__body--${space}`}
       >
+        {regions && regions.map(r => {
+          const left = timeToViewPct(r.inPoint, view)
+          const right = timeToViewPct(r.outPoint, view)
+          if (right < -1 || left > 101) return null
+          return (
+            <div
+              key={`bg-${r.id}`}
+              className={`thin-markers__region-bg clip-overlay--color-${(r.colorIndex ?? 0) % 8}`}
+              style={{ left: `${left}%`, width: `${right - left}%` }}
+            />
+          )
+        })}
         {anchors.map(a => {
           const x = timeToViewPct(a.time, view)
           // Keep any marker being dragged mounted even if it scrolls out of

@@ -90,7 +90,7 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
             const linked = linkedBoundaries?.[i] ?? false
             const selected = selectedBoundaries?.[i] ?? false
             const alpha = selected ? 1.0 : 0.75
-            const width = selected ? 1.3 : 1
+            const width = selected ? 2.3 : 2
             return (
               <line
                 key={i}
@@ -107,24 +107,37 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
               connecting the input-side boundary to the output-side boundary.
               Hue per region via clip-overlay--color-N → --clip-h/s/l. Fill
               between the edges lives on the Clip In / Clip Out bands. */}
-          {regionEdges && regionEdges.map(r => (
-            <g key={r.id} className={`clip-overlay--color-${r.colorIndex % 8}`}>
-              <line
-                x1={timeToViewPct(r.origIn, view)} y1={0}
-                x2={timeToViewPct(r.beatIn, view)} y2={1}
-                className="warp-connector__region-edge"
-                vectorEffect="non-scaling-stroke"
-                pointerEvents="none"
-              />
-              <line
-                x1={timeToViewPct(r.origOut, view)} y1={0}
-                x2={timeToViewPct(r.beatOut, view)} y2={1}
-                className="warp-connector__region-edge"
-                vectorEffect="non-scaling-stroke"
-                pointerEvents="none"
-              />
-            </g>
-          ))}
+          {regionEdges && regionEdges.map(r => {
+            const oIn = timeToViewPct(r.origIn, view)
+            const oOut = timeToViewPct(r.origOut, view)
+            const bIn = timeToViewPct(r.beatIn, view)
+            const bOut = timeToViewPct(r.beatOut, view)
+            return (
+              <g key={r.id} className={`clip-overlay--color-${r.colorIndex % 8}`}>
+                {/* Whisper-faint fill between the slanted edges so the warp band
+                    isn't visually empty between the input and output clips. */}
+                <polygon
+                  points={`${oIn},0 ${oOut},0 ${bOut},1 ${bIn},1`}
+                  className="warp-connector__region-fill"
+                  pointerEvents="none"
+                />
+                <line
+                  x1={oIn} y1={0}
+                  x2={bIn} y2={1}
+                  className="warp-connector__region-edge"
+                  vectorEffect="non-scaling-stroke"
+                  pointerEvents="none"
+                />
+                <line
+                  x1={oOut} y1={0}
+                  x2={bOut} y2={1}
+                  className="warp-connector__region-edge"
+                  vectorEffect="non-scaling-stroke"
+                  pointerEvents="none"
+                />
+              </g>
+            )
+          })}
         </svg>
 
         {/* Out-of-range shading — polygons follow the slanted clip boundaries */}
@@ -138,13 +151,13 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
             {clipIn !== undefined && (
               <polygon
                 points={`0,0 ${timeToViewPct(clipIn, view)},0 ${timeToViewPct(beatClipIn ?? clipIn, view)},1 0,1`}
-                fill="rgba(0,0,0,0.45)"
+                className="warp-connector__out-of-range-poly"
               />
             )}
             {clipOut !== undefined && clipOut < origDuration && (
               <polygon
                 points={`${timeToViewPct(clipOut, view)},0 100,0 100,1 ${timeToViewPct(beatClipOut ?? clipOut, view)},1`}
-                fill="rgba(0,0,0,0.45)"
+                className="warp-connector__out-of-range-poly"
               />
             )}
           </svg>

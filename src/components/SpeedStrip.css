@@ -22,5 +22,5 @@
   pointer-events: none;
   letter-spacing: 0.03em;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 2px rgba(0, 0, 0, 0.7);
+  text-shadow: var(--speed-label-shadow, 0 0 2px rgba(0, 0, 0, 0.7));
 }

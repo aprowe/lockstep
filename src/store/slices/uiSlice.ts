@@ -46,7 +46,7 @@ const initialExportProgress: ExportProgressState = {
 }
 
 const initialState: UiState = {
-  timelineHeight: 280,
+  timelineHeight: 372,
   sidebarWidth: 170,
   clipSidebarWidth: 210,
   rightWidth: 280,

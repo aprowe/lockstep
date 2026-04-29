@@ -31,7 +31,7 @@
    * border is drawn as an inset shadow so it stays visible even when the
    * region's right edge sits at exactly the row's right edge (zoom-to-clip
    * case — a real border-right gets clipped by the row body's overflow). */
-  background: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.32);
+  background: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), var(--region-fill-alpha, 0.32));
   box-shadow: inset 0 0 0 1px hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.95);
   border-radius: 0;
   cursor: grab;
@@ -50,7 +50,7 @@
 }
 
 .thin-region--active {
-  box-shadow: inset 0 0 0 2px hsl(48, 100%, 78%);
+  box-shadow: inset 0 0 0 2px var(--region-active-border, hsl(48, 100%, 78%));
 }
 
 /* Member of the multi-select set (independent of active). Drawn as an
@@ -67,7 +67,7 @@
   font-family: var(--font-family);
   font-size: calc(10px * var(--ui-scale));
   letter-spacing: 0.02em;
-  color: #fff;
+  color: var(--region-label-color, #fff);
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -78,9 +78,9 @@
   pointer-events: none;
   /* Layered shadow: tight 1px halo for edge contrast on light fills,
    * softer 3px drop for vertical separation. */
-  text-shadow:
+  text-shadow: var(--region-label-shadow,
     0 0 2px hsla(0, 0%, 0%, 0.85),
-    0 1px 3px hsla(0, 0%, 0%, 0.7);
+    0 1px 3px hsla(0, 0%, 0%, 0.7));
 }
 
 .thin-region__handle {
@@ -97,16 +97,16 @@
 
 .thin-region__handle:hover,
 .thin-region__handle:active {
-  background: hsla(48, 100%, 78%, 0.35);
-  box-shadow: inset 0 0 0 1px hsla(48, 100%, 78%, 0.8);
+  background: var(--region-handle-bg, hsla(48, 100%, 78%, 0.35));
+  box-shadow: inset 0 0 0 1px var(--region-handle-border, hsla(48, 100%, 78%, 0.8));
 }
 
 /* Output band uses the same hue but darkened so it stays distinguishable
  * from the input band. */
 .thin-row--region-output .thin-region {
-  background: hsla(var(--clip-h, 0), var(--clip-s, 70%), calc(var(--clip-l, 50%) - 18%), 0.32);
+  background: hsla(var(--clip-h, 0), var(--clip-s, 70%), calc(var(--clip-l, 50%) - 18%), var(--region-fill-alpha, 0.32));
   box-shadow: inset 0 0 0 1px hsla(var(--clip-h, 0), var(--clip-s, 70%), calc(var(--clip-l, 50%) - 18%), 0.95);
 }
 .thin-row--region-output .thin-region--active {
-  box-shadow: inset 0 0 0 2px hsl(48, 100%, 78%);
+  box-shadow: inset 0 0 0 2px var(--region-active-border, hsl(48, 100%, 78%));
 }

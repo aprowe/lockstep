@@ -44,9 +44,16 @@
 .warp-connector__out-of-range {
   position: absolute;
   top: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--out-of-range-fill, rgba(0, 0, 0, 0.45));
   pointer-events: none;
   z-index: 1;
+}
+
+/* Out-of-range polygons rendered inside the SVG share the same token as
+ * the rectangular overlay above, so the wash looks consistent across
+ * straight-edged and slanted clip boundaries. */
+.warp-connector__out-of-range-poly {
+  fill: var(--out-of-range-fill, rgba(0, 0, 0, 0.45));
 }
 
 .warp-connector__boundary-line {
@@ -74,5 +81,13 @@
   stroke: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.7);
   stroke-width: 1;
   fill: none;
+}
+
+/* Whisper of region color between the two slanted edges (the body of the
+ * warp polygon). Kept very low alpha so the warp band still reads as a
+ * neutral gutter — just enough to tie the input clip to its output sibling. */
+.warp-connector__region-fill {
+  fill: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.05);
+  stroke: none;
 }
 

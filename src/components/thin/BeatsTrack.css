@@ -60,14 +60,14 @@
   top: -1px;
   font-size: calc(8px * var(--ui-scale));
   line-height: 1;
-  color: hsl(0, 0%, 70%);
+  color: var(--fg-3);
   pointer-events: none;
   white-space: nowrap;
   opacity: 0.75;
 }
 
 .thin-beat__label--bar {
-  color: hsl(0, 0%, 92%);
+  color: var(--fg-1);
   font-weight: 600;
   opacity: 1;
 }
