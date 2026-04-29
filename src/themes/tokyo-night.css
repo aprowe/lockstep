@@ -54,6 +54,11 @@
   --snap:        #9ece6a;   /* tokyo green */
   --snap-active: #e0af68;   /* tokyo amber */
 
+  /* ── Timeline space hues ────────────────────────────────── */
+  --space-input:  #7dcfff;  /* tokyo cyan-blue */
+  --space-warp:   #e0af68;  /* tokyo amber */
+  --space-output: #bb9af7;  /* tokyo magenta */
+
   /* ── RGB channels for rgba() transparency ───────────────── */
   --accent-rgb:   122, 162, 247;
   --accent-2-rgb: 187, 154, 247;

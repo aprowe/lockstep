@@ -52,6 +52,11 @@
      --snap          Candidate snap targets (rendered while dragging).
      --snap-active   The candidate the drag is currently snapped to.
 
+   Timeline space hues (gutters + per-track texture tints):
+     --space-input    Source / input-space rows (markers in, clip in).
+     --space-warp     Warp-stack rows (markerin + warp connector + markerout).
+     --space-output   Beat-space / output rows (markers out, clip out, beats).
+
    RGB-channel variants (for rgba() opacity work):
      --accent-rgb, --accent-2-rgb, --fg-1-rgb, --blue-rgb,
      --beat-rgb, --scene-cut-rgb.
@@ -116,6 +121,11 @@
   /* ── Snap hints ─────────────────────────────────────────── */
   --snap:        hsl(140, 80%, 65%);
   --snap-active: hsl(50, 100%, 60%);
+
+  /* ── Timeline space hues ────────────────────────────────── */
+  --space-input:  hsl(195, 75%, 55%);
+  --space-warp:   hsl(32, 90%, 55%);
+  --space-output: hsl(280, 55%, 60%);
 
   /* ── RGB channels for rgba() transparency ───────────────── */
   --accent-rgb:   245, 158, 11;

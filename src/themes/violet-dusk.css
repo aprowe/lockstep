@@ -56,6 +56,11 @@
   --snap:        hsl(140, 70%, 65%);
   --snap-active: hsl(45, 100%, 65%);
 
+  /* ── Timeline space hues ────────────────────────────────── */
+  --space-input:  hsl(200, 70%, 60%);
+  --space-warp:   hsl(28, 80%, 60%);
+  --space-output: hsl(285, 60%, 65%);
+
   /* ── RGB channels for rgba() transparency ───────────────── */
   --accent-rgb:   124, 106, 247;
   --accent-2-rgb: 244, 162, 97;
