@@ -33,6 +33,7 @@ const THEME_LABELS: Record<Theme, string> = {
   'violet-dusk':     'Violet Dusk',
   'tokyo-night':     'Tokyo Night',
   'catppuccin-mocha':'Catppuccin Mocha',
+  'obsidian-bloom':  'Obsidian Bloom',
 }
 
 interface SettingsDialogProps {

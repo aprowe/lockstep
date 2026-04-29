@@ -134,6 +134,10 @@
   --blue-rgb:     96, 165, 250;
   --beat-rgb:     255, 240, 220;
 
+  /* ── Playhead (red — preserved historical accent) ──────── */
+  --playhead:     hsl(0, 90%, 65%);
+  --playhead-rgb: 240, 92, 92;
+
   /* ── Warp panel (cool dark — separate palette) ──────────── */
   --wp-bg:   #13151c;
   --wp-bg2:  #1c1e26;

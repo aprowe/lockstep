@@ -1,7 +1,7 @@
 .thin-bar {
   position: absolute;
-  top: 4px;
-  bottom: 4px;
+  top: 0;
+  bottom: 0;
   width: 1px;
   padding: 0;
   transform: translateX(-50%);
@@ -19,8 +19,6 @@
 }
 
 .thin-bar--major {
-  top: 2px;
-  bottom: 2px;
   width: 2px;
   background: var(--fg-2);
   opacity: 1;

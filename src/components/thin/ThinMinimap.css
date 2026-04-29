@@ -62,7 +62,7 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background: hsla(0, 90%, 65%, 0.85);
+  background: rgba(var(--playhead-rgb), 0.85);
   transform: translateX(-50%);
   pointer-events: none;
   z-index: 1;

@@ -11,6 +11,10 @@ interface MarkersTrackProps {
   view: View
   duration: number
   selectedIds: Set<number>
+  /** When provided, anchor IDs *not* in this set render hollow (transparent
+   *  fill, hue-only rim). Only meaningful for Marker Out — used to flag
+   *  output anchors that have no source-side partner. */
+  linkedIds?: ReadonlySet<number>
   label?: string
   /** Which timeline space this track edits — drives which side of the
    *  gesture store receives snap-hint / drag-time publishes. */
@@ -56,6 +60,7 @@ type DragState = {
 export default function MarkersTrack({
   anchors, view, duration,
   selectedIds,
+  linkedIds,
   label = 'Markers',
   space,
   snapInterval, snapOffset = 0, snapTargets,
@@ -266,11 +271,12 @@ export default function MarkersTrack({
           const isDragged = dragRef.current?.startTimes.has(a.id) ?? false
           if (!isDragged && (x < -1 || x > 101)) return null
           const selected = selectedIds.has(a.id)
+          const unlinked = linkedIds !== undefined && !linkedIds.has(a.id)
           return (
             <button
               key={a.id}
               type="button"
-              className={`thin-marker${selected ? ' thin-marker--selected' : ''}`}
+              className={`thin-marker${selected ? ' thin-marker--selected' : ''}${unlinked ? ' thin-marker--unlinked' : ''}`}
               style={{ left: `${x}%` }}
               title={`Marker @ ${a.time.toFixed(3)}s`}
               onPointerDown={(e) => onMarkerPointerDown(e, a)}

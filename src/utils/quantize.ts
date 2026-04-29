@@ -91,16 +91,18 @@ export function quantBands(segments: WarpSegment[]): Band[] {
   return segments.map(s => ({ left: s.quantLeft, right: s.quantRight, stretchRatio: s.stretchRatio }))
 }
 
-/** Interpolate between neutral and the warm (slow / ratio > 1) or
- *  cool (fast / ratio < 1) stretch color, using log-space distance so
- *  doubling and halving feel equivalent. `maxAlpha` is reached at 2× / 0.5×. */
+/** Interpolate between neutral and the cool (slow / ratio > 1) or warm
+ *  (fast / ratio < 1) stretch color, using log-space distance so doubling
+ *  and halving feel equivalent. `maxAlpha` is reached at 2× / 0.5×. Color
+ *  follows playback speed: red = faster playback, blue = slower. */
 function interpolateStretch(ratio: number, maxAlpha: number): string {
   if (!isFinite(ratio) || ratio <= 0) ratio = 1
   const d = Math.log2(ratio) // 0 at neutral, ±1 at 2×/0.5×
   const t = Math.min(1, Math.abs(d))
   const alpha = t * maxAlpha
-  // Warm target: rgb(239, 68, 68). Cool target: rgb(59, 130, 246).
-  const [r, g, b] = d >= 0 ? [239, 68, 68] : [59, 130, 246]
+  // Cool target (slow playback / stretched): rgb(59, 130, 246).
+  // Warm target (fast playback / compressed): rgb(239, 68, 68).
+  const [r, g, b] = d >= 0 ? [59, 130, 246] : [239, 68, 68]
   return `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`
 }
 

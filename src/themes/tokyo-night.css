@@ -66,6 +66,10 @@
   --blue-rgb:     125, 207, 255;
   --beat-rgb:     192, 202, 245;
 
+  /* ── Playhead ──────────────────────────────────────────── */
+  --playhead:     hsl(0, 90%, 65%);
+  --playhead-rgb: 240, 92, 92;
+
   /* ── Warp panel (kept on the cool side, mirrors the theme) ──── */
   --wp-bg:   #16171f;
   --wp-bg2:  #1a1b26;

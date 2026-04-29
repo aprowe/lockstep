@@ -55,3 +55,24 @@
   stroke-width: 1;
 }
 
+/* Anchor connector lines — both states use the warp-space hue; the
+ * difference is solid (unlinked, user-driven state) vs dashed (linked,
+ * automatically paired). Stroke-opacity carries the selection-vs-resting
+ * alpha. */
+.warp-connector__line--linked {
+  stroke: var(--space-warp);
+  stroke-dasharray: 5 5;
+}
+.warp-connector__line--unlinked {
+  stroke: var(--space-warp);
+}
+
+/* Region edge strokes on the warp row. Hue picks up --clip-h/s/l from the
+ * parent <g class="clip-overlay--color-N">, so each region's edges match
+ * its color identity on the Clip In / Clip Out bands. */
+.warp-connector__region-edge {
+  stroke: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.7);
+  stroke-width: 1;
+  fill: none;
+}
+

@@ -42,6 +42,9 @@ interface ThinTimelineProps {
   onAnchorsChange?: (next: Anchor[]) => void
 
   beatAnchors: Anchor[]
+  /** Beat-anchor IDs that are linked to a source-side partner. Marker Out
+   *  renders any beat anchor *not* in this set as a hollow circle. */
+  linkedBeatIds?: ReadonlySet<number>
   onBeatAnchorDelete?: (id: number) => void
   onBeatAnchorSelect?: (id: number, additive: boolean) => void
   onBeatAnchorContextMenu?: (id: number, x: number, y: number) => void
@@ -133,8 +136,8 @@ const DEFAULT_FLEX: Record<string, number> = {
 }
 
 type SectionSpace = 'input' | 'output' | 'warp'
-type ThroughKind = 'anchor' | 'region' | 'scene' | 'snap'
-type ThroughStyle = 'selected' | 'hover' | 'dotted' | 'snap' | 'snap-active'
+type ThroughKind = 'anchor' | 'region' | 'scene' | 'snap' | 'beat'
+type ThroughStyle = 'selected' | 'hover' | 'dotted' | 'snap' | 'snap-active' | 'down' | 'whole' | 'sub'
 
 interface ThroughLine {
   key: string
@@ -151,7 +154,7 @@ export default function ThinTimeline({
   playhead, beatPlayhead, onSeek, onSeekBeat,
   anchors, selectedAnchorIds,
   onAnchorAdd, onAnchorDelete, onAnchorSelect, onAnchorContextMenu, onAnchorsChange,
-  beatAnchors,
+  beatAnchors, linkedBeatIds,
   onBeatAnchorDelete, onBeatAnchorSelect, onBeatAnchorContextMenu, onBeatAnchorsChange,
   snapInterval, snapOffset = 0, snapTargetsInput, snapTargetsOutput,
   bpm, beatOffset = 0, gridDiv = 1,
@@ -295,9 +298,10 @@ export default function ThinTimeline({
     const beatById = new Map(beatAnchors.map(a => [a.id, a.time]))
     const anchorIds = new Set<number>([...origById.keys(), ...beatById.keys()])
     for (const id of anchorIds) {
-      const selected = selectedAnchorIds.has(id)
       const hovered = hoveredAnchorId === id
-      if (!selected && !hovered && !alwaysAnchors) continue
+      // Selection no longer draws a through-line — only hover and the
+      // explicit "always show" toggle do.
+      if (!hovered && !alwaysAnchors) continue
       const inT = origById.get(id)
       const outT = beatById.get(id)
       const inputX = inT !== undefined ? timeToViewPct(inT, view) : null
@@ -308,7 +312,7 @@ export default function ThinTimeline({
         inputX,
         outputX,
         kind: 'anchor',
-        style: selected ? 'selected' : hovered ? 'hover' : 'dotted',
+        style: hovered ? 'hover' : 'dotted',
       })
     }
 
@@ -379,14 +383,58 @@ export default function ThinTimeline({
       out.push({ key: `snap-out-${t}`, inputX: null, outputX, kind: 'snap', style })
     }
 
+    // Beat ticks across every output-space row. Same density-based graceful
+    // degradation as BeatsTrack: subdivisions drop first, then whole beats,
+    // leaving only downbeats at extreme zoom-out instead of cutting off at a
+    // hard tick-count threshold.
+    if (bpm > 0) {
+      const div = Math.max(1, gridDiv)
+      const beatSec = (60 / bpm) / div
+      if (beatSec > 0) {
+        const span = view.end - view.start
+        const visibleSubs = span / beatSec
+        const visibleBeats = visibleSubs / div
+        const visibleBars = visibleBeats / 4
+        const SHOW_SUB_MAX = 24
+        const SHOW_BEAT_MAX = 48
+        const SHOW_DOWNBEAT_MAX = 96
+        const maxRank =
+          visibleSubs <= SHOW_SUB_MAX ? 99
+          : visibleBeats <= SHOW_BEAT_MAX ? 1
+          : visibleBars <= SHOW_DOWNBEAT_MAX ? 0
+          : -1
+        if (maxRank >= 0) {
+          const firstIdx = Math.ceil((view.start - beatOffset) / beatSec)
+          const lastIdx = Math.floor((Math.min(view.end, outputDuration) - beatOffset) / beatSec)
+          const ticksPerBar = 4 * div
+          for (let i = firstIdx; i <= lastIdx; i++) {
+            const rank =
+              i % ticksPerBar === 0 ? 0
+              : i % div === 0 ? 1
+              : 2
+            if (rank > maxRank) continue
+            const t = beatOffset + i * beatSec
+            if (t < 0 || t > outputDuration) continue
+            const x = timeToViewPct(t, view)
+            if (x < -2 || x > 102) continue
+            const style: ThroughStyle =
+              rank === 0 ? 'down'
+              : rank === 1 ? 'whole'
+              : 'sub'
+            out.push({ key: `beat-${i}`, inputX: null, outputX: x, kind: 'beat', style })
+          }
+        }
+      }
+    }
+
     return out
   }, [
-    anchors, beatAnchors, selectedAnchorIds, hoveredAnchorId,
+    anchors, beatAnchors, hoveredAnchorId,
     hoveredRegionId, regions, regionsOutput,
     scenes, hoveredSceneTime, selectedSceneTimes,
     alwaysAnchors, alwaysRegions, alwaysScenes,
     snapHintsIn, snapHintsOut, dragTime,
-    view,
+    view, bpm, beatOffset, gridDiv, outputDuration,
   ])
 
   // Section layouts drive the single global through-line overlay (see below).
@@ -890,6 +938,17 @@ export default function ThinTimeline({
           boundaryColor={boundaryColor}
           linkedBoundaries={linkedBoundaries}
           selectedBoundaries={selectedBoundaries}
+          regionEdges={regions.map(r => {
+            const o = regionsOutput?.find(x => x.id === r.id)
+            return {
+              id: r.id,
+              origIn: r.inPoint,
+              origOut: r.outPoint,
+              beatIn: o?.inPoint ?? r.inPoint,
+              beatOut: o?.outPoint ?? r.outPoint,
+              colorIndex: r.colorIndex ?? 0,
+            }
+          })}
           railLabel="Warp"
         />
       ),
@@ -902,6 +961,7 @@ export default function ThinTimeline({
           label="Marker Out"
           space="output"
           anchors={beatAnchors}
+          linkedIds={linkedBeatIds}
           view={view}
           duration={outputDuration}
           selectedIds={selectedAnchorIds}
@@ -1026,6 +1086,10 @@ export default function ThinTimeline({
    * one's just sits on top of any overlapping siblings via z-index. The
    * warp section draws its own slanted quad and is skipped here.
    */
+  // Marker In / Marker Out get thin colored edge lines at each region's in /
+  // out — no fill in between. The full-fill region color stays on the Clip In
+  // / Clip Out bands; these edges are just to anchor the region boundary
+  // visually across the marker rows.
   const regionBandsFor = (space: SectionSpace, sectionId: string): React.ReactNode => {
     if (sectionId !== 'markerin' && sectionId !== 'markerout') return null
     const sourceRegions = space === 'input' ? regions : (regionsOutput ?? regions)
@@ -1050,6 +1114,11 @@ export default function ThinTimeline({
   const overlayBottom = layouts.length > 0 ? layouts[layouts.length - 1].bottom : 0
   const overlayHeight = Math.max(0, overlayBottom - overlayTop)
 
+  // Beat through-strokes stop at the top of the Speed row — those bars are
+  // about playback speed, not beat structure, so the grid would just clutter.
+  const speedLayoutTop = layouts.find(l => l.id === 'speed')?.top
+  const beatMaxY = speedLayoutTop !== undefined ? speedLayoutTop - overlayTop : Infinity
+
   /** One continuous group per through-line: a vertical stroke in each input /
    *  output span and a slanted stroke across any warp span. y-coords are
    *  pixels relative to the SVG origin (overlayTop). */
@@ -1062,7 +1131,8 @@ export default function ThinTimeline({
     for (let i = 0; i < spans.length; i++) {
       const sp = spans[i]
       const y1 = sp.top - overlayTop
-      const y2 = sp.bottom - overlayTop
+      const y2 = tl.kind === 'beat' ? Math.min(sp.bottom - overlayTop, beatMaxY) : sp.bottom - overlayTop
+      if (y2 <= y1) continue
       if (sp.space === 'input' && tl.inputX !== null) {
         segs.push(<line key={i} x1={tl.inputX} y1={y1} x2={tl.inputX} y2={y2} className={cls} vectorEffect="non-scaling-stroke" />)
       } else if (sp.space === 'output' && tl.outputX !== null) {
@@ -1198,7 +1268,7 @@ export default function ThinTimeline({
           title={warpCollapsed ? 'Show warp views (warp, marker out, clip out, speed)' : 'Hide warp views'}
           aria-pressed={!warpCollapsed}
         >
-          <IconWarpToggle aria-hidden="true" />
+          <IconWarpToggle aria-hidden="true" size={18} />
         </button>
 
         <span className="thin-toolbar__sep" />
@@ -1210,7 +1280,7 @@ export default function ThinTimeline({
           title="Always show through-lines for markers"
           aria-pressed={alwaysAnchors}
         >
-          <IconAlwaysAnchors aria-hidden="true" />
+          <IconAlwaysAnchors aria-hidden="true" size={18} />
         </button>
         <button
           type="button"
@@ -1219,7 +1289,7 @@ export default function ThinTimeline({
           title="Always show through-lines for clip/region edges"
           aria-pressed={alwaysRegions}
         >
-          <IconAlwaysRegions aria-hidden="true" />
+          <IconAlwaysRegions aria-hidden="true" size={18} />
         </button>
         <button
           type="button"
@@ -1228,7 +1298,7 @@ export default function ThinTimeline({
           title="Always show through-lines for scene changes"
           aria-pressed={alwaysScenes}
         >
-          <IconAlwaysScenes aria-hidden="true" />
+          <IconAlwaysScenes aria-hidden="true" size={18} />
         </button>
         <button
           type="button"
@@ -1237,7 +1307,7 @@ export default function ThinTimeline({
           title="Show a thumbnail at each scene marker"
           aria-pressed={thumbStripEnabled}
         >
-          <IconThumbStrip aria-hidden="true" />
+          <IconThumbStrip aria-hidden="true" size={18} />
         </button>
         <button
           type="button"
@@ -1246,7 +1316,7 @@ export default function ThinTimeline({
           title="Thumbnail queue debug panel"
           aria-pressed={queueDebugOpen}
         >
-          <IconQueueDebug aria-hidden="true" />
+          <IconQueueDebug aria-hidden="true" size={18} />
         </button>
 
         <span className="thin-toolbar__sep" />
@@ -1258,7 +1328,7 @@ export default function ThinTimeline({
           title="Playhead follows dragged markers"
           aria-pressed={followDrag}
         >
-          <IconFollowDrag aria-hidden="true" />
+          <IconFollowDrag aria-hidden="true" size={18} />
         </button>
       </div>
 

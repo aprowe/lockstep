@@ -9,10 +9,8 @@
   min-height: calc(14px * var(--ui-scale));
 }
 
-.thin-row--region-input .thin-row__body,
-.thin-row--region-output .thin-row__body {
-  background: var(--bg-2);
-}
+/* Region row bodies inherit the row's --bg-0 surface — region overlays
+ * are the only fill. */
 
 .thin-region-band__body {
   position: absolute;
@@ -28,12 +26,13 @@
   position: absolute;
   top: 2px;
   bottom: 2px;
-  /* Mostly solid fill — keeps the "real region block" read of the recent
-   * change, but a touch of alpha lets the dark timeline ground bleed
-   * through, which is what keeps the white label legible across all
-   * palette hues (yellow + cyan especially get washed out at full alpha). */
-  background: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.78);
-  border: 1px solid hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.95);
+  /* Faint fill — the border carries the region's identity; the body is a
+   * quiet wash so the dark timeline ground stays visible through it. The
+   * border is drawn as an inset shadow so it stays visible even when the
+   * region's right edge sits at exactly the row's right edge (zoom-to-clip
+   * case — a real border-right gets clipped by the row body's overflow). */
+  background: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.32);
+  box-shadow: inset 0 0 0 1px hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.95);
   border-radius: 0;
   cursor: grab;
   transition: filter 0.08s, box-shadow 0.08s;
@@ -51,8 +50,7 @@
 }
 
 .thin-region--active {
-  border-color: hsl(48, 100%, 78%);
-  box-shadow: 0 0 4px hsla(48, 100%, 70%, 0.85);
+  box-shadow: inset 0 0 0 2px hsl(48, 100%, 78%);
 }
 
 /* Member of the multi-select set (independent of active). Drawn as an
@@ -104,8 +102,11 @@
 }
 
 /* Output band uses the same hue but darkened so it stays distinguishable
- * from the input band even with both bands now solidly filled. */
+ * from the input band. */
 .thin-row--region-output .thin-region {
-  background: hsla(var(--clip-h, 0), var(--clip-s, 70%), calc(var(--clip-l, 50%) - 18%), 0.78);
-  border-color: hsla(var(--clip-h, 0), var(--clip-s, 70%), calc(var(--clip-l, 50%) - 18%), 0.95);
+  background: hsla(var(--clip-h, 0), var(--clip-s, 70%), calc(var(--clip-l, 50%) - 18%), 0.32);
+  box-shadow: inset 0 0 0 1px hsla(var(--clip-h, 0), var(--clip-s, 70%), calc(var(--clip-l, 50%) - 18%), 0.95);
+}
+.thin-row--region-output .thin-region--active {
+  box-shadow: inset 0 0 0 2px hsl(48, 100%, 78%);
 }

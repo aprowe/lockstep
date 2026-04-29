@@ -1,5 +1,4 @@
 .thin-row--ruler {
-  background: var(--bg-2);
   cursor: pointer;
 }
 
@@ -45,7 +44,6 @@
   bottom: 0;
   width: 2px;
   transform: translateX(-50%);
-  background: hsl(0, 90%, 65%);
-  box-shadow: 0 0 4px hsla(0, 90%, 65%, 0.8);
+  background: var(--playhead);
   pointer-events: none;
 }

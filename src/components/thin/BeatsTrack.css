@@ -1,15 +1,15 @@
 .thin-beat {
   position: absolute;
-  top: 8px;
-  bottom: 8px;
+  top: 0;
+  bottom: 50%;
   width: 1px;
   padding: 0;
   transform: translateX(-50%);
   background: hsl(0, 0%, 55%);
   border: none;
-  opacity: 0.4;
+  opacity: 0.5;
   cursor: pointer;
-  transition: opacity 0.08s, width 0.08s, background 0.08s;
+  transition: opacity 0.08s, width 0.08s, background 0.08s, bottom 0.08s;
 }
 
 .thin-beat:hover {
@@ -17,10 +17,13 @@
   background: hsl(0, 0%, 80%);
 }
 
-/* rank 0 = downbeat: tallest, strongest */
+/* Rank communicated by tick height (top-aligned) + width + opacity. Taller
+ * ticks read as more important; shorter subdivisions are visually subordinate
+ * and don't compete with the downbeats. */
+
+/* rank 0 = downbeat: tallest, thickest */
 .thin-beat--rank-0 {
-  top: 2px;
-  bottom: 2px;
+  bottom: 0;
   width: 2px;
   background: hsl(0, 0%, 78%);
   opacity: 0.95;
@@ -28,31 +31,27 @@
 
 /* rank 1 = whole beat */
 .thin-beat--rank-1 {
-  top: 4px;
-  bottom: 4px;
+  bottom: 25%;
   background: hsl(0, 0%, 65%);
-  opacity: 0.75;
+  opacity: 0.8;
 }
 
 /* rank 2 = half-beat subdivision */
 .thin-beat--rank-2 {
-  top: 7px;
-  bottom: 7px;
-  opacity: 0.5;
+  bottom: 55%;
+  opacity: 0.55;
 }
 
 /* rank 3 = quarter-beat subdivision */
 .thin-beat--rank-3 {
-  top: 9px;
-  bottom: 9px;
-  opacity: 0.35;
+  bottom: 70%;
+  opacity: 0.4;
 }
 
 /* rank 4+ = finest subdivisions */
 .thin-beat--rank-4 {
-  top: 11px;
-  bottom: 11px;
-  opacity: 0.25;
+  bottom: 80%;
+  opacity: 0.3;
 }
 
 .thin-beat__label {

@@ -22,6 +22,16 @@ interface WarpConnectorProps {
   linkedBoundaries?: boolean[]
   /** For each segment boundary: true = the paired anchor is selected (intensifies the connector line). */
   selectedBoundaries?: boolean[]
+  /** Region in/out boundaries (one entry per region). Drawn as two slanted
+   *  edge strokes per region across the warp row, hue per region color. */
+  regionEdges?: ReadonlyArray<{
+    id: string
+    origIn: number
+    origOut: number
+    beatIn: number
+    beatOut: number
+    colorIndex: number
+  }>
   /** Label shown in the left-side rail next to the connector. */
   railLabel?: React.ReactNode
 }
@@ -35,7 +45,7 @@ function toView(pct: number, totalDuration: number, view: View): number {
 // anywhere (including inside the warp connector) can extend across every track.
 // This component stays a passive renderer — no pointer interaction.
 const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
-  function WarpConnector({ segments, view, origDuration, outputDuration, clipIn, clipOut, beatClipIn, beatClipOut, clipFillColor, boundaryColor, linkedBoundaries, selectedBoundaries, railLabel }, ref) {
+  function WarpConnector({ segments, view, origDuration, outputDuration, clipIn, clipOut, beatClipIn, beatClipOut, clipFillColor, boundaryColor, linkedBoundaries, selectedBoundaries, regionEdges, railLabel }, ref) {
     const containerRef = useRef<HTMLDivElement>(null)
 
     if (segments.length === 0) {
@@ -67,9 +77,9 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
           viewBox="0 0 100 1"
           preserveAspectRatio="none"
         >
-          {/* Connector lines between paired top/bottom anchors.
-              - Style (solid vs dashed) encodes linked vs unlinked.
-              - Intensity (alpha + width) encodes whether the pair is selected. */}
+          {/* Connector lines between paired top/bottom anchors. Always solid;
+              hue encodes linked (cyan, --space-input) vs unlinked (warp orange,
+              --space-warp). Intensity (alpha + width) encodes selection. */}
           {segments.slice(1).map((seg, i) => {
             const origTime = (seg.origLeft / 100) * origDuration
             const atClipIn = clipIn !== undefined && Math.abs(origTime - clipIn) < 1e-3
@@ -79,30 +89,42 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(
             const qX = toView(seg.quantLeft, outputDuration, view)
             const linked = linkedBoundaries?.[i] ?? false
             const selected = selectedBoundaries?.[i] ?? false
-            const alpha = linked
-              ? (selected ? 1.0 : 0.75)
-              : (selected ? 1.0 : 0.75)
-            const width = selected ? 1.3 : (linked ? 1.0 : 1)
+            const alpha = selected ? 1.0 : 0.75
+            const width = selected ? 1.3 : 1
             return (
               <line
                 key={i}
                 x1={oX} y1={0} x2={qX} y2={1}
-                stroke={`rgba(245,158,11,${alpha})`}
+                className={linked ? 'warp-connector__line warp-connector__line--linked' : 'warp-connector__line warp-connector__line--unlinked'}
+                strokeOpacity={alpha}
                 strokeWidth={String(width)}
-                strokeDasharray={linked ? undefined : '5 5'}
                 vectorEffect="non-scaling-stroke"
               />
             )
           })}
 
-          {/* Region tint — quadrilateral matching the clip block on top/bottom timelines */}
-          {clipFillColor && clipIn !== undefined && clipOut !== undefined && (
-            <polygon
-              points={`${timeToViewPct(clipIn, view)},0 ${timeToViewPct(clipOut, view)},0 ${timeToViewPct(beatClipOut ?? clipOut, view)},1 ${timeToViewPct(beatClipIn ?? clipIn, view)},1`}
-              fill={clipFillColor}
-              pointerEvents="none"
-            />
-          )}
+          {/* Region edges on the warp row — two slanted strokes per region
+              connecting the input-side boundary to the output-side boundary.
+              Hue per region via clip-overlay--color-N → --clip-h/s/l. Fill
+              between the edges lives on the Clip In / Clip Out bands. */}
+          {regionEdges && regionEdges.map(r => (
+            <g key={r.id} className={`clip-overlay--color-${r.colorIndex % 8}`}>
+              <line
+                x1={timeToViewPct(r.origIn, view)} y1={0}
+                x2={timeToViewPct(r.beatIn, view)} y2={1}
+                className="warp-connector__region-edge"
+                vectorEffect="non-scaling-stroke"
+                pointerEvents="none"
+              />
+              <line
+                x1={timeToViewPct(r.origOut, view)} y1={0}
+                x2={timeToViewPct(r.beatOut, view)} y2={1}
+                className="warp-connector__region-edge"
+                vectorEffect="non-scaling-stroke"
+                pointerEvents="none"
+              />
+            </g>
+          ))}
         </svg>
 
         {/* Out-of-range shading — polygons follow the slanted clip boundaries */}

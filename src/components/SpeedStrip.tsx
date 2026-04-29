@@ -52,7 +52,7 @@ export default function SpeedStrip({ segments, view, outputDuration }: SpeedStri
             className="speed-strip__label"
             style={{ left: `${midX}%` }}
           >
-            {seg.stretchRatio.toFixed(2)}×
+            {(seg.stretchRatio > 0 ? 1 / seg.stretchRatio : 1).toFixed(2)}×
           </div>
         )
       })}

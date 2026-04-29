@@ -1,6 +1,4 @@
-.thin-row--thumbs .thin-row__body {
-  background: var(--bg-2);
-}
+/* .thin-row--thumbs body inherits the shared --bg-0 row surface. */
 
 .thin-thumbs__body {
   position: relative;

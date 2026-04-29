@@ -26,17 +26,29 @@ export default function BeatsTrack({ view, duration, bpm, beatOffset = 0, divisi
     const beatSec = (60 / bpm) / Math.max(1, division)
     if (beatSec <= 0) return []
 
+    const div = Math.max(1, division)
+    const ticksPerBar = 4 * div
     const span = view.end - view.start
-    const ticksVisible = span / beatSec
-    // Only show when we can actually resolve beats (~≤ 200 ticks).
-    if (ticksVisible > 240) return []
+    // Visible counts at each rank — drives a graceful zoom-out where the
+    // finest subdivisions drop out first, then whole beats, leaving only
+    // downbeats at extreme zoom-out, instead of everything disappearing
+    // at once.
+    const visibleSubs = span / beatSec
+    const visibleBeats = visibleSubs / div
+    const visibleBars = visibleBeats / 4
+    const SHOW_SUB_MAX = 24      // subdivisions readable up to ~24 visible
+    const SHOW_BEAT_MAX = 48     // whole beats up to ~48 visible
+    const SHOW_DOWNBEAT_MAX = 96  // downbeats stay the longest
+    const maxRank =
+      visibleSubs <= SHOW_SUB_MAX ? 99
+      : visibleBeats <= SHOW_BEAT_MAX ? 1
+      : visibleBars <= SHOW_DOWNBEAT_MAX ? 0
+      : -1
+    if (maxRank < 0) return []
 
-    const skip = Math.max(1, Math.ceil(ticksVisible / 240))
     const firstIdx = Math.ceil((view.start - beatOffset) / beatSec)
     const lastIdx = Math.floor((Math.min(view.end, duration) - beatOffset) / beatSec)
 
-    const div = Math.max(1, division)
-    const ticksPerBar = 4 * div
     // rank: 0 = downbeat (tallest), 1 = whole beat, 2+ = subdivisions
     // (finer subdivisions get higher ranks → shorter ticks).
     const rankOf = (i: number): number => {
@@ -49,12 +61,13 @@ export default function BeatsTrack({ view, duration, bpm, beatOffset = 0, divisi
       return 2
     }
     const out: { idx: number; time: number; downbeat: boolean; rank: number; barIdx: number | null; beatInBar: number }[] = []
-    for (let i = firstIdx; i <= lastIdx; i += skip) {
+    for (let i = firstIdx; i <= lastIdx; i++) {
+      const rank = rankOf(i)
+      if (rank > maxRank) continue
       const t = beatOffset + i * beatSec
       if (t < 0 || t > duration) continue
-      const downbeat = skip === 1 && i % ticksPerBar === 0
+      const downbeat = i % ticksPerBar === 0
       const onWholeBeat = i % div === 0
-      const rank = rankOf(i)
       const barIdx = downbeat ? Math.floor(i / ticksPerBar) : null
       const beatInBar = onWholeBeat ? (Math.floor(i / div) % 4) + 1 : 0
       out.push({ idx: i, time: t, downbeat, rank, barIdx, beatInBar })
@@ -68,7 +81,6 @@ export default function BeatsTrack({ view, duration, bpm, beatOffset = 0, divisi
         const x = timeToViewPct(b.time, view)
         if (x < -1 || x > 101) return null
         const showBarNumber = b.downbeat && b.barIdx !== null
-        const showBeatNumber = !b.downbeat && b.beatInBar > 0
         return (
           <button
             key={b.idx}
@@ -80,9 +92,6 @@ export default function BeatsTrack({ view, duration, bpm, beatOffset = 0, divisi
           >
             {showBarNumber && (
               <span className="thin-beat__label thin-beat__label--bar">{b.barIdx! + 1}</span>
-            )}
-            {showBeatNumber && (
-              <span className="thin-beat__label">{b.beatInBar}</span>
             )}
           </button>
         )

@@ -18,8 +18,8 @@
   flex-direction: row;
   width: 100%;
   height: var(--thin-row-h);
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-3);
+  border-bottom: 1px solid #000;
+  background: var(--bg-0);
   flex-shrink: 0;
 }
 

@@ -609,6 +609,7 @@ export default function WarpView({
         onAnchorContextMenu={handleAnchorContextMenu}
         onAnchorsChange={handleOrigChange}
         beatAnchors={quantAnchors}
+        linkedBeatIds={linkedAnchorIds}
         onBeatAnchorDelete={handleThinBeatAnchorDelete}
         onBeatAnchorSelect={handleThinBeatAnchorSelect}
         onBeatAnchorContextMenu={handleAnchorContextMenu}

@@ -66,6 +66,10 @@
   --blue-rgb:     0, 229, 255;
   --beat-rgb:     0, 229, 255;   /* beat grid lines in neon cyan */
 
+  /* ── Playhead ──────────────────────────────────────────── */
+  --playhead:     hsl(0, 90%, 65%);
+  --playhead-rgb: 240, 92, 92;
+
   /* ── Warp panel (harmonized with neon palette) ──────────── */
   --wp-bg:   #090d12;
   --wp-bg2:  #0d1319;

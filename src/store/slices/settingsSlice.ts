@@ -6,6 +6,7 @@ export const THEMES = [
   'violet-dusk',
   'tokyo-night',
   'catppuccin-mocha',
+  'obsidian-bloom',
 ] as const
 export type Theme = typeof THEMES[number]
 
@@ -23,7 +24,7 @@ interface SettingsState {
 const DEFAULTS: SettingsState = {
   thumbWidth: 120,
   maxCachedFrames: 2000,
-  theme: 'warm-dark',
+  theme: 'obsidian-bloom',
 }
 
 const STORAGE_KEY = 'lockstep.settings.v1'

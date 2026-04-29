@@ -2,22 +2,23 @@
   position: relative;
   width: 100%;
   height: calc(18px * var(--ui-scale));
-  background: var(--bg-3);
-  border-bottom: 1px solid var(--border);
+  background: var(--bg-0);
+  border-bottom: 1px solid #000;
   overflow: hidden;
   transition: height 0.15s;
   cursor: copy;
 }
 
-/* Subtle "this slice has been scanned" indicator. Sits behind the diamonds
- * as a faint accent wash across the full height of the scene band so the
- * operator can see at a glance which spans have been analysed, while staying
- * quiet enough not to compete with the diamonds for attention. */
+/* "This slice has been scanned" indicator — a thin 2px progress strip at
+ * the top of the row. The body stays the shared --bg-0 so the scene track
+ * reads like any other lane by default; the strip is the only sign of
+ * scan progress. */
 .scene-band__scanned {
   position: absolute;
+  left: 0;
   top: 0;
-  bottom: 0;
-  background: rgba(var(--accent-rgb), 0.08);
+  height: 2px;
+  background: rgba(var(--accent-rgb), 0.45);
   pointer-events: none;
 }
 
@@ -38,8 +39,8 @@
 }
 
 .scene-band__diamond {
-  width: 9px;
-  height: 9px;
+  width: 11px;
+  height: 11px;
   padding: 0;
   transform: rotate(45deg);
   background: var(--scene-cut);
@@ -50,7 +51,6 @@
 }
 .scene-band__diamond:hover {
   background: var(--scene-cut-hi);
-  box-shadow: 0 0 4px rgba(var(--scene-cut-rgb), 0.8);
 }
 .scene-band__diamond:active {
   transform: rotate(45deg) scale(0.9);
@@ -58,14 +58,13 @@
 .scene-band__diamond--active {
   background: var(--scene-cut-active);
   border-color: var(--scene-cut-active-bd);
-  box-shadow: 0 0 8px rgba(var(--scene-cut-rgb), 0.95), 0 0 2px var(--scene-cut-active-bd);
   transform: rotate(45deg) scale(1.25);
 }
-/* Lasso / list selection — ring-style accent so the per-scene fill keeps
- * its existing active/hover semantics. */
+/* Lasso / list selection — flat outline ring so it stacks cleanly on top
+ * of the per-scene fill without sharing the same visual register. */
 .scene-band__diamond--selected {
   border-color: hsl(195, 100%, 80%);
-  box-shadow: 0 0 0 1px hsl(195, 100%, 75%), 0 0 6px hsla(195, 95%, 70%, 0.85);
+  box-shadow: 0 0 0 1px hsl(195, 100%, 75%);
 }
 
 /* User-placed cuts — same hue as detected, just a hairline inset ring
@@ -100,7 +99,7 @@
 }
 .scene-band__thumb-btn--active {
   border-color: var(--scene-cut-active);
-  box-shadow: 0 0 6px rgba(var(--scene-cut-rgb), 0.85);
+  border-width: 2px;
 }
 .scene-band__thumb-btn--active:hover {
   border-color: var(--scene-cut-active-bd);
