@@ -2,7 +2,7 @@
 //!
 //! These shell out to ffmpeg/ffprobe, so they are tagged `#[ignore = "heavy"]`.
 //! Run them with:  `cargo test --manifest-path src-tauri/Cargo.toml -- --ignored`
-//! or via the workspace script: `npm run test:heavy`.
+//! or via the workspace script: `npm run test:rs:heavy`.
 
 use std::path::PathBuf;
 use std::process::Command;

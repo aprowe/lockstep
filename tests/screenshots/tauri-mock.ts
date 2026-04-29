@@ -43,7 +43,12 @@ export async function mockTauri(page: Page, handlers: CommandHandlers = {}) {
         if (cb) callbacks.set(id, cb)
         return id
       },
-    }
+      // Real Tauri rewrites local file paths into a `tauri://localhost/...`
+      // URL that the asset protocol serves. In a plain browser there's no
+      // such protocol, so just hand back a placeholder — tests that don't
+      // depend on actual <video> playback are unaffected.
+      convertFileSrc: (filePath: string) => `mock-asset://${encodeURIComponent(filePath)}`,
+    } as unknown as typeof w.__TAURI_INTERNALS__
   }, Object.keys(merged))
 
   // Inject the actual return values after init script defines the slot.

@@ -376,7 +376,17 @@ const TS_BEHAVIOR_COMMENT_RE = /^\s*\/\/\s*@behavior\s+(\S+)/
 
 function scanTests(dir: string): CoverageRef[] {
   const refs: CoverageRef[] = []
-  for (const file of [...findFiles(dir, '.test.ts'), ...findFiles(dir, '.test.tsx')]) {
+  // Vitest specs (.test.ts/.tsx) plus Playwright integration specs
+  // (.bdd.spec.ts/.tsx). Both honor the same `// @behavior <id>` marker;
+  // the skip-detection walk below handles vitest-cucumber's Scenario(...)
+  // and Playwright's test(...) call shapes.
+  const files = [
+    ...findFiles(dir, '.test.ts'),
+    ...findFiles(dir, '.test.tsx'),
+    ...findFiles(dir, '.bdd.spec.ts'),
+    ...findFiles(dir, '.bdd.spec.tsx'),
+  ]
+  for (const file of files) {
     const rel   = relative(ROOT, file).replace(/\\/g, '/')
     const lines = readFileSync(file, 'utf8').split('\n')
     lines.forEach((text, i) => {
@@ -385,13 +395,15 @@ function scanTests(dir: string): CoverageRef[] {
       let m: RegExpExecArray | null
       while ((m = CALL_RE.exec(text)) !== null) refs.push({ id: m[1], file: rel, line: i + 1, lang: 'ts' })
 
-      // vitest-cucumber: // @behavior <id> above a Scenario(...) call
+      // vitest-cucumber / Playwright: // @behavior <id> above the test call.
       const cm = text.match(TS_BEHAVIOR_COMMENT_RE)
       if (cm) {
         let skipped = false
         for (let j = i + 1; j < Math.min(i + 15, lines.length); j++) {
           if (/\bScenario\.skip\s*\(/.test(lines[j]))      { skipped = true; break }
+          if (/\btest\.skip\s*\(/.test(lines[j]))          { skipped = true; break }
           if (/\bScenario(?:\.only)?\s*\(/.test(lines[j])) { break }
+          if (/\btest(?:\.only)?\s*\(/.test(lines[j]))     { break }
         }
         refs.push({ id: cm[1], file: rel, line: i + 1, lang: 'ts', skipped })
       }

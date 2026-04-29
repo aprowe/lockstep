@@ -52,7 +52,7 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run test:js
+      - run: npm run test:unit
         name: Vitest
 
       - run: npm run test:rs
@@ -66,4 +66,19 @@ jobs:
 
       - name: End-to-end tests (skip RIFE — needs Vulkan GPU)
         run: cargo test --manifest-path src-tauri/Cargo.toml --target-dir src-tauri/target-test -- --ignored --skip rife
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Playwright integration tests
+        run: npm run test:integration
+
+      - name: Upload Playwright traces (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 14
 
