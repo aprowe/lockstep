@@ -102,6 +102,14 @@
               "label": "Deselect"
             }
           ]
+        },
+        {
+          "items": [
+            {
+              "id": "settings",
+              "label": "Settings…"
+            }
+          ]
         }
       ]
     },
@@ -123,6 +131,14 @@
             {
               "id": "reset-ui-scale",
               "label": "Reset UI Scale"
+            }
+          ]
+        },
+        {
+          "items": [
+            {
+              "id": "keyboard-shortcuts",
+              "label": "Keyboard Shortcuts…"
             }
           ]
         },
@@ -192,12 +208,12 @@
               "label": "New Scene"
             },
             {
-              "id": "next-scene",
-              "label": "Next Scene"
-            },
-            {
               "id": "prev-scene",
               "label": "Prev Scene"
+            },
+            {
+              "id": "next-scene",
+              "label": "Next Scene"
             }
           ]
         },

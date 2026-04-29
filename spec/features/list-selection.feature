@@ -95,12 +95,14 @@ Feature: List Selection
         And the selection is cleared
 
     # @hint Bound at the panel root via onKeyDown — caller's onDelete fires
-    #       with the full selection id list, then the selection is cleared.
-    Scenario: Delete key on focused list removes selection
+    #       with the full selection id list, then the row immediately after
+    #       the last deleted (or before the first if at the end) is selected
+    #       and activated, mirroring a plain click on it.
+    Scenario: Delete key on focused list removes selection and focuses the survivor
         Given a populated list with focus and a non-empty selection
         When the user presses Delete
         Then every selected row is removed
-        And the selection is cleared
+        And the row immediately after the deleted selection is focused
 
     # ── Active vs selected (clips-specific) ──────────────────────────────────
 

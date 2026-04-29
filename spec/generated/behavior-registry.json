@@ -456,20 +456,20 @@
       "file": "spec/features/list-selection.feature",
       "line": 91
     },
-    "list-selection::0c8fc530": {
+    "list-selection::a6138eae": {
       "feature": "List Selection",
-      "scenario": "Delete key on focused list removes selection",
+      "scenario": "Delete key on focused list removes selection and focuses the survivor",
       "isOutline": false,
       "steps": [
         "Given a populated list with focus and a non-empty selection",
         "When the user presses Delete",
         "Then every selected row is removed",
-        "And the selection is cleared"
+        "And the row immediately after the deleted selection is focused"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 99,
+      "line": 101,
       "hints": [
-        "Bound at the panel root via onKeyDown — caller's onDelete fires with the full selection id list, then the selection is cleared."
+        "Bound at the panel root via onKeyDown — caller's onDelete fires with the full selection id list, then the row immediately after the last deleted (or before the first if at the end) is selected and activated, mirroring a plain click on it."
       ]
     },
     "list-selection::8e807736": {
@@ -484,7 +484,7 @@
         "And the player seeks to its in-point"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 107
+      "line": 109
     },
     "list-selection::e190e98b": {
       "feature": "List Selection",
@@ -497,7 +497,7 @@
         "And the selection now includes both clips A and B"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 114
+      "line": 116
     },
     "list-selection::376277f3": {
       "feature": "List Selection",
@@ -511,7 +511,7 @@
         "And the clips list shows checkboxes on each selected row"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 125,
+      "line": 127,
       "unresolvedRefs": [
         "in out"
       ],
@@ -530,7 +530,7 @@
         "And the markers list shows checkboxes on each selected row"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 135,
+      "line": 137,
       "hints": [
         "Markers list selection is wired to warp.selectedIds via MarkersPanel's selectedIdsOverride — the timeline lasso has always written there, so list + timeline mirror automatically."
       ]
@@ -544,7 +544,7 @@
         "Then those two clips show the accent outline on the timeline overlays"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 141
+      "line": 143
     },
     "list-selection::ecdd90c1": {
       "feature": "List Selection",
@@ -557,7 +557,7 @@
         "Then the marker selection is unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 147
+      "line": 149
     },
     "list-selection::67c421a9": {
       "feature": "List Selection",
@@ -571,7 +571,7 @@
         "And the rows still visible remain selected and checked"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 155
+      "line": 157
     },
     "list-selection::388b677c": {
       "feature": "List Selection",
@@ -583,7 +583,7 @@
         "Then the selection contains only the lassoed items"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 166,
+      "line": 168,
       "hints": [
         "Plain drag clears selection before adding lasso hits; Ctrl/Cmd+drag is additive (snapshot-then-merge)."
       ]
@@ -598,7 +598,7 @@
         "Then the selection contains both the original and lassoed items"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 171
+      "line": 173
     },
     "list-selection::564d68b7": {
       "feature": "List Selection",
@@ -610,7 +610,7 @@
         "Then only marker items are selected"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 176
+      "line": 178
     },
     "list-selection::ed5022ee": {
       "feature": "List Selection",
@@ -622,7 +622,7 @@
         "Then both marker and clip selections are updated"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 181
+      "line": 183
     },
     "list-selection::cb8929f5": {
       "feature": "List Selection",
@@ -636,7 +636,7 @@
         "And the context menu is shown for clip B"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 228,
+      "line": 230,
       "hints": [
         "Adobe-style \"replace-then-act\": opening a context menu on a row that isn't already in the selection first replaces selection with [id] + sets it active, so menu actions hit what the user visually targeted."
       ]
@@ -651,7 +651,7 @@
         "Then all three clips are still selected"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 238,
+      "line": 240,
       "hints": [
         "Right-click on an *already-selected* row leaves the multi- selection alone — bulk actions in the menu still target every selected clip."
       ]
@@ -666,7 +666,7 @@
         "Then all three clips are selected"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 246,
+      "line": 248,
       "hints": [
         "Cmd/Ctrl+A bound on the focused list panel via useListSelection.handleKeyDown. Scope is the visible-items list — respects whatever filter is active."
       ]
@@ -683,7 +683,7 @@
         "And the markers selection is unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 253,
+      "line": 255,
       "hints": [
         "Cmd/Ctrl+D clears the focused list's selection. Other lists' selections are untouched (focus-scoping rule)."
       ]
@@ -700,7 +700,7 @@
         "And both selections are cleared"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 266
+      "line": 268
     },
     "list-selection::9ca01b60": {
       "feature": "List Selection",
@@ -714,7 +714,7 @@
         "And no items are deleted"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 273
+      "line": 275
     },
     "list-selection::871d21c2": {
       "feature": "List Selection",
@@ -728,7 +728,7 @@
         "And the active clip is unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 284,
+      "line": 286,
       "hints": [
         "Policy B from docs/INTERACTION_DESIGN.md — a plain click on the empty timeline body (no drag, no modifier) clears every timeline-side selection. Modifier-clicks are ignored so the user can ctrl-click without losing the lasso snapshot."
       ]
@@ -743,7 +743,7 @@
         "Then both selections are unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 291
+      "line": 293
     },
     "list-selection::c16d9138": {
       "feature": "List Selection",
@@ -756,7 +756,7 @@
         "And the scene-cut selection is cleared"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 305,
+      "line": 307,
       "hints": [
         "Selected diamonds draw with an accent ring + a brighter through-line so the user can pick them out at a glance even when the always-show-scene-lines toggle is off."
       ]
@@ -772,7 +772,7 @@
         "And the cuts themselves remain"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 311
+      "line": 313
     },
     "list-selection::5afb8d06": {
       "feature": "List Selection",
@@ -784,7 +784,7 @@
         "Then the scene-cut selection is cleared"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 317
+      "line": 319
     },
     "timeline-navigation::2e61d3bc": {
       "feature": "Timeline Navigation",

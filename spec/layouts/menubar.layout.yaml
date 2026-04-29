@@ -43,6 +43,8 @@ groups:
   - - Select All
     - Deselect
 
+  - - Settings…
+
 ---
 
 id: view-menu
@@ -52,4 +54,7 @@ groups:
   - - Increase UI Scale
     - Decrease UI Scale
     - Reset UI Scale
+
+  - - Keyboard Shortcuts…
+
   - - Reset Panel Layout
