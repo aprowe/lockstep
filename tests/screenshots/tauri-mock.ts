@@ -38,7 +38,7 @@ export async function mockTauri(page: Page, handlers: CommandHandlers = {}) {
         }
         return w.__TAURI_MOCK_RESULTS__[cmd] ?? null
       },
-      transformCallback: (cb) => {
+      transformCallback: (cb: ((v: unknown) => void) | undefined) => {
         const id = nextCb++
         if (cb) callbacks.set(id, cb)
         return id
