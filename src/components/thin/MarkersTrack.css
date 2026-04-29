@@ -2,10 +2,24 @@
   cursor: copy;
 }
 
-/* Warp markers read as a small circle with a vertical line running through it.
- * Button itself is a transparent hit target; ::before draws the line and
- * ::after draws the circle glyph centered on the anchor time. */
+/* Warp markers read as an upward-pointing triangle sitting at the bottom of
+ * the row with a vertical line running up from its apex. Mirror of the
+ * playhead arrow (which points down from the top). Button itself is a
+ * transparent hit target; ::before draws the line, ::after draws the triangle
+ * via the classic 0×0 box + colored border trick.
+ *
+ * Colors come from theme tokens. `--marker-color` is the per-track hue (set
+ * by the body modifier) so a future split between Marker In / Marker Out
+ * hues is a one-line change. */
+.thin-markers__body {
+  --marker-color: var(--space-input);
+  --marker-hover: color-mix(in srgb, var(--marker-color) 55%, white);
+  --marker-selected: var(--snap-active);
+}
+
 .thin-marker {
+  --tri-half-base: 7px;
+  --tri-height: 10px;
   position: absolute;
   top: 0;
   bottom: 0;
@@ -21,46 +35,67 @@
   content: '';
   position: absolute;
   top: 1px;
-  bottom: 1px;
+  bottom: var(--tri-height);
   left: 50%;
   width: 1.5px;
   transform: translateX(-50%);
-  background: hsl(195, 75%, 60%);
+  background: var(--marker-color);
   transition: background 0.08s, width 0.08s;
 }
 
 .thin-marker::after {
   content: '';
   position: absolute;
-  top: 50%;
+  bottom: 0;
   left: 50%;
-  width: 12px;
-  height: 12px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background: hsl(195, 75%, 60%);
-  border: 1.5px solid hsl(195, 85%, 72%);
-  box-sizing: border-box;
-  transition: background 0.08s, border-color 0.08s, transform 0.08s;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: var(--tri-half-base) solid transparent;
+  border-right: var(--tri-half-base) solid transparent;
+  border-bottom: var(--tri-height) solid var(--marker-color);
+  transition: border-bottom-color 0.08s, transform 0.08s;
 }
 
 .thin-marker:hover::before {
-  background: hsl(195, 95%, 72%);
+  background: var(--marker-hover);
   width: 2px;
 }
 
 .thin-marker:hover::after {
-  background: hsl(195, 95%, 72%);
-  border-color: hsl(195, 100%, 85%);
+  border-bottom-color: var(--marker-hover);
 }
 
 .thin-marker--selected::before {
-  background: hsl(48, 100%, 70%);
+  background: var(--marker-selected);
   width: 2px;
 }
 
 .thin-marker--selected::after {
-  background: hsl(48, 100%, 70%);
-  border-color: hsl(48, 100%, 85%);
-  transform: translate(-50%, -50%) scale(1.15);
+  border-bottom-color: var(--marker-selected);
+  transform: translateX(-50%) scale(1.15);
+}
+
+/* Upper (Marker In) track — flipped: triangle hangs from the top with apex
+ * pointing down, line drops from its base to the bottom of the row. Mirrors
+ * the lower (Marker Out) layout so the two tracks visually bracket the
+ * region between them. */
+.thin-markers__body--input .thin-marker::before {
+  top: var(--tri-height);
+  bottom: 1px;
+}
+
+.thin-markers__body--input .thin-marker::after {
+  bottom: auto;
+  top: 0;
+  border-bottom: none;
+  border-top: var(--tri-height) solid var(--marker-color);
+}
+
+.thin-markers__body--input .thin-marker:hover::after {
+  border-top-color: var(--marker-hover);
+}
+
+.thin-markers__body--input .thin-marker--selected::after {
+  border-top-color: var(--marker-selected);
 }

@@ -260,7 +260,7 @@ export default function MarkersTrack({
     >
       <div
         ref={bodyRef}
-        className="thin-markers__body"
+        className={`thin-markers__body thin-markers__body--${space}`}
       >
         {anchors.map(a => {
           const x = timeToViewPct(a.time, view)
