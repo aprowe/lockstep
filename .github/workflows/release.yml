@@ -59,9 +59,13 @@ jobs:
       - name: Download rife-ncnn-vulkan — Windows
         if: matrix.platform == 'windows-latest'
         shell: bash
+        # The aprowe fork (tag 20260422) adds `-M manifest.json` batch mode
+        # which Lockstep's pipeline depends on. Upstream nihui builds don't
+        # support it; using them here would silently produce a broken bundle.
+        # Must stay in lockstep with scripts/setup-binaries.mjs RIFE_VERSION.
         run: |
           mkdir -p src-tauri/binaries
-          curl -L "https://github.com/nihui/rife-ncnn-vulkan/releases/download/20221029/rife-ncnn-vulkan-20221029-windows.zip" -o rife.zip
+          curl -L "https://github.com/aprowe/rife-ncnn-vulkan/releases/download/20260422/rife-ncnn-vulkan-20260422-windows.zip" -o rife.zip
           unzip rife.zip -d rife_out
           RIFE_DIR=$(find rife_out -maxdepth 1 -type d -name "rife-ncnn-vulkan-*" | head -n1)
           cp "$RIFE_DIR/rife-ncnn-vulkan.exe" src-tauri/binaries/rife-ncnn-vulkan-x86_64-pc-windows-msvc.exe
@@ -79,6 +83,11 @@ jobs:
           chmod +x src-tauri/binaries/ffmpeg-${{ matrix.target }}
           chmod +x src-tauri/binaries/ffprobe-${{ matrix.target }}
 
+      # TODO: aprowe/rife-ncnn-vulkan does not publish a macOS prebuilt
+      # (the fork's release CI only covers Windows + Ubuntu). Until we add a
+      # build-from-source step here, the macOS bundle ships the upstream
+      # nihui binary which lacks `-M manifest.json` batch mode — RIFE
+      # interpolation will fail at runtime on macOS.
       - name: Download rife-ncnn-vulkan — macOS
         if: matrix.platform == 'macos-latest'
         run: |
