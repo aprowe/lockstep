@@ -8,7 +8,9 @@ import {
   IconGoToRegionStart, IconGoToRegionEnd,
   IconPrevRegion, IconNextRegion, IconZoomToRegion,
   IconCreateScene, IconPrevScene, IconNextScene,
+  IconLoopStop, IconLoopRepeat, IconLoopContinue,
 } from './icons'
+import type { PlaybackLoopMode } from '../store/slices/uiSlice'
 import { secondsToFrames } from '../utils/time'
 import { tooltipFor } from '../hotkeys'
 import './Toolbar.css'
@@ -54,6 +56,10 @@ interface ToolbarProps {
   onNewScene?: () => void
   onPrevScene?: () => void
   onNextScene?: () => void
+  /** What playback does when the playhead reaches the end of the active
+   *  clip (or video). When omitted the selector is hidden. */
+  playbackLoopMode?: PlaybackLoopMode
+  onPlaybackLoopModeChange?: (mode: PlaybackLoopMode) => void
   /** Beat position of the playhead — relative to the active region's
    *  in-point if there is one, else to the warp's beat-zero. Null when
    *  no BPM is set yet. */
@@ -64,7 +70,9 @@ export default function Toolbar({
   playerRef, duration, fps, playing, currentTime,
   onMark, onJumpPrev, onJumpNext, onZoomToRegion, onSetIn, onSetOut,
   gridDiv, onGridDivChange, onNewRegion, onPrevRegion, onNextRegion, onJumpRegionStart, onJumpRegionEnd, onDeleteRegion,
-  onNewScene, onPrevScene, onNextScene, currentBeat,
+  onNewScene, onPrevScene, onNextScene,
+  playbackLoopMode, onPlaybackLoopModeChange,
+  currentBeat,
 }: ToolbarProps) {
   const [speed, setSpeed] = useState(1)
   const [editingFrame, setEditingFrame] = useState(false)
@@ -199,6 +207,40 @@ export default function Toolbar({
             <IconNextFrame size={22} />
           </button>
         </div>
+        {playbackLoopMode && onPlaybackLoopModeChange && (
+          <div className="tb-pair tb-pair--loop-mode" role="radiogroup" aria-label="End-of-clip behavior">
+            <button
+              data-layout-id="playback-loop-continue"
+              className={`tb-btn tb-btn--loop-mode${playbackLoopMode === 'continue' ? ' tb-btn--loop-mode--active' : ''}`}
+              onClick={() => onPlaybackLoopModeChange('continue')}
+              role="radio"
+              aria-checked={playbackLoopMode === 'continue'}
+              title="Continue past the end of the clip"
+            >
+              <IconLoopContinue size={20} />
+            </button>
+            <button
+              data-layout-id="playback-loop-loop"
+              className={`tb-btn tb-btn--loop-mode${playbackLoopMode === 'loop' ? ' tb-btn--loop-mode--active' : ''}`}
+              onClick={() => onPlaybackLoopModeChange('loop')}
+              role="radio"
+              aria-checked={playbackLoopMode === 'loop'}
+              title="Loop the clip"
+            >
+              <IconLoopRepeat size={20} />
+            </button>
+            <button
+              data-layout-id="playback-loop-stop"
+              className={`tb-btn tb-btn--loop-mode${playbackLoopMode === 'stop' ? ' tb-btn--loop-mode--active' : ''}`}
+              onClick={() => onPlaybackLoopModeChange('stop')}
+              role="radio"
+              aria-checked={playbackLoopMode === 'stop'}
+              title="Stop at the end of the clip"
+            >
+              <IconLoopStop size={20} />
+            </button>
+          </div>
+        )}
         <div className="tb-time">
           <span data-layout-id="play-time" className="tb-time__current">{fmt(currentTime)}</span>
           <span className="tb-time__sep">/</span>

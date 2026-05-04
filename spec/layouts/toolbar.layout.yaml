@@ -36,6 +36,9 @@ groups:
   - - Play
     - Prev Frame
     - Next Frame
+    - { id: playback-loop-continue, label: Playback Loop Continue }
+    - { id: playback-loop-loop,     label: Playback Loop Loop }
+    - { id: playback-loop-stop,     label: Playback Loop Stop }
     - Play Time
     - Frame Count
     - Beat Count (clip based)
