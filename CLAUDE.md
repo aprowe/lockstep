@@ -4,6 +4,12 @@ A native desktop app for BPM-warping video to music. Built with Tauri v2 + Rust 
 
 ---
 
+## Status
+
+Pre-release. **There are no users yet** — no installed builds, no saved settings or sidecar files in the wild. Don't write migrations, deprecation shims, fallbacks for old field names, or "default to legacy value if missing" branches. When a schema or default changes, just change it. When a feature/setting/theme is removed, delete it; don't keep stubs.
+
+---
+
 ## Developing Features
 - Feature development is behavior driven.
 - Run `npm run behaviors` to check for unimplemented or changed behaviors
