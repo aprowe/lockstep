@@ -6,6 +6,9 @@ import { initUiScale } from './uiScale'
 import './index.css'
 import App from './App'
 import ErrorBoundary from './components/ErrorBoundary'
+// Side-effect import: registers the core assistant extension so its tools
+// are visible the first time the panel runs a query.
+import './assistant'
 
 initUiScale()
 

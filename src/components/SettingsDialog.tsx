@@ -4,12 +4,20 @@ import {
   setMaxCachedFrames,
   setThumbWidth,
   setTheme,
+  setAnthropicApiKey,
+  setAssistantModel,
   resetSettings,
   THEMES,
   type Theme,
 } from '../store/slices/settingsSlice'
 import { clearAllThumbnails } from '../api/thumbnails'
 import './SettingsDialog.css'
+
+const ASSISTANT_MODELS: Array<{ id: string; label: string }> = [
+  { id: 'claude-opus-4-7',           label: 'Claude Opus 4.7 (most capable)' },
+  { id: 'claude-sonnet-4-6',         label: 'Claude Sonnet 4.6 (balanced)' },
+  { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (fast)' },
+]
 
 /** Rough JPEG-on-disk estimate. ffmpeg encodes thumbs at -q:v 5 which lands
  *  somewhere around 0.25 bytes/pixel for typical video content. Aspect is
@@ -48,8 +56,11 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const thumbWidth = useAppSelector(s => s.settings.thumbWidth)
   const maxCachedFrames = useAppSelector(s => s.settings.maxCachedFrames)
   const theme = useAppSelector(s => s.settings.theme)
+  const apiKey = useAppSelector(s => s.settings.anthropicApiKey)
+  const assistantModel = useAppSelector(s => s.settings.assistantModel)
   const [clearing, setClearing] = useState(false)
   const [cleared, setCleared] = useState(false)
+  const [showKey, setShowKey] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -166,6 +177,56 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                 >
                   {clearing ? 'Clearing…' : cleared ? 'Cleared ✓' : 'Clear all'}
                 </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="settings-section">
+            <h3 className="settings-section__heading">AI assistant</h3>
+
+            <div className="settings-row">
+              <label className="settings-row__label">
+                <span className="settings-row__title">Anthropic API key</span>
+                <span className="settings-row__hint">
+                  Stored locally, sent only to api.anthropic.com when you run a query.
+                </span>
+              </label>
+              <div className="settings-row__control">
+                <input
+                  type={showKey ? 'text' : 'password'}
+                  className="settings-text-input"
+                  value={apiKey}
+                  onChange={e => dispatch(setAnthropicApiKey(e.target.value))}
+                  placeholder="sk-ant-…"
+                  spellCheck={false}
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  className="settings-btn settings-btn--ghost"
+                  onClick={() => setShowKey(s => !s)}
+                  title={showKey ? 'Hide key' : 'Show key'}
+                >
+                  {showKey ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+
+            <div className="settings-row">
+              <label className="settings-row__label">
+                <span className="settings-row__title">Model</span>
+                <span className="settings-row__hint">Vision-capable Claude model used by the Assistant panel.</span>
+              </label>
+              <div className="settings-row__control">
+                <select
+                  className="settings-select"
+                  value={assistantModel}
+                  onChange={e => dispatch(setAssistantModel(e.target.value))}
+                >
+                  {ASSISTANT_MODELS.map(m => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </section>

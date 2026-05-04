@@ -140,6 +140,21 @@
 .settings-select:hover  { border-color: var(--border-hi); }
 .settings-select:focus  { border-color: var(--accent); }
 
+.settings-text-input {
+  flex: 1;
+  padding: var(--sp-1) var(--sp-2);
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg-1);
+  font-family: var(--font-mono, var(--font-family));
+  font-size: var(--t-md);
+  outline: none;
+  transition: border-color 0.1s;
+}
+.settings-text-input:hover { border-color: var(--border-hi); }
+.settings-text-input:focus { border-color: var(--accent); }
+
 .settings-btn {
   background: var(--bg-2);
   color: var(--fg-2);

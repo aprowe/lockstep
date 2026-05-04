@@ -532,6 +532,135 @@ pub async fn write_text_file(req: WriteTextFileRequest) -> Result<(), String> {
         .map_err(|e| format!("Write failed: {e}"))
 }
 
+// ── Extract single frame as JPEG (for the AI assistant) ──────────────────────
+
+#[derive(serde::Deserialize)]
+pub struct ExtractFrameRequest {
+    pub path: String,
+    pub time: f64,
+    /// Scale longest edge to this many pixels (0 / missing = source size).
+    pub max_width: Option<u32>,
+}
+
+#[derive(serde::Serialize)]
+pub struct ExtractFrameResult {
+    /// Standard base64 (RFC 4648) of the JPEG bytes — drop straight into a
+    /// `data:image/jpeg;base64,…` URL or an Anthropic vision content block.
+    pub base64: String,
+    pub mime_type: String,
+    pub bytes: usize,
+}
+
+/// Extract a single frame at `time` seconds from `path` and return it as a
+/// base64 JPEG. The assistant tools use this to feed frames into vision-capable
+/// models without going through the regular thumbnail cache (which is sized
+/// for the timeline UI, not for analysis).
+#[tauri::command]
+pub async fn extract_frame(req: ExtractFrameRequest) -> Result<ExtractFrameResult, String> {
+    let path = req.path;
+    let time = req.time.max(0.0);
+    let max_width = req.max_width.unwrap_or(640);
+
+    let bytes = tokio::task::spawn_blocking(move || run_extract_frame(&path, time, max_width))
+        .await
+        .map_err(|e| format!("extract_frame join: {e}"))??;
+
+    Ok(ExtractFrameResult {
+        bytes: bytes.len(),
+        base64: encode_base64(&bytes),
+        mime_type: "image/jpeg".into(),
+    })
+}
+
+fn run_extract_frame(path: &str, time: f64, max_width: u32) -> Result<Vec<u8>, String> {
+    use std::process::{Command, Stdio};
+    #[cfg(target_os = "windows")]
+    use std::os::windows::process::CommandExt;
+    #[cfg(target_os = "windows")]
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+    let bin = crate::ffmpeg::find_bin("ffmpeg");
+    let mut cmd = Command::new(&bin);
+    let mut args: Vec<String> = vec![
+        "-loglevel".into(), "error".into(),
+        "-ss".into(), format!("{:.3}", time),
+        "-i".into(), path.into(),
+        "-frames:v".into(), "1".into(),
+    ];
+    if max_width > 0 {
+        args.push("-vf".into());
+        args.push(format!("scale='min({max_width},iw)':-2"));
+    }
+    args.extend([
+        "-f".into(), "image2".into(),
+        "-vcodec".into(), "mjpeg".into(),
+        "-q:v".into(), "4".into(),
+        "pipe:1".into(),
+    ]);
+
+    cmd.args(&args).stdout(Stdio::piped()).stderr(Stdio::piped());
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().map_err(|e| format!("ffmpeg spawn failed: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "ffmpeg frame extract failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    if output.stdout.is_empty() {
+        return Err("ffmpeg produced no frame data".to_string());
+    }
+    Ok(output.stdout)
+}
+
+const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+fn encode_base64(input: &[u8]) -> String {
+    let mut out = String::with_capacity((input.len() + 2) / 3 * 4);
+    let mut i = 0;
+    while i + 3 <= input.len() {
+        let n = ((input[i] as u32) << 16) | ((input[i + 1] as u32) << 8) | (input[i + 2] as u32);
+        out.push(B64[((n >> 18) & 0x3f) as usize] as char);
+        out.push(B64[((n >> 12) & 0x3f) as usize] as char);
+        out.push(B64[((n >> 6) & 0x3f) as usize] as char);
+        out.push(B64[(n & 0x3f) as usize] as char);
+        i += 3;
+    }
+    let rem = input.len() - i;
+    if rem == 1 {
+        let n = (input[i] as u32) << 16;
+        out.push(B64[((n >> 18) & 0x3f) as usize] as char);
+        out.push(B64[((n >> 12) & 0x3f) as usize] as char);
+        out.push('=');
+        out.push('=');
+    } else if rem == 2 {
+        let n = ((input[i] as u32) << 16) | ((input[i + 1] as u32) << 8);
+        out.push(B64[((n >> 18) & 0x3f) as usize] as char);
+        out.push(B64[((n >> 12) & 0x3f) as usize] as char);
+        out.push(B64[((n >> 6) & 0x3f) as usize] as char);
+        out.push('=');
+    }
+    out
+}
+
+#[cfg(test)]
+mod base64_tests {
+    use super::encode_base64;
+
+    #[test]
+    fn matches_known_vectors() {
+        assert_eq!(encode_base64(b""),       "");
+        assert_eq!(encode_base64(b"f"),      "Zg==");
+        assert_eq!(encode_base64(b"fo"),     "Zm8=");
+        assert_eq!(encode_base64(b"foo"),    "Zm9v");
+        assert_eq!(encode_base64(b"foob"),   "Zm9vYg==");
+        assert_eq!(encode_base64(b"fooba"),  "Zm9vYmE=");
+        assert_eq!(encode_base64(b"foobar"), "Zm9vYmFy");
+    }
+}
+
 // ── Video Sidecar (<video_stem>.json next to source video) ───────────────────
 
 /// Returns the JSON content of `<video_stem>.json` if it exists next to the video, or null.
