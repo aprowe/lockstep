@@ -5,9 +5,11 @@
  */
 
 import { coreExtension } from './coreTools'
+import { geminiExtension } from './geminiTools'
 import { registerExtension } from './registry'
 
 registerExtension(coreExtension)
+registerExtension(geminiExtension)
 
 export { runAssistant } from './runner'
 export { listAllTools, listExtensions } from './registry'

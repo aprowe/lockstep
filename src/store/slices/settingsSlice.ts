@@ -27,6 +27,13 @@ interface SettingsState {
   anthropicApiKey: string
   /** Claude model id used by the assistant. Defaults to the latest opus. */
   assistantModel: string
+  /** Google Gemini API key. Used by the gemini extension to send the active
+   *  video to Gemini's video-understanding endpoint for whole-clip analysis
+   *  (e.g. "find every scene with a horse"). Empty disables the extension. */
+  geminiApiKey: string
+  /** Gemini model id. Default is the fastest video-capable variant; the
+   *  pro variant is more accurate but slower. */
+  geminiModel: string
 }
 
 const DEFAULTS: SettingsState = {
@@ -35,6 +42,8 @@ const DEFAULTS: SettingsState = {
   theme: 'obsidian-bloom',
   anthropicApiKey: '',
   assistantModel: 'claude-opus-4-7',
+  geminiApiKey: '',
+  geminiModel: 'gemini-2.5-flash',
 }
 
 const STORAGE_KEY = 'lockstep.settings.v1'
@@ -56,6 +65,10 @@ function loadFromStorage(): SettingsState {
       assistantModel: typeof parsed.assistantModel === 'string' && parsed.assistantModel.length > 0
         ? parsed.assistantModel
         : DEFAULTS.assistantModel,
+      geminiApiKey: typeof parsed.geminiApiKey === 'string' ? parsed.geminiApiKey : DEFAULTS.geminiApiKey,
+      geminiModel: typeof parsed.geminiModel === 'string' && parsed.geminiModel.length > 0
+        ? parsed.geminiModel
+        : DEFAULTS.geminiModel,
     }
   } catch {
     return DEFAULTS
@@ -92,12 +105,21 @@ const settingsSlice = createSlice({
       state.assistantModel = action.payload
       saveToStorage(state)
     },
+    setGeminiApiKey(state, action: PayloadAction<string>) {
+      state.geminiApiKey = action.payload
+      saveToStorage(state)
+    },
+    setGeminiModel(state, action: PayloadAction<string>) {
+      state.geminiModel = action.payload
+      saveToStorage(state)
+    },
     resetSettings(state) {
       state.thumbWidth = DEFAULTS.thumbWidth
       state.maxCachedFrames = DEFAULTS.maxCachedFrames
       state.theme = DEFAULTS.theme
-      // Keep the API key on reset — it's a credential, not a UI preference.
+      // Keep API keys on reset — credentials, not UI preferences.
       state.assistantModel = DEFAULTS.assistantModel
+      state.geminiModel = DEFAULTS.geminiModel
       saveToStorage(state)
     },
   },
@@ -109,6 +131,8 @@ export const {
   setTheme,
   setAnthropicApiKey,
   setAssistantModel,
+  setGeminiApiKey,
+  setGeminiModel,
   resetSettings,
 } = settingsSlice.actions
 export default settingsSlice.reducer

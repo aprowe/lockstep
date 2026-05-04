@@ -79,6 +79,17 @@ describe('assistant tool registry', () => {
     }
   })
 
+  it('gemini extension registers video tools', async () => {
+    await import('../../src/assistant')
+    const { listAllTools, listExtensions } = await import('../../src/assistant/registry')
+    const ids = listExtensions().map(e => e.id)
+    expect(ids).toContain('gemini')
+
+    const names = listAllTools().map(t => t.name)
+    expect(names).toContain('analyze_video')
+    expect(names).toContain('find_video_segments')
+  })
+
   it('every tool has an object input_schema', async () => {
     await import('../../src/assistant')
     const { listAllTools } = await import('../../src/assistant/registry')
