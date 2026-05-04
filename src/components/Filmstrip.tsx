@@ -9,6 +9,7 @@ import { setThumbnail, selectThumbnailPathsFor, selectStripFramesFor } from '../
 import { setFilmstripHeight } from '../store/slices/uiSlice'
 import { secondsToFrames } from '../utils/time'
 import { visibleSceneCuts } from '../utils/sceneFilter'
+import FilmstripOverlay from './FilmstripOverlay'
 import './Filmstrip.css'
 
 const SLOTS = 7
@@ -187,6 +188,17 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
         onMouseDown={handleResizeDown}
         role="separator"
         aria-label="Resize filmstrip"
+      />
+      <FilmstripOverlay
+        playheadFrame={Math.max(0, Math.min(
+          Math.max(0, Math.floor(video.duration * video.fps)),
+          secondsToFrames(playhead, video.fps),
+        ))}
+        fps={video.fps}
+        slots={SLOTS}
+        scenes={scenes}
+        markers={origAnchors}
+        onSeekFrame={onSeekFrame}
       />
       <div className="filmstrip" role="group" aria-label="Thumbnail filmstrip">
         {slots.map(({ frame, offset, inBounds, hasMarker }) => {

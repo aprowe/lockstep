@@ -1,0 +1,89 @@
+/* Thin overlay strip layered above the Filmstrip thumbnails.
+ *
+ * Layout: full-width relative box, fixed 14px tall. Symbols are
+ * absolute-positioned by % across that width, mirroring the 7-slot grid
+ * the filmstrip uses (so a tick at x=50% sits over the center slot). */
+.filmstrip-overlay {
+  position: relative;
+  width: 100%;
+  height: 14px;
+  flex-shrink: 0;
+  pointer-events: none; /* re-enabled per-symbol below */
+  user-select: none;
+}
+
+/* Faint divider stroke at the bottom so the gutter visually attaches to
+ * the thumbnails below it. */
+.filmstrip-overlay::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--border);
+  opacity: 0.5;
+}
+
+/* When there's nothing to show, drop the gutter to almost nothing — keeps
+ * the playhead caret visible without eating vertical space. */
+.filmstrip-overlay--empty {
+  height: 4px;
+}
+
+/* ── Scene cut: downward triangle ────────────────────────────────────── */
+.filmstrip-overlay__scene {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-left:  4.5px solid transparent;
+  border-right: 4.5px solid transparent;
+  border-top:   7px   solid var(--scene-cut, #d6b257);
+  transform: translateX(-50%);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: filter 0.1s, transform 0.1s;
+}
+.filmstrip-overlay__scene:hover {
+  filter: drop-shadow(0 0 3px var(--scene-cut, #d6b257));
+  transform: translateX(-50%) scale(1.15);
+}
+
+/* ── Marker tick: vertical bar ───────────────────────────────────────── */
+.filmstrip-overlay__marker {
+  position: absolute;
+  top: 1px;
+  bottom: 4px;
+  left: 0;
+  width: 2px;
+  padding: 0;
+  background: var(--space-input, #5d8aa8);
+  border: none;
+  border-radius: 1px;
+  transform: translateX(-50%);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: filter 0.1s, width 0.1s;
+}
+.filmstrip-overlay__marker:hover {
+  width: 3px;
+  filter: drop-shadow(0 0 2px var(--space-input, #5d8aa8));
+}
+
+/* ── Playhead caret ──────────────────────────────────────────────────── */
+.filmstrip-overlay__playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1.5px;
+  background: var(--accent, #d18a4d);
+  transform: translateX(-50%);
+  opacity: 0.85;
+  pointer-events: none;
+}
