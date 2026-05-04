@@ -49,6 +49,32 @@ pub fn video_duration(path: &str) -> Result<f64, String> {
         .ok_or_else(|| "ffprobe: missing duration".to_string())
 }
 
+/// Read the video's frame rate (fps) via ffprobe. Falls back to 30.0 if the
+/// stream doesn't report `r_frame_rate` or the value can't be parsed —
+/// matches the fallback in `video::get_video_info` so the two agree.
+pub fn video_fps(path: &str) -> Result<f64, String> {
+    let info = ffprobe_json(path)?;
+    let stream = info["streams"]
+        .as_array()
+        .and_then(|streams| streams.iter().find(|s| s["codec_type"] == "video"));
+    let fps = stream
+        .and_then(|s| s["r_frame_rate"].as_str())
+        .and_then(parse_frame_rate)
+        .unwrap_or(30.0);
+    Ok(fps)
+}
+
+fn parse_frame_rate(r: &str) -> Option<f64> {
+    let parts: Vec<&str> = r.split('/').collect();
+    if parts.len() == 2 {
+        let num: f64 = parts[0].parse().ok()?;
+        let den: f64 = parts[1].parse().ok()?;
+        if den > 0.0 { Some(num / den) } else { None }
+    } else {
+        r.parse().ok()
+    }
+}
+
 /// True if `path` contains at least one audio stream. RIFE'd videos are silent,
 /// so post-processing has to branch on this before asking ffmpeg for audio.
 pub fn has_audio_stream(path: &str) -> bool {

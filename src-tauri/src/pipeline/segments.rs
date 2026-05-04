@@ -30,18 +30,32 @@ pub struct SegmentPlan {
 }
 
 /// Walk the time map and produce one plan per interval. Skips degenerate
-/// (sub-millisecond) intervals silently — they'd produce zero-duration ffmpeg
-/// output and stall the concat demuxer.
+/// intervals silently — they'd produce zero-duration ffmpeg output and stall
+/// the concat demuxer.
+///
+/// `min_segment_duration` is the floor (in seconds) for both the input slice
+/// and the output slice. Caller passes `1.0 / source_fps` so sub-frame
+/// segments — which closely-spaced markers can produce — are dropped before
+/// they reach ffmpeg. Always clamped to at least 1ms so callers can pass 0
+/// without disabling the legacy hard floor.
 ///
 /// When `trigger_mode` is true, segments play at 1.0x from `in_start` until the
 /// next anchor trigger fires: the source is truncated if the output interval is
 /// shorter, or extended via `pad_dur` if longer. Otherwise the existing warp
 /// behaviour (ratio-stretched to fill `out_dur`) applies and `pad_dur` is 0.
-pub fn plan_segments(time_map: &TimeMap, trigger_mode: bool) -> Vec<SegmentPlan> {
+pub fn plan_segments(
+    time_map: &TimeMap,
+    trigger_mode: bool,
+    min_segment_duration: f64,
+) -> Vec<SegmentPlan> {
     let mut plans = Vec::new();
     if time_map.len() < 2 {
         return plans;
     }
+
+    // Hard floor: a sub-millisecond interval is numerical noise and would
+    // round to zero in ffmpeg's setpts/atempo, regardless of fps.
+    let min_dur = min_segment_duration.max(0.001);
 
     for i in 0..time_map.len() - 1 {
         let (in_start, out_start) = time_map[i];
@@ -49,7 +63,7 @@ pub fn plan_segments(time_map: &TimeMap, trigger_mode: bool) -> Vec<SegmentPlan>
         let in_dur = in_end - in_start;
         let out_dur = out_end - out_start;
 
-        if in_dur <= 0.001 || out_dur <= 0.001 {
+        if in_dur < min_dur || out_dur < min_dur {
             continue;
         }
 
@@ -223,16 +237,20 @@ where
 mod tests {
     use super::*;
 
+    /// Default min: 1ms, matching the legacy hard floor before issue #14.
+    /// Tests that exercise the fps-derived floor pass it explicitly.
+    const MIN_DUR_MS: f64 = 0.001;
+
     #[test]
     fn empty_or_single_point_map_produces_no_plans() {
-        assert!(plan_segments(&vec![], false).is_empty());
-        assert!(plan_segments(&vec![(0.0, 0.0)], false).is_empty());
+        assert!(plan_segments(&vec![], false, MIN_DUR_MS).is_empty());
+        assert!(plan_segments(&vec![(0.0, 0.0)], false, MIN_DUR_MS).is_empty());
     }
 
     #[test]
     fn ratio_is_out_over_in() {
         // 1s source → 2s output = 2× stretch.
-        let plans = plan_segments(&vec![(0.0, 0.0), (1.0, 2.0)], false);
+        let plans = plan_segments(&vec![(0.0, 0.0), (1.0, 2.0)], false, MIN_DUR_MS);
         assert_eq!(plans.len(), 1);
         assert!((plans[0].ratio - 2.0).abs() < 1e-9);
         assert!((plans[0].in_dur - 1.0).abs() < 1e-9);
@@ -243,8 +261,8 @@ mod tests {
     #[test]
     fn extreme_ratios_are_clamped_to_atempo_range() {
         // 4× and 0.25× both exceed atempo's 0.5–2.0 window.
-        let fast = plan_segments(&vec![(0.0, 0.0), (1.0, 0.25)], false);
-        let slow = plan_segments(&vec![(0.0, 0.0), (1.0, 4.0)], false);
+        let fast = plan_segments(&vec![(0.0, 0.0), (1.0, 0.25)], false, MIN_DUR_MS);
+        let slow = plan_segments(&vec![(0.0, 0.0), (1.0, 4.0)], false, MIN_DUR_MS);
         assert!((fast[0].ratio - 0.5).abs() < 1e-9);
         assert!((slow[0].ratio - 2.0).abs() < 1e-9);
     }
@@ -258,6 +276,7 @@ mod tests {
                 (1.0, 1.5),
             ],
             false,
+            MIN_DUR_MS,
         );
         assert_eq!(plans.len(), 1);
         assert_eq!(plans[0].idx, 1);
@@ -274,14 +293,70 @@ mod tests {
                 (2.0, 3.0),
             ],
             false,
+            MIN_DUR_MS,
         );
         assert_eq!(plans.iter().map(|p| p.idx).collect::<Vec<_>>(), vec![0, 2]);
     }
 
     #[test]
+    fn subframe_input_intervals_are_skipped_at_24fps() {
+        // 24fps → 1/24 ≈ 41.67ms minimum. The middle interval is 30ms wide
+        // on the input side, which is sub-frame and would round to a
+        // zero-frame intermediate file.
+        let one_frame_at_24 = 1.0 / 24.0;
+        let plans = plan_segments(
+            &vec![
+                (0.000, 0.000),
+                (0.500, 0.500),
+                (0.530, 0.560), // 30ms input — sub-frame at 24fps, drop
+                (1.500, 1.700),
+            ],
+            false,
+            one_frame_at_24,
+        );
+        let idxs: Vec<usize> = plans.iter().map(|p| p.idx).collect();
+        assert_eq!(idxs, vec![0, 2], "sub-frame middle segment must be filtered out");
+    }
+
+    #[test]
+    fn subframe_output_intervals_are_skipped() {
+        // Input is fine but the output interval is sub-frame at 24fps —
+        // the segment would still produce zero frames after retiming.
+        let one_frame_at_24 = 1.0 / 24.0;
+        let plans = plan_segments(
+            &vec![
+                (0.000, 0.000),
+                (0.500, 0.020), // out_dur = 20ms, sub-frame → drop
+                (1.000, 1.000),
+            ],
+            false,
+            one_frame_at_24,
+        );
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].idx, 1);
+    }
+
+    #[test]
+    fn frame_threshold_below_legacy_floor_does_not_disable_it() {
+        // Caller passes 0 (or anything < 1ms). The 1ms hard floor must
+        // still apply — sub-millisecond intervals aren't safe regardless.
+        let plans = plan_segments(
+            &vec![
+                (0.0, 0.0),
+                (0.0005, 0.0005), // 0.5ms, below hard floor
+                (1.0, 1.0),
+            ],
+            false,
+            0.0,
+        );
+        assert_eq!(plans.len(), 1);
+        assert_eq!(plans[0].idx, 1);
+    }
+
+    #[test]
     fn trigger_mode_truncates_source_when_output_shorter() {
         // 2s source interval → 1s output. Trigger mode plays 1s at 1.0x, no pad.
-        let plans = plan_segments(&vec![(0.0, 0.0), (2.0, 1.0)], true);
+        let plans = plan_segments(&vec![(0.0, 0.0), (2.0, 1.0)], true, MIN_DUR_MS);
         assert_eq!(plans.len(), 1);
         assert_eq!(plans[0].ratio, 1.0);
         assert!((plans[0].in_dur - 1.0).abs() < 1e-9);
@@ -291,7 +366,7 @@ mod tests {
     #[test]
     fn trigger_mode_pads_when_output_longer() {
         // 1s source interval → 2s output. Trigger mode plays 1s at 1.0x, pads 1s.
-        let plans = plan_segments(&vec![(0.0, 0.0), (1.0, 2.0)], true);
+        let plans = plan_segments(&vec![(0.0, 0.0), (1.0, 2.0)], true, MIN_DUR_MS);
         assert_eq!(plans.len(), 1);
         assert_eq!(plans[0].ratio, 1.0);
         assert!((plans[0].in_dur - 1.0).abs() < 1e-9);
