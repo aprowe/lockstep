@@ -165,6 +165,22 @@ export function IconZoomToRegion({ size = 24, ...props }: IconProps) {
   );
 }
 
+// ── BPM ───────────────────────────────────────────────────────────────────────
+//
+// Auto-detect BPM lives in the toolbar's create cluster — metronome silhouette
+// (trapezoid base + pendulum arm) with a small sparkle reading as "auto".
+export function IconDetectBpm({ size = 24, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M8,4 L13,4 L15.5,18 L5.5,18 Z" fill="currentColor" fillOpacity="0.12" />
+      <line x1="10.5" y1="14" x2="14" y2="6" strokeWidth="1.6" />
+      <circle cx="10.5" cy="14" r="0.9" fill="currentColor" stroke="none" />
+      <path d="M19,3 L19,7 M17,5 L21,5" strokeWidth="1.4" />
+      <circle cx="19" cy="10.5" r="0.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 // ── Scenes ────────────────────────────────────────────────────────────────────
 
 export function IconCreateScene({ size = 24, ...props }: IconProps) {

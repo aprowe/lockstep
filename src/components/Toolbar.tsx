@@ -8,6 +8,7 @@ import {
   IconGoToRegionStart, IconGoToRegionEnd,
   IconPrevRegion, IconNextRegion, IconZoomToRegion,
   IconCreateScene, IconPrevScene, IconNextScene,
+  IconDetectBpm,
 } from './icons'
 import { secondsToFrames } from '../utils/time'
 import { tooltipFor } from '../hotkeys'
@@ -54,6 +55,13 @@ interface ToolbarProps {
   onNewScene?: () => void
   onPrevScene?: () => void
   onNextScene?: () => void
+  /** Triggers BPM auto-detect against the markers in the active region.
+   *  When omitted, the button is hidden. */
+  onDetectBpm?: () => void
+  /** True while a detect run is in flight — button shows a pulsing state. */
+  detectingBpm?: boolean
+  /** When true, the button is disabled (e.g. fewer than 2 markers). */
+  detectBpmDisabled?: boolean
   /** Beat position of the playhead — relative to the active region's
    *  in-point if there is one, else to the warp's beat-zero. Null when
    *  no BPM is set yet. */
@@ -64,7 +72,9 @@ export default function Toolbar({
   playerRef, duration, fps, playing, currentTime,
   onMark, onJumpPrev, onJumpNext, onZoomToRegion, onSetIn, onSetOut,
   gridDiv, onGridDivChange, onNewRegion, onPrevRegion, onNextRegion, onJumpRegionStart, onJumpRegionEnd, onDeleteRegion,
-  onNewScene, onPrevScene, onNextScene, currentBeat,
+  onNewScene, onPrevScene, onNextScene,
+  onDetectBpm, detectingBpm, detectBpmDisabled,
+  currentBeat,
 }: ToolbarProps) {
   const [speed, setSpeed] = useState(1)
   const [editingFrame, setEditingFrame] = useState(false)
@@ -136,6 +146,23 @@ export default function Toolbar({
           <button data-layout-id="new-scene" className="tb-btn tb-btn--scene" onClick={onNewScene} disabled={!onNewScene} title="New scene marker at playhead">
             <IconCreateScene size={22} />
           </button>
+          {onDetectBpm && (
+            <button
+              data-layout-id="detect-bpm"
+              data-testid="detect-bpm"
+              className={`tb-btn tb-btn--bpm-detect${detectingBpm ? ' tb-btn--bpm-detect--running' : ''}`}
+              onClick={onDetectBpm}
+              disabled={!!detectBpmDisabled || !!detectingBpm}
+              title={detectBpmDisabled
+                ? 'Place at least 2 markers to detect BPM'
+                : detectingBpm
+                  ? 'Detecting BPM…'
+                  : 'Detect BPM from markers'}
+              aria-label="Detect BPM from markers"
+            >
+              <IconDetectBpm size={22} />
+            </button>
+          )}
         </div>
 
         <div data-layout-sep className="tb-sep" />

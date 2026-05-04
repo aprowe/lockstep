@@ -21,6 +21,7 @@ groups:
   - - New Marker
     - New Region
     - New Scene
+    - { id: detect-bpm, label: Detect BPM }
 
   - - Set In Region
     - Set Out Region

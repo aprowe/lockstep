@@ -111,6 +111,8 @@
 .tb-btn--nav-marker  { --btn-color: var(--space-input); }
 .tb-btn--nav-region  { --btn-color: var(--error); }
 .tb-btn--nav-scene   { --btn-color: var(--scene-cut); }
+/* BPM-detect inherits the region red — BPM is a per-region property. */
+.tb-btn--bpm-detect  { --btn-color: var(--error); }
 
 /* All item-hued buttons share the same full-color treatment — `--btn-color`
  * comes from the per-button modifier and drives icon, border tint, hover bg. */
@@ -120,7 +122,8 @@
 .tb-btn--inout,
 .tb-btn--nav-marker,
 .tb-btn--nav-region,
-.tb-btn--nav-scene {
+.tb-btn--nav-scene,
+.tb-btn--bpm-detect {
   color: var(--btn-color);
   border-color: color-mix(in srgb, var(--btn-color) 38%, transparent);
   letter-spacing: 0.05em;
@@ -131,9 +134,20 @@
 .tb-btn--inout:hover:not(:disabled),
 .tb-btn--nav-marker:hover:not(:disabled),
 .tb-btn--nav-region:hover:not(:disabled),
-.tb-btn--nav-scene:hover:not(:disabled) {
+.tb-btn--nav-scene:hover:not(:disabled),
+.tb-btn--bpm-detect:hover:not(:disabled) {
   background: color-mix(in srgb, var(--btn-color) 12%, transparent);
   color: color-mix(in srgb, var(--btn-color) 60%, white);
+}
+
+/* Pulsing icon while a detect run is in flight — tells the user the
+ * (potentially seconds-long) ffprobe / estimate_bpm round-trip is alive. */
+.tb-btn--bpm-detect--running > svg {
+  animation: tb-btn--bpm-detect-pulse 0.9s ease-in-out infinite;
+}
+@keyframes tb-btn--bpm-detect-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1.0; }
 }
 
 .tb-btn--tap {

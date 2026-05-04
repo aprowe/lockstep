@@ -170,6 +170,10 @@
             {
               "id": "new-scene",
               "label": "New Scene"
+            },
+            {
+              "id": "detect-bpm",
+              "label": "Detect BPM"
             }
           ]
         },

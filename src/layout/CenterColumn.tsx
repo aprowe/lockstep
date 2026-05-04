@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import VideoPlayer from '../components/VideoPlayer'
 import Filmstrip from '../components/Filmstrip'
 import WarpView from '../components/WarpView'
@@ -11,6 +11,7 @@ import {
   newAnchorId,
   removeAnchors as removeAnchorsAction,
   setSelectedIds as setSelectedAnchorIdsAction,
+  setBpm as setBpmAction,
 } from '../store/slices/warpSlice'
 import {
   addRegion as addRegionAction,
@@ -108,6 +109,23 @@ export default function CenterColumn() {
   const selectedSceneCutSet = useMemo(
     () => new Set(selectedSceneCutTimes), [selectedSceneCutTimes],
   )
+
+  // BPM auto-detect: estimates BPM from the active marker set. Same logic
+  // the Clip Info panel uses, surfaced as a one-click toolbar button per
+  // issue #23. Disabled until at least 2 markers exist (estimate_bpm needs
+  // ≥2 to compute an interval).
+  const [detectingBpm, setDetectingBpm] = useState(false)
+  const detectBpmDisabled = origAnchors.length < 2
+  const handleDetectBpm = useCallback(async () => {
+    if (origAnchors.length < 2) return
+    setDetectingBpm(true)
+    try {
+      const { analyzeAnchors } = await import('../api/warp')
+      const data = await analyzeAnchors(origAnchors.map(a => a.time))
+      if (data.bpm && data.bpm > 0) dispatch(setBpmAction(data.bpm))
+    } catch { /* ignore — best effort */ }
+    setDetectingBpm(false)
+  }, [origAnchors, dispatch])
 
   // Delete the union of every timeline-side selection in one shot. Fires
   // from Delete / Backspace when the timeline root has keyboard focus.
@@ -344,6 +362,9 @@ export default function CenterColumn() {
           const next = [...filteredSceneCuts].sort((a, b) => a - b).find(t => t > playhead + 0.001)
           if (next !== undefined) playerRef.current?.seek(next)
         } : undefined}
+        onDetectBpm={handleDetectBpm}
+        detectingBpm={detectingBpm}
+        detectBpmDisabled={detectBpmDisabled}
         currentBeat={(() => {
           const bpm = warpData?.bpm ?? 0
           if (bpm <= 0) return null

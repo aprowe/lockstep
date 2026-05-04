@@ -37,6 +37,7 @@ export function renderToolbar(overrides: RenderToolbarOptions = {}): RenderResul
     onNewRegion: () => {},
     onJumpRegionStart: () => {},
     onJumpRegionEnd: () => {},
+    onDetectBpm: () => {},
   }
 
   return render(
