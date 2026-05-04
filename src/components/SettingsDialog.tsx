@@ -6,6 +6,8 @@ import {
   setTheme,
   setAnthropicApiKey,
   setAssistantModel,
+  setGeminiApiKey,
+  setGeminiModel,
   resetSettings,
   THEMES,
   type Theme,
@@ -17,6 +19,11 @@ const ASSISTANT_MODELS: Array<{ id: string; label: string }> = [
   { id: 'claude-opus-4-7',           label: 'Claude Opus 4.7 (most capable)' },
   { id: 'claude-sonnet-4-6',         label: 'Claude Sonnet 4.6 (balanced)' },
   { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5 (fast)' },
+]
+
+const GEMINI_MODELS: Array<{ id: string; label: string }> = [
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (fast, cheap)' },
+  { id: 'gemini-2.5-pro',   label: 'Gemini 2.5 Pro (more accurate)' },
 ]
 
 /** Rough JPEG-on-disk estimate. ffmpeg encodes thumbs at -q:v 5 which lands
@@ -58,9 +65,12 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const theme = useAppSelector(s => s.settings.theme)
   const apiKey = useAppSelector(s => s.settings.anthropicApiKey)
   const assistantModel = useAppSelector(s => s.settings.assistantModel)
+  const geminiKey = useAppSelector(s => s.settings.geminiApiKey)
+  const geminiModel = useAppSelector(s => s.settings.geminiModel)
   const [clearing, setClearing] = useState(false)
   const [cleared, setCleared] = useState(false)
   const [showKey, setShowKey] = useState(false)
+  const [showGeminiKey, setShowGeminiKey] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -224,6 +234,54 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                   onChange={e => dispatch(setAssistantModel(e.target.value))}
                 >
                   {ASSISTANT_MODELS.map(m => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="settings-row">
+              <label className="settings-row__label">
+                <span className="settings-row__title">Gemini API key</span>
+                <span className="settings-row__hint">
+                  Optional. When set, the assistant can hand whole videos to
+                  Gemini for native temporal queries (e.g. "find scenes with
+                  horses") instead of analyzing frames one at a time.
+                </span>
+              </label>
+              <div className="settings-row__control">
+                <input
+                  type={showGeminiKey ? 'text' : 'password'}
+                  className="settings-text-input"
+                  value={geminiKey}
+                  onChange={e => dispatch(setGeminiApiKey(e.target.value))}
+                  placeholder="AIza…"
+                  spellCheck={false}
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  className="settings-btn settings-btn--ghost"
+                  onClick={() => setShowGeminiKey(s => !s)}
+                  title={showGeminiKey ? 'Hide key' : 'Show key'}
+                >
+                  {showGeminiKey ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+
+            <div className="settings-row">
+              <label className="settings-row__label">
+                <span className="settings-row__title">Gemini model</span>
+                <span className="settings-row__hint">Used by analyze_video / find_video_segments tools.</span>
+              </label>
+              <div className="settings-row__control">
+                <select
+                  className="settings-select"
+                  value={geminiModel}
+                  onChange={e => dispatch(setGeminiModel(e.target.value))}
+                >
+                  {GEMINI_MODELS.map(m => (
                     <option key={m.id} value={m.id}>{m.label}</option>
                   ))}
                 </select>
