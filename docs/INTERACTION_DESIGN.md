@@ -6,7 +6,7 @@
 > open. This doc is meant to be the single place we make the decisions
 > before sprinkling them across panels.
 >
-> Earlier draft: `docs/SELECTION_DESIGN.md` (superseded by this).
+> Earlier draft existed at `docs/SELECTION_DESIGN.md` (deleted; this doc supersedes it).
 
 ## Surfaces
 
