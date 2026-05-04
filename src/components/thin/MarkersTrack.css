@@ -111,3 +111,44 @@
 .thin-markers__body--input .thin-marker--selected::after {
   border-top-color: var(--marker-selected);
 }
+
+/* ── Hit flash ────────────────────────────────────────────────────────────────
+ * Brief bloom when the playhead crosses a marker during playback (issue #10).
+ * Triangle pulses bigger with a colored glow; stem briefly takes the lighter
+ * hover hue. Animation is short enough (~380ms) that hits during fast playback
+ * still read individually. The React side removes the modifier on
+ * `animationend`, so re-hits during the same animation simply ride out the
+ * existing one — fine, since the playhead can't cross the same marker twice
+ * within the animation window in normal playback. */
+.thin-marker--flash::after {
+  animation: thin-marker-hit 380ms ease-out;
+}
+.thin-marker--flash::before {
+  animation: thin-marker-stem-hit 380ms ease-out;
+}
+
+@keyframes thin-marker-hit {
+  0%   { transform: translateX(-50%) scale(1);    filter: drop-shadow(0 0 0   var(--marker-color)); }
+  30%  { transform: translateX(-50%) scale(1.55); filter: drop-shadow(0 0 6px var(--marker-color)); }
+  100% { transform: translateX(-50%) scale(1);    filter: drop-shadow(0 0 0   var(--marker-color)); }
+}
+
+@keyframes thin-marker-stem-hit {
+  0%, 100% { background: var(--marker-color); }
+  30%      { background: var(--marker-hover); }
+}
+
+/* Reduced-motion: skip the scale pulse but still flash a short color blip so
+ * the user gets a hit confirmation without the bouncy animation. */
+@media (prefers-reduced-motion: reduce) {
+  .thin-marker--flash::after {
+    animation: thin-marker-hit-reduced 250ms ease-out;
+  }
+  .thin-marker--flash::before {
+    animation: thin-marker-stem-hit 250ms ease-out;
+  }
+  @keyframes thin-marker-hit-reduced {
+    0%, 100% { filter: drop-shadow(0 0 0   var(--marker-color)); }
+    50%      { filter: drop-shadow(0 0 4px var(--marker-color)); }
+  }
+}

@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Anchor, View } from '../../types'
 import { timeToViewPct } from '../../utils/view'
 import { computeSnap, pixelsToSeconds, type SnapTarget } from '../../utils/snap'
@@ -6,6 +6,15 @@ import { gesture, type Space } from '../../store/gesture'
 import TrackRow from './TrackRow'
 import type { RegionBlock } from './RegionBand'
 import './MarkersTrack.css'
+
+/// Don't fire the flash for jumps larger than this — keeps loops, scrubs,
+/// and seeks during play from lighting up the entire track.
+const MAX_CROSS_SECONDS = 1.0
+
+/// Stable empty default for the `flashing` state. Sharing one frozen Set
+/// across renders keeps the empty case from re-rendering downstream consumers
+/// just because the identity changed.
+const EMPTY_FLASH_SET: ReadonlySet<number> = new Set()
 
 interface MarkersTrackProps {
   anchors: Anchor[]
@@ -20,6 +29,13 @@ interface MarkersTrackProps {
   /** Which timeline space this track edits — drives which side of the
    *  gesture store receives snap-hint / drag-time publishes. */
   space: Space
+  /** Current playhead position in this track's space (source seconds for
+   *  the input track, beat seconds for the output track). When omitted the
+   *  hit-flash is disabled entirely. */
+  playhead?: number
+  /** True while the video is actively playing — gates the marker hit flash
+   *  so scrubbing the playhead doesn't trigger it. */
+  playing?: boolean
   /** Grid snap interval (seconds). Typically one beat. */
   snapInterval?: number
   snapOffset?: number
@@ -69,6 +85,8 @@ export default function MarkersTrack({
   linkedIds,
   label = 'Markers',
   space,
+  playhead,
+  playing,
   snapInterval, snapOffset = 0, snapTargets,
   onSeek, onAdd, onDelete, onSelect, onContextMenu, onBackgroundContextMenu, onAnchorsChange,
   regions,
@@ -76,6 +94,50 @@ export default function MarkersTrack({
   const bodyRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<DragState | null>(null)
   const anchorsRef = useRef(anchors); anchorsRef.current = anchors
+
+  // ── Hit flash ──────────────────────────────────────────────────────────────
+  // Issue #10: when playback rolls the playhead across a marker, briefly
+  // light it up so the user gets a visual confirmation that the moment is
+  // landing. Crossing detection: any anchor whose time falls inside
+  // (min(prev, cur), max(prev, cur)] — direction-agnostic so reverse
+  // playback (if we add it) lights up too. Disabled while paused so
+  // scrubbing doesn't flash.
+  const [flashing, setFlashing] = useState<ReadonlySet<number>>(EMPTY_FLASH_SET)
+  const prevPlayheadRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const prev = prevPlayheadRef.current
+    prevPlayheadRef.current = playhead ?? null
+    if (!playing || playhead == null || prev == null) return
+    const lo = Math.min(prev, playhead)
+    const hi = Math.max(prev, playhead)
+    if (hi - lo > MAX_CROSS_SECONDS) return
+    if (hi <= lo) return
+    let crossed: number[] | null = null
+    for (const a of anchorsRef.current) {
+      if (a.time > lo && a.time <= hi) {
+        if (!crossed) crossed = []
+        crossed.push(a.id)
+      }
+    }
+    if (!crossed) return
+    setFlashing(prev => {
+      const next = new Set(prev)
+      for (const id of crossed!) next.add(id)
+      return next
+    })
+  }, [playhead, playing])
+
+  // Drop the flash class when the CSS animation finishes — relying on
+  // animationend keeps the timer in CSS, no rAF/setTimeout machinery.
+  const handleFlashAnimationEnd = useCallback((id: number) => {
+    setFlashing(prev => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+  }, [])
 
   // rAF-coalesce drag dispatches. Pointer-move events can fire at 120+Hz on
   // high-refresh displays, but we only need one dispatch per repaint. The
@@ -291,11 +353,16 @@ export default function MarkersTrack({
           if (!isDragged && (x < -1 || x > 101)) return null
           const selected = selectedIds.has(a.id)
           const unlinked = linkedIds !== undefined && !linkedIds.has(a.id)
+          const flash = flashing.has(a.id)
+          const className = `thin-marker`
+            + (selected ? ' thin-marker--selected' : '')
+            + (unlinked ? ' thin-marker--unlinked' : '')
+            + (flash ? ' thin-marker--flash' : '')
           return (
             <button
               key={a.id}
               type="button"
-              className={`thin-marker${selected ? ' thin-marker--selected' : ''}${unlinked ? ' thin-marker--unlinked' : ''}`}
+              className={className}
               style={{ left: `${x}%` }}
               title={`Marker @ ${a.time.toFixed(3)}s`}
               onPointerDown={(e) => onMarkerPointerDown(e, a)}
@@ -306,6 +373,7 @@ export default function MarkersTrack({
               onDoubleClick={(e) => onMarkerDoubleClick(e, a)}
               onMouseEnter={() => gesture.setHoveredAnchor(a.id)}
               onMouseLeave={() => gesture.setHoveredAnchor(null)}
+              onAnimationEnd={flash ? () => handleFlashAnimationEnd(a.id) : undefined}
               onContextMenu={(e) => {
                 if (!onContextMenu) return
                 e.preventDefault(); e.stopPropagation()

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { cleanup, fireEvent, render } from '@testing-library/react/pure'
+import { cleanup, fireEvent, render, act } from '@testing-library/react/pure'
 import MarkersTrack from '../../../src/components/thin/MarkersTrack'
 import BarsTrack from '../../../src/components/thin/BarsTrack'
 import BeatsTrack from '../../../src/components/thin/BeatsTrack'
@@ -96,6 +96,129 @@ describe('thin tracks', () => {
       fireEvent.click(marker, { shiftKey: true })
       expect(onDelete).toHaveBeenCalledWith(3)
       expect(onSeek).not.toHaveBeenCalled()
+    })
+
+    // ── Hit flash (issue #10) ──────────────────────────────────────────────
+
+    it('flashes the marker that the playhead crosses while playing', async () => {
+      const anchors = [
+        { id: 1, time: 10 },
+        { id: 2, time: 50 },
+        { id: 3, time: 90 },
+      ]
+      // Initial render seeds the prev-playhead ref at t=49.9 — realistic
+      // playback dt is ~16ms, well below the 1s sanity threshold.
+      let rerender!: (ui: React.ReactElement) => void
+      let container!: HTMLElement
+      await act(async () => {
+        const r = render(
+          <MarkersTrack
+            space="input"
+            anchors={anchors}
+            view={VIEW}
+            duration={100}
+            selectedIds={new Set()}
+            playhead={49.9}
+            playing
+          />,
+        )
+        rerender = r.rerender
+        container = r.container
+      })
+      // Step the playhead forward across anchor 2 (at t=50).
+      await act(async () => {
+        rerender(
+          <MarkersTrack
+            space="input"
+            anchors={anchors}
+            view={VIEW}
+            duration={100}
+            selectedIds={new Set()}
+            playhead={50.1}
+            playing
+          />,
+        )
+      })
+      const flashing = container.querySelectorAll('.thin-marker--flash')
+      expect(flashing.length).toBe(1)
+      // Anchors are rendered in input order; index 1 is id=2.
+      expect((flashing[0] as HTMLElement).style.left).toBe('50%')
+    })
+
+    it('does not flash while paused (i.e. scrubbing)', async () => {
+      const anchors = [{ id: 2, time: 50 }]
+      let rerender!: (ui: React.ReactElement) => void
+      let container!: HTMLElement
+      await act(async () => {
+        const r = render(
+          <MarkersTrack
+            space="input"
+            anchors={anchors}
+            view={VIEW}
+            duration={100}
+            selectedIds={new Set()}
+            playhead={49.9}
+            playing={false}
+          />,
+        )
+        rerender = r.rerender
+        container = r.container
+      })
+      await act(async () => {
+        rerender(
+          <MarkersTrack
+            space="input"
+            anchors={anchors}
+            view={VIEW}
+            duration={100}
+            selectedIds={new Set()}
+            playhead={50.1}
+            playing={false}
+          />,
+        )
+      })
+      expect(container.querySelectorAll('.thin-marker--flash').length).toBe(0)
+    })
+
+    it('does not flash for large jumps (loop / seek-during-play)', async () => {
+      // Anchors all over the timeline; jumping from t=0 → t=99 simulates a
+      // loop wrap, which should NOT light up every marker.
+      const anchors = [
+        { id: 1, time: 10 },
+        { id: 2, time: 50 },
+        { id: 3, time: 90 },
+      ]
+      let rerender!: (ui: React.ReactElement) => void
+      let container!: HTMLElement
+      await act(async () => {
+        const r = render(
+          <MarkersTrack
+            space="input"
+            anchors={anchors}
+            view={VIEW}
+            duration={100}
+            selectedIds={new Set()}
+            playhead={0}
+            playing
+          />,
+        )
+        rerender = r.rerender
+        container = r.container
+      })
+      await act(async () => {
+        rerender(
+          <MarkersTrack
+            space="input"
+            anchors={anchors}
+            view={VIEW}
+            duration={100}
+            selectedIds={new Set()}
+            playhead={99}
+            playing
+          />,
+        )
+      })
+      expect(container.querySelectorAll('.thin-marker--flash').length).toBe(0)
     })
   })
 

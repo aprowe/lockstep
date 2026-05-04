@@ -227,6 +227,9 @@ export default function ThinTimeline({
   const dispatch = useAppDispatch()
   const videoFileHash = useAppSelector(s => s.video.video?.fileHash)
   const videoFps = useAppSelector(s => s.video.video?.fps ?? 0)
+  // Drives the marker hit flash — only fires while actually playing, not
+  // while scrubbing. See MarkersTrack#flashing.
+  const playing = useAppSelector(s => s.ui.playing)
   const lastHoverSigRef = useRef<string>('')
   useEffect(() => {
     if (!videoFileHash || videoFps <= 0) return
@@ -906,6 +909,8 @@ export default function ThinTimeline({
         anchors={anchors}
         view={view}
         duration={duration}
+        playhead={playhead}
+        playing={playing}
         selectedIds={selectedAnchorIds}
         snapTargets={snapTargetsInput}
         regions={regions}
@@ -965,6 +970,8 @@ export default function ThinTimeline({
           linkedIds={linkedBeatIds}
           view={view}
           duration={outputDuration}
+          playhead={beatPlayhead ?? playhead}
+          playing={playing}
           selectedIds={selectedAnchorIds}
           snapInterval={snapInterval}
           snapOffset={snapOffset}
