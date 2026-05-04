@@ -17,6 +17,7 @@ import ClipInfoPanel from './panels/ClipInfoPanel'
 import ScenesPanel from './panels/ScenesPanel'
 import MarkersPanel from './panels/MarkersPanel'
 import VideoInfoPanel from './panels/VideoInfoPanel'
+import AssistantPanelDock from './panels/AssistantPanel'
 import CenterColumn from './CenterColumn'
 
 // ── Component registry ─────────────────────────────────────────────────────
@@ -31,6 +32,7 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps>> =
   scenes: () => <ScenesPanel />,
   markers: () => <MarkersPanel />,
   'video-info': () => <VideoInfoPanel />,
+  assistant: () => <AssistantPanelDock />,
   center: () => <CenterColumn />,
 }
 
@@ -41,10 +43,11 @@ const PANEL_TITLES: Record<string, string> = {
   scenes: 'Scenes',
   markers: 'Markers',
   'video-info': 'Video Info',
+  assistant: 'Assistant',
   center: 'Player',
 }
 
-const SIDE_PANEL_IDS = ['files', 'clips', 'clip-info', 'scenes', 'markers', 'video-info'] as const
+const SIDE_PANEL_IDS = ['files', 'clips', 'clip-info', 'scenes', 'markers', 'video-info', 'assistant'] as const
 
 const STORAGE_KEY = 'lockstep:panel-layout:v3'
 

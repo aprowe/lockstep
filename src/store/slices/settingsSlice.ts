@@ -21,12 +21,20 @@ interface SettingsState {
   /** Active color theme. The active theme name is reflected onto
    *  `<html data-theme="…">` by App.tsx so theme tokens cascade. */
   theme: Theme
+  /** Anthropic API key for the in-app assistant panel. Stored locally only
+   *  (localStorage); never logged or transmitted anywhere besides
+   *  api.anthropic.com when the user actually sends a query. */
+  anthropicApiKey: string
+  /** Claude model id used by the assistant. Defaults to the latest opus. */
+  assistantModel: string
 }
 
 const DEFAULTS: SettingsState = {
   thumbWidth: 120,
   maxCachedFrames: 2000,
   theme: 'obsidian-bloom',
+  anthropicApiKey: '',
+  assistantModel: 'claude-opus-4-7',
 }
 
 const STORAGE_KEY = 'lockstep.settings.v1'
@@ -44,6 +52,10 @@ function loadFromStorage(): SettingsState {
       thumbWidth: typeof parsed.thumbWidth === 'number' ? parsed.thumbWidth : DEFAULTS.thumbWidth,
       maxCachedFrames: typeof parsed.maxCachedFrames === 'number' ? parsed.maxCachedFrames : DEFAULTS.maxCachedFrames,
       theme: isTheme(parsed.theme) ? parsed.theme : DEFAULTS.theme,
+      anthropicApiKey: typeof parsed.anthropicApiKey === 'string' ? parsed.anthropicApiKey : DEFAULTS.anthropicApiKey,
+      assistantModel: typeof parsed.assistantModel === 'string' && parsed.assistantModel.length > 0
+        ? parsed.assistantModel
+        : DEFAULTS.assistantModel,
     }
   } catch {
     return DEFAULTS
@@ -72,14 +84,31 @@ const settingsSlice = createSlice({
       state.theme = action.payload
       saveToStorage(state)
     },
+    setAnthropicApiKey(state, action: PayloadAction<string>) {
+      state.anthropicApiKey = action.payload
+      saveToStorage(state)
+    },
+    setAssistantModel(state, action: PayloadAction<string>) {
+      state.assistantModel = action.payload
+      saveToStorage(state)
+    },
     resetSettings(state) {
       state.thumbWidth = DEFAULTS.thumbWidth
       state.maxCachedFrames = DEFAULTS.maxCachedFrames
       state.theme = DEFAULTS.theme
+      // Keep the API key on reset — it's a credential, not a UI preference.
+      state.assistantModel = DEFAULTS.assistantModel
       saveToStorage(state)
     },
   },
 })
 
-export const { setThumbWidth, setMaxCachedFrames, setTheme, resetSettings } = settingsSlice.actions
+export const {
+  setThumbWidth,
+  setMaxCachedFrames,
+  setTheme,
+  setAnthropicApiKey,
+  setAssistantModel,
+  resetSettings,
+} = settingsSlice.actions
 export default settingsSlice.reducer
