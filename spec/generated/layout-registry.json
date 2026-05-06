@@ -232,6 +232,10 @@
               "label": "Next Frame"
             },
             {
+              "id": "playback-loop-mode",
+              "label": "Playback Loop Mode"
+            },
+            {
               "id": "play-time",
               "label": "Play Time"
             },

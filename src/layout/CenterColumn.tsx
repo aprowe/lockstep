@@ -25,6 +25,8 @@ import {
   setView as setViewAction,
   setTimelineHeight as setTimelineHeightAction,
   setGridDiv as setGridDivAction,
+  setPlaybackLoopMode as setPlaybackLoopModeAction,
+  type PlaybackLoopMode,
 } from '../store/slices/uiSlice'
 import { openFileThunk } from '../store/thunks/videoThunks'
 import {
@@ -65,6 +67,7 @@ export default function CenterColumn() {
   const videoPath = video?.path ?? null
   const playhead = useAppSelector(s => s.warp.playhead)
   const playing = useAppSelector(s => s.ui.playing)
+  const playbackLoopMode = useAppSelector(s => s.ui.playbackLoopMode)
   const view = useAppSelector(s => s.ui.view)
   const timelineHeight = useAppSelector(s => s.ui.timelineHeight)
   const gridDiv = useAppSelector(s => s.ui.gridDiv)
@@ -240,7 +243,30 @@ export default function CenterColumn() {
             ref={playerRef}
             src={video.videoUrl}
             duration={video.duration}
-            onTimeUpdate={t => dispatch(setPlayheadAction(t))}
+            onTimeUpdate={t => {
+              // Apply the playback loop mode at the active region's outPoint
+              // (or video duration when no region is active). The HTML5 video
+              // element keeps rolling past the end on its own — we intercept
+              // here, *before* publishing the playhead, so the timeline
+              // doesn't overshoot the boundary even for a frame.
+              if (playbackLoopMode !== 'continue' && playing) {
+                const inPoint  = activeRegion?.inPoint  ?? 0
+                const outPoint = activeRegion?.outPoint ?? video.duration
+                if (t >= outPoint - 0.001 && outPoint > inPoint) {
+                  if (playbackLoopMode === 'loop') {
+                    playerRef.current?.seek(inPoint)
+                    dispatch(setPlayheadAction(inPoint))
+                    return
+                  }
+                  // 'stop' — pause at the boundary, snap the playhead exactly.
+                  playerRef.current?.pause()
+                  playerRef.current?.seek(outPoint)
+                  dispatch(setPlayheadAction(outPoint))
+                  return
+                }
+              }
+              dispatch(setPlayheadAction(t))
+            }}
             onPlayStateChange={v => dispatch(setPlayingAction(v))}
           />
         </div>
@@ -344,6 +370,8 @@ export default function CenterColumn() {
           const next = [...filteredSceneCuts].sort((a, b) => a - b).find(t => t > playhead + 0.001)
           if (next !== undefined) playerRef.current?.seek(next)
         } : undefined}
+        playbackLoopMode={playbackLoopMode}
+        onPlaybackLoopModeChange={(m: PlaybackLoopMode) => dispatch(setPlaybackLoopModeAction(m))}
         currentBeat={(() => {
           const bpm = warpData?.bpm ?? 0
           if (bpm <= 0) return null

@@ -92,6 +92,32 @@
 }
 .tb-btn--play:hover { background: rgba(var(--accent-rgb), 0.1); }
 
+/* ── Playback loop-mode toggle ──────────────────────────────
+ * Single cycle button next to the play controls (issue #22). Click cycles
+ * continue → loop → stop. Sized smaller than the main transport buttons
+ * so it reads as a secondary control. The active hue lights up only when
+ * the mode is non-default (i.e. loop or stop), making "something will
+ * happen at the end of the clip" visible at a glance. */
+.tb-btn--loop-mode {
+  width: var(--sz-btn-sm);
+  height: var(--sz-btn-sm);
+  color: var(--fg-3);
+}
+.tb-btn--loop-mode:hover:not(:disabled) {
+  color: var(--fg-1);
+  background: var(--bg-hover);
+}
+
+.tb-btn--loop-mode--active {
+  color: var(--accent);
+  border-color: rgba(var(--accent-rgb), 0.45);
+  background: rgba(var(--accent-rgb), 0.10);
+}
+.tb-btn--loop-mode--active:hover {
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.16);
+}
+
 /* ── Action-typed clusters ──────────────────────────────
  * Buttons are grouped by what they *do*, not what they act on:
  *   --create  → all "new X" actions

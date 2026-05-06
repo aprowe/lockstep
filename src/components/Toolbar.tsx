@@ -8,7 +8,9 @@ import {
   IconGoToRegionStart, IconGoToRegionEnd,
   IconPrevRegion, IconNextRegion, IconZoomToRegion,
   IconCreateScene, IconPrevScene, IconNextScene,
+  IconLoopStop, IconLoopRepeat, IconLoopContinue,
 } from './icons'
+import type { PlaybackLoopMode } from '../store/slices/uiSlice'
 import { secondsToFrames } from '../utils/time'
 import { tooltipFor } from '../hotkeys'
 import './Toolbar.css'
@@ -54,6 +56,10 @@ interface ToolbarProps {
   onNewScene?: () => void
   onPrevScene?: () => void
   onNextScene?: () => void
+  /** What playback does when the playhead reaches the end of the active
+   *  clip (or video). When omitted the selector is hidden. */
+  playbackLoopMode?: PlaybackLoopMode
+  onPlaybackLoopModeChange?: (mode: PlaybackLoopMode) => void
   /** Beat position of the playhead — relative to the active region's
    *  in-point if there is one, else to the warp's beat-zero. Null when
    *  no BPM is set yet. */
@@ -64,7 +70,9 @@ export default function Toolbar({
   playerRef, duration, fps, playing, currentTime,
   onMark, onJumpPrev, onJumpNext, onZoomToRegion, onSetIn, onSetOut,
   gridDiv, onGridDivChange, onNewRegion, onPrevRegion, onNextRegion, onJumpRegionStart, onJumpRegionEnd, onDeleteRegion,
-  onNewScene, onPrevScene, onNextScene, currentBeat,
+  onNewScene, onPrevScene, onNextScene,
+  playbackLoopMode, onPlaybackLoopModeChange,
+  currentBeat,
 }: ToolbarProps) {
   const [speed, setSpeed] = useState(1)
   const [editingFrame, setEditingFrame] = useState(false)
@@ -199,6 +207,32 @@ export default function Toolbar({
             <IconNextFrame size={22} />
           </button>
         </div>
+        {playbackLoopMode && onPlaybackLoopModeChange && (() => {
+          const next: Record<PlaybackLoopMode, PlaybackLoopMode> = {
+            continue: 'loop',
+            loop: 'stop',
+            stop: 'continue',
+          }
+          const label: Record<PlaybackLoopMode, string> = {
+            continue: 'Continue past end',
+            loop: 'Loop clip',
+            stop: 'Stop at end',
+          }
+          const Icon = playbackLoopMode === 'loop' ? IconLoopRepeat
+                     : playbackLoopMode === 'stop' ? IconLoopStop
+                     : IconLoopContinue
+          return (
+            <button
+              data-layout-id="playback-loop-mode"
+              className={`tb-btn tb-btn--loop-mode${playbackLoopMode !== 'continue' ? ' tb-btn--loop-mode--active' : ''}`}
+              onClick={() => onPlaybackLoopModeChange(next[playbackLoopMode])}
+              title={`${label[playbackLoopMode]} (click for ${label[next[playbackLoopMode]].toLowerCase()})`}
+              aria-label={`Playback loop mode: ${label[playbackLoopMode]}`}
+            >
+              <Icon size={16} />
+            </button>
+          )
+        })()}
         <div className="tb-time">
           <span data-layout-id="play-time" className="tb-time__current">{fmt(currentTime)}</span>
           <span className="tb-time__sep">/</span>

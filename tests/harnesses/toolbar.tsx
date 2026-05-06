@@ -37,6 +37,8 @@ export function renderToolbar(overrides: RenderToolbarOptions = {}): RenderResul
     onNewRegion: () => {},
     onJumpRegionStart: () => {},
     onJumpRegionEnd: () => {},
+    playbackLoopMode: 'continue' as const,
+    onPlaybackLoopModeChange: () => {},
   }
 
   return render(
