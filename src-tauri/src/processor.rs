@@ -106,10 +106,14 @@ where
     let duration = video_duration(input_path)?;
     let clip_start = opts.clip_in.unwrap_or(0.0).max(0.0);
     let clip_end = opts.clip_out.unwrap_or(duration).min(duration);
+    // Source frame rate is used to drop sub-frame segments before they reach
+    // ffmpeg — at low fps, two markers placed within ~1/fps would otherwise
+    // produce a zero-frame intermediate file and stall the concat demuxer.
+    let source_fps = crate::ffmpeg::video_fps(input_path).unwrap_or(30.0);
     progress(
         0.0,
         &format!(
-            "Duration: {duration:.3}s · clip: {clip_start:.3}s → {clip_end:.3}s · method: {:?} · fps: {:?}",
+            "Duration: {duration:.3}s · source_fps: {source_fps:.3} · clip: {clip_start:.3}s → {clip_end:.3}s · method: {:?} · fps: {:?}",
             opts.interp_method, opts.interp_fps,
         ),
     );
@@ -155,7 +159,11 @@ where
         )?;
     } else {
         // ── Stage 2: Segments ──
-        let plans = plan_segments(&time_map, opts.trigger_mode);
+        // Drop intervals shorter than one source frame so closely-spaced
+        // markers can't produce sub-frame segments that break the concat
+        // demuxer (see issue #14).
+        let min_segment_duration = if source_fps > 0.0 { 1.0 / source_fps } else { 0.001 };
+        let plans = plan_segments(&time_map, opts.trigger_mode, min_segment_duration);
         progress(0.01, &format!("Planned {} segment(s)", plans.len()));
         let segment_files = encode_segments(
             input_path,
