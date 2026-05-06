@@ -1,0 +1,30 @@
+// Example template — copy to a new file ending in `.shot.ts` to enable.
+// Run with `npm run shoot -- <pattern>`; see tests/screenshots/README.md.
+import { test } from '@playwright/test'
+import { mockTauri } from './tauri-mock'
+import { seed } from './state'
+import { shootElement, shootRegion } from './shoot'
+
+test.describe('Example shots', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockTauri(page)
+    await page.goto('/')
+    await seed(page, {
+      video: { duration: 32 },
+      bpm: 120,
+      regions: [{ name: 'Verse', inPoint: 0, outPoint: 32 }],
+      activeRegion: 'Verse',
+    })
+    await page.waitForLoadState('networkidle')
+  })
+
+  // Padded clip around a single button. Output: docs/screenshots/<out>/play-button.png
+  test('play-button', async ({ page }) => {
+    await shootElement(page, '[data-layout-id="play"]', 'play-button', { pad: 24 })
+  })
+
+  // Whole panel/component, no surrounding context.
+  test('toolbar', async ({ page }) => {
+    await shootRegion(page, '.toolbar', 'toolbar')
+  })
+})

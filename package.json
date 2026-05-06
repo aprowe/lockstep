@@ -15,6 +15,7 @@
     "test:rs:heavy": "cargo test --manifest-path src-tauri/Cargo.toml --target-dir src-tauri/target-test -- --ignored",
     "test:integration": "playwright test --config playwright.integration.config.ts",
     "test:screenshots": "playwright test",
+    "shoot": "node scripts/shoot.mjs",
     "playwright:install": "playwright install chromium",
     "behaviors": "tsx scripts/behavior.ts check",
     "behaviors:audit": "tsx scripts/behavior.ts audit",
