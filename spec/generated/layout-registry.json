@@ -204,10 +204,6 @@
               "label": "Jump to Region End"
             },
             {
-              "id": "zoom-to-region",
-              "label": "Zoom to Region"
-            },
-            {
               "id": "prev-scene",
               "label": "Prev Scene"
             },
@@ -254,10 +250,6 @@
             {
               "id": "speed",
               "label": "Speed"
-            },
-            {
-              "id": "grid",
-              "label": "Grid"
             }
           ]
         }
