@@ -17,9 +17,18 @@ import ThumbnailStripTrack from './ThumbnailStripTrack'
 import ThumbnailQueueDebug from '../ThumbnailQueueDebug'
 import {
   IconWarpToggle, IconAlwaysAnchors, IconAlwaysRegions, IconAlwaysScenes,
-  IconThumbStrip, IconQueueDebug, IconFollowDrag,
+  IconThumbStrip, IconQueueDebug, IconFollowDrag, IconZoomToRegion,
 } from '../icons'
 import './ThinTimeline.css'
+
+const GRID_DIVS = [
+  { label: '1/1', value: 1 },
+  { label: '1/2', value: 2 },
+  { label: '1/2T', value: 3 },
+  { label: '1/4', value: 4 },
+  { label: '1/4T', value: 6 },
+  { label: '1/8', value: 8 },
+]
 
 interface ThinTimelineProps {
   duration: number
@@ -85,6 +94,10 @@ interface ThinTimelineProps {
   onRegionMoveOutput?: (id: string, inBeatTime: number, outBeatTime: number) => void
   /** Double-click on a region — caller zooms the view to the region. */
   onRegionZoom?: (id: string) => void
+  /** Zoom timeline to the active clip's in/out range. */
+  onZoomToRegion?: () => void
+  /** Called when the user changes the beat grid subdivision. */
+  onGridDivChange?: (div: number) => void
 
   segments: WarpSegment[]
   clipIn?: number
@@ -169,7 +182,7 @@ export default function ThinTimeline({
   selectedClipIds, onClipsSelectionChange,
   selectedSceneTimes, onScenesSelectionChange, userSceneTimes,
   onTimelineDelete, onTimelineDeselect,
-  warpCollapsed = false, onToggleWarp,
+  warpCollapsed = false, onToggleWarp, onZoomToRegion, onGridDivChange,
 }: ThinTimelineProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const connectorRef = useRef<HTMLDivElement>(null)
@@ -1289,6 +1302,18 @@ export default function ThinTimeline({
 
         <button
           type="button"
+          className="thin-toolbar__btn thin-toolbar__btn--zoom-region"
+          onClick={onZoomToRegion}
+          disabled={!onZoomToRegion}
+          title="Zoom to active clip"
+        >
+          <IconZoomToRegion aria-hidden="true" size={18} />
+        </button>
+
+        <span className="thin-toolbar__sep" />
+
+        <button
+          type="button"
           className={`thin-toolbar__btn thin-toolbar__btn--follow${followDrag ? ' thin-toolbar__btn--active' : ''}`}
           onClick={() => setFollowDrag(v => !v)}
           title="Playhead follows dragged markers"
@@ -1338,6 +1363,20 @@ export default function ThinTimeline({
         >
           <IconQueueDebug aria-hidden="true" size={18} />
         </button>
+
+        {onGridDivChange && (
+          <>
+            <span className="thin-toolbar__spacer" />
+            <select
+              className="thin-toolbar__select"
+              value={gridDiv ?? 1}
+              onChange={e => onGridDivChange(parseInt(e.target.value))}
+              title="Beat grid subdivision"
+            >
+              {GRID_DIVS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+            </select>
+          </>
+        )}
       </div>
 
       {queueDebugOpen && (

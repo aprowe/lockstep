@@ -157,7 +157,7 @@ export default function ClipsPanel() {
           >
             <span className="clip-row__swatch" style={{ background: 'var(--bg-5)' }} />
             <div className="clip-row__body">
-              <div className="clip-row__name">Full Video</div>
+              <div className="clip-row__name">No Clip</div>
             </div>
           </div>
         }

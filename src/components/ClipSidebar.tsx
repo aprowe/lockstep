@@ -130,7 +130,7 @@ export default function ClipSidebar({
         >
           <div className="cs-item__arrow">{activeRegionId === null ? '▶' : ''}</div>
           <div className="cs-item__info">
-            <div className="cs-item__name">Full Video</div>
+            <div className="cs-item__name">No Clip</div>
             <div className="cs-item__range">
               {fmtTime(0)} – {fmtTime(duration)}
             </div>

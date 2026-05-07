@@ -32,7 +32,7 @@ import {
   newAnchorId,
 } from '../store/slices/warpSlice'
 import { updateRegionBeatTimes } from '../store/slices/regionSlice'
-import { setView as setReduxView, setWarpCollapsed } from '../store/slices/uiSlice'
+import { setView as setReduxView, setWarpCollapsed, setGridDiv } from '../store/slices/uiSlice'
 import { undo as undoAction, redo as redoAction } from '../store/slices/historySlice'
 import './WarpView.css'
 
@@ -72,6 +72,8 @@ interface WarpViewProps {
   onSceneDelete?: (time: number) => void
   /** Create a new region with a sensible span around this time. */
   onRegionAdd?: (time: number) => void
+  /** Zoom timeline to the active clip's in/out range. */
+  onZoomToRegion?: () => void
 }
 
 export default function WarpView({
@@ -91,6 +93,7 @@ export default function WarpView({
   onSceneAdd,
   onSceneDelete,
   onRegionAdd,
+  onZoomToRegion,
 }: WarpViewProps) {
   const dispatch = useAppDispatch()
 
@@ -659,6 +662,8 @@ export default function WarpView({
         onTimelineDeselect={onTimelineDeselect}
         warpCollapsed={warpCollapsed}
         onToggleWarp={() => dispatch(setWarpCollapsed(!warpCollapsed))}
+        onZoomToRegion={onZoomToRegion}
+        onGridDivChange={v => dispatch(setGridDiv(v))}
       />
       <input
         ref={importRef}

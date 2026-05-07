@@ -31,13 +31,15 @@ interface RowShellProps {
   onContextMenu?: (e: React.MouseEvent) => void
   /** Optional override of the row's title attribute. */
   title?: string
+  /** Extra classes appended after the kind modifiers. */
+  className?: string
 }
 
 export default function RowShell({
   kind, ctx, children,
   checkboxLabel = 'Select item',
   deleteLabel = 'Delete item',
-  onDelete, onDoubleClick, onContextMenu, title,
+  onDelete, onDoubleClick, onContextMenu, title, className,
 }: RowShellProps) {
   const {
     isActive, isSelected, thumbnailMode, thumbnailSrc, multiSelectMode,
@@ -48,6 +50,7 @@ export default function RowShell({
     kind,
     isActive && `${kind}--active`,
     isSelected && `${kind}--selected`,
+    className,
   ].filter(Boolean).join(' ')
 
   return (

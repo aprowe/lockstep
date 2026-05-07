@@ -539,9 +539,9 @@ export default function ExportDialog({
               <button
                 className={`export-dialog__mode${mode === 'current' ? ' export-dialog__mode--active' : ''}`}
                 onClick={() => setMode('current')}
-                title={activeRegion ? activeRegion.name : 'Full Video'}
+                title={activeRegion ? activeRegion.name : 'No Clip'}
               >
-                {activeRegion ? activeRegion.name : 'Full Video'}
+                {activeRegion ? activeRegion.name : 'No Clip'}
               </button>
               <button
                 className={`export-dialog__mode${mode === 'all' ? ' export-dialog__mode--active' : ''}`}

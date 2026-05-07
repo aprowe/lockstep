@@ -104,6 +104,7 @@ export default function MarkersPanel() {
           key={item.id}
           data={item}
           ctx={ctx}
+          dim={!activeRegion || item.time < activeRegion.inPoint || item.time > activeRegion.outPoint}
           onDelete={() => dispatch(removeAnchors([item.anchorId]))}
           onDoubleClick={() => seek(item.time)}
         />

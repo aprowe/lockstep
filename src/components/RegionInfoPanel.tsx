@@ -9,19 +9,11 @@ interface RegionInfoPanelProps {
   activeRegion: Region | null
   warpData: WarpData | null
   duration: number
-  addToEnd: boolean
   onBpmChange: (bpm: number) => void
-  onAddToEndChange: (v: boolean) => void
   onUpdateRegionInOut?: (id: string, inPoint: number, outPoint: number) => void
   onUpdateRegionBeatTimes?: (id: string, inBeatTime?: number, outBeatTime?: number) => void
-  /** Orig-space time of the current beat-zero anchor (null = clip start) */
-  beatZeroOrigTime?: number | null
-  /** Called when user picks "Start at" marker (null = clip start) */
-  onStartAtChange?: (origTime: number | null) => void
   /** Called when lock state changes */
   onLockChange?: (lock: 'bpm' | 'beats', lockedBeats?: number) => void
-  /** Called when the trigger-mode toggle flips */
-  onTriggerModeChange?: (v: boolean) => void
   /** Called when user clicks Detect BPM */
   onBpmDetect?: () => void
   detectingBpm?: boolean
@@ -46,15 +38,10 @@ export default function RegionInfoPanel({
   activeRegion,
   warpData,
   duration,
-  addToEnd,
   onBpmChange,
-  onAddToEndChange,
   onUpdateRegionInOut,
   onUpdateRegionBeatTimes,
-  beatZeroOrigTime,
-  onStartAtChange,
   onLockChange,
-  onTriggerModeChange,
   onBpmDetect,
   detectingBpm,
 }: RegionInfoPanelProps) {
@@ -71,16 +58,6 @@ export default function RegionInfoPanel({
   const regionSpan = beatSpan  // use beat-space span for all calculations
   const totalBeats = beat > 0 ? beatSpan / beat : 0
   const markerCount = warpData?.origAnchors.length ?? 0
-
-  // Anchors within the active clip for "Start at" selector
-  const anchorsInClip = (() => {
-    if (!warpData) return []
-    const clipIn = activeRegion?.inPoint ?? 0
-    const clipOut = activeRegion?.outPoint ?? duration
-    return [...warpData.origAnchors]
-      .filter(a => a.time >= clipIn - 0.001 && a.time <= clipOut + 0.001)
-      .sort((a, b) => a.time - b.time)
-  })()
 
   // Lock: use region's persisted lock state, default to 'bpm'
   const lock = activeRegion?.lock ?? 'bpm'
@@ -208,7 +185,7 @@ export default function RegionInfoPanel({
     applyBeatCount(newBeats)
   }
 
-  const title = activeRegion ? activeRegion.name : 'Full Video'
+  const title = activeRegion ? activeRegion.name : 'No Active Clip'
 
   return (
     <div className="rip">
@@ -294,10 +271,10 @@ export default function RegionInfoPanel({
           <span className="rip__value">{markerCount}</span>
         </div>
 
-        <div className="rip__divider" />
+        {activeRegion && <div className="rip__divider" />}
 
         {/* BPM + Beats grid — beat-space timing (bottom timeline). */}
-        <div className="rip__grid">
+        {activeRegion && <div className="rip__grid">
           <span className="rip__label">BPM</span>
           <div className="rip__field">
             <input
@@ -365,58 +342,8 @@ export default function RegionInfoPanel({
               <button className="rip__adj" onClick={() => adjustBeats(totalBeats * 2)} title="Double beats">×2</button>
             </div>
           )} */}
-        </div>
+        </div>}
 
-        {/* Trigger mode — per-clip toggle; when on, source plays 1.0x and is
-            truncated or freeze-padded to fill the beat-space interval. */}
-        {activeRegion && onTriggerModeChange && (
-          <div className="rip__row">
-            <span className="rip__label">Trigger</span>
-            <label className="rip__check">
-              <input
-                type="checkbox"
-                checked={!!activeRegion.triggerMode}
-                onChange={e => onTriggerModeChange(e.target.checked)}
-              />
-              <span className="rip__check-label">1.0x playback (no time-warp)</span>
-            </label>
-          </div>
-        )}
-
-        {/* Start at — only for actual clips, not Full Video */}
-        {activeRegion && (
-          <div className="rip__row">
-            <span className="rip__label">Start</span>
-            {onStartAtChange && anchorsInClip.length > 0 ? (
-              <select
-                className="rip__select"
-                value={beatZeroOrigTime !== null && beatZeroOrigTime !== undefined
-                  ? String(beatZeroOrigTime)
-                  : '__clip_start__'
-                }
-                onChange={e => {
-                  const val = e.target.value
-                  if (val === '__clip_start__') {
-                    onStartAtChange(null)
-                    onAddToEndChange(false)
-                  } else {
-                    onStartAtChange(Number(val))
-                    onAddToEndChange(true)
-                  }
-                }}
-              >
-                <option value="__clip_start__">Clip start</option>
-                {anchorsInClip.map(a => (
-                  <option key={a.id} value={String(a.time)}>
-                    {formatTimecode(a.time)}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span className="rip__value rip__value--computed">Clip start</span>
-            )}
-          </div>
-        )}
       </div>
     </div>
   )
