@@ -68,7 +68,13 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       expect(beatAnchors[1].time).toBe(11)
       expect(bpm).toBe(140)
       expect(store.getState().warp.playhead).toBe(0)
-      expect(store.getState().region.activeRegionId).toBeNull()
+      // Issue #18 phase 1: a legacy save (anchors + non-default BPM, no
+      // user regions) now lands the user inside a migrated "Full clip"
+      // region instead of the old null-sentinel "Full Video" mode.
+      const { regions, activeRegionId } = store.getState().region
+      expect(regions).toHaveLength(1)
+      expect(regions[0].name).toBe('Full clip')
+      expect(activeRegionId).toBe(regions[0].id)
     })
   })
 

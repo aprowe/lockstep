@@ -12,6 +12,7 @@ import { resetHistory, pushSnapshot } from '../slices/historySlice'
 import type { HistoryEntry } from '../slices/historySlice'
 import { snapshotFromState } from '../middleware/historyMiddleware'
 import { setView } from '../slices/uiSlice'
+import { migrateSavedVideoState } from '../migrate'
 
 /** Load markers from sidecar or internal storage for a video */
 async function loadMarkersForVideo(videoPath: string, fileHash: string) {
@@ -241,6 +242,13 @@ export const openLlcProjectThunk = createAsyncThunk(
 
 /** Apply loaded SavedVideoState to Redux */
 function applyLoadedState(dispatch: any, getState: () => unknown, state: SavedVideoState | null, videoPath: string, preLoadEntry: HistoryEntry) {
+  // Phase 1 of issue #18: legacy projects with global BPM/anchors but no
+  // user regions get a synthesized "Full clip" region spanning 0..duration
+  // before we touch the slices. Idempotent, no-op for already-migrated state.
+  const duration = (getState() as RootState).video.video?.duration ?? 0
+  const migration = migrateSavedVideoState(state, duration)
+  state = migration.state
+
   const dr = state?.defaultRegion ?? null
   dispatch(setGlobalMarkers(dr))
 
@@ -270,7 +278,7 @@ function applyLoadedState(dispatch: any, getState: () => unknown, state: SavedVi
     addToEnd: r.addToEnd ?? false,
   }))
   dispatch(setRegions(loadedRegions))
-  dispatch(setActiveRegionId(null))
+  dispatch(setActiveRegionId(migration.migratedRegionId))
   dispatch(setMarkersLoaded(true))
 
   // Restore cached scene cuts so we don't have to re-run ffmpeg scdet.
