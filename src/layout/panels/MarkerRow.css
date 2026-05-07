@@ -94,3 +94,7 @@
   color: var(--error);
   background: var(--bg-3);
 }
+
+.marker-row--dim {
+  opacity: 0.4;
+}

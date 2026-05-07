@@ -556,3 +556,21 @@
   margin: 0 var(--sp-1);
   background: var(--border);
 }
+
+.thin-toolbar__spacer {
+  flex: 1;
+}
+
+.thin-toolbar__select {
+  padding: 2px var(--sp-2);
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--fg-2);
+  font-family: var(--font-family);
+  font-size: var(--t-sm);
+  cursor: pointer;
+  outline: none;
+}
+.thin-toolbar__select:focus { border-color: var(--accent-2); }
+.thin-toolbar__select option { background: var(--bg-3); }

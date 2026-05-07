@@ -29,7 +29,6 @@ groups:
     - Next Marker
     - Jump to Region Start
     - Jump to Region End
-    - Zoom to Region
     - Prev Scene
     - Next Scene
 
@@ -42,4 +41,3 @@ groups:
     - Beat Count (clip based)
 
   - - Speed
-    - Grid

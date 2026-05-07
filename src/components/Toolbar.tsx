@@ -6,7 +6,7 @@ import {
   IconCreateMarker, IconPrevMarker, IconNextMarker,
   IconCreateRegion, IconSetRegionStart, IconSetRegionEnd,
   IconGoToRegionStart, IconGoToRegionEnd,
-  IconPrevRegion, IconNextRegion, IconZoomToRegion,
+  IconPrevRegion, IconNextRegion,
   IconCreateScene, IconPrevScene, IconNextScene,
   IconLoopStop, IconLoopRepeat, IconLoopContinue,
 } from './icons'
@@ -24,15 +24,6 @@ function fmt(s: number) {
 
 const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2]
 
-const GRID_DIVS: { label: string; value: number }[] = [
-  { label: '1/1', value: 1 },
-  { label: '1/2', value: 2 },
-  { label: '1/2T', value: 3 },
-  { label: '1/4', value: 4 },
-  { label: '1/4T', value: 6 },
-  { label: '1/8', value: 8 },
-]
-
 interface ToolbarProps {
   playerRef: RefObject<VideoPlayerHandle | null>
   duration: number
@@ -42,11 +33,8 @@ interface ToolbarProps {
   onMark?: (time: number) => void
   onJumpPrev?: () => void
   onJumpNext?: () => void
-  onZoomToRegion?: () => void
   onSetIn?: () => void
   onSetOut?: () => void
-  gridDiv?: number
-  onGridDivChange?: (div: number) => void
   onNewRegion?: () => void
   onPrevRegion?: () => void
   onNextRegion?: () => void
@@ -68,8 +56,8 @@ interface ToolbarProps {
 
 export default function Toolbar({
   playerRef, duration, fps, playing, currentTime,
-  onMark, onJumpPrev, onJumpNext, onZoomToRegion, onSetIn, onSetOut,
-  gridDiv, onGridDivChange, onNewRegion, onPrevRegion, onNextRegion, onJumpRegionStart, onJumpRegionEnd, onDeleteRegion,
+  onMark, onJumpPrev, onJumpNext, onSetIn, onSetOut,
+  onNewRegion, onPrevRegion, onNextRegion, onJumpRegionStart, onJumpRegionEnd, onDeleteRegion,
   onNewScene, onPrevScene, onNextScene,
   playbackLoopMode, onPlaybackLoopModeChange,
   currentBeat,
@@ -178,9 +166,6 @@ export default function Toolbar({
               <IconGoToRegionEnd size={22} />
             </button>
           </div>
-          <button data-layout-id="zoom-to-region" className="tb-btn tb-btn--nav-region" onClick={onZoomToRegion} disabled={!onZoomToRegion} title="Zoom to region">
-            <IconZoomToRegion size={22} />
-          </button>
           <div className="tb-pair">
             <button data-layout-id="prev-scene" className="tb-btn tb-btn--nav-scene" onClick={onPrevScene} disabled={!onPrevScene} title="Previous scene marker">
               <IconPrevScene size={22} />
@@ -192,7 +177,8 @@ export default function Toolbar({
         </div>
       </div>
 
-      <div data-layout-sep className="tb-sep-implicit" />
+      {/* invisible group boundary marker for layout tests */}
+      <span data-layout-sep aria-hidden="true" style={{ display: 'none' }} />
 
       {/* Center: play controls */}
       <div className="tb-group tb-group--center">
@@ -286,23 +272,16 @@ export default function Toolbar({
         </div>
       </div>
 
-      <div data-layout-sep className="tb-sep-implicit" />
+      {/* invisible group boundary marker for layout tests */}
+      <span data-layout-sep aria-hidden="true" style={{ display: 'none' }} />
 
-      {/* Right: settings */}
+      {/* Right: settings — hugs the right edge via margin-left: auto */}
       <div className="tb-side tb-side--right">
         <div className="tb-group">
           <span data-layout-id="speed" className="tb-label">Speed</span>
           <select className="tb-select" value={speed} onChange={e => changeSpeed(parseFloat(e.target.value))} title="Playback speed">
             {SPEEDS.map(s => <option key={s} value={s}>{s === 1 ? '1×' : `${s}×`}</option>)}
           </select>
-          {onGridDivChange && (
-            <>
-              <span data-layout-id="grid" className="tb-label">Grid</span>
-              <select className="tb-select" value={gridDiv ?? 1} onChange={e => onGridDivChange(parseInt(e.target.value))} title="Beat grid subdivision">
-                {GRID_DIVS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
-              </select>
-            </>
-          )}
         </div>
       </div>
 

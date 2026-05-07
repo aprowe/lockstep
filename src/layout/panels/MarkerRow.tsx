@@ -25,9 +25,10 @@ interface Props {
   ctx: RowContext
   onDelete: () => void
   onDoubleClick: () => void
+  dim?: boolean
 }
 
-export default function MarkerRow({ data, ctx, onDelete, onDoubleClick }: Props) {
+export default function MarkerRow({ data, ctx, onDelete, onDoubleClick, dim }: Props) {
   const frame = Math.round(data.time * data.fps)
   const stretchClass = data.stretch == null
     ? ''
@@ -38,6 +39,7 @@ export default function MarkerRow({ data, ctx, onDelete, onDoubleClick }: Props)
   return (
     <RowShell
       kind="marker-row"
+      className={dim ? 'marker-row--dim' : undefined}
       ctx={ctx}
       checkboxLabel="Select marker"
       deleteLabel="Delete marker"

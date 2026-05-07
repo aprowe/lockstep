@@ -8,12 +8,18 @@
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   gap: var(--sp-2);
+  overflow: hidden;
 }
 
 .tb-side {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+}
+
+.tb-side--right {
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .tb-group {
@@ -23,7 +29,8 @@
 }
 
 .tb-group--center {
-  flex-shrink: 0;
+  flex: 1 1 auto;
+  justify-content: center;
 }
 
 /* ── Joined prev/next pairs ──────────────────────────────── */
@@ -52,15 +59,6 @@
   flex-shrink: 0;
 }
 
-/* Implicit spacers flanking the center group — left and right side clusters
- * shrink to natural width and these flex:1 spacers absorb the remainder
- * equally, so play / frame / time stays centered between the nav cluster on
- * the left and the speed/grid dropdowns on the right regardless of how many
- * buttons each side carries. */
-.tb-sep-implicit {
-  flex: 1 1 auto;
-  min-width: var(--sp-3);
-}
 
 /* ── Buttons ─────────────────────────────────────────────── */
 .tb-btn {
@@ -181,8 +179,8 @@
 }
 
 .tb-time__current { color: var(--fg-1); }
-.tb-time__sep     { color: var(--fg-4); }
-.tb-time__total   { color: var(--fg-2); }
+.tb-time__sep     { color: var(--fg-4); font-size: var(--t-md); }
+.tb-time__total   { color: var(--fg-3); font-size: var(--t-md); }
 /* Vertical stack for the secondary counts (frames over beats). The divider
  * + left padding live on the wrapper so the two rows align without each
  * carrying its own border. */
@@ -295,3 +293,4 @@
 }
 .tb-select:hover { border-color: var(--fg-3); }
 .tb-select:focus { border-color: var(--fg-3); }
+

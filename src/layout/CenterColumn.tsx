@@ -24,7 +24,6 @@ import {
   setExportOpen as setExportOpenAction,
   setView as setViewAction,
   setTimelineHeight as setTimelineHeightAction,
-  setGridDiv as setGridDivAction,
   setPlaybackLoopMode as setPlaybackLoopModeAction,
   type PlaybackLoopMode,
 } from '../store/slices/uiSlice'
@@ -70,7 +69,7 @@ export default function CenterColumn() {
   const playbackLoopMode = useAppSelector(s => s.ui.playbackLoopMode)
   const view = useAppSelector(s => s.ui.view)
   const timelineHeight = useAppSelector(s => s.ui.timelineHeight)
-  const gridDiv = useAppSelector(s => s.ui.gridDiv)
+
   const warpData = useAppSelector(selectWarpData)
   const origAnchors = useAppSelector(s => s.warp.origAnchors)
   const regions = useAppSelector(s => s.region.regions)
@@ -294,14 +293,6 @@ export default function CenterColumn() {
           const next = sorted.find(a => a.time > playhead + 0.05)
           if (next) playerRef.current?.seek(next.time)
         }}
-        onZoomToRegion={() => {
-          const from = activeRegion?.inPoint ?? 0
-          const to = activeRegion?.outPoint ?? video.duration
-          const { nextView, previousView } = calcZoomToRegion(view, from, to, preZoomView.current)
-          if (previousView !== null) preZoomView.current = previousView
-          else preZoomView.current = null
-          dispatch(setViewAction(nextView))
-        }}
         onJumpRegionStart={activeRegion ? () => {
           playerRef.current?.seek(activeRegion.inPoint)
         } : undefined}
@@ -336,8 +327,6 @@ export default function CenterColumn() {
           const id = addRegion(0, Math.max(playhead, 0.1))
           if (id) setActiveRegionId(id)
         }}
-        gridDiv={gridDiv}
-        onGridDivChange={v => dispatch(setGridDivAction(v))}
         onNewRegion={() => {
           const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(
             playhead, view, filteredSceneCuts, video.duration, regions,
@@ -445,6 +434,14 @@ export default function CenterColumn() {
             const region = regions.find(r => r.id === id)
             if (!region) return
             const { nextView, previousView } = calcZoomToRegion(view, region.inPoint, region.outPoint, preZoomView.current)
+            if (previousView !== null) preZoomView.current = previousView
+            else preZoomView.current = null
+            dispatch(setViewAction(nextView))
+          }}
+          onZoomToRegion={() => {
+            const from = activeRegion?.inPoint ?? 0
+            const to = activeRegion?.outPoint ?? video.duration
+            const { nextView, previousView } = calcZoomToRegion(view, from, to, preZoomView.current)
             if (previousView !== null) preZoomView.current = previousView
             else preZoomView.current = null
             dispatch(setViewAction(nextView))
