@@ -3,6 +3,16 @@ import type { View } from '../../types'
 
 export type ExportStatus = 'idle' | 'processing' | 'done' | 'error'
 
+/** What happens when the playhead reaches the end of the active region (or the
+ *  full video, when no region is active) during playback:
+ *  - `continue` — roll past the boundary (default; matches the prior behavior)
+ *  - `stop`     — pause at the boundary
+ *  - `loop`     — seek back to the in-point and keep playing
+ *
+ *  This is a *playback* setting; export-time loop behavior lives in
+ *  `warp.trimToLoop` / `warp.loopBeats`. */
+export type PlaybackLoopMode = 'continue' | 'stop' | 'loop'
+
 export interface ExportProgressState {
   status: ExportStatus
   progress: number
@@ -24,6 +34,8 @@ interface UiState {
   warpCollapsed: boolean
   gridDiv: number
   playing: boolean
+  /** What playback does at the end of the active clip / video. */
+  playbackLoopMode: PlaybackLoopMode
   exportOpen: boolean
   /** Source-of-truth view. WarpView keeps a local copy for high-frequency
    *  gesture updates and syncs back on gesture end. */
@@ -55,6 +67,7 @@ const initialState: UiState = {
   warpCollapsed: false,
   gridDiv: 1,
   playing: false,
+  playbackLoopMode: 'continue',
   exportOpen: false,
   view: { start: 0, end: 60 },
   lastExportFolder: null,
@@ -92,6 +105,9 @@ const uiSlice = createSlice({
     setPlaying(state, action: PayloadAction<boolean>) {
       state.playing = action.payload
     },
+    setPlaybackLoopMode(state, action: PayloadAction<PlaybackLoopMode>) {
+      state.playbackLoopMode = action.payload
+    },
     setExportOpen(state, action: PayloadAction<boolean>) {
       state.exportOpen = action.payload
     },
@@ -120,6 +136,7 @@ export const {
   setWarpCollapsed,
   setGridDiv,
   setPlaying,
+  setPlaybackLoopMode,
   setExportOpen,
   setView,
   setLastExportFolder,

@@ -198,6 +198,42 @@ export function IconNextScene({ size = 24, ...props }: IconProps) {
   );
 }
 
+// ── Playback loop modes ──────────────────────────────────────────────────────
+//
+// Three modes for what playback does at the end of a clip / video. Used by
+// the split-toggle in the bottom toolbar's center cluster.
+
+/** Stop: pause at the boundary. Stop-square + tiny "end" tick. */
+export function IconLoopStop({ size = 24, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" fillOpacity="0.18" />
+    </svg>
+  );
+}
+
+/** Loop: arrow circling back from end to start. */
+export function IconLoopRepeat({ size = 24, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M5,9 a5,5 0 0 1 5,-5 L17,4" />
+      <polyline points="14,1 17,4 14,7" />
+      <path d="M19,15 a5,5 0 0 1 -5,5 L7,20" />
+      <polyline points="10,23 7,20 10,17" />
+    </svg>
+  );
+}
+
+/** Continue: arrow rolling forward past the boundary. */
+export function IconLoopContinue({ size = 24, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <line x1="3" y1="12" x2="18" y2="12" />
+      <polyline points="14,7 19,12 14,17" />
+    </svg>
+  );
+}
+
 // ── Locks ─────────────────────────────────────────────────────────────────────
 
 export function IconLockClosed({ size = 24, ...props }: IconProps) {
