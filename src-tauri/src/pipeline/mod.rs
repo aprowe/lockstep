@@ -32,7 +32,7 @@ pub mod rife_pass;
 pub mod segments;
 pub mod time_map;
 
-pub use options::{InterpMethod, WarpOptions};
+pub use options::{AudioMode, InterpMethod, WarpOptions};
 pub use post::PostOptions;
 pub use segments::SegmentPlan;
 pub use time_map::TimeMap;

@@ -8,6 +8,7 @@
 use std::path::Path;
 
 use crate::ffmpeg::{atempo_chain, has_audio_stream, run_ffmpeg, video_duration};
+use crate::pipeline::options::AudioMode;
 
 /// Subset of `WarpOptions` relevant to post-processing. Keeping this separate
 /// from the full request makes the stage easier to test and reuse.
@@ -20,6 +21,12 @@ pub struct PostOptions {
     pub trim_to_loop: bool,
     pub loop_beats: Option<u32>,
     pub normalize_bpm: bool,
+    /// Mirrors the segment-encode audio mode so the BPM-normalize pass uses
+    /// the same speed-vs-pitch convention.
+    pub audio_mode: AudioMode,
+    /// Source audio sample rate, used by the `Pitch` audio mode in the
+    /// normalize-bpm asetrate filter. Ignored otherwise.
+    pub sample_rate: u32,
 }
 
 pub fn apply_post_processing<F>(
@@ -145,15 +152,25 @@ where
     if opts.normalize_bpm && (opts.bpm - 120.0).abs() > 0.01 {
         let speed = 120.0 / opts.bpm;
         let normed = format!("{output_path}.norm.mp4");
-        let atempo = atempo_chain(speed);
+        // Match the segment-encode convention: atempo preserves pitch,
+        // asetrate re-pitches with speed. `has_audio` already accounts for
+        // the audio_mode==None case (segment encode used `-an`).
+        let af = match opts.audio_mode {
+            AudioMode::Tempo => atempo_chain(speed),
+            AudioMode::Pitch => {
+                let new_rate = (opts.sample_rate as f64 * speed).max(1.0);
+                format!("asetrate={new_rate:.0},aresample={}", opts.sample_rate)
+            }
+            AudioMode::None => String::new(),
+        };
         let vf = format!("setpts=PTS/{speed:.6}");
         let mut args: Vec<&str> = vec![
             "-y", "-hide_banner", "-loglevel", "error",
             "-i", output_path,
             "-vf", vf.as_str(),
         ];
-        if has_audio {
-            args.extend_from_slice(&["-af", atempo.as_str()]);
+        if has_audio && !af.is_empty() {
+            args.extend_from_slice(&["-af", af.as_str()]);
         }
         args.extend_from_slice(&["-c:v", "libx264", "-preset", "fast", "-crf", "23"]);
         if has_audio {

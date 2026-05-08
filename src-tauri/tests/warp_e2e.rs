@@ -87,6 +87,7 @@ fn warp_opts(interp_fps: Option<u32>) -> WarpOptions {
         no_smooth: false,
         trigger_mode: false,
         scene_cuts: Vec::new(),
+        audio_mode: Default::default(),
     }
 }
 

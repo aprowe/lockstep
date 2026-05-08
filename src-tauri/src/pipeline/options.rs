@@ -23,6 +23,31 @@ impl InterpMethod {
     }
 }
 
+/// How the audio track is handled during the warp.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AudioMode {
+    /// Strip audio entirely (`-an`). Output is silent.
+    None,
+    /// Pitch follows speed: `asetrate=SR/ratio,aresample=SR`. Slowed video
+    /// drops in pitch, sped-up video rises — like a turntable.
+    Pitch,
+    /// Tempo-stretch with `atempo`: pitch is preserved while length matches
+    /// the new video duration. Default for parity with prior behavior.
+    #[default]
+    Tempo,
+}
+
+impl AudioMode {
+    /// Parse a frontend string ("none" | "pitch" | "tempo"). Unknown → default.
+    pub fn from_str(s: Option<&str>) -> Self {
+        match s.map(|v| v.to_ascii_lowercase()).as_deref() {
+            Some("none") | Some("off") | Some("mute") => Self::None,
+            Some("pitch") | Some("pitched") => Self::Pitch,
+            _ => Self::Tempo,
+        }
+    }
+}
+
 pub struct WarpOptions {
     pub orig_times: Vec<f64>,
     pub beat_times: Vec<f64>,
@@ -55,4 +80,6 @@ pub struct WarpOptions {
     /// avoid blending two frames that straddle a cut — it holds instead.
     /// Empty = no awareness; behaves like before.
     pub scene_cuts: Vec<f64>,
+    /// How the audio is muxed into the output. See `AudioMode`.
+    pub audio_mode: AudioMode,
 }

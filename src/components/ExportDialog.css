@@ -297,6 +297,17 @@
   color: var(--fg-4);
 }
 
+/* ── Audio panel ────────────────────────────────────────────── */
+.export-dialog__audio {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.export-dialog__audio-sub {
+  margin-left: 22px;
+}
+
 /* ── Interpolation panel ────────────────────────────────────── */
 .export-dialog__interp {
   display: flex;

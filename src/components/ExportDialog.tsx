@@ -4,7 +4,7 @@ import { startWarp, listenWarpProgress, saveOutput, pickExportFolder, saveToFold
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { setLastExportFolder, setExportProgress, resetExportProgress } from '../store/slices/uiSlice'
-import { buildWarpRequest } from '../utils/exportRequest'
+import { buildWarpRequest, type AudioMode } from '../utils/exportRequest'
 import { visibleSceneCuts } from '../utils/sceneFilter'
 import './ExportDialog.css'
 
@@ -123,6 +123,13 @@ export default function ExportDialog({
   const [interpolateFrames, setInterpolateFrames] = useState(false)
   const [interpMethod, setInterpMethod] = useState<InterpMethod>('minterpolate')
   const [interpFps, setInterpFps] = useState(() => Math.round(videoFps ?? 60))
+  // Audio export mode. `includeAudio` toggles whether the muxer writes an
+  // audio stream at all; when on, `pitchAudio` decides between the classic
+  // pitch-preserving atempo path ('tempo') and the new turntable-style
+  // asetrate path ('pitch') that pitches up/down with the video speed.
+  const [includeAudio, setIncludeAudio] = useState(true)
+  const [pitchAudio, setPitchAudio] = useState(false)
+  const audioMode: AudioMode = !includeAudio ? 'none' : pitchAudio ? 'pitch' : 'tempo'
   const [status, setStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle')
   const [progress, setProgress] = useState(0)
   const [currentJobLabel, setCurrentJobLabel] = useState('')
@@ -356,6 +363,7 @@ export default function ExportDialog({
           interpFps,
           interpMethod,
           sceneCuts,
+          audioMode,
         }))
 
         const outputPath = await new Promise<string>((resolve, reject) => {
@@ -643,6 +651,29 @@ export default function ExportDialog({
                   />
                 )}
                 {normalizeBpm && <span className="export-dialog__norm-label">BPM</span>}
+              </div>
+              <div className="export-dialog__audio">
+                <label className="export-dialog__check">
+                  <input
+                    type="checkbox"
+                    checked={includeAudio}
+                    onChange={e => setIncludeAudio(e.target.checked)}
+                  />
+                  Include Audio
+                </label>
+                {includeAudio && (
+                  <label
+                    className="export-dialog__check export-dialog__audio-sub"
+                    title="When on, audio pitches up/down with the video speed (asetrate). When off, atempo preserves pitch."
+                  >
+                    <input
+                      type="checkbox"
+                      checked={pitchAudio}
+                      onChange={e => setPitchAudio(e.target.checked)}
+                    />
+                    Pitch with speed
+                  </label>
+                )}
               </div>
               <div className="export-dialog__interp">
                 <label className="export-dialog__check">

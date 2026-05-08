@@ -10,6 +10,8 @@ export interface ExportJobInput {
   triggerMode?: boolean
 }
 
+export type AudioMode = 'tempo' | 'pitch' | 'none'
+
 export interface BuildWarpRequestInput {
   videoPath: string
   warpData: WarpData | null
@@ -24,13 +26,16 @@ export interface BuildWarpRequestInput {
   /** Source-time positions of detected scene cuts. Filtered to the job's
    *  clip window before sending. */
   sceneCuts?: number[]
+  /** Audio handling: 'tempo' keeps pitch (default), 'pitch' re-pitches with
+   *  speed, 'none' omits the audio track. */
+  audioMode?: AudioMode
 }
 
 /** Builds the WarpRequest payload sent to the Rust backend.
  *  `interpolateFrames` toggles frame interpolation (constant fps, blended frames);
  *  when false, variable speed is encoded via PTS. */
 export function buildWarpRequest(input: BuildWarpRequestInput): WarpRequest {
-  const { videoPath, warpData, job, loopBeats, trimToLoop, fadeAtLoop, normalizeBpm, interpolateFrames, interpFps, interpMethod, sceneCuts } = input
+  const { videoPath, warpData, job, loopBeats, trimToLoop, fadeAtLoop, normalizeBpm, interpolateFrames, interpFps, interpMethod, sceneCuts, audioMode } = input
 
   const hasMarkers = !!warpData && warpData.origAnchors.length >= 1
   // Per-region export jobs must only carry anchors that fall within this
@@ -80,5 +85,6 @@ export function buildWarpRequest(input: BuildWarpRequestInput): WarpRequest {
     interp_method: useInterp ? interpMethod : null,
     trigger_mode: triggerMode,
     scene_cuts: cutsInRange,
+    audio_mode: audioMode ?? 'tempo',
   }
 }

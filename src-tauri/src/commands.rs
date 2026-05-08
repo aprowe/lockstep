@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::ffmpeg::video_duration;
-use crate::processor::{estimate_bpm, remap_video, InterpMethod, WarpOptions};
+use crate::processor::{estimate_bpm, remap_video, AudioMode, InterpMethod, WarpOptions};
 use crate::scene::{detect_cuts, ScanWindow, DEFAULT_THRESHOLD};
 use crate::video::{get_video_info, VideoInfo};
 
@@ -218,6 +218,9 @@ pub struct WarpRequest {
     pub trigger_mode: bool,
     #[serde(default)]
     pub scene_cuts: Vec<f64>,
+    /// "tempo" (default, atempo preserves pitch), "pitch" (asetrate pitches
+    /// with speed), or "none" (omit audio).
+    pub audio_mode: Option<String>,
 }
 
 #[tauri::command]
@@ -230,7 +233,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
     let out_path_str = out_path.to_string_lossy().to_string();
 
     log::info!(
-        "start_warp[{job_id}]: path={} bpm={:.3} anchors={} clip={:?}→{:?} interp={:?}@{:?} normalize_bpm={} trim_to_loop={} trigger={}",
+        "start_warp[{job_id}]: path={} bpm={:.3} anchors={} clip={:?}→{:?} interp={:?}@{:?} audio={:?} normalize_bpm={} trim_to_loop={} trigger={}",
         req.path,
         req.bpm,
         req.orig_times.len(),
@@ -238,6 +241,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
         req.clip_out,
         req.interp_method,
         req.interp_fps,
+        req.audio_mode,
         req.normalize_bpm,
         req.trim_to_loop,
         req.trigger_mode,
@@ -269,6 +273,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
             no_smooth: req.no_smooth,
             trigger_mode: req.trigger_mode,
             scene_cuts: req.scene_cuts,
+            audio_mode: AudioMode::from_str(req.audio_mode.as_deref()),
         };
 
         let result = tokio::task::spawn_blocking(move || {
