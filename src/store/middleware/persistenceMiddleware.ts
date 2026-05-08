@@ -36,7 +36,7 @@ import {
   updateRegionStretch,
   updateRegionTriggerMode,
 } from '../slices/regionSlice'
-import { setCuts as setScenes, addCut, deleteCut, setMinGap as setSceneMinGap } from '../slices/sceneSlice'
+import { setCuts as setScenes, addCut, deleteCut, setMinGap as setSceneMinGap, setSceneLabel } from '../slices/sceneSlice'
 
 export const persistenceMiddleware = createListenerMiddleware()
 
@@ -53,8 +53,8 @@ const shouldSave = isAnyOf(
   setRegions, addRegion, deleteRegion,
   updateRegionInOut, updateRegionBeatTimes, updateRegionLock,
   renameRegion, updateRegionBpm, updateRegionStretch, updateRegionTriggerMode,
-  // Scene detection results + user edits + min-gap setting
-  setScenes, addCut, deleteCut, setSceneMinGap,
+  // Scene detection results + user edits + min-gap setting + labels
+  setScenes, addCut, deleteCut, setSceneMinGap, setSceneLabel,
 )
 
 persistenceMiddleware.startListening({
@@ -85,11 +85,14 @@ persistenceMiddleware.startListening({
     const userCuts = state.scene.userCutsByPath[vid.path]
     const threshold = state.scene.thresholdByPath[vid.path]
     const minGap = state.scene.minGapByPath[vid.path]
+    const labels = state.scene.labelsByPath[vid.path]
+    const hasLabels = labels && Object.keys(labels).length > 0
     const hasSceneData =
       (cuts && cuts.length > 0) ||
       (userCuts && userCuts.length > 0) ||
       typeof threshold === 'number' ||
-      typeof minGap === 'number'
+      typeof minGap === 'number' ||
+      hasLabels
 
     const savedState: SavedVideoState = {
       version: 2,
@@ -112,6 +115,7 @@ persistenceMiddleware.startListening({
               cuts: cuts ?? [],
               ...(typeof minGap === 'number' ? { minGap } : {}),
               ...(userCuts && userCuts.length > 0 ? { userCuts } : {}),
+              ...(hasLabels ? { labels: { ...labels } } : {}),
             },
           }
         : {}),

@@ -74,11 +74,21 @@
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
+/* Labeled cuts — accent ring so a scanned timeline scans visually for the
+ * scenes the operator has named. */
+.scene-band__diamond--labeled {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
 .scene-band__label {
   font-family: var(--font-family);
   font-size: calc(9px * var(--ui-scale));
   color: var(--fg-2);
   letter-spacing: 0.05em;
+  max-width: calc(72px * var(--ui-scale));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Expanded mode: inline thumbnails ───────────────────── */

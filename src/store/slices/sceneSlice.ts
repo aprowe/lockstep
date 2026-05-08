@@ -46,6 +46,19 @@ interface SceneState {
    *  rather than index because cuts can be added/removed underneath the
    *  selection — matching by time keeps the survivors stable. */
   selectedCutTimes: number[]
+  /** Per-video, per-scene-start label map. Keyed `path → timeKey(start) → label`,
+   *  where `timeKey` quantises the start time to milliseconds (the same 1ms
+   *  tolerance the rest of the slice uses for cut equality). A label belongs
+   *  to a scene segment, which is identified by its start boundary — `0` for
+   *  the first scene, otherwise the cut time that begins it. */
+  labelsByPath: Record<string, Record<string, string>>
+}
+
+/** Stable string key for time-indexed maps. Quantises to 1ms to match the
+ *  float-tolerance the slice already uses for cut equality, so a label set
+ *  against a streaming cut survives later "same" cuts that drift by < 1ms. */
+function timeKey(t: number): string {
+  return (Math.round(t * 1000) / 1000).toFixed(3)
 }
 
 const initialState: SceneState = {
@@ -60,6 +73,7 @@ const initialState: SceneState = {
   thresholdByPath: {},
   minGapByPath: {},
   selectedCutTimes: [],
+  labelsByPath: {},
 }
 
 /** Insert `range` into a sorted, non-overlapping list and merge any ranges
@@ -213,11 +227,19 @@ const sceneSlice = createSlice({
     },
     loadCached(
       state,
-      action: PayloadAction<{ path: string; cuts: number[]; threshold: number; userCuts?: number[] }>,
+      action: PayloadAction<{
+        path: string
+        cuts: number[]
+        threshold: number
+        userCuts?: number[]
+        labels?: Record<string, string>
+      }>,
     ) {
-      const { path, cuts, threshold, userCuts } = action.payload
+      const { path, cuts, threshold, userCuts, labels } = action.payload
       state.cutsByPath[path] = cuts
       if (userCuts && userCuts.length > 0) state.userCutsByPath[path] = userCuts
+      if (labels && Object.keys(labels).length > 0) state.labelsByPath[path] = { ...labels }
+      else delete state.labelsByPath[path]
       // We don't track per-scan windows in the on-disk cache, so a cached
       // load is treated as a full-file scan. The visualisation clamps the
       // Infinity end against the loaded video's duration.
@@ -238,6 +260,7 @@ const sceneSlice = createSlice({
       delete state.progressByPath[path]
       delete state.errorByPath[path]
       delete state.jobByPath[path]
+      delete state.labelsByPath[path]
     },
     setMinGap(state, action: PayloadAction<{ path: string; minGap: number }>) {
       const { path, minGap } = action.payload
@@ -269,12 +292,37 @@ const sceneSlice = createSlice({
       state.selectedCutTimes = state.selectedCutTimes.filter(
         t => Math.abs(t - cut) >= 1e-3,
       )
+      // Drop the label that was attached to the scene starting at this cut —
+      // that scene no longer exists, so its label would orphan otherwise.
+      const labels = state.labelsByPath[path]
+      if (labels) {
+        delete labels[timeKey(cut)]
+        if (Object.keys(labels).length === 0) delete state.labelsByPath[path]
+      }
     },
     /** Replace the timeline-side scene cut selection. Times are matched by
      *  exact value when reading; lasso/Delete callers always pass canonical
      *  times sourced from cutsByPath. */
     setSelectedCutTimes(state, action: PayloadAction<number[]>) {
       state.selectedCutTimes = action.payload
+    },
+    /** Set or clear the label for the scene starting at `start`. An empty or
+     *  whitespace-only label clears the entry so the persisted map stays
+     *  small. The first scene uses start = 0; subsequent scenes use their
+     *  cut time. */
+    setSceneLabel(state, action: PayloadAction<{ path: string; start: number; label: string }>) {
+      const { path, start, label } = action.payload
+      const trimmed = label.trim()
+      if (trimmed === '') {
+        const labels = state.labelsByPath[path]
+        if (labels) {
+          delete labels[timeKey(start)]
+          if (Object.keys(labels).length === 0) delete state.labelsByPath[path]
+        }
+        return
+      }
+      if (!state.labelsByPath[path]) state.labelsByPath[path] = {}
+      state.labelsByPath[path][timeKey(start)] = trimmed
     },
   },
 })
@@ -292,6 +340,9 @@ export const {
   addCut,
   deleteCut,
   setSelectedCutTimes,
+  setSceneLabel,
 } = sceneSlice.actions
+
+export { timeKey as sceneLabelKey }
 
 export default sceneSlice.reducer

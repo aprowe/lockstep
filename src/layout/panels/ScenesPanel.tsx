@@ -3,7 +3,12 @@ import ListPanel from '../../components/list/ListPanel'
 import { useFilteredItems } from '../../components/list/useFilteredItems'
 import SceneRow, { type SceneRowData } from './SceneRow'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
-import { setMinGap as setSceneMinGapAction, deleteCut as deleteSceneCutAction } from '../../store/slices/sceneSlice'
+import {
+  setMinGap as setSceneMinGapAction,
+  deleteCut as deleteSceneCutAction,
+  setSceneLabel as setSceneLabelAction,
+  sceneLabelKey,
+} from '../../store/slices/sceneSlice'
 import { detectScenesThunk, cancelSceneDetectionThunk } from '../../store/thunks/sceneThunks'
 import { setListSelection } from '../../store/slices/listsSlice'
 import { selectActiveRegion } from '../../store/selectors'
@@ -18,6 +23,7 @@ import './ScenesPanel.css'
 // every render and (in `always` mode) state churn turns into an infinite
 // render loop. Sharing one frozen `[]` keeps the default identity stable.
 const EMPTY_CUTS: readonly number[] = Object.freeze([]) as readonly number[]
+const EMPTY_LABELS: Readonly<Record<string, string>> = Object.freeze({})
 
 export default function ScenesPanel() {
   const dispatch = useAppDispatch()
@@ -27,6 +33,7 @@ export default function ScenesPanel() {
   const regions = useAppSelector(s => s.region.regions)
   const cuts = useAppSelector(s => (videoPath ? s.scene.cutsByPath[videoPath] : undefined) ?? (EMPTY_CUTS as number[]))
   const userCuts = useAppSelector(s => (videoPath ? s.scene.userCutsByPath[videoPath] : undefined) ?? (EMPTY_CUTS as number[]))
+  const labels = useAppSelector(s => (videoPath ? s.scene.labelsByPath[videoPath] : undefined) ?? EMPTY_LABELS)
   const status = useAppSelector(s => videoPath ? s.scene.statusByPath[videoPath] ?? 'idle' : 'idle')
   const progress = useAppSelector(s => videoPath ? s.scene.progressByPath[videoPath] ?? 0 : 0)
   const error = useAppSelector(s => videoPath ? s.scene.errorByPath[videoPath] : undefined)
@@ -62,9 +69,10 @@ export default function ScenesPanel() {
         regionColorIndex: region?.colorIndex ?? null,
         // Boundary at t=0 is implied, not a real cut — disable its delete.
         canDelete: i > 0,
+        label: labels[sceneLabelKey(start)] ?? '',
       }
     })
-  }, [video, filteredCuts, regions])
+  }, [video, filteredCuts, regions, labels])
 
   const items = useFilteredItems({
     items: allItems,
@@ -205,6 +213,10 @@ export default function ScenesPanel() {
             if (videoPath && item.canDelete) {
               dispatch(deleteSceneCutAction({ path: videoPath, cut: item.start }))
             }
+          }}
+          onLabelChange={(label) => {
+            if (!videoPath) return
+            dispatch(setSceneLabelAction({ path: videoPath, start: item.start, label }))
           }}
         />
       )}

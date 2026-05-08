@@ -138,5 +138,9 @@ export interface SavedVideoState {
     cuts: number[]
     minGap?: number
     userCuts?: number[]
+    /** User-supplied scene labels keyed by scene-start time (3-decimal
+     *  seconds — matches the slice's 1ms cut tolerance). Empty/missing
+     *  entries mean "no label". */
+    labels?: Record<string, string>
   }
 }

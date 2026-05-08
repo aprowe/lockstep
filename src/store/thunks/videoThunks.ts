@@ -280,6 +280,9 @@ function applyLoadedState(dispatch: any, getState: () => unknown, state: SavedVi
       cuts: state.scenes.cuts,
       threshold: state.scenes.threshold,
       userCuts: Array.isArray(state.scenes.userCuts) ? state.scenes.userCuts : undefined,
+      labels: state.scenes.labels && typeof state.scenes.labels === 'object'
+        ? state.scenes.labels
+        : undefined,
     }))
   }
   // minGap is independent of cuts — restore even when no cuts have been

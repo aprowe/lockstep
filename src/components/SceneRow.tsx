@@ -2,11 +2,14 @@ import { useCallback, useMemo } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { useAppSelector } from '../store/hooks'
 import { selectThumbnailPathsFor } from '../store/slices/thumbnailsSlice'
+import { sceneLabelKey } from '../store/slices/sceneSlice'
 import { gesture } from '../store/gesture'
 import type { View } from '../types'
 import { timeToViewPct } from '../utils/view'
 import { useSetThumbnailHover } from './ThumbnailPopup'
 import './SceneRow.css'
+
+const EMPTY_SCENE_LABELS: Readonly<Record<string, string>> = Object.freeze({})
 
 interface SceneRowProps {
   /** Scene change times in orig (input) seconds. */
@@ -51,6 +54,9 @@ export default function SceneRow({
 }: SceneRowProps) {
   const video = useAppSelector(s => s.video.video)
   const thumbPaths = useAppSelector(selectThumbnailPathsFor(video?.fileHash))
+  const sceneLabels = useAppSelector(s =>
+    video ? s.scene.labelsByPath[video.path] : undefined,
+  ) ?? EMPTY_SCENE_LABELS
   const setThumbnailHover = useSetThumbnailHover()
 
   // Precompute the per-scene inline thumbnail URLs only when expanded. Without
@@ -162,11 +168,15 @@ export default function SceneRow({
         const selected = !!selectedTimes?.has(t)
         const isUser = !!userTimes?.has(t)
         const inlineSrc = expanded ? inlineSrcs[i] ?? null : null
+        // Diamonds mark scene boundaries — the label of the scene starting
+        // at this cut is what the user just named, so surface it on hover.
+        const label = sceneLabels[sceneLabelKey(t)] ?? ''
+        const titleText = label ? `Scene ${i + 1}: ${label}` : `Scene ${i + 1}`
         return (
           <div key={i} className="scene-band__marker" style={{ left: `${x}%` }}>
             <button
               type="button"
-              className={`scene-band__diamond${active ? ' scene-band__diamond--active' : ''}${selected ? ' scene-band__diamond--selected' : ''}${isUser ? ' scene-band__diamond--user' : ''}`}
+              className={`scene-band__diamond${active ? ' scene-band__diamond--active' : ''}${selected ? ' scene-band__diamond--selected' : ''}${isUser ? ' scene-band__diamond--user' : ''}${label ? ' scene-band__diamond--labeled' : ''}`}
               onClick={(e) => {
                 e.stopPropagation()
                 if (e.shiftKey && onSceneDelete) onSceneDelete(t)
@@ -184,8 +194,8 @@ export default function SceneRow({
               }}
               onMouseEnter={(e) => handleDiamondEnter(t, e)}
               onMouseLeave={handleLeave}
-              aria-label={`Scene ${i + 1}`}
-              title={`Scene ${i + 1}`}
+              aria-label={titleText}
+              title={titleText}
             />
             {expanded && (
               <button
@@ -194,8 +204,8 @@ export default function SceneRow({
                 onClick={onSceneClick ? () => onSceneClick(t) : undefined}
                 onMouseEnter={() => gesture.setHoveredScene(t)}
                 onMouseLeave={() => gesture.setHoveredScene(null)}
-                aria-label={`Scene ${i + 1} thumbnail`}
-                title={`Scene ${i + 1}`}
+                aria-label={`${titleText} thumbnail`}
+                title={titleText}
               >
                 {inlineSrc ? (
                   <img
@@ -209,7 +219,11 @@ export default function SceneRow({
                 )}
               </button>
             )}
-            {expanded && <span className="scene-band__label">{i + 1}</span>}
+            {expanded && (
+              <span className="scene-band__label">
+                {label || `${i + 1}`}
+              </span>
+            )}
           </div>
         )
       })}
