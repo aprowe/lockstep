@@ -561,16 +561,32 @@
   flex: 1;
 }
 
+.thin-toolbar__grid-group {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.thin-toolbar__grid-label {
+  font-family: var(--font-family);
+  font-size: calc(9px * var(--ui-scale));
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+  user-select: none;
+}
+
 .thin-toolbar__select {
   padding: 2px var(--sp-2);
-  background: var(--bg-inset);
-  border: 1px solid var(--border);
-  border-radius: 3px;
+  background: var(--bg-6);
+  border: 1px solid var(--border-hi);
+  border-radius: 4px;
   color: var(--fg-2);
   font-family: var(--font-family);
   font-size: var(--t-sm);
   cursor: pointer;
   outline: none;
 }
-.thin-toolbar__select:focus { border-color: var(--accent-2); }
+.thin-toolbar__select:hover { border-color: var(--fg-3); }
+.thin-toolbar__select:focus { border-color: var(--fg-3); }
 .thin-toolbar__select option { background: var(--bg-3); }

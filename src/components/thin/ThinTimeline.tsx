@@ -14,10 +14,9 @@ import BarsTrack from './BarsTrack'
 import BeatsTrack from './BeatsTrack'
 import RegionBand, { type RegionBlock } from './RegionBand'
 import ThumbnailStripTrack from './ThumbnailStripTrack'
-import ThumbnailQueueDebug from '../ThumbnailQueueDebug'
 import {
   IconWarpToggle, IconAlwaysAnchors, IconAlwaysRegions, IconAlwaysScenes,
-  IconThumbStrip, IconQueueDebug, IconFollowDrag, IconZoomToRegion,
+  IconThumbNone, IconThumbSmall, IconThumbLarge, IconFollowDrag, IconZoomToRegion,
 } from '../icons'
 import './ThinTimeline.css'
 
@@ -231,8 +230,7 @@ export default function ThinTimeline({
   const [alwaysAnchors, setAlwaysAnchors] = useState(true)
   const [alwaysRegions, setAlwaysRegions] = useState(false)
   const [alwaysScenes, setAlwaysScenes] = useState(false)
-  const [thumbStripEnabled, setThumbStripEnabled] = useState(false)
-  const [queueDebugOpen, setQueueDebugOpen] = useState(false)
+  const [thumbMode, setThumbMode] = useState<'none' | 'hover' | 'show'>('none')
 
   // Hover frames — lowest-priority thumbnail tier. Dispatch the 5-frame window
   // under the cursor so Filmstrip's priority push picks it up. Using a ref to
@@ -566,7 +564,6 @@ export default function ThinTimeline({
     if (target.closest('.thin-timeline__toolbar')) return false
     if (target.closest('.thin-timeline__resizer')) return false
     if (target.closest('.thin-row--minimap')) return false
-    if (target.closest('.thumb-queue-debug')) return false
     const section = target.closest('[data-section]') as HTMLElement | null
     if (section) {
       const id = section.dataset.section
@@ -874,7 +871,7 @@ export default function ThinTimeline({
       </div>
     ),
   })
-  if (thumbStripEnabled) {
+  if (thumbMode === 'show') {
     sections.push({
       id: 'thumbs',
       space: 'input',
@@ -1290,12 +1287,14 @@ export default function ThinTimeline({
         </button>
         <button
           type="button"
-          className={`thin-toolbar__btn thin-toolbar__btn--thumbs${thumbStripEnabled ? ' thin-toolbar__btn--active' : ''}`}
-          onClick={() => setThumbStripEnabled(v => !v)}
-          title="Show a thumbnail at each scene marker"
-          aria-pressed={thumbStripEnabled}
+          className={`thin-toolbar__btn thin-toolbar__btn--thumbs${thumbMode !== 'none' ? ' thin-toolbar__btn--active' : ''}`}
+          onClick={() => setThumbMode(m => m === 'none' ? 'hover' : m === 'hover' ? 'show' : 'none')}
+          title={thumbMode === 'none' ? 'Thumbnails off (click for hover)' : thumbMode === 'hover' ? 'Hover thumbnails (click for always-on)' : 'Thumbnails always on (click to hide)'}
+          aria-label={`Thumbnail mode: ${thumbMode}`}
         >
-          <IconThumbStrip aria-hidden="true" size={18} />
+          {thumbMode === 'none'  && <IconThumbNone  aria-hidden="true" size={18} />}
+          {thumbMode === 'hover' && <IconThumbSmall aria-hidden="true" size={18} />}
+          {thumbMode === 'show'  && <IconThumbLarge aria-hidden="true" size={18} />}
         </button>
 
         <span className="thin-toolbar__sep" />
@@ -1354,34 +1353,23 @@ export default function ThinTimeline({
 
         <span className="thin-toolbar__sep" />
 
-        <button
-          type="button"
-          className={`thin-toolbar__btn thin-toolbar__btn--debug${queueDebugOpen ? ' thin-toolbar__btn--active' : ''}`}
-          onClick={() => setQueueDebugOpen(v => !v)}
-          title="Thumbnail queue debug panel"
-          aria-pressed={queueDebugOpen}
-        >
-          <IconQueueDebug aria-hidden="true" size={18} />
-        </button>
-
         {onGridDivChange && (
           <>
             <span className="thin-toolbar__spacer" />
-            <select
-              className="thin-toolbar__select"
-              value={gridDiv ?? 1}
-              onChange={e => onGridDivChange(parseInt(e.target.value))}
-              title="Beat grid subdivision"
-            >
-              {GRID_DIVS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
-            </select>
+            <div className="thin-toolbar__grid-group">
+              <span className="thin-toolbar__grid-label">Grid</span>
+              <select
+                className="thin-toolbar__select"
+                value={gridDiv ?? 1}
+                onChange={e => onGridDivChange(parseInt(e.target.value))}
+                title="Beat grid subdivision"
+              >
+                {GRID_DIVS.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+              </select>
+            </div>
           </>
         )}
       </div>
-
-      {queueDebugOpen && (
-        <ThumbnailQueueDebug onClose={() => setQueueDebugOpen(false)} />
-      )}
 
       {lassoRange && (() => {
         const lo = Math.min(lassoRange.startPct, lassoRange.endPct) * 100

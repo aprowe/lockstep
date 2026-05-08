@@ -18,19 +18,19 @@ name: Main toolbar
 # lives together, every "navigate to X" lives together, etc. (see commit
 # a67393e). The colored hue on each button still keys to its target item.
 groups:
-  - - New Marker
-    - New Region
-    - New Scene
+  - - New Scene
+    - Prev Scene
+    - Next Scene
 
   - - Set In Region
     - Set Out Region
-
-  - - Prev Marker
-    - Next Marker
+    - New Region
     - Jump to Region Start
     - Jump to Region End
-    - Prev Scene
-    - Next Scene
+
+  - - New Marker
+    - Prev Marker
+    - Next Marker
 
   - - Play
     - Prev Frame

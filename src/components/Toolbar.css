@@ -1,20 +1,21 @@
 /* ── Toolbar strip ──────────────────────────────────────── */
 .toolbar {
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
   padding: var(--sp-2) var(--sp-5);
   background: var(--bg-3);
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   overflow: hidden;
 }
 
 .tb-side {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
 }
 
 .tb-side--right {
@@ -22,84 +23,169 @@
   margin-left: auto;
 }
 
+/* ── Group: semantic cluster with label above buttons ──── */
 .tb-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.tb-group--center {
+  flex: 1 1 auto;
+  align-self: stretch;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--sp-2);
+}
+
+.tb-group--center .tb-btn--play {
+  align-self: stretch;
+  width: auto;
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
+
+.tb-group--center .tb-group-buttons {
+  gap: var(--sp-2);
+}
+
+.tb-group--center .tb-time {
+  align-self: stretch;
+  justify-content: center;
+  margin-left: 0;
+}
+
+/* Category color token — set once per group, cascades into buttons */
+.tb-group--marker   { --cat: var(--space-input); }
+.tb-group--region   { --cat: var(--error); }
+.tb-group--scene    { --cat: var(--scene-cut); }
+
+.tb-group-label {
+  font-family: var(--font-family);
+  font-size: calc(10px * var(--ui-scale));
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  line-height: 1;
+  user-select: none;
+}
+
+.tb-group-buttons {
   display: flex;
   align-items: center;
   gap: var(--sp-1);
 }
 
-.tb-group--center {
-  flex: 1 1 auto;
-  justify-content: center;
+/* ── Separator ───────────────────────────────────────────── */
+.tb-sep {
+  width: 1px;
+  height: calc(28px * var(--ui-scale));
+  background: var(--border);
+  flex-shrink: 0;
+  align-self: flex-end;
 }
 
 /* ── Joined prev/next pairs ──────────────────────────────── */
 .tb-pair {
   display: flex;
-  align-items: center;
+  align-items: stretch;
+  border: 1px solid color-mix(in srgb, var(--cat, var(--border-hi)) 38%, transparent);
+  border-radius: 5px;
+  overflow: hidden;
 }
 
 .tb-pair .tb-btn {
+  border: none;
   border-radius: 0;
 }
 
-.tb-pair .tb-btn:first-child {
-  border-radius: 5px 0 0 5px;
-  border-right: none;
+.tb-pair .tb-btn + .tb-btn {
+  border-left: 1px solid color-mix(in srgb, var(--cat, var(--border-hi)) 28%, transparent);
 }
 
-.tb-pair .tb-btn:last-child {
-  border-radius: 0 5px 5px 0;
+/* Playback frame-step pair — keyed to the playhead color */
+.tb-pair--playback {
+  --cat: var(--playhead);
+  border-color: color-mix(in srgb, var(--playhead) 38%, transparent);
 }
-
-.tb-sep {
-  width: 1px;
-  height: 20px;
-  background: var(--border);
-  flex-shrink: 0;
+.tb-pair--playback .tb-btn + .tb-btn {
+  border-left-color: color-mix(in srgb, var(--playhead) 28%, transparent);
 }
-
+.tb-pair--playback .tb-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--playhead) 15%, var(--bg-hover));
+}
 
 /* ── Buttons ─────────────────────────────────────────────── */
 .tb-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--sz-btn);
-  height: var(--sz-btn);
-  background: var(--bg-6);
-  border: 1px solid var(--border-hi);
+  width: calc(28px * var(--ui-scale));
+  height: calc(28px * var(--ui-scale));
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--cat, var(--border-hi)) 38%, transparent);
   border-radius: 5px;
-  color: var(--fg-2);
+  color: var(--cat, var(--fg-2));
   cursor: pointer;
   font-family: var(--font-family);
   font-size: var(--t-lg);
   font-weight: 700;
-  transition: background 0.1s, color 0.1s;
+  transition: background 0.1s, color 0.1s, opacity 0.1s;
   flex-shrink: 0;
 }
 
-.tb-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--fg-1); }
-.tb-btn:disabled { opacity: 0.35; cursor: default; }
+.tb-btn:disabled { opacity: 0.3; cursor: default; }
 
+/* ── Action-type shading ─────────────────────────────────── */
+
+/* Create: solid icon + tinted background */
+.tb-btn--create {
+  background: color-mix(in srgb, var(--cat) 18%, transparent);
+  border-color: color-mix(in srgb, var(--cat) 38%, transparent);
+}
+.tb-btn--create:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cat) 28%, transparent);
+  color: color-mix(in srgb, var(--cat) 90%, white);
+}
+
+/* Delimit: bracket icons + subtle tint */
+.tb-btn--delimit {
+  background: color-mix(in srgb, var(--cat) 8%, transparent);
+  border-color: color-mix(in srgb, var(--cat) 38%, transparent);
+}
+.tb-btn--delimit:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cat) 18%, transparent);
+}
+
+/* Nav: transparent + dimmed icon, border from group */
+.tb-btn--nav {
+  background: transparent;
+  opacity: 0.65;
+}
+.tb-btn--nav:hover:not(:disabled) {
+  opacity: 1;
+  background: color-mix(in srgb, var(--cat) 20%, var(--bg-hover));
+}
+
+/* ── Play button ─────────────────────────────────────────── */
 .tb-btn--play {
-  width: var(--sz-btn-play);
-  height: var(--sz-btn-play);
   color: var(--accent);
   border-color: rgba(var(--accent-rgb), 0.3);
+  background: rgba(var(--accent-rgb), 0.08);
 }
-.tb-btn--play:hover { background: rgba(var(--accent-rgb), 0.1); }
+.tb-btn--play:hover:not(:disabled) {
+  background: rgba(var(--accent-rgb), 0.16);
+  color: var(--accent);
+}
 
-/* ── Playback loop-mode toggle ──────────────────────────────
- * Single cycle button next to the play controls (issue #22). Click cycles
- * continue → loop → stop. Sized smaller than the main transport buttons
- * so it reads as a secondary control. The active hue lights up only when
- * the mode is non-default (i.e. loop or stop), making "something will
- * happen at the end of the clip" visible at a glance. */
+/* ── Playback loop-mode toggle ─────────────────────────────
+ * Active hue lights up only when mode is non-default (loop or stop). */
 .tb-btn--loop-mode {
-  width: var(--sz-btn-sm);
-  height: var(--sz-btn-sm);
   color: var(--fg-3);
+  border-color: var(--border-hi);
+  background: transparent;
 }
 .tb-btn--loop-mode:hover:not(:disabled) {
   color: var(--fg-1);
@@ -111,86 +197,38 @@
   border-color: rgba(var(--accent-rgb), 0.45);
   background: rgba(var(--accent-rgb), 0.10);
 }
-.tb-btn--loop-mode--active:hover {
+.tb-btn--loop-mode--active:hover:not(:disabled) {
   color: var(--accent);
   background: rgba(var(--accent-rgb), 0.16);
-}
-
-/* ── Action-typed clusters ──────────────────────────────
- * Buttons are grouped by what they *do*, not what they act on:
- *   --create  → all "new X" actions
- *   --inout   → set in / set out boundary actions
- *   --nav     → prev/next/jump/zoom
- * Each button still carries its item hue (mark blue, region red, scene
- * yellow) via the per-button --btn-color set below. Cluster bg fills are
- * neutral so they don't compete with the item colors inside them. */
-
-/* Per-button item hue — drives `color` and tinted borders/hover bg via
- * --btn-color. Decoupled from cluster membership so buttons can move
- * between clusters without re-skinning. */
-.tb-btn--mark        { --btn-color: var(--space-input); }
-.tb-btn--region      { --btn-color: var(--error); }
-.tb-btn--scene       { --btn-color: var(--scene-cut); }
-.tb-btn--inout       { --btn-color: var(--error); }
-.tb-btn--nav-marker  { --btn-color: var(--space-input); }
-.tb-btn--nav-region  { --btn-color: var(--error); }
-.tb-btn--nav-scene   { --btn-color: var(--scene-cut); }
-
-/* All item-hued buttons share the same full-color treatment — `--btn-color`
- * comes from the per-button modifier and drives icon, border tint, hover bg. */
-.tb-btn--mark,
-.tb-btn--region,
-.tb-btn--scene,
-.tb-btn--inout,
-.tb-btn--nav-marker,
-.tb-btn--nav-region,
-.tb-btn--nav-scene {
-  color: var(--btn-color);
-  border-color: color-mix(in srgb, var(--btn-color) 38%, transparent);
-  letter-spacing: 0.05em;
-}
-.tb-btn--mark:hover:not(:disabled),
-.tb-btn--region:hover:not(:disabled),
-.tb-btn--scene:hover:not(:disabled),
-.tb-btn--inout:hover:not(:disabled),
-.tb-btn--nav-marker:hover:not(:disabled),
-.tb-btn--nav-region:hover:not(:disabled),
-.tb-btn--nav-scene:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--btn-color) 12%, transparent);
-  color: color-mix(in srgb, var(--btn-color) 60%, white);
-}
-
-.tb-btn--tap {
-  width: auto;
-  padding: 0 var(--sp-4);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-size: var(--t-md);
 }
 
 /* ── Time display ────────────────────────────────────────── */
 .tb-time {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
+  padding-left: 12px;
   font-family: var(--font-family);
   font-size: var(--t-xl);
-  margin-left: var(--sp-2);
 }
 
-.tb-time__current { color: var(--fg-1); }
-.tb-time__sep     { color: var(--fg-4); font-size: var(--t-md); }
+.tb-time__clock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  line-height: 1;
+}
+
+.tb-time__current { color: var(--fg-1); font-size: var(--t-xl); }
 .tb-time__total   { color: var(--fg-3); font-size: var(--t-md); }
-/* Vertical stack for the secondary counts (frames over beats). The divider
- * + left padding live on the wrapper so the two rows align without each
- * carrying its own border. */
+
 .tb-time__counts {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 3px;
-  margin-left: 8px;
-  padding-left: 10px;
+  padding-left: 8px;
   border-left: 1px solid var(--border);
   line-height: 1;
 }
@@ -219,8 +257,8 @@
 }
 
 .tb-time__count-label {
-  font-size: 9px;
-  letter-spacing: 0.08em;
+  font-size: 11px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--fg-4);
 }
@@ -242,32 +280,6 @@
 .tb-time__frames-input::-webkit-outer-spin-button,
 .tb-time__frames-input::-webkit-inner-spin-button { -webkit-appearance: none; }
 
-/* ── BPM controls ────────────────────────────────────────── */
-.tb-bpm-label {
-  font-family: var(--font-family);
-  font-size: var(--t-md);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--fg-3);
-}
-
-.tb-bpm-input {
-  width: 56px;
-  background: var(--bg-6);
-  border: 1px solid var(--border-hi);
-  border-radius: 5px;
-  color: var(--fg-1);
-  font-family: var(--font-family);
-  font-size: var(--t-2xl);
-  padding: var(--sp-1) var(--sp-3);
-  text-align: right;
-  outline: none;
-  -moz-appearance: textfield;
-}
-.tb-bpm-input::-webkit-outer-spin-button,
-.tb-bpm-input::-webkit-inner-spin-button { -webkit-appearance: none; }
-.tb-bpm-input:focus { border-color: var(--fg-3); }
-
 /* ── Inline labels ───────────────────────────────────────── */
 .tb-label {
   font-family: var(--font-family);
@@ -278,7 +290,7 @@
   flex-shrink: 0;
 }
 
-/* ── Dropdowns (speed, grid) ─────────────────────────────── */
+/* ── Dropdowns (speed) ───────────────────────────────────── */
 .tb-select {
   background: var(--bg-6);
   border: 1px solid var(--border-hi);
@@ -293,4 +305,3 @@
 }
 .tb-select:hover { border-color: var(--fg-3); }
 .tb-select:focus { border-color: var(--fg-3); }
-

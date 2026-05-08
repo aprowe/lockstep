@@ -16,14 +16,14 @@
   display: flex;
   align-items: center;
   padding: 0 var(--sp-4);
-  height: 26px;
+  height: calc(28px * var(--ui-scale));
   background: var(--bg-7);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
 .rip__title {
-  font-size: var(--t-sm);
+  font-size: var(--t-base);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -33,10 +33,10 @@
 .rip__body {
   flex: 1;
   min-height: 0;
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   overflow-y: auto;
 }
 
@@ -63,18 +63,18 @@
 }
 
 .rip__label {
-  font-size: var(--t-sm);
+  font-size: var(--t-base);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--fg-4);
   flex-shrink: 0;
-  min-width: 40px;
+  min-width: calc(44px * var(--ui-scale));
   text-align: right;
 }
 
 .rip__value {
   color: var(--fg-2);
-  font-size: var(--t-base);
+  font-size: var(--t-md);
 }
 
 .rip__value--computed {
@@ -94,14 +94,16 @@
 /* ── Input fields ──────────────────────────────────────── */
 
 .rip__input {
-  width: 78px;
+  width: calc(88px * var(--ui-scale));
+  box-sizing: border-box;
+  height: calc(28px * var(--ui-scale));
   background: var(--bg-6);
   border: 1px solid var(--border-hi);
   border-radius: 4px;
   color: var(--fg-1);
   font-family: var(--font-family);
-  font-size: var(--t-base);
-  padding: 2px var(--sp-1) 2px var(--sp-2);
+  font-size: var(--t-md);
+  padding: 0 var(--sp-1) 0 var(--sp-2);
   text-align: right;
   outline: none;
 }
@@ -112,8 +114,9 @@
 }
 .rip__input:focus { border-color: var(--fg-3); }
 .rip__input--time {
-  width: 80px;
+  width: calc(90px * var(--ui-scale));
   -moz-appearance: textfield;
+  text-align: left;
 }
 
 
@@ -123,16 +126,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--sz-btn-sm);
-  height: var(--sz-btn-sm);
+  width: calc(28px * var(--ui-scale));
+  height: calc(28px * var(--ui-scale));
+  box-sizing: border-box;
   background: none;
   border: 1px solid var(--border-hi);
   border-radius: 4px;
   color: var(--fg-2);
-  font-size: var(--t-sm);
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
+  transition: color 0.1s, border-color 0.1s;
 }
 .rip__detect:hover { border-color: var(--accent); color: var(--accent); }
 .rip__detect:disabled { opacity: 0.4; cursor: default; }
@@ -141,33 +145,36 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--sz-btn-sm);
-  height: var(--sz-btn-sm);
+  width: calc(28px * var(--ui-scale));
+  height: calc(28px * var(--ui-scale));
+  box-sizing: border-box;
   background: none;
   border: 1px solid var(--border-hi);
   border-radius: 4px;
-  color: #5a5048;
+  color: var(--fg-4);
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
   transition: color 0.1s, border-color 0.1s, background 0.1s;
 }
 
-.rip__lock:hover {
-  color: var(--fg-3);
-  border-color: var(--fg-3);
-}
+.rip__lock:hover { color: var(--fg-2); border-color: var(--fg-3); }
 
 .rip__lock--active {
   color: var(--accent-2);
   border-color: rgba(var(--accent-2-rgb), 0.4);
   background: rgba(var(--accent-2-rgb), 0.08);
 }
-
 .rip__lock--active:hover {
   color: var(--accent-2);
   border-color: rgba(var(--accent-2-rgb), 0.6);
   background: rgba(var(--accent-2-rgb), 0.14);
+}
+
+/* Scale SVG icons with --ui-scale */
+.rip__lock svg, .rip__detect svg {
+  width: calc(16px * var(--ui-scale));
+  height: calc(16px * var(--ui-scale));
 }
 
 /* ── Beat adjustment button group ─────────────────────── */
@@ -192,8 +199,8 @@
   border-right: 1px solid var(--border-hi);
   color: var(--fg-3);
   font-family: var(--font-family);
-  font-size: var(--t-xs);
-  padding: 2px 5px;
+  font-size: var(--t-sm);
+  padding: var(--sp-1) var(--sp-2);
   cursor: pointer;
   line-height: 1.2;
   transition: color 0.1s, background 0.1s;
@@ -210,13 +217,13 @@
 .rip__select {
   flex: 1;
   min-width: 0;
-  padding: 3px var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
   background: var(--bg-inset);
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--fg-2);
   font-family: var(--font-family);
-  font-size: var(--t-sm);
+  font-size: var(--t-base);
   cursor: pointer;
   outline: none;
   transition: border-color 0.1s;
@@ -239,7 +246,7 @@
 }
 
 .rip__check-label {
-  font-size: var(--t-sm);
+  font-size: var(--t-base);
   color: var(--fg-2);
   letter-spacing: 0.04em;
   cursor: pointer;
@@ -250,7 +257,7 @@
 
 .rip__empty {
   padding: var(--sp-5) var(--sp-4);
-  font-size: var(--t-sm);
+  font-size: var(--t-base);
   color: #5a5048;
   font-style: italic;
 }

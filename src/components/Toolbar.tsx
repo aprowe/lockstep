@@ -6,7 +6,6 @@ import {
   IconCreateMarker, IconPrevMarker, IconNextMarker,
   IconCreateRegion, IconSetRegionStart, IconSetRegionEnd,
   IconGoToRegionStart, IconGoToRegionEnd,
-  IconPrevRegion, IconNextRegion,
   IconCreateScene, IconPrevScene, IconNextScene,
   IconLoopStop, IconLoopRepeat, IconLoopContinue,
 } from './icons'
@@ -57,7 +56,7 @@ interface ToolbarProps {
 export default function Toolbar({
   playerRef, duration, fps, playing, currentTime,
   onMark, onJumpPrev, onJumpNext, onSetIn, onSetOut,
-  onNewRegion, onPrevRegion, onNextRegion, onJumpRegionStart, onJumpRegionEnd, onDeleteRegion,
+  onNewRegion, onJumpRegionStart, onJumpRegionEnd, onDeleteRegion,
   onNewScene, onPrevScene, onNextScene,
   playbackLoopMode, onPlaybackLoopModeChange,
   currentBeat,
@@ -70,9 +69,6 @@ export default function Toolbar({
   const onSetOutRef = useRef(onSetOut); onSetOutRef.current = onSetOut
   const onDeleteRegionRef = useRef(onDeleteRegion); onDeleteRegionRef.current = onDeleteRegion
 
-  // Global keyboard shortcuts
-  // fps is captured in a ref so the listener doesn't have to re-bind every
-  // time the parent re-renders with the same fps value.
   const fpsRef = useRef(fps); fpsRef.current = fps
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -84,8 +80,6 @@ export default function Toolbar({
       if (e.key === 'i' || e.key === 'I') onSetInRef.current?.()
       if (e.key === 'o' || e.key === 'O') onSetOutRef.current?.()
       if (e.key === 'Delete' && e.ctrlKey) { e.preventDefault(); onDeleteRegionRef.current?.() }
-      // Arrow stepping. Direction comes from the key, magnitude from the modifier:
-      //   plain  → 1 frame, Shift → 10 frames, Alt → 1 second
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         const dir = e.key === 'ArrowRight' ? 1 : -1
         const f = fpsRef.current
@@ -116,81 +110,162 @@ export default function Toolbar({
   return (
     <div className="toolbar">
 
-      {/* Left clusters: create | in/out | navigate.
-       *  Grouping by *action type* (rather than item type) — every "create"
-       *  action lives in one cluster, every nav action in another. Each
-       *  button still carries its item hue (marker blue / region red /
-       *  scene yellow) via the .tb-btn--<kind> modifier. */}
       <div className="tb-side tb-side--left">
-        <div className="tb-group tb-group--create">
-          <button data-layout-id="new-marker" className="tb-btn tb-btn--mark" onClick={() => onMark?.(playerRef.current?.currentTime ?? 0)} disabled={!onMark} title={tooltipFor('Place marker', 'mark')}>
-            <IconCreateMarker size={22} />
-          </button>
-          <button data-layout-id="new-region" className="tb-btn tb-btn--region" onClick={onNewRegion} disabled={!onNewRegion} title="New region">
-            <IconCreateRegion size={22} />
-          </button>
-          <button data-layout-id="new-scene" className="tb-btn tb-btn--scene" onClick={onNewScene} disabled={!onNewScene} title="New scene marker at playhead">
-            <IconCreateScene size={22} />
-          </button>
-        </div>
 
-        <div data-layout-sep className="tb-sep" />
-
-        <div className="tb-group tb-group--inout">
-          <div className="tb-pair">
-            <button data-layout-id="set-in-region" className="tb-btn tb-btn--inout" onClick={onSetIn} disabled={!onSetIn} title={tooltipFor('Set In', 'set-in')}>
-              <IconSetRegionStart size={22} />
+        {/* ── Scene ── */}
+        <div className="tb-group tb-group--scene">
+          <span className="tb-group-label">Scene</span>
+          <div className="tb-group-buttons">
+            <button
+              data-layout-id="new-scene"
+              className="tb-btn tb-btn--create"
+              onClick={onNewScene}
+              disabled={!onNewScene}
+              title="New scene marker at playhead"
+            >
+              <IconCreateScene size={18} />
             </button>
-            <button data-layout-id="set-out-region" className="tb-btn tb-btn--inout" onClick={onSetOut} disabled={!onSetOut} title={tooltipFor('Set Out', 'set-out')}>
-              <IconSetRegionEnd size={22} />
-            </button>
+            <div className="tb-pair">
+              <button
+                data-layout-id="prev-scene"
+                className="tb-btn tb-btn--nav"
+                onClick={onPrevScene}
+                disabled={!onPrevScene}
+                title="Previous scene marker"
+              >
+                <IconPrevScene size={18} />
+              </button>
+              <button
+                data-layout-id="next-scene"
+                className="tb-btn tb-btn--nav"
+                onClick={onNextScene}
+                disabled={!onNextScene}
+                title="Next scene marker"
+              >
+                <IconNextScene size={18} />
+              </button>
+            </div>
           </div>
         </div>
 
         <div data-layout-sep className="tb-sep" />
 
-        <div className="tb-group tb-group--nav">
-          <div className="tb-pair">
-            <button data-layout-id="prev-marker" className="tb-btn tb-btn--nav-marker" onClick={onJumpPrev} disabled={!onJumpPrev} title="Previous marker">
-              <IconPrevMarker size={22} />
+        {/* ── Region ── */}
+        <div className="tb-group tb-group--region">
+          <span className="tb-group-label">Region</span>
+          <div className="tb-group-buttons">
+            <div className="tb-pair">
+              <button
+                data-layout-id="set-in-region"
+                className="tb-btn tb-btn--delimit"
+                onClick={onSetIn}
+                disabled={!onSetIn}
+                title={tooltipFor('Set In', 'set-in')}
+              >
+                <IconSetRegionStart size={18} />
+              </button>
+              <button
+                data-layout-id="set-out-region"
+                className="tb-btn tb-btn--delimit"
+                onClick={onSetOut}
+                disabled={!onSetOut}
+                title={tooltipFor('Set Out', 'set-out')}
+              >
+                <IconSetRegionEnd size={18} />
+              </button>
+            </div>
+            <button
+              data-layout-id="new-region"
+              className="tb-btn tb-btn--create"
+              onClick={onNewRegion}
+              disabled={!onNewRegion}
+              title="New region"
+            >
+              <IconCreateRegion size={18} />
             </button>
-            <button data-layout-id="next-marker" className="tb-btn tb-btn--nav-marker" onClick={onJumpNext} disabled={!onJumpNext} title="Next marker">
-              <IconNextMarker size={22} />
-            </button>
-          </div>
-          <div className="tb-pair">
-            <button data-layout-id="jump-to-region-start" className="tb-btn tb-btn--nav-region" onClick={onJumpRegionStart} disabled={!onJumpRegionStart} title="Jump to region start">
-              <IconGoToRegionStart size={22} />
-            </button>
-            <button data-layout-id="jump-to-region-end" className="tb-btn tb-btn--nav-region" onClick={onJumpRegionEnd} disabled={!onJumpRegionEnd} title="Jump to region end">
-              <IconGoToRegionEnd size={22} />
-            </button>
-          </div>
-          <div className="tb-pair">
-            <button data-layout-id="prev-scene" className="tb-btn tb-btn--nav-scene" onClick={onPrevScene} disabled={!onPrevScene} title="Previous scene marker">
-              <IconPrevScene size={22} />
-            </button>
-            <button data-layout-id="next-scene" className="tb-btn tb-btn--nav-scene" onClick={onNextScene} disabled={!onNextScene} title="Next scene marker">
-              <IconNextScene size={22} />
-            </button>
+            <div className="tb-pair">
+              <button
+                data-layout-id="jump-to-region-start"
+                className="tb-btn tb-btn--nav"
+                onClick={onJumpRegionStart}
+                disabled={!onJumpRegionStart}
+                title="Jump to region start"
+              >
+                <IconGoToRegionStart size={18} />
+              </button>
+              <button
+                data-layout-id="jump-to-region-end"
+                className="tb-btn tb-btn--nav"
+                onClick={onJumpRegionEnd}
+                disabled={!onJumpRegionEnd}
+                title="Jump to region end"
+              >
+                <IconGoToRegionEnd size={18} />
+              </button>
+            </div>
           </div>
         </div>
+
+        <div data-layout-sep className="tb-sep" />
+
+        {/* ── Markers ── */}
+        <div className="tb-group tb-group--marker">
+          <span className="tb-group-label">Markers</span>
+          <div className="tb-group-buttons">
+            <button
+              data-layout-id="new-marker"
+              className="tb-btn tb-btn--create"
+              onClick={() => onMark?.(playerRef.current?.currentTime ?? 0)}
+              disabled={!onMark}
+              title={tooltipFor('Place marker', 'mark')}
+            >
+              <IconCreateMarker size={18} />
+            </button>
+            <div className="tb-pair">
+              <button
+                data-layout-id="prev-marker"
+                className="tb-btn tb-btn--nav"
+                onClick={onJumpPrev}
+                disabled={!onJumpPrev}
+                title="Previous marker"
+              >
+                <IconPrevMarker size={18} />
+              </button>
+              <button
+                data-layout-id="next-marker"
+                className="tb-btn tb-btn--nav"
+                onClick={onJumpNext}
+                disabled={!onJumpNext}
+                title="Next marker"
+              >
+                <IconNextMarker size={18} />
+              </button>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       {/* invisible group boundary marker for layout tests */}
       <span data-layout-sep aria-hidden="true" style={{ display: 'none' }} />
 
-      {/* Center: play controls */}
-      <div className="tb-group tb-group--center">
-        <button data-layout-id="play" className="tb-btn tb-btn--play" onClick={toggle} title={tooltipFor(playing ? 'Pause' : 'Play', 'play-pause')}>
-          {playing ? <IconPause size={22} /> : <IconPlay size={22} />}
+      {/* ── Center: play controls ── */}
+      <div className="tb-group tb-group--center tb-group--playback">
+        <button
+          data-layout-id="play"
+          className="tb-btn tb-btn--play"
+          onClick={toggle}
+          title={tooltipFor(playing ? 'Pause' : 'Play', 'play-pause')}
+        >
+          {playing ? <IconPause size={18} /> : <IconPlay size={18} />}
         </button>
-        <div className="tb-pair">
+        <div className="tb-group-buttons">
+        <div className="tb-pair tb-pair--playback">
           <button data-layout-id="prev-frame" className="tb-btn" onClick={() => step(-1)} title="Step back 1 frame">
-            <IconPrevFrame size={22} />
+            <IconPrevFrame size={18} />
           </button>
           <button data-layout-id="next-frame" className="tb-btn" onClick={() => step(1)} title="Step forward 1 frame">
-            <IconNextFrame size={22} />
+            <IconNextFrame size={18} />
           </button>
         </div>
         {playbackLoopMode && onPlaybackLoopModeChange && (() => {
@@ -215,14 +290,16 @@ export default function Toolbar({
               title={`${label[playbackLoopMode]} (click for ${label[next[playbackLoopMode]].toLowerCase()})`}
               aria-label={`Playback loop mode: ${label[playbackLoopMode]}`}
             >
-              <Icon size={16} />
+              <Icon size={18} />
             </button>
           )
         })()}
+        </div>
         <div className="tb-time">
-          <span data-layout-id="play-time" className="tb-time__current">{fmt(currentTime)}</span>
-          <span className="tb-time__sep">/</span>
-          <span className="tb-time__total">{fmt(duration)}</span>
+          <div className="tb-time__clock">
+            <span data-layout-id="play-time" className="tb-time__current">{fmt(currentTime)}</span>
+            <span className="tb-time__total">{fmt(duration)}</span>
+          </div>
           <div className="tb-time__counts">
             {editingFrame ? (
               <input
@@ -275,7 +352,7 @@ export default function Toolbar({
       {/* invisible group boundary marker for layout tests */}
       <span data-layout-sep aria-hidden="true" style={{ display: 'none' }} />
 
-      {/* Right: settings — hugs the right edge via margin-left: auto */}
+      {/* ── Right: speed ── */}
       <div className="tb-side tb-side--right">
         <div className="tb-group">
           <span data-layout-id="speed" className="tb-label">Speed</span>

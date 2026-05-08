@@ -1,117 +1,184 @@
-# Lockstep Icon Inventory
+# Lockstep Icon Glossary
 
-A catalogue of every icon the app renders. Two groups:
-
-1. **Centralized** — already exported from `src/components/icons.tsx`.
-2. **Inline / not centralized** — inline `<svg>` in JSX that should eventually
-   move into `icons.tsx` so the visual system stays consistent.
-
-All icons follow the design conventions in the previous spec: 24×24 viewBox
-(or 16×16 for the small toolbar variants), 1.5–2px monoline strokes,
-`currentColor` so they inherit theme tokens.
+All icons used or needed in the app, grouped by area. For each icon, the name corresponds to the component in `icons.tsx` (if it exists) and the description explains what the icon should communicate — not what it looks like.
 
 ---
 
-## 1. Centralized — `src/components/icons.tsx`
+## Playback Controls
 
-### Playback
-| Component | Meaning | Used in |
-|---|---|---|
-| `IconPlay` | Start playback | `Toolbar.tsx` |
-| `IconNextFrame` | Step forward one frame | `Toolbar.tsx` |
-| `IconPrevFrame` | Step back one frame | `Toolbar.tsx` |
-
-### Markers
-| Component | Meaning | Used in |
-|---|---|---|
-| `IconCreateMarker` | Place a marker at the playhead | `Toolbar.tsx` |
-| `IconNextMarker` | Jump to next marker | `Toolbar.tsx` |
-| `IconPrevMarker` | Jump to previous marker | `Toolbar.tsx` |
-
-### Regions
-| Component | Meaning | Used in |
-|---|---|---|
-| `IconCreateRegion` | Create a new region | `Toolbar.tsx` |
-| `IconSetRegionStart` | Set region in-point at playhead | `Toolbar.tsx` |
-| `IconSetRegionEnd` | Set region out-point at playhead | `Toolbar.tsx` |
-| `IconGoToRegionStart` | Jump to active region's start | `Toolbar.tsx` |
-| `IconGoToRegionEnd` | Jump to active region's end | `Toolbar.tsx` |
-| `IconPrevRegion` | Jump to previous region (defined, not yet wired) | — |
-| `IconNextRegion` | Jump to next region (defined, not yet wired) | — |
-
-### Generic
-| Component | Meaning | Used in |
-|---|---|---|
-| `IconDeselect` | Clear current selection | `list/ListPanel.tsx` |
-| `IconTrash` | Delete row / bulk delete | `list/ListPanel.tsx`, `list/RowShell.tsx` |
-
----
-
-## 2. Inline SVGs that should be added to `icons.tsx`
-
-These are drawn directly inside JSX today. Each one is an icon used in the
-chrome of the app — they belong with the centralized set.
-
-### Playback
-| Suggested name | Where it lives | Meaning |
-|---|---|---|
-| `IconPause` | `Toolbar.tsx` (play button, when playing) | Pause playback (two vertical bars) |
-
-### Regions
-| Suggested name | Where it lives | Meaning |
-|---|---|---|
-| `IconZoomToRegion` | `Toolbar.tsx` (`zoom-to-region` button) | Frame the timeline view to the active region |
-
-### Scenes
-| Suggested name | Where it lives | Meaning |
-|---|---|---|
-| `IconCreateScene` | `Toolbar.tsx` (`new-scene` button) | Add a manual scene-cut at the playhead |
-| `IconNextScene` | `Toolbar.tsx` (`next-scene` button) | Jump to next scene-cut |
-| `IconPrevScene` | `Toolbar.tsx` (`prev-scene` button) | Jump to previous scene-cut |
-
-### Region info panel
-| Suggested name | Where it lives | Meaning |
-|---|---|---|
-| `IconLockClosed` | `RegionInfoPanel.tsx` | BPM-lock or beat-count lock engaged |
-| `IconLockOpen` | `RegionInfoPanel.tsx` | Lock disengaged |
-
-### App chrome
-| Suggested name | Where it lives | Meaning |
-|---|---|---|
-| `IconSettings` | `App.tsx` (top-right menubar) | Open settings dialog (gear) |
-| `IconDropVideo` | `App.tsx` (drag-drop overlay) | Hint that a dropped file will be loaded (download arrow) |
-
-### Thin-timeline toolbar (14×14, 16×16 viewBox)
-| Suggested name | Where it lives | Meaning |
-|---|---|---|
-| `IconWarpToggle` | `thin/ThinTimeline.tsx` | Show/hide warp views (warp, marker-out, clip-out, speed) |
-| `IconAlwaysAnchors` | `thin/ThinTimeline.tsx` | Always show through-lines for markers |
-| `IconAlwaysRegions` | `thin/ThinTimeline.tsx` | Always show through-lines for clip / region edges |
-| `IconAlwaysScenes` | `thin/ThinTimeline.tsx` | Always show through-lines for scene cuts |
-| `IconThumbStrip` | `thin/ThinTimeline.tsx` | Toggle thumbnail strip on scene markers |
-| `IconQueueDebug` | `thin/ThinTimeline.tsx` | Toggle thumbnail-queue debug panel |
-| `IconFollowDrag` | `thin/ThinTimeline.tsx` | Playhead follows dragged markers (crosshair dot) |
-
----
-
-## Style baseline (for new icons)
-
-| Property | Value |
+| Component | Meaning |
 |---|---|
-| Viewbox | `0 0 24 24` (or `0 0 16 16` for thin-timeline toolbar) |
-| Stroke | `currentColor`, 2px main / 1.5px secondary |
-| Fill | `none` (use `fill="currentColor"` only for solid dots / fills) |
-| Linecap / linejoin | `miter` for crisp ends, `round` only when softness is intentional |
-| Padding | 2px minimum from viewBox edges |
-| Active state | Cyan accent (`#00E5FF`) handled via CSS, not in the SVG |
+| `IconPlay` | Start playback from the current position |
+| `IconPause` | Suspend playback, holding the current position |
+| `IconPrevFrame` | Step backward exactly one video frame |
+| `IconNextFrame` | Step forward exactly one video frame |
+| `IconStop` | Stop playback and return to the beginning |
 
 ---
 
-## Migration plan (when consolidating)
+## Playback Loop Modes
 
-1. For each entry in §2, copy its SVG into `icons.tsx` under the suggested
-   name and re-style it to match the §1 conventions (stroke widths, miter
-   joins, dot fills).
-2. Replace the inline `<svg>` at the call site with the new component.
-3. Drop any per-component fixed `width`/`height` and rely on the `size`
-   prop so the icon scales with its host button.
+Three mutually exclusive states for what happens when playback reaches a boundary (end of clip, region, or video).
+
+| Component | Meaning |
+|---|---|
+| `IconLoopStop` | Pause at the boundary; playback ends there |
+| `IconLoopRepeat` | Wrap from the end back to the start and keep playing |
+| `IconLoopContinue` | Continue playing past the boundary into whatever comes next |
+
+---
+
+## Markers
+
+Markers are single time-point flags on the timeline.
+
+| Component | Meaning |
+|---|---|
+| `IconCreateMarker` | Place a new marker at the current playhead position |
+| `IconPrevMarker` | Move the playhead to the nearest marker before the current position |
+| `IconNextMarker` | Move the playhead to the nearest marker after the current position |
+| *(needed)* `IconDeleteMarker` | Remove the currently selected or hovered marker |
+| *(needed)* `IconSnapMarker` | Snap a marker to the nearest beat |
+| *(needed)* `IconResetMarker` | Clear a marker's beat override and restore its default beat mapping |
+| *(needed)* `IconImportMarkers` | Import marker timecodes from a JSON file |
+
+---
+
+## Regions
+
+Regions are named sub-clips with in/out points and their own BPM settings.
+
+| Component | Meaning |
+|---|---|
+| `IconCreateRegion` | Create a new region spanning a default range |
+| `IconSetRegionStart` | Move the active region's in-point to the current playhead position |
+| `IconSetRegionEnd` | Move the active region's out-point to the current playhead position |
+| `IconGoToRegionStart` | Jump the playhead to the active region's in-point |
+| `IconGoToRegionEnd` | Jump the playhead to the active region's out-point |
+| `IconPrevRegion` | Select and jump to the region that comes before the active one |
+| `IconNextRegion` | Select and jump to the region that comes after the active one |
+| `IconZoomToRegion` | Zoom the timeline view so the active region fills the visible window |
+| `IconDeselect` | Clear the active region selection, returning to the global/whole-video view |
+| *(needed)* `IconRenameRegion` | Rename the active region |
+| *(needed)* `IconDuplicateRegion` | Create a copy of the active region |
+
+---
+
+## Scenes
+
+Scene markers divide the video into named sections independent of regions.
+
+| Component | Meaning |
+|---|---|
+| `IconCreateScene` | Place a new scene marker at the current playhead position |
+| `IconPrevScene` | Jump the playhead to the previous scene marker |
+| `IconNextScene` | Jump the playhead to the next scene marker |
+| *(needed)* `IconDeleteScene` | Remove the current or selected scene marker |
+| *(needed)* `IconSeekToScene` | Jump playback to a specific scene's start |
+
+---
+
+## BPM / Beat Locking
+
+Used in the Region Info Panel to control whether BPM or beat count stays fixed when region boundaries change.
+
+| Component | Meaning |
+|---|---|
+| `IconLockClosed` | The value (BPM or beat count) is locked; changes to boundaries won't affect it |
+| `IconLockOpen` | The value is unlocked and will recompute when boundaries change |
+
+---
+
+## Timeline Toolbar Toggles
+
+Small toggle buttons in the thin timeline's right-side toolbar. Each controls a display or behavior option for the timeline.
+
+| Component | Meaning |
+|---|---|
+| `IconWarpToggle` | Show or hide the warp/time-stretch overlay on the timeline |
+| `IconThumbStrip` | Show or hide the thumbnail filmstrip beneath the timeline |
+| `IconAlwaysAnchors` | Pin anchor markers visible at all zoom levels instead of fading them out |
+| `IconAlwaysRegions` | Pin region overlays visible at all zoom levels |
+| `IconAlwaysScenes` | Pin scene markers visible at all zoom levels |
+| `IconFollowDrag` | When enabled, the timeline scrolls to keep the playhead centered during playback or drag |
+| `IconQueueDebug` | Open the thumbnail generation queue debug panel |
+
+---
+
+## File & Folder Operations
+
+| Component | Meaning |
+|---|---|
+| `IconDropVideo` | Empty-state prompt: indicates where a user can drop or open a video file |
+| *(needed)* `IconOpenFolder` | Browse for and open a folder in the sidebar |
+| *(needed)* `IconOpenFile` | Open a single video file via the native file picker |
+| *(needed)* `IconRevealInFinder` | Show a file or folder in the OS file manager |
+| *(needed)* `IconExport` | Open the export dialog or trigger an export operation |
+| *(needed)* `IconSave` | Save the current output or state to disk |
+| *(needed)* `IconBrowse` | Open a folder picker (used in export destination fields) |
+
+---
+
+## Destructive / Edit Actions
+
+| Component | Meaning |
+|---|---|
+| `IconTrash` | Permanently delete the selected item (region, marker, scene, etc.) |
+| `IconRename` | Begin editing the name of the selected item inline |
+| *(needed)* `IconClearAll` | Remove all items of a type at once (e.g., clear all markers) |
+| `IconUndo` | Revert the most recent action |
+| `IconRedo` | Reapply the most recently undone action |
+
+---
+
+## Settings & App Chrome
+
+| Component | Meaning |
+|---|---|
+| `IconSettings` | Open the settings/preferences dialog |
+| *(needed)* `IconClose` | Dismiss a dialog, panel, or overlay |
+| *(needed)* `IconMinimize` | Minimize the window to the taskbar/dock |
+| *(needed)* `IconMaximize` | Expand the window to fill the screen |
+| *(needed)* `IconRestore` | Return the window from maximized to its previous size |
+| *(needed)* `IconVisibility` | Toggle visibility of a sensitive value (e.g., show/hide an API key) |
+| *(needed)* `IconReset` | Reset a setting or set of settings to default values |
+| *(needed)* `IconInfo` | Open an informational dialog (e.g., About) |
+
+---
+
+## AI Assistant Panel
+
+| Component | Meaning |
+|---|---|
+| *(needed)* `IconSend` | Submit a message or prompt to the assistant |
+| *(needed)* `IconCancelSend` | Abort an in-progress assistant request |
+| *(needed)* `IconClearChat` | Erase the full conversation history in the assistant panel |
+
+---
+
+## Sidebar Navigation
+
+| Component | Meaning |
+|---|---|
+| *(needed)* `IconCollapseSidebar` | Hide the sidebar panel, giving more space to the main view |
+| *(needed)* `IconExpandSidebar` | Reveal the sidebar panel |
+| *(needed)* `IconAdd` | Add a new item to a list (clip, region, etc.) |
+| *(needed)* `IconSetInPoint` | Mark the current playhead time as the start of a clip or region |
+| *(needed)* `IconSetOutPoint` | Mark the current playhead time as the end of a clip or region |
+| `IconDetectBPM` | Run automatic BPM detection from the current markers |
+
+---
+
+## Context Menu Actions
+
+These appear in right-click menus and do not currently have icon components, but could use them as leading glyphs.
+
+| Concept | Meaning |
+|---|---|
+| *(needed)* `IconDeleteAnchor` | Remove a warp anchor point |
+| *(needed)* `IconResetAnchorLink` | Clear a manually adjusted beat link, restoring the default beat mapping for that anchor |
+| *(needed)* `IconSnapToBeat` | Force an anchor to land exactly on the nearest beat |
+| *(needed)* `IconSendToRegion` | Move the selected anchor(s) into a new region |
+| *(needed)* `IconCreateMarkerHere` | Place a marker at a specific clicked position on the timeline |
+| *(needed)* `IconCreateSceneHere` | Place a scene marker at a specific clicked position on the timeline |
+| *(needed)* `IconCreateRegionHere` | Create a region starting at a specific clicked position on the timeline |

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Region, WarpData } from '../types'
-import { IconLockClosed, IconLockOpen } from './icons'
+import { IconLockClosed, IconLockOpen, IconDetectBPM } from './icons'
 import './RegionInfoPanel.css'
 
 type LockTarget = 'bpm' | 'beats'
@@ -291,7 +291,7 @@ export default function RegionInfoPanel({
                 onClick={handleLockToggle}
                 title={lock === 'bpm' ? 'BPM locked — resize changes beats' : 'Click to lock BPM'}
               >
-                {lock === 'bpm' ? <IconLockClosed size={12} /> : <IconLockOpen size={12} />}
+                {lock === 'bpm' ? <IconLockClosed size={16} /> : <IconLockOpen size={16} />}
               </button>
             )}
             {onBpmDetect && (
@@ -301,7 +301,7 @@ export default function RegionInfoPanel({
                 disabled={detectingBpm}
                 title="Detect BPM from markers"
               >
-                {detectingBpm ? '…' : '?'}
+                {detectingBpm ? '…' : <IconDetectBPM size={16} />}
               </button>
             )}
           </div>
@@ -323,7 +323,7 @@ export default function RegionInfoPanel({
                   onClick={handleLockToggle}
                   title={lock === 'beats' ? 'Beats locked — resize changes BPM' : 'Click to lock beats'}
                 >
-                  {lock === 'beats' ? <IconLockClosed size={12} /> : <IconLockOpen size={12} />}
+                  {lock === 'beats' ? <IconLockClosed size={16} /> : <IconLockOpen size={16} />}
                 </button>
               </>
             ) : (

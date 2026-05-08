@@ -160,16 +160,16 @@
         {
           "items": [
             {
-              "id": "new-marker",
-              "label": "New Marker"
-            },
-            {
-              "id": "new-region",
-              "label": "New Region"
-            },
-            {
               "id": "new-scene",
               "label": "New Scene"
+            },
+            {
+              "id": "prev-scene",
+              "label": "Prev Scene"
+            },
+            {
+              "id": "next-scene",
+              "label": "Next Scene"
             }
           ]
         },
@@ -182,18 +182,10 @@
             {
               "id": "set-out-region",
               "label": "Set Out Region"
-            }
-          ]
-        },
-        {
-          "items": [
-            {
-              "id": "prev-marker",
-              "label": "Prev Marker"
             },
             {
-              "id": "next-marker",
-              "label": "Next Marker"
+              "id": "new-region",
+              "label": "New Region"
             },
             {
               "id": "jump-to-region-start",
@@ -202,14 +194,22 @@
             {
               "id": "jump-to-region-end",
               "label": "Jump to Region End"
+            }
+          ]
+        },
+        {
+          "items": [
+            {
+              "id": "new-marker",
+              "label": "New Marker"
             },
             {
-              "id": "prev-scene",
-              "label": "Prev Scene"
+              "id": "prev-marker",
+              "label": "Prev Marker"
             },
             {
-              "id": "next-scene",
-              "label": "Next Scene"
+              "id": "next-marker",
+              "label": "Next Marker"
             }
           ]
         },

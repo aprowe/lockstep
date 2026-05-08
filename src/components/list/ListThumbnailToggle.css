@@ -9,8 +9,6 @@
   border: 1px solid transparent;
   border-radius: 3px;
   color: var(--fg-3);
-  font-family: inherit;
-  font-size: var(--t-md);
   line-height: 1;
   cursor: pointer;
   transition: background 0.08s, color 0.08s, border-color 0.08s;

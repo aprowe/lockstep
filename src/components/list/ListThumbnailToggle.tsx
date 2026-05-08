@@ -1,12 +1,14 @@
+import React from 'react'
 import type { ListThumbnailMode } from '../../store/slices/listsSlice'
+import { IconThumbNone, IconThumbSmall, IconThumbLarge } from '../icons'
 import './ListThumbnailToggle.css'
 
 const ORDER: ListThumbnailMode[] = ['none', 'hover', 'always']
 
-const ICONS: Record<ListThumbnailMode, string> = {
-  none: '◯',
-  hover: '◐',
-  always: '●',
+const ICON_EL: Record<ListThumbnailMode, React.ReactNode> = {
+  none: <IconThumbNone size={14} />,
+  hover: <IconThumbSmall size={14} />,
+  always: <IconThumbLarge size={14} />,
 }
 
 const LABELS: Record<ListThumbnailMode, string> = {
@@ -14,6 +16,7 @@ const LABELS: Record<ListThumbnailMode, string> = {
   hover: 'Thumbnails: on hover',
   always: 'Thumbnails: always',
 }
+
 
 interface Props {
   mode: ListThumbnailMode
@@ -36,7 +39,7 @@ export default function ListThumbnailToggle({ mode, onChange }: Props) {
       aria-label={LABELS[mode]}
       onClick={next}
     >
-      {ICONS[mode]}
+      {ICON_EL[mode]}
     </button>
   )
 }
