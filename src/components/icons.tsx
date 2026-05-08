@@ -107,18 +107,16 @@ export function IconSetRegionEnd({ size = 24, ...props }: IconProps) {
 
 export function IconGoToRegionStart({ size = 24, ...props }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M7,5 L7,19 M7,5 L11,5 M7,19 L11,19" />
-      <polyline points="15,9 12,12 15,15" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <polyline points="15,5 8,12 15,19" />
     </svg>
   );
 }
 
 export function IconGoToRegionEnd({ size = 24, ...props }: IconProps) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M17,5 L17,19 M17,5 L13,5 M17,19 L13,19" />
-      <polyline points="9,9 12,12 9,15" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <polyline points="9,5 16,12 9,19" />
     </svg>
   );
 }

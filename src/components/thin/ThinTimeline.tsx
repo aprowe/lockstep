@@ -16,8 +16,12 @@ import RegionBand, { type RegionBlock } from './RegionBand'
 import ThumbnailStripTrack from './ThumbnailStripTrack'
 import {
   IconWarpToggle, IconAlwaysAnchors, IconAlwaysRegions, IconAlwaysScenes,
-  IconThumbNone, IconThumbSmall, IconThumbLarge, IconFollowDrag, IconZoomToRegion,
+  IconThumbStrip, IconFollowDrag, IconZoomToRegion,
 } from '../icons'
+import {
+  setTimelineThumbShow, setTimelineFollowDrag,
+  setTimelineAlwaysAnchors, setTimelineAlwaysRegions, setTimelineAlwaysScenes,
+} from '../../store/slices/uiSlice'
 import './ThinTimeline.css'
 
 const GRID_DIVS = [
@@ -225,12 +229,11 @@ export default function ThinTimeline({
   } | null>(null)
   const LASSO_DRAG_THRESHOLD = 4 // px
 
-  // Through-line visibility toggles. Markers are on by default (existing
-  // behavior); regions and scenes show on interaction only unless toggled on.
-  const [alwaysAnchors, setAlwaysAnchors] = useState(true)
-  const [alwaysRegions, setAlwaysRegions] = useState(false)
-  const [alwaysScenes, setAlwaysScenes] = useState(false)
-  const [thumbMode, setThumbMode] = useState<'none' | 'hover' | 'show'>('none')
+  // Through-line visibility toggles — persisted via Redux + localStorage.
+  const alwaysAnchors = useAppSelector(s => s.ui.timelineAlwaysAnchors)
+  const alwaysRegions = useAppSelector(s => s.ui.timelineAlwaysRegions)
+  const alwaysScenes = useAppSelector(s => s.ui.timelineAlwaysScenes)
+  const thumbMode = useAppSelector(s => s.ui.timelineThumbShow ? 'show' : 'none') as 'none' | 'show'
 
   // Hover frames — lowest-priority thumbnail tier. Dispatch the 5-frame window
   // under the cursor so Filmstrip's priority push picks it up. Using a ref to
@@ -259,7 +262,7 @@ export default function ThinTimeline({
   }, [dispatch, videoFileHash, videoFps, hoverPct, view.start, view.end])
   // Playhead-follows-drag: when on, dragging a marker moves the playhead too.
   // The drag time lives in the gesture store; we just forward it on change.
-  const [followDrag, setFollowDrag] = useState(false)
+  const followDrag = useAppSelector(s => s.ui.timelineFollowDrag)
   useEffect(() => {
     if (!followDrag || !dragTime) return
     if (dragTime.space === 'input') onSeek?.(dragTime.time)
@@ -357,21 +360,37 @@ export default function ThinTimeline({
       for (const r of regions) pushRegion(r.id, 'dotted')
     }
 
-    // Scenes live in input space only — output side stays null so the line
-    // does not continue past the warp row. Selected cuts always show; the
-    // 'always-show' toggle and hover supplement that with weaker styles.
+    // Scenes pass through the warp zone (like the playhead) — map each scene
+    // time through the segments to get its output-space position.
+    const sceneInputToOutputX = (t: number): number | null => {
+      if (duration <= 0 || segments.length === 0) return null
+      const tPct = (t / duration) * 100
+      for (const seg of segments) {
+        if (tPct >= seg.origLeft && tPct <= seg.origRight) {
+          const frac = seg.origRight === seg.origLeft ? 0
+            : (tPct - seg.origLeft) / (seg.origRight - seg.origLeft)
+          const outPct = seg.quantLeft + frac * (seg.quantRight - seg.quantLeft)
+          return timeToViewPct((outPct / 100) * outputDuration, view)
+        }
+      }
+      // Past last segment — clamp to its right edge
+      const last = segments[segments.length - 1]
+      return timeToViewPct((last.quantRight / 100) * outputDuration, view)
+    }
+
     const scenesToShow = new Set<number>()
     if (alwaysScenes) for (const s of scenes) scenesToShow.add(s)
     if (hoveredSceneTime !== null) scenesToShow.add(hoveredSceneTime)
     if (selectedSceneTimes) for (const t of selectedSceneTimes) scenesToShow.add(t)
     for (const t of scenesToShow) {
       const inputX = timeToViewPct(t, view)
-      if (!pairVisible(inputX, null)) continue
+      const outputX = sceneInputToOutputX(t)
+      if (!pairVisible(inputX, outputX)) continue
       const isSelected = selectedSceneTimes?.has(t) ?? false
       const style: ThroughStyle = isSelected
         ? 'selected'
         : hoveredSceneTime === t ? 'hover' : 'dotted'
-      out.push({ key: `sc-${t}`, inputX, outputX: null, kind: 'scene', style })
+      out.push({ key: `sc-${t}`, inputX, outputX, kind: 'scene', style })
     }
 
     // Snap hint times can duplicate (e.g. a marker sitting on a beat grid
@@ -1287,21 +1306,24 @@ export default function ThinTimeline({
         </button>
         <button
           type="button"
-          className={`thin-toolbar__btn thin-toolbar__btn--thumbs${thumbMode !== 'none' ? ' thin-toolbar__btn--active' : ''}`}
-          onClick={() => setThumbMode(m => m === 'none' ? 'hover' : m === 'hover' ? 'show' : 'none')}
-          title={thumbMode === 'none' ? 'Thumbnails off (click for hover)' : thumbMode === 'hover' ? 'Hover thumbnails (click for always-on)' : 'Thumbnails always on (click to hide)'}
-          aria-label={`Thumbnail mode: ${thumbMode}`}
+          className={`thin-toolbar__btn thin-toolbar__btn--thumbs${thumbMode === 'show' ? ' thin-toolbar__btn--active' : ''}`}
+          onClick={() => dispatch(setTimelineThumbShow(thumbMode === 'none'))}
+          title={thumbMode === 'show' ? 'Hide thumbnails' : 'Show thumbnails'}
+          aria-label={thumbMode === 'show' ? 'Hide thumbnails' : 'Show thumbnails'}
         >
-          {thumbMode === 'none'  && <IconThumbNone  aria-hidden="true" size={18} />}
-          {thumbMode === 'hover' && <IconThumbSmall aria-hidden="true" size={18} />}
-          {thumbMode === 'show'  && <IconThumbLarge aria-hidden="true" size={18} />}
+          <IconThumbStrip aria-hidden="true" size={18} />
         </button>
 
         <span className="thin-toolbar__sep" />
 
         <button
           type="button"
-          className="thin-toolbar__btn thin-toolbar__btn--zoom-region"
+          className={`thin-toolbar__btn thin-toolbar__btn--zoom-region${
+            clipIn != null && clipOut != null &&
+            Math.abs(view.start - clipIn) < 0.001 && Math.abs(view.end - clipOut) < 0.001
+              ? ' thin-toolbar__btn--active'
+              : ''
+          }`}
           onClick={onZoomToRegion}
           disabled={!onZoomToRegion}
           title="Zoom to active clip"
@@ -1314,7 +1336,7 @@ export default function ThinTimeline({
         <button
           type="button"
           className={`thin-toolbar__btn thin-toolbar__btn--follow${followDrag ? ' thin-toolbar__btn--active' : ''}`}
-          onClick={() => setFollowDrag(v => !v)}
+          onClick={() => dispatch(setTimelineFollowDrag(!followDrag))}
           title="Playhead follows dragged markers"
           aria-pressed={followDrag}
         >
@@ -1326,7 +1348,7 @@ export default function ThinTimeline({
         <button
           type="button"
           className={`thin-toolbar__btn thin-toolbar__btn--anchors${alwaysAnchors ? ' thin-toolbar__btn--active' : ''}`}
-          onClick={() => setAlwaysAnchors(v => !v)}
+          onClick={() => dispatch(setTimelineAlwaysAnchors(!alwaysAnchors))}
           title="Always show through-lines for markers"
           aria-pressed={alwaysAnchors}
         >
@@ -1335,7 +1357,7 @@ export default function ThinTimeline({
         <button
           type="button"
           className={`thin-toolbar__btn thin-toolbar__btn--regions${alwaysRegions ? ' thin-toolbar__btn--active' : ''}`}
-          onClick={() => setAlwaysRegions(v => !v)}
+          onClick={() => dispatch(setTimelineAlwaysRegions(!alwaysRegions))}
           title="Always show through-lines for clip/region edges"
           aria-pressed={alwaysRegions}
         >
@@ -1344,7 +1366,7 @@ export default function ThinTimeline({
         <button
           type="button"
           className={`thin-toolbar__btn thin-toolbar__btn--scenes${alwaysScenes ? ' thin-toolbar__btn--active' : ''}`}
-          onClick={() => setAlwaysScenes(v => !v)}
+          onClick={() => dispatch(setTimelineAlwaysScenes(!alwaysScenes))}
           title="Always show through-lines for scene changes"
           aria-pressed={alwaysScenes}
         >

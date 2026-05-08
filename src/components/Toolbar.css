@@ -162,11 +162,11 @@
 /* Nav: transparent + dimmed icon, border from group */
 .tb-btn--nav {
   background: transparent;
-  opacity: 0.65;
+  color: color-mix(in srgb, var(--cat, var(--fg-2)) 55%, transparent);
 }
 .tb-btn--nav:hover:not(:disabled) {
-  opacity: 1;
-  background: color-mix(in srgb, var(--cat) 20%, var(--bg-hover));
+  color: var(--cat, var(--fg-2));
+  background: color-mix(in srgb, var(--cat, var(--bg-hover)) 15%, var(--bg-hover));
 }
 
 /* ── Play button ─────────────────────────────────────────── */

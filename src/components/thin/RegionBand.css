@@ -50,7 +50,7 @@
 }
 
 .thin-region--active {
-  box-shadow: inset 0 0 0 2px var(--region-active-border, hsl(48, 100%, 78%));
+  box-shadow: inset 0 0 0 2px hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 1);
 }
 
 /* Member of the multi-select set (independent of active). Drawn as an
@@ -108,5 +108,5 @@
   box-shadow: inset 0 0 0 1px hsla(var(--clip-h, 0), var(--clip-s, 70%), calc(var(--clip-l, 50%) - 18%), 0.95);
 }
 .thin-row--region-output .thin-region--active {
-  box-shadow: inset 0 0 0 2px var(--region-active-border, hsl(48, 100%, 78%));
+  box-shadow: inset 0 0 0 2px hsla(var(--clip-h, 0), var(--clip-s, 70%), calc(var(--clip-l, 50%) - 18%), 1);
 }

@@ -48,16 +48,12 @@ export default function RegionInfoPanel({
   const bpm = warpData?.bpm ?? 120
 
   const beat = bpm > 0 ? 60 / bpm : 0
-  const origSpan = activeRegion
-    ? activeRegion.outPoint - activeRegion.inPoint
-    : duration
   // Beat-space span defines the actual timing — bottom handle controls this
   const beatSpan = activeRegion
     ? (activeRegion.outBeatTime ?? activeRegion.outPoint) - (activeRegion.inBeatTime ?? activeRegion.inPoint)
     : duration
   const regionSpan = beatSpan  // use beat-space span for all calculations
   const totalBeats = beat > 0 ? beatSpan / beat : 0
-  const markerCount = warpData?.origAnchors.length ?? 0
 
   // Lock: use region's persisted lock state, default to 'bpm'
   const lock = activeRegion?.lock ?? 'bpm'
@@ -264,12 +260,6 @@ export default function RegionInfoPanel({
             </div>
           </>
         )}
-
-        {/* Markers */}
-        <div className="rip__row">
-          <span className="rip__label">Markers</span>
-          <span className="rip__value">{markerCount}</span>
-        </div>
 
         {activeRegion && <div className="rip__divider" />}
 

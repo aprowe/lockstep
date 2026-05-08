@@ -83,8 +83,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: calc(20px * var(--ui-scale));
+  height: calc(20px * var(--ui-scale));
   padding: 0;
   background: none;
   border: none;
@@ -105,6 +105,11 @@
 .marker-row__del:hover {
   color: var(--error);
   background: var(--bg-3);
+}
+
+.marker-row__del svg {
+  width: calc(14px * var(--ui-scale));
+  height: calc(14px * var(--ui-scale));
 }
 
 .marker-row--dim {

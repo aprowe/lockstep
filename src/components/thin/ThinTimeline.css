@@ -436,11 +436,13 @@
 .thin-timeline__through-stroke--anchor-hover {
   stroke: hsla(195, 85%, 70%, 0.75);
   stroke-width: 1;
+  stroke-dasharray: 2 2;
 }
 
 .thin-timeline__through-stroke--anchor-selected {
   stroke: hsla(195, 85%, 65%, 0.9);
   stroke-width: 1;
+  stroke-dasharray: 2 2;
 }
 
 .thin-timeline__through-stroke--region-dotted,
@@ -453,6 +455,7 @@
 .thin-timeline__through-stroke--region-selected {
   stroke: hsla(48, 100%, 78%, 0.65);
   stroke-width: 1;
+  stroke-dasharray: 2 2;
 }
 
 /* Scenes are input-only — no warp diagonal, but keep styles for completeness. */
@@ -465,7 +468,8 @@
 
 .thin-timeline__through-stroke--scene-selected {
   stroke: hsla(195, 95%, 75%, 0.9);
-  stroke-width: 2;
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
 }
 
 .thin-timeline__through-stroke--snap-snap {
@@ -545,8 +549,9 @@
 .thin-toolbar__btn--thumbs  { --btn-color: var(--scene-cut); }
 .thin-toolbar__btn--follow  { --btn-color: var(--playhead); }
 .thin-toolbar__btn--anchors { --btn-color: var(--space-input); }
-.thin-toolbar__btn--regions { --btn-color: var(--error); }
-.thin-toolbar__btn--scenes  { --btn-color: var(--scene-cut); }
+.thin-toolbar__btn--regions    { --btn-color: var(--error); }
+.thin-toolbar__btn--zoom-region { --btn-color: var(--error); }
+.thin-toolbar__btn--scenes     { --btn-color: var(--scene-cut); }
 .thin-toolbar__btn--debug   { --btn-color: var(--blue); }
 
 .thin-toolbar__sep {
@@ -569,7 +574,7 @@
 
 .thin-toolbar__grid-label {
   font-family: var(--font-family);
-  font-size: calc(9px * var(--ui-scale));
+  font-size: calc(12px * var(--ui-scale));
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--fg-4);

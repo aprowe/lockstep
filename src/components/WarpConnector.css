@@ -32,6 +32,14 @@
   overflow: hidden;
 }
 
+.warp-connector::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--out-of-range-fill, rgba(0, 0, 0, 0.45));
+  pointer-events: none;
+}
+
 .warp-connector--empty {
   border-top: 1px dashed var(--bg-4);
   border-bottom: 1px dashed var(--bg-4);
@@ -53,7 +61,7 @@
  * the rectangular overlay above, so the wash looks consistent across
  * straight-edged and slanted clip boundaries. */
 .warp-connector__out-of-range-poly {
-  fill: var(--out-of-range-fill, rgba(0, 0, 0, 0.45));
+  fill: none;
 }
 
 .warp-connector__boundary-line {

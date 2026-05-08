@@ -3,7 +3,7 @@
   /* Label · input · unit · trailing button. Fixed-width label column makes
    * the threshold + min-gap inputs line up so the panel doesn't read
    * staggered when both rows are visible. */
-  grid-template-columns: 64px 56px 16px 1fr;
+  grid-template-columns: calc(64px * var(--ui-scale)) calc(56px * var(--ui-scale)) calc(16px * var(--ui-scale)) auto;
   align-items: center;
   gap: var(--sp-2);
 }
@@ -41,6 +41,7 @@
  * long ffmpeg run so it earns more weight than the neutral Stop button. */
 .scenes-panel__btn {
   padding: 2px var(--sp-3);
+  width: fit-content;
   background: rgba(var(--accent-rgb), 0.18);
   border: 1px solid var(--accent);
   border-radius: 2px;
