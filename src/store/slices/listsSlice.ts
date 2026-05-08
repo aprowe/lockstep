@@ -10,7 +10,7 @@ import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
  */
 
 export type ListId = 'clips' | 'markers' | 'scenes'
-export type ListThumbnailMode = 'none' | 'hover' | 'always'
+export type ListThumbnailMode = 'none' | 'small' | 'large'
 /** Visibility filter applied to each list's items.
  *   global   — every item, no filter
  *   viewport — items inside the current timeline view window

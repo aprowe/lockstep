@@ -113,6 +113,11 @@
     repeating-linear-gradient(45deg, var(--bg-2) 0 4px, var(--bg-3) 4px 8px);
 }
 
+.list-panel__row-thumb--large {
+  width: 96px;
+  height: 54px;
+}
+
 /* Generic small "+" button used by panels in their headerActions slot.
  * Sized to match the thumbnail-toggle so the right-aligned cluster stays
  * visually balanced. */

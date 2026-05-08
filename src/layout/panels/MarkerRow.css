@@ -43,15 +43,27 @@
 }
 
 .marker-row__time {
+  width: 68px;
+  flex-shrink: 0;
   font-variant-numeric: tabular-nums;
   color: var(--fg-1);
 }
 
-.marker-row__frame,
-.marker-row__beat {
+.marker-row__frame {
+  width: 48px;
+  flex-shrink: 0;
   color: var(--fg-4);
   font-variant-numeric: tabular-nums;
 }
+
+.marker-row__beat,
+.marker-row__beat0 {
+  width: 40px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.marker-row__beat { color: var(--fg-4); }
 
 .marker-row__beat0 {
   color: var(--accent);

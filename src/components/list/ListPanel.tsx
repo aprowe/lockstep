@@ -89,8 +89,8 @@ interface ListPanelProps<T extends ListItem> {
 
 const HEIGHT_FOR_MODE: Record<ListThumbnailMode, number> = {
   none: 0,
-  hover: 0,
-  always: 48,
+  small: 36,
+  large: 54,
 }
 
 export default function ListPanel<T extends ListItem>({
@@ -139,7 +139,7 @@ export default function ListPanel<T extends ListItem>({
   // doesn't push anything; the hover popup uses the standard score.
   const fps = video?.fps ?? 0
   const stripFrames = useMemo(() => {
-    if (thumbnailMode !== 'always' || fps <= 0) return []
+    if (thumbnailMode === 'none' || fps <= 0) return []
     return items
       .map(i => i.thumbnailTime)
       .filter((t): t is number => typeof t === 'number')
@@ -189,14 +189,14 @@ export default function ListPanel<T extends ListItem>({
       multiSelectMode,
       onRowClick: e => handleRowClick(item.id, e),
       onRowMouseEnter: e => {
-        if (thumbnailMode !== 'hover' || item.thumbnailTime == null) return
+        if (thumbnailMode !== 'none' || item.thumbnailTime == null) return
         // Anchor the popup to the row's right edge so it doesn't hide the
         // list while hovering — keeps the click target visible.
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
         setHover({ time: item.thumbnailTime, x: rect.right, y: rect.top })
       },
       onRowMouseLeave: () => {
-        if (thumbnailMode === 'hover') setHover(null)
+        if (thumbnailMode === 'none') setHover(null)
       },
       onToggleSelection: () => toggleSelection(item.id),
     }

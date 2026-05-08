@@ -73,10 +73,10 @@ export default function RowShell({
           aria-label={checkboxLabel}
         />
       )}
-      {thumbnailMode === 'always' && (
+      {thumbnailMode !== 'none' && (
         thumbnailSrc
-          ? <img className="list-panel__row-thumb" src={thumbnailSrc} alt="" draggable={false} />
-          : <div className="list-panel__row-thumb list-panel__row-thumb--placeholder" />
+          ? <img className={`list-panel__row-thumb${thumbnailMode === 'large' ? ' list-panel__row-thumb--large' : ''}`} src={thumbnailSrc} alt="" draggable={false} />
+          : <div className={`list-panel__row-thumb list-panel__row-thumb--placeholder${thumbnailMode === 'large' ? ' list-panel__row-thumb--large' : ''}`} />
       )}
       {children}
       {onDelete && (

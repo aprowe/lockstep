@@ -3,18 +3,18 @@ import type { ListThumbnailMode } from '../../store/slices/listsSlice'
 import { IconThumbNone, IconThumbSmall, IconThumbLarge } from '../icons'
 import './ListThumbnailToggle.css'
 
-const ORDER: ListThumbnailMode[] = ['none', 'hover', 'always']
+const ORDER: ListThumbnailMode[] = ['none', 'small', 'large']
 
 const ICON_EL: Record<ListThumbnailMode, React.ReactNode> = {
   none: <IconThumbNone size={14} />,
-  hover: <IconThumbSmall size={14} />,
-  always: <IconThumbLarge size={14} />,
+  small: <IconThumbSmall size={14} />,
+  large: <IconThumbLarge size={14} />,
 }
 
 const LABELS: Record<ListThumbnailMode, string> = {
-  none: 'Thumbnails: off',
-  hover: 'Thumbnails: on hover',
-  always: 'Thumbnails: always',
+  none: 'Thumbnails: on hover',
+  small: 'Thumbnails: small',
+  large: 'Thumbnails: large',
 }
 
 
