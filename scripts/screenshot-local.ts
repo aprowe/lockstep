@@ -1,6 +1,6 @@
 /**
  * Local screenshot + PR-post tool. Runs the same Playwright capture as
- * scripts/screenshot.ts, then pushes the PNGs to the `screenshots` branch
+ * scripts/screenshot.ts, then pushes the PNGs to the `screenshots-auto` branch
  * and posts a PR comment with inline image refs — all using your local
  * `gh` auth, so it works without the GitHub Actions runner.
  *
@@ -128,7 +128,9 @@ if (args.dryRun) {
 
 // 3. Push to screenshots branch
 const ts = new Date().toISOString().replace(/[:.]/g, '-').replace(/Z$/, '')
-const branch = 'screenshots'
+// Target a flat branch name; `screenshots/<x>` collides with any existing
+// `screenshots/...` ref (git can't have both a leaf and a directory ref).
+const branch = 'screenshots-auto'
 const dest = `pr-${args.pr}/local-${ts}`
 console.log(`→ publishing to ${branch}:${dest}`)
 
