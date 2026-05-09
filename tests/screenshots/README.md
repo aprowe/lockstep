@@ -61,7 +61,7 @@ Trigger it from the **Actions** tab → **Screenshot** → **Run workflow**, or
 via `gh`:
 
 ```bash
-gh workflow run screenshot-workflow.yml \
+gh workflow run screenshot.yml \
   -f pr_number=123 \
   -f comment="Verse panel after change" \
   -f instructions='[
