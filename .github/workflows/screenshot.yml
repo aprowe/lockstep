@@ -140,7 +140,7 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          BRANCH="screenshots"
+          BRANCH="screenshots-auto"
           DEST="pr-${PR_NUMBER}/${RUN_ID}"
           TOKEN_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.git"
 
