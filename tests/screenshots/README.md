@@ -52,13 +52,42 @@ The asset protocol (`tauri://localhost/...`) won't work in plain Chrome. Either:
 
 ## Posting screenshots to a PR (Screenshot workflow)
 
-The `Screenshot` workflow is a `workflow_dispatch` action that takes a JSON
-description of one or more screenshot steps, runs them via Playwright against
-the same dev-server + tauri-mock + seed setup used here, then comments on a
-PR with the resulting images inline (renders in the GitHub mobile app).
+The `Screenshot` workflow runs Playwright against the same dev-server +
+tauri-mock + seed setup used here, then comments on a PR with the resulting
+images inline (renders in the GitHub mobile app). It accepts three trigger
+paths:
 
-Trigger it from the **Actions** tab → **Screenshot** → **Run workflow**, or
-via `gh`:
+### Trigger A — PR comment (works from anywhere, including phone)
+
+Comment on any PR, anywhere — phone, web, Claude, MCP — with `/screenshot`
+followed by the JSON instructions. The workflow reacts with eyes,
+runs the capture, then posts the screenshots and reacts with rocket.
+
+````
+/screenshot
+```json
+[
+  {
+    "name": "overview",
+    "seed": { "video": { "duration": 32 }, "bpm": 120 }
+  }
+]
+```
+optional preface text after the fenced block
+````
+
+Or reference a JSON file checked into the PR's branch:
+
+```
+/screenshot @scripts/shots/export-audio.json optional preface text
+```
+
+A starter set of reusable shot specs lives at `scripts/shots/`.
+
+This path needs no OAuth `workflow` scope — anything that can post a PR
+comment can fire it. Best option for "develop away from your machine."
+
+### Trigger B — Actions UI / `gh workflow run`
 
 ```bash
 gh workflow run screenshot.yml \
@@ -108,3 +137,42 @@ Step fields (see `scripts/screenshot.ts` for the source of truth):
 Output is uploaded as a workflow artifact and committed to a long-lived
 `screenshots` branch under `pr-<N>/<run_id>/`, then referenced via
 `raw.githubusercontent.com` URLs in a PR comment.
+
+### Trigger C — Local (no GitHub Actions runner)
+
+`scripts/screenshot-local.ts` does the same thing on your machine using your
+local `gh` auth — useful when the dispatch route is blocked or when iterating
+on the JSON locally.
+
+```bash
+# inline JSON
+npx tsx scripts/screenshot-local.ts \
+  --pr 45 \
+  --instructions '[{"name":"overview","seed":{"video":{"duration":32},"bpm":120}}]' \
+  --comment "Verse panel after change"
+
+# from a file
+npx tsx scripts/screenshot-local.ts --pr 45 --instructions @./shots.json
+
+# generate PNGs without pushing or commenting
+npx tsx scripts/screenshot-local.ts --pr 45 --instructions @./shots.json --dry-run
+```
+
+Requires `gh` signed in (`gh auth login`). PNGs land in `screenshots-out/`,
+get pushed to `screenshots:pr-<N>/local-<timestamp>/`, and the PR gets a
+comment with raw URL image refs.
+
+### Updating the workflow
+
+GitHub gates `.github/workflows/*.yml` writes behind the `workflow` OAuth
+scope. Agents/tokens without that scope can't push edits directly. To
+update:
+
+- **Web UI** — edit `.github/workflows/screenshot.yml` on GitHub and
+  commit. Doable from a phone browser.
+- **`gh`** — push from a terminal where `gh auth login` was run with
+  `--scopes workflow` (the default scopes already include it).
+
+If a session lacks `workflow` scope, stage proposed YAML somewhere outside
+`.github/workflows/` (e.g. `docs/screenshot-workflow.yml`) and apply it
+via one of the above paths.
