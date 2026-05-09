@@ -108,3 +108,27 @@ Step fields (see `scripts/screenshot.ts` for the source of truth):
 Output is uploaded as a workflow artifact and committed to a long-lived
 `screenshots` branch under `pr-<N>/<run_id>/`, then referenced via
 `raw.githubusercontent.com` URLs in a PR comment.
+
+### Local equivalent (no GitHub Actions runner)
+
+`scripts/screenshot-local.ts` does the same thing on your machine using your
+local `gh` auth — useful when the dispatch route is blocked or when iterating
+on the JSON locally.
+
+```bash
+# inline JSON
+npx tsx scripts/screenshot-local.ts \
+  --pr 45 \
+  --instructions '[{"name":"overview","seed":{"video":{"duration":32},"bpm":120}}]' \
+  --comment "Verse panel after change"
+
+# from a file
+npx tsx scripts/screenshot-local.ts --pr 45 --instructions @./shots.json
+
+# generate PNGs without pushing or commenting
+npx tsx scripts/screenshot-local.ts --pr 45 --instructions @./shots.json --dry-run
+```
+
+Requires `gh` signed in (`gh auth login`). PNGs land in `screenshots-out/`,
+get pushed to `screenshots:pr-<N>/local-<timestamp>/`, and the PR gets a
+comment with raw URL image refs.
