@@ -48,6 +48,33 @@ FFmpeg and ffprobe must be on `PATH` for dev. For packaged releases they're bund
 
 ---
 
+## Screenshots on a PR
+
+Drive the UI into a target state and post screenshots inline on a PR (renders in the GitHub mobile app) by commenting on the PR:
+
+```
+/screenshot @scripts/shots/export-audio.json     optional preface text
+```
+
+…or with inline JSON in a fenced block:
+
+````
+/screenshot
+```json
+[
+  {
+    "name": "panel",
+    "selector": ".rip",
+    "seed": { "video": { "duration": 32 }, "bpm": 120 }
+  }
+]
+```
+````
+
+Works from anywhere with comment perms — phone, web, Claude/MCP — no `gh`, no laptop, no `workflow` OAuth scope. The bot reacts eyes on receipt and rocket once the inline-image follow-up is up. Reusable shot specs live in [`scripts/shots/`](./scripts/shots/); full step-shape reference and the local + dispatch trigger paths are in [`tests/screenshots/README.md`](./tests/screenshots/README.md).
+
+---
+
 ## License
 
 Lockstep is **dual licensed**:
