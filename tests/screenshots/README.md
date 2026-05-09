@@ -52,11 +52,23 @@ The asset protocol (`tauri://localhost/...`) won't work in plain Chrome. Either:
 
 ## Posting screenshots to a PR (Screenshot workflow)
 
-The `Screenshot` workflow (`.github/workflows/screenshot.yml`) is a
-`workflow_dispatch` action that takes a JSON description of one or more
-screenshot steps, runs them via Playwright against the same dev-server +
-tauri-mock + seed setup used here, then comments on a PR with the resulting
-images inline (renders in the GitHub mobile app).
+The `Screenshot` workflow is a `workflow_dispatch` action that takes a JSON
+description of one or more screenshot steps, runs them via Playwright against
+the same dev-server + tauri-mock + seed setup used here, then comments on a
+PR with the resulting images inline (renders in the GitHub mobile app).
+
+### One-time install
+
+The workflow YAML lives at `docs/screenshot-workflow.yml` because the agent
+that authored it did not have GitHub's `workflow` OAuth scope and therefore
+could not push directly into `.github/workflows/`. Move it into place once:
+
+```bash
+mkdir -p .github/workflows
+git mv docs/screenshot-workflow.yml .github/workflows/screenshot.yml
+git commit -m "chore(ci): install screenshot workflow"
+git push
+```
 
 Trigger it from the **Actions** tab → **Screenshot** → **Run workflow**, or
 via `gh`:
