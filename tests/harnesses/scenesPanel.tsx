@@ -53,7 +53,7 @@ export function renderScenesPanel(opts: RenderScenesPanelOptions = {}) {
   const setExportOpen = vi.fn()
   const setClipContextMenu = vi.fn()
   const playerRef: RefObject<VideoPlayerHandle | null> = { current: null }
-  const bridge: DockBridge = { seek, setExportOpen, playerRef, setClipContextMenu }
+  const bridge: DockBridge = { seek, setExportOpen, openExportLog: vi.fn(), playerRef, setClipContextMenu }
 
   const result = render(
     <Provider store={store}>

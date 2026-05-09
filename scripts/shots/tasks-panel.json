@@ -1,0 +1,30 @@
+[
+  {
+    "name": "01-tasks-panel-active",
+    "seed": {
+      "video": { "duration": 60, "name": "beach.mp4" },
+      "bpm": 120,
+      "regions": [
+        { "name": "Intro", "inPoint": 0, "outPoint": 16 },
+        { "name": "Verse", "inPoint": 16, "outPoint": 40 },
+        { "name": "Outro", "inPoint": 40, "outPoint": 60 }
+      ],
+      "view": { "start": 0, "end": 60 }
+    },
+    "evaluate": "const s=window.__STORE__;s.dispatch({type:'jobs/addJob',payload:{id:'j1',kind:'scene',label:'beach.mp4'}});s.dispatch({type:'jobs/updateJob',payload:{id:'j1',progress:0.62,message:'Detecting cut at 37.4s',status:'running'}});s.dispatch({type:'jobs/addJob',payload:{id:'j2',kind:'warp',label:'Verse'}});s.dispatch({type:'jobs/updateJob',payload:{id:'j2',progress:0.34,message:'Encoding segment 12/35',status:'running'}});s.dispatch({type:'jobs/addJob',payload:{id:'j3',kind:'warp',label:'Intro'}});s.dispatch({type:'jobs/updateJob',payload:{id:'j3',status:'done'}});s.dispatch({type:'jobs/addJob',payload:{id:'j4',kind:'warp',label:'Outro'}});s.dispatch({type:'jobs/updateJob',payload:{id:'j4',status:'cancelled'}});for(const t of document.querySelectorAll('.dv-tab')){if((t.textContent||'').trim().startsWith('Tasks')){t.click();break;}}"
+  },
+  {
+    "name": "02-tasks-panel-detail",
+    "seed": {
+      "video": { "duration": 60, "name": "beach.mp4" },
+      "bpm": 120,
+      "regions": [
+        { "name": "Intro", "inPoint": 0, "outPoint": 16 },
+        { "name": "Verse", "inPoint": 16, "outPoint": 40 },
+        { "name": "Outro", "inPoint": 40, "outPoint": 60 }
+      ]
+    },
+    "evaluate": "const s=window.__STORE__;s.dispatch({type:'jobs/addJob',payload:{id:'j1',kind:'scene',label:'beach.mp4'}});s.dispatch({type:'jobs/updateJob',payload:{id:'j1',progress:0.62,message:'Detecting cut at 37.4s',status:'running'}});s.dispatch({type:'jobs/addJob',payload:{id:'j2',kind:'warp',label:'Verse'}});s.dispatch({type:'jobs/updateJob',payload:{id:'j2',progress:0.34,message:'Encoding segment 12/35',status:'running'}});s.dispatch({type:'jobs/addJob',payload:{id:'j3',kind:'warp',label:'Intro'}});s.dispatch({type:'jobs/updateJob',payload:{id:'j3',status:'done'}});s.dispatch({type:'jobs/addJob',payload:{id:'j4',kind:'warp',label:'Outro'}});s.dispatch({type:'jobs/updateJob',payload:{id:'j4',status:'cancelled'}});for(const t of document.querySelectorAll('.dv-tab')){if((t.textContent||'').trim().startsWith('Tasks')){t.click();break;}}",
+    "selector": ".tasks-panel"
+  }
+]

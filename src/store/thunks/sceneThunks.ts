@@ -9,6 +9,15 @@ import {
   setError,
   setCancelled,
 } from '../slices/sceneSlice'
+import { addJob as addJobAction, updateJob as updateJobAction } from '../slices/jobsSlice'
+
+/** Strip a directory path down to its filename so the Tasks panel doesn't
+ *  show full paths on rows that are already context-poor. */
+function basename(path: string): string {
+  const norm = path.replace(/\\/g, '/')
+  const idx = norm.lastIndexOf('/')
+  return idx >= 0 ? norm.slice(idx + 1) : norm
+}
 
 let unlisten: (() => void) | null = null
 
@@ -35,10 +44,9 @@ export const ensureSceneListener = createAsyncThunk<void, void>(
             const span = window ? Math.max(0, window.end - window.start) : video.duration
             const offset = window?.start ?? 0
             if (span > 0) {
-              dispatch(setProgress({
-                path,
-                progress: Math.min(1, Math.max(0, (cut - offset) / span)),
-              }))
+              const p = Math.min(1, Math.max(0, (cut - offset) / span))
+              dispatch(setProgress({ path, progress: p }))
+              dispatch(updateJobAction({ id: job_id, progress: p, status: 'running' }))
             }
           }
         }
@@ -59,10 +67,17 @@ export const ensureSceneListener = createAsyncThunk<void, void>(
           window: window ?? undefined,
           scannedRange,
         }))
+        dispatch(updateJobAction({ id: job_id, status: 'done', progress: 1 }))
       } else if (status === 'cancelled') {
         dispatch(setCancelled({ path }))
+        dispatch(updateJobAction({ id: job_id, status: 'cancelled' }))
       } else if (status === 'error') {
         dispatch(setError({ path, error: error ?? 'Scene detection failed' }))
+        dispatch(updateJobAction({
+          id: job_id,
+          status: 'error',
+          error: error ?? 'Scene detection failed',
+        }))
       }
     })
   },
@@ -94,6 +109,13 @@ export const detectScenesThunk = createAsyncThunk<
         jobId,
         threshold: effectiveThreshold,
         window: validWindow,
+      }))
+      dispatch(addJobAction({
+        id: jobId,
+        kind: 'scene',
+        label: validWindow
+          ? `${basename(path)} (view)`
+          : basename(path),
       }))
     } catch (e: any) {
       dispatch(setError({ path, error: String(e?.message ?? e) }))

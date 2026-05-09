@@ -8,6 +8,7 @@ import sceneReducer from './slices/sceneSlice'
 import thumbnailsReducer from './slices/thumbnailsSlice'
 import settingsReducer from './slices/settingsSlice'
 import listsReducer from './slices/listsSlice'
+import jobsReducer from './slices/jobsSlice'
 import { persistenceMiddleware } from './middleware/persistenceMiddleware'
 import { historyMiddleware } from './middleware/historyMiddleware'
 import { revealPlayheadMiddleware } from './middleware/revealPlayheadMiddleware'
@@ -23,6 +24,7 @@ export const store = configureStore({
     thumbnails: thumbnailsReducer,
     settings: settingsReducer,
     lists: listsReducer,
+    jobs: jobsReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware()

@@ -1,5 +1,6 @@
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::ffmpeg::video_duration;
@@ -14,6 +15,18 @@ use crate::video::{get_video_info, VideoInfo};
 #[derive(Default)]
 pub struct SceneDetectionState {
     pub cancel: Arc<AtomicBool>,
+}
+
+/// Per-warp-job cancel flags. Multiple warp jobs can be in flight (the export
+/// dialog runs them sequentially today, but the panel exposes them all and the
+/// API has no concurrency limit), so each gets its own flag keyed by job_id.
+/// The inner mutex is wrapped in an `Arc` so callers can clone it out from the
+/// Tauri `State<'_, ...>` guard and own it for the duration of the lock —
+/// locking through the State guard directly fails the borrow checker because
+/// the MutexGuard outlives the temporary State.
+#[derive(Default)]
+pub struct WarpJobsState {
+    pub cancels: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
 }
 
 // ── Open Folder ───────────────────────────────────────────────────────────────
@@ -243,9 +256,19 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
         req.trigger_mode,
     );
 
+    // Register a cancel flag for this job so `cancel_warp` can flip it. The
+    // worker checks the flag at major stage boundaries inside `remap_video`;
+    // the entry is removed after the worker terminates regardless of outcome.
+    let cancel_flag: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+    let cancels = app.state::<WarpJobsState>().cancels.clone();
+    if let Ok(mut map) = cancels.lock() {
+        map.insert(job_id.clone(), cancel_flag.clone());
+    }
+
     let app_clone = app.clone();
     let job_id_clone = job_id.clone();
     let out_path_clone = out_path_str.clone();
+    let cancel_for_block = cancel_flag.clone();
 
     tokio::spawn(async move {
         let app2 = app_clone.clone();
@@ -287,9 +310,16 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
                     );
                 }
             };
-            remap_video(&req.path, &opts, &out, &progress)
+            remap_video(&req.path, &opts, &out, &progress, cancel_for_block)
         })
         .await;
+
+        // Drop the registry entry whichever way we exited — leaks here would
+        // pile up across long-running sessions of repeated exports.
+        let cancels = app_clone.state::<WarpJobsState>().cancels.clone();
+        if let Ok(mut map) = cancels.lock() {
+            map.remove(&job_id_clone);
+        }
 
         match result {
             Ok(Ok(())) => {
@@ -305,12 +335,19 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
                 );
             }
             Ok(Err(e)) => {
-                log::error!("start_warp[{job_id_clone}]: failed: {e}");
+                // Distinguish user cancel from a real failure so the panel
+                // can show "Cancelled" instead of an error toast.
+                let status = if e == "cancelled" { "cancelled" } else { "error" };
+                if status == "cancelled" {
+                    log::info!("start_warp[{job_id_clone}]: cancelled");
+                } else {
+                    log::error!("start_warp[{job_id_clone}]: failed: {e}");
+                }
                 let _ = app_clone.emit(
                     "warp-progress",
                     serde_json::json!({
                         "job_id": &job_id_clone,
-                        "status": "error",
+                        "status": status,
                         "error": e
                     }),
                 );
@@ -330,6 +367,19 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
     });
 
     Ok(job_id)
+}
+
+/// Asks the warp job with `job_id` to stop at its next stage boundary. Safe
+/// to call for unknown ids (no-op).
+#[tauri::command]
+pub async fn cancel_warp(state: State<'_, WarpJobsState>, job_id: String) -> Result<(), String> {
+    let cancels = state.cancels.clone();
+    if let Ok(map) = cancels.lock() {
+        if let Some(flag) = map.get(&job_id) {
+            flag.store(true, Ordering::Relaxed);
+        }
+    }
+    Ok(())
 }
 
 // ── Diagnostic / Overlay Video ──────────────────────────────────────────────

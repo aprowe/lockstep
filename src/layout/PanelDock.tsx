@@ -18,6 +18,7 @@ import ScenesPanel from './panels/ScenesPanel'
 import MarkersPanel from './panels/MarkersPanel'
 import VideoInfoPanel from './panels/VideoInfoPanel'
 import AssistantPanelDock from './panels/AssistantPanel'
+import TasksPanel from './panels/TasksPanel'
 import CenterColumn from './CenterColumn'
 
 // ── Component registry ─────────────────────────────────────────────────────
@@ -33,6 +34,7 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps>> =
   markers: () => <MarkersPanel />,
   'video-info': () => <VideoInfoPanel />,
   assistant: () => <AssistantPanelDock />,
+  tasks: () => <TasksPanel />,
   center: () => <CenterColumn />,
 }
 
@@ -44,12 +46,16 @@ const PANEL_TITLES: Record<string, string> = {
   markers: 'Markers',
   'video-info': 'Video Info',
   assistant: 'Assistant',
+  tasks: 'Tasks',
   center: 'Player',
 }
 
-const SIDE_PANEL_IDS = ['files', 'clips', 'clip-info', 'scenes', 'markers', 'video-info', 'assistant'] as const
+const SIDE_PANEL_IDS = ['files', 'clips', 'clip-info', 'scenes', 'markers', 'video-info', 'assistant', 'tasks'] as const
 
-const STORAGE_KEY = 'lockstep:panel-layout:v3'
+// Bumped from v3 → v4 to invalidate saved layouts so the new Tasks panel
+// shows up in the SE group by default; pre-release so no real users to
+// inconvenience (CLAUDE.md).
+const STORAGE_KEY = 'lockstep:panel-layout:v4'
 
 /**
  * Default 4-slot layout the dock falls back to whenever there's no saved
@@ -105,6 +111,14 @@ function buildDefaultLayout(api: DockviewApi) {
   })
   api.addPanel({
     id: 'video-info', component: 'video-info', title: PANEL_TITLES['video-info'],
+    position: { referencePanel: 'clip-info' },
+    inactive: true,
+  })
+  // Tasks tabbed alongside clip-info / video-info so warp + scene jobs stay
+  // visible without claiming new screen real estate. `inactive: true` keeps
+  // clip-info focused on first paint.
+  api.addPanel({
+    id: 'tasks', component: 'tasks', title: PANEL_TITLES.tasks,
     position: { referencePanel: 'clip-info' },
     inactive: true,
   })

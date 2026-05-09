@@ -3,7 +3,6 @@ import VideoPlayer from './components/VideoPlayer'
 import type { VideoPlayerHandle } from './components/VideoPlayer'
 import Filmstrip from './components/Filmstrip'
 import WarpView from './components/WarpView'
-import ExportProgressBar from './components/ExportProgressBar'
 import ExportDialog from './components/ExportDialog'
 import Toolbar from './components/Toolbar'
 import MenuBar from './components/MenuBar'
@@ -21,7 +20,7 @@ import ThumbnailPopup, { ThumbnailHoverProvider } from './components/ThumbnailPo
 import SettingsDialog from './components/SettingsDialog'
 import AboutDialog from './components/AboutDialog'
 import HotkeySheet from './components/HotkeySheet'
-import { IconSettings, IconDropVideo } from './components/icons'
+import { IconDropVideo } from './components/icons'
 import { snapAllToBeat } from './utils/quantize'
 import { undo as undoAction, redo as redoAction } from './store/slices/historySlice'
 import {
@@ -45,6 +44,7 @@ import {
   openJsonFileThunk,
 } from './store/thunks/videoThunks'
 import { ensureSceneListener } from './store/thunks/sceneThunks'
+import { ensureWarpListener } from './store/thunks/jobsThunks'
 import { setMinGap as setSceneMinGapAction, addCut as addSceneCutAction, deleteCut as deleteSceneCutAction } from './store/slices/sceneSlice'
 import { useAppDispatch, useAppSelector } from './store/hooks'
 import { setDetectingBpm as setDetectingBpmAction } from './store/slices/videoSlice'
@@ -160,6 +160,15 @@ export default function App() {
     dispatch(updateRegionLockAction({ id, lock, lockedBeats }))
   const exportOpen = useAppSelector(s => s.ui.exportOpen)
   const setExportOpen = (v: boolean) => dispatch(setExportOpenAction(v))
+  const [exportOpenOnLog, setExportOpenOnLog] = useState(false)
+  const [exportFocusJobId, setExportFocusJobId] = useState<string | null>(null)
+  const runningJobs = useAppSelector(s => s.jobs.jobs.filter(j => j.status === 'running'))
+  const allJobs = useAppSelector(s => s.jobs.jobs)
+  const totalJobsCount = allJobs.length
+  const totalProgressSum = allJobs.reduce((sum, j) => sum + j.progress, 0)
+  const aggPct = totalJobsCount > 0 ? totalProgressSum / totalJobsCount * 100 : 0
+  const completedJobsCount = allJobs.filter(j => j.status !== 'running').length
+  const aggLabel = totalJobsCount > 0 ? `${completedJobsCount}/${totalJobsCount}` : ''
   const selectedClipIds = useAppSelector(s => s.lists.selection.clips)
   const [clipContextMenu, setClipContextMenu] = useState<ContextMenuState | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
@@ -188,6 +197,11 @@ export default function App() {
   const dockBridge = useMemo(() => ({
     seek: (t: number) => playerRef.current?.seek(t),
     setExportOpen: (open: boolean) => dispatch(setExportOpenAction(open)),
+    openExportLog: (jobId: string) => {
+      setExportFocusJobId(jobId)
+      setExportOpenOnLog(true)
+      dispatch(setExportOpenAction(true))
+    },
     playerRef,
     setClipContextMenu,
   }), [dispatch])
@@ -274,6 +288,12 @@ export default function App() {
   //     from the Scenes panel — we never kick it off automatically). ───────
 
   useEffect(() => { dispatch(ensureSceneListener()) }, [dispatch])
+
+  // ── Tasks panel: register the warp-progress listener once on mount so
+  //     every warp job (even those launched while the panel is closed) shows
+  //     up in the jobs list. Idempotent — repeat dispatches are no-ops. ─────
+
+  useEffect(() => { dispatch(ensureWarpListener()) }, [dispatch])
 
   // ── Seek to region start when active region changes ──────────────────────
 
@@ -366,17 +386,21 @@ export default function App() {
         brandMenu={brandMenu}
         rightContent={
           <div className="menubar__right-actions">
-            <button
-              className="menubar__settings-btn"
-              onClick={() => setSettingsOpen(true)}
-              title="Settings"
-              aria-label="Settings"
-            >
-              <IconSettings size={16} />
-            </button>
+            {runningJobs.length > 0 && (
+              <button
+                className="menubar__jobs-bar"
+                onClick={() => { setExportOpenOnLog(true); setExportOpen(true) }}
+                title={`${runningJobs.length} task${runningJobs.length > 1 ? 's' : ''} running — ${aggLabel}`}
+              >
+                <span className="menubar__jobs-label">{aggLabel}</span>
+                <div className="menubar__jobs-track">
+                  <div className="menubar__jobs-fill" style={{ width: `${aggPct}%` }} />
+                </div>
+              </button>
+            )}
             <button
               className="menubar__export-btn"
-              onClick={() => setExportOpen(true)}
+              onClick={() => { setExportOpenOnLog(false); setExportOpen(true) }}
               disabled={!canExport}
             >
               Export
@@ -390,7 +414,6 @@ export default function App() {
           shows the empty / loading state itself. */}
       <DockBridgeProvider value={dockBridge}>
       <div className="vj-body">
-        <ExportProgressBar />
         <PanelDock
           ref={dockHandleRef}
           onPanelsChange={ids => setVisiblePanelIds(new Set(ids))}
@@ -414,7 +437,9 @@ export default function App() {
       )}
       <ExportDialog
         open={exportOpen}
-        onClose={() => setExportOpen(false)}
+        onClose={() => { setExportOpen(false); setExportOpenOnLog(false); setExportFocusJobId(null) }}
+        openOnLogTab={exportOpenOnLog}
+        initialLogJobId={exportFocusJobId}
         warpData={warpData}
         videoPath={video?.path ?? ''}
         originalName={video?.originalName ?? ''}

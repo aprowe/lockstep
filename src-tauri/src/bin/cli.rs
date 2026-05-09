@@ -270,9 +270,10 @@ fn run_one(video_path: &str, opts: &WarpOptions, out_path: &str, label: &str, _i
         println!("  fps:     {fps} (interpolated)");
     }
 
+    let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     match remap_video(video_path, opts, out_path, &|percent, msg| {
         println!("  [{:3.0}%] {msg}", percent * 100.0);
-    }) {
+    }, cancel) {
         Ok(()) => println!("  → {out_path}"),
         Err(e) => { eprintln!("  error: {e}"); std::process::exit(1); }
     }
