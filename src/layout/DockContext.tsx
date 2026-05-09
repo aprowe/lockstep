@@ -17,6 +17,8 @@ export interface DockBridge {
   seek: (time: number) => void
   /** Open / close the Export dialog. */
   setExportOpen: (open: boolean) => void
+  /** Open the Export dialog on the Log tab, focused on the given job id. */
+  openExportLog: (jobId: string) => void
   /** Mutable ref to the (single) VideoPlayer instance. CenterColumn sets it
    *  via <VideoPlayer ref>; everyone else reads .current?.seek() etc. */
   playerRef: RefObject<VideoPlayerHandle | null>
