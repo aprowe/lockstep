@@ -49,3 +49,63 @@ The asset protocol (`tauri://localhost/...`) won't work in plain Chrome. Either:
 
 - Use a regular HTTP video URL in the mock for `load_video`, or
 - Run the actual Tauri app and screenshot it with an OS-level tool (out of scope here)
+
+## Posting screenshots to a PR (Screenshot workflow)
+
+The `Screenshot` workflow (`.github/workflows/screenshot.yml`) is a
+`workflow_dispatch` action that takes a JSON description of one or more
+screenshot steps, runs them via Playwright against the same dev-server +
+tauri-mock + seed setup used here, then comments on a PR with the resulting
+images inline (renders in the GitHub mobile app).
+
+Trigger it from the **Actions** tab → **Screenshot** → **Run workflow**, or
+via `gh`:
+
+```bash
+gh workflow run screenshot.yml \
+  -f pr_number=123 \
+  -f comment="Verse panel after change" \
+  -f instructions='[
+    {
+      "name": "01-overview",
+      "seed": {
+        "video": { "duration": 32, "name": "beach.mp4" },
+        "bpm": 120,
+        "anchors": [[2.1, 2.0], [5.85, 6.0], [9.7, 10.0]],
+        "regions": [
+          { "name": "Intro", "inPoint": 0, "outPoint": 8 },
+          { "name": "Verse", "inPoint": 8, "outPoint": 20 }
+        ],
+        "view": { "start": 0, "end": 32 },
+        "activeRegion": "Verse"
+      }
+    },
+    {
+      "name": "02-bpm-panel",
+      "seed": { "video": { "duration": 32 }, "bpm": 120 },
+      "selector": ".rip"
+    },
+    {
+      "name": "03-hotkey-sheet",
+      "evaluate": "window.dispatchEvent(new KeyboardEvent(\"keydown\",{key:\"?\"}))"
+    }
+  ]'
+```
+
+Step fields (see `scripts/screenshot.ts` for the source of truth):
+
+| field      | type                                  | notes                                              |
+|------------|---------------------------------------|----------------------------------------------------|
+| `name`     | string (required)                     | `[\w.-]+` — becomes the PNG filename               |
+| `url`      | string                                | Path on the dev server. Default `/`                |
+| `seed`     | `SeedState` (see `state.ts`)          | Dispatched into the Redux store                    |
+| `evaluate` | string of JS                          | Run with `new Function(code)()` in the page        |
+| `selector` | CSS selector                          | If set, screenshots that element instead of page   |
+| `clip`     | `{x,y,width,height}`                  | Clip rectangle for full-page shots                 |
+| `fullPage` | bool                                  | Whole scroll height                                |
+| `viewport` | `{width,height}`                      | Default `1440x900`, dpr 2                          |
+| `waitMs`   | number                                | Extra settle time after networkidle                |
+
+Output is uploaded as a workflow artifact and committed to a long-lived
+`screenshots` branch under `pr-<N>/<run_id>/`, then referenced via
+`raw.githubusercontent.com` URLs in a PR comment.
