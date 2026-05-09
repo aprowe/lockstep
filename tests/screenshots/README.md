@@ -162,24 +162,17 @@ Requires `gh` signed in (`gh auth login`). PNGs land in `screenshots-out/`,
 get pushed to `screenshots:pr-<N>/local-<timestamp>/`, and the PR gets a
 comment with raw URL image refs.
 
-### Installing / updating the workflow
+### Updating the workflow
 
 GitHub gates `.github/workflows/*.yml` writes behind the `workflow` OAuth
-scope. Tokens that lack that scope (incl. the agent that authored this) can
-only stage YAML alongside the repo, not commit it under `.github/workflows/`.
+scope. Agents/tokens without that scope can't push edits directly. To
+update:
 
-The current source-of-truth YAML lives at `docs/screenshot-workflow.yml`.
-To install or update the live workflow:
+- **Web UI** — edit `.github/workflows/screenshot.yml` on GitHub and
+  commit. Doable from a phone browser.
+- **`gh`** — push from a terminal where `gh auth login` was run with
+  `--scopes workflow` (the default scopes already include it).
 
-- **Web UI** — edit `.github/workflows/screenshot.yml` on GitHub, paste in
-  the contents of `docs/screenshot-workflow.yml`, commit. Doable from a
-  phone browser.
-- **`gh`** —
-  ```bash
-  cp docs/screenshot-workflow.yml .github/workflows/screenshot.yml
-  git add .github/workflows/screenshot.yml
-  git commit -m "chore(ci): update screenshot workflow"
-  git push
-  ```
-  Requires a `gh auth login` token with `workflow` scope (default for
-  `gh auth login --scopes workflow`).
+If a session lacks `workflow` scope, stage proposed YAML somewhere outside
+`.github/workflows/` (e.g. `docs/screenshot-workflow.yml`) and apply it
+via one of the above paths.
