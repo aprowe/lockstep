@@ -1,5 +1,10 @@
 name: Screenshot
 
+# Two trigger paths:
+#   workflow_dispatch — Actions UI / `gh workflow run` / Claude `gh` skill.
+#   issue_comment    — comment "/screenshot ..." on a PR; works from the
+#                      GitHub mobile app, the web UI, or any tool with
+#                      issue-comment perms (no `workflow` OAuth scope needed).
 on:
   workflow_dispatch:
     inputs:
@@ -16,34 +21,92 @@ on:
         required: false
         type: string
         default: ''
+  issue_comment:
+    types: [created]
 
 jobs:
   screenshot:
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request != null && startsWith(github.event.comment.body, '/screenshot'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     steps:
-      - name: Resolve PR head
-        id: pr
+      - name: React to comment (acknowledge)
+        if: github.event_name == 'issue_comment'
         uses: actions/github-script@v7
-        env:
-          PR_NUMBER: ${{ inputs.pr_number }}
         with:
           script: |
-            const num = parseInt(process.env.PR_NUMBER, 10)
-            if (!Number.isFinite(num)) throw new Error(`invalid pr_number: ${process.env.PR_NUMBER}`)
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'eyes',
+            })
+
+      - name: Parse inputs
+        id: parse
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            let prNumber, instructions, preface, triggerCommentId
+            if (context.eventName === 'workflow_dispatch') {
+              prNumber = parseInt(context.payload.inputs.pr_number, 10)
+              instructions = context.payload.inputs.instructions
+              preface = context.payload.inputs.comment || ''
+              triggerCommentId = ''
+            } else {
+              prNumber = context.payload.issue.number
+              triggerCommentId = String(context.payload.comment.id)
+              const body = context.payload.comment.body
+              const rest = body.replace(/^\/screenshot[^\S\n]*\n?/, '').trim()
+              const m = rest.match(/^([\s\S]*?)?\s*```(?:json)?\s*\n([\s\S]+?)\n```\s*([\s\S]*)?$/)
+              if (m) {
+                instructions = m[2].trim()
+                preface = ((m[1] || '') + '\n\n' + (m[3] || '')).trim()
+              } else if (rest.startsWith('@')) {
+                instructions = rest.split(/\s+/, 1)[0]
+                preface = rest.slice(instructions.length).trim()
+              } else {
+                instructions = rest
+                preface = ''
+              }
+            }
+            if (!Number.isFinite(prNumber)) throw new Error(`invalid pr_number: ${prNumber}`)
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: num,
+              pull_number: prNumber,
             })
+            fs.writeFileSync('/tmp/instructions.raw', instructions)
+            core.setOutput('pr_number', String(prNumber))
             core.setOutput('head_sha', pr.head.sha)
-            core.setOutput('head_ref', pr.head.ref)
+            core.setOutput('preface', preface)
+            core.setOutput('trigger_comment_id', triggerCommentId)
 
       - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.pr.outputs.head_sha }}
+          ref: ${{ steps.parse.outputs.head_sha }}
+
+      - name: Resolve @path references
+        run: |
+          set -euo pipefail
+          if [[ "$(head -c1 /tmp/instructions.raw)" == "@" ]]; then
+            ref="$(tr -d '\n\r' < /tmp/instructions.raw | sed 's/^@//')"
+            if [[ ! -f "$ref" ]]; then
+              echo "::error::JSON file not found in repo: $ref"
+              exit 1
+            fi
+            cp "$ref" /tmp/instructions.json
+          else
+            cp /tmp/instructions.raw /tmp/instructions.json
+          fi
+          echo "Instructions resolved (first line):"
+          head -n 1 /tmp/instructions.json
 
       - uses: actions/setup-node@v4
         with:
@@ -56,14 +119,14 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Capture screenshots
-        env:
-          INSTRUCTIONS: ${{ inputs.instructions }}
-        run: npx tsx scripts/screenshot.ts
+        run: |
+          export INSTRUCTIONS="$(cat /tmp/instructions.json)"
+          npx tsx scripts/screenshot.ts
 
       - name: Upload screenshots as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: screenshots-pr-${{ inputs.pr_number }}-${{ github.run_id }}
+          name: screenshots-pr-${{ steps.parse.outputs.pr_number }}-${{ github.run_id }}
           path: screenshots-out/
           if-no-files-found: error
           retention-days: 30
@@ -72,7 +135,7 @@ jobs:
         id: publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ inputs.pr_number }}
+          PR_NUMBER: ${{ steps.parse.outputs.pr_number }}
           RUN_ID: ${{ github.run_id }}
           REPO: ${{ github.repository }}
         run: |
@@ -112,15 +175,15 @@ jobs:
       - name: Post comment to PR
         uses: actions/github-script@v7
         env:
-          PR_NUMBER: ${{ inputs.pr_number }}
-          PREFACE: ${{ inputs.comment }}
+          PR_NUMBER: ${{ steps.parse.outputs.pr_number }}
+          PREFACE: ${{ steps.parse.outputs.preface }}
           BRANCH: ${{ steps.publish.outputs.branch }}
           DEST: ${{ steps.publish.outputs.dest }}
           RUN_ID: ${{ github.run_id }}
+          TRIGGER_COMMENT_ID: ${{ steps.parse.outputs.trigger_comment_id }}
         with:
           script: |
             const fs = require('fs')
-            const path = require('path')
             const dir = 'screenshots-out'
             const files = fs.readdirSync(dir).filter(f => f.endsWith('.png')).sort()
             const owner = context.repo.owner
@@ -144,3 +207,14 @@ jobs:
               issue_number: parseInt(process.env.PR_NUMBER, 10),
               body: lines.join('\n'),
             })
+
+            const triggerId = process.env.TRIGGER_COMMENT_ID
+            if (triggerId) {
+              try {
+                await github.rest.reactions.createForIssueComment({
+                  owner, repo, comment_id: parseInt(triggerId, 10), content: 'rocket',
+                })
+              } catch (err) {
+                console.warn('failed to add rocket reaction:', err.message)
+              }
+            }
