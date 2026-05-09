@@ -57,24 +57,11 @@ description of one or more screenshot steps, runs them via Playwright against
 the same dev-server + tauri-mock + seed setup used here, then comments on a
 PR with the resulting images inline (renders in the GitHub mobile app).
 
-### One-time install
-
-The workflow YAML lives at `docs/screenshot-workflow.yml` because the agent
-that authored it did not have GitHub's `workflow` OAuth scope and therefore
-could not push directly into `.github/workflows/`. Move it into place once:
-
-```bash
-mkdir -p .github/workflows
-git mv docs/screenshot-workflow.yml .github/workflows/screenshot.yml
-git commit -m "chore(ci): install screenshot workflow"
-git push
-```
-
 Trigger it from the **Actions** tab → **Screenshot** → **Run workflow**, or
 via `gh`:
 
 ```bash
-gh workflow run screenshot.yml \
+gh workflow run screenshot-workflow.yml \
   -f pr_number=123 \
   -f comment="Verse panel after change" \
   -f instructions='[
