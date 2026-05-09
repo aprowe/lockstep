@@ -1,0 +1,129 @@
+.inspector {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-3);
+  padding: var(--sp-3) var(--sp-4);
+  overflow-y: auto;
+  font-family: var(--font-family);
+  color: var(--fg-2);
+  font-size: var(--t-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.inspector__empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3) 0;
+}
+
+.inspector__empty-title {
+  color: var(--fg-2);
+  font-size: var(--t-md);
+  font-weight: 600;
+}
+
+.inspector__empty-hint {
+  color: var(--fg-4);
+  font-size: var(--t-xs);
+  line-height: 1.4;
+}
+
+.inspector__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.inspector__heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--sp-1);
+}
+
+.inspector__heading-label {
+  color: var(--fg-3);
+  font-size: var(--t-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.inspector__heading-count {
+  color: var(--fg-1);
+  font-size: var(--t-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.inspector__rows {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: var(--sp-3);
+  row-gap: var(--sp-1);
+  align-items: baseline;
+}
+
+.inspector__row {
+  display: contents;
+}
+
+.inspector__label {
+  color: var(--fg-4);
+  font-size: var(--t-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.inspector__value {
+  color: var(--fg-1);
+  font-variant-numeric: tabular-nums;
+  word-break: break-word;
+}
+
+.inspector__value--dim {
+  color: var(--fg-4);
+  font-style: italic;
+}
+
+.inspector__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin-top: var(--sp-1);
+}
+
+.inspector__btn {
+  padding: 2px var(--sp-2);
+  background: var(--bg-3);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  color: var(--fg-2);
+  font-family: inherit;
+  font-size: var(--t-xs);
+  cursor: pointer;
+  transition: background 0.08s, color 0.08s, border-color 0.08s;
+}
+
+.inspector__btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg-1);
+  border-color: var(--accent);
+}
+
+.inspector__btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.inspector__btn--danger {
+  color: var(--accent-2);
+}
+
+.inspector__btn--danger:hover:not(:disabled) {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+}

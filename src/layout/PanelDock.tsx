@@ -17,6 +17,7 @@ import ClipInfoPanel from './panels/ClipInfoPanel'
 import ScenesPanel from './panels/ScenesPanel'
 import MarkersPanel from './panels/MarkersPanel'
 import VideoInfoPanel from './panels/VideoInfoPanel'
+import InspectorPanel from './panels/InspectorPanel'
 import AssistantPanelDock from './panels/AssistantPanel'
 import CenterColumn from './CenterColumn'
 
@@ -32,6 +33,7 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps>> =
   scenes: () => <ScenesPanel />,
   markers: () => <MarkersPanel />,
   'video-info': () => <VideoInfoPanel />,
+  inspector: () => <InspectorPanel />,
   assistant: () => <AssistantPanelDock />,
   center: () => <CenterColumn />,
 }
@@ -43,13 +45,17 @@ const PANEL_TITLES: Record<string, string> = {
   scenes: 'Scenes',
   markers: 'Markers',
   'video-info': 'Video Info',
+  inspector: 'Inspector',
   assistant: 'Assistant',
   center: 'Player',
 }
 
-const SIDE_PANEL_IDS = ['files', 'clips', 'clip-info', 'scenes', 'markers', 'video-info', 'assistant'] as const
+const SIDE_PANEL_IDS = ['files', 'clips', 'clip-info', 'scenes', 'markers', 'video-info', 'inspector', 'assistant'] as const
 
-const STORAGE_KEY = 'lockstep:panel-layout:v3'
+// Bumped because the default layout grew an Inspector panel in the SW slot —
+// reusing the v3 key would leave existing users with an inspector-less layout
+// even after the upgrade. v4 forces a clean rebuild.
+const STORAGE_KEY = 'lockstep:panel-layout:v4'
 
 /**
  * Default 4-slot layout the dock falls back to whenever there's no saved
@@ -59,7 +65,7 @@ const STORAGE_KEY = 'lockstep:panel-layout:v3'
  *   │ clips        │             │ scenes / markers │  (NW · CENTER · NE)
  *   │ (+ files)    │  player +   │  (tabbed)        │
  *   ├──────────────┤  timeline   ├──────────────────┤
- *   │ (empty)      │             │ clip-info        │  (SW · CENTER · SE)
+ *   │ inspector    │             │ clip-info        │  (SW · CENTER · SE)
  *   └──────────────┴─────────────┴──────────────────┘
  *
  * Built imperatively with addPanel(...) so we can position relative to the
@@ -109,7 +115,13 @@ function buildDefaultLayout(api: DockviewApi) {
     inactive: true,
   })
 
-  // SW is intentionally empty — drag any panel below the clips group to fill it.
+  // SW — Inspector (selection summary + context-based actions) below the
+  // clips/files group.
+  api.addPanel({
+    id: 'inspector', component: 'inspector', title: PANEL_TITLES.inspector,
+    position: { referencePanel: 'clips', direction: 'below' },
+    initialHeight: 240,
+  })
 
   lockCenterGroup(api)
 }
