@@ -10,7 +10,6 @@ export interface WarpRequest {
   add_to_end: boolean
   trim_to_loop: boolean
   loop_beats: number | null
-  normalize_bpm: boolean
   fade_at_loop: boolean
   clip_in?: number | null
   clip_out?: number | null

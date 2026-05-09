@@ -205,7 +205,6 @@ pub struct WarpRequest {
     pub add_to_end: bool,
     pub trim_to_loop: bool,
     pub loop_beats: Option<u32>,
-    pub normalize_bpm: bool,
     pub fade_at_loop: bool,
     pub clip_in: Option<f64>,
     pub clip_out: Option<f64>,
@@ -233,7 +232,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
     let out_path_str = out_path.to_string_lossy().to_string();
 
     log::info!(
-        "start_warp[{job_id}]: path={} bpm={:.3} anchors={} clip={:?}→{:?} interp={:?}@{:?} audio={:?} normalize_bpm={} trim_to_loop={} trigger={}",
+        "start_warp[{job_id}]: path={} bpm={:.3} anchors={} clip={:?}→{:?} interp={:?}@{:?} audio={:?} trim_to_loop={} trigger={}",
         req.path,
         req.bpm,
         req.orig_times.len(),
@@ -242,7 +241,6 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
         req.interp_method,
         req.interp_fps,
         req.audio_mode,
-        req.normalize_bpm,
         req.trim_to_loop,
         req.trigger_mode,
     );
@@ -264,7 +262,6 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
             add_to_end: req.add_to_end,
             trim_to_loop: req.trim_to_loop,
             loop_beats: req.loop_beats,
-            normalize_bpm: req.normalize_bpm,
             fade_at_loop: req.fade_at_loop,
             clip_in: req.clip_in,
             clip_out: req.clip_out,

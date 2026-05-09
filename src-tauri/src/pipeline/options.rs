@@ -56,7 +56,6 @@ pub struct WarpOptions {
     pub add_to_end: bool,
     pub trim_to_loop: bool,
     pub loop_beats: Option<u32>,
-    pub normalize_bpm: bool,
     pub fade_at_loop: bool,
     /// Start of clip in source video (seconds). None = 0.0
     pub clip_in: Option<f64>,

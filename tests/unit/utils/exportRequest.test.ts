@@ -17,7 +17,6 @@ const baseInput = {
   loopBeats: null,
   trimToLoop: false,
   fadeAtLoop: false,
-  normalizeBpm: false,
   interpolateFrames: true,
   interpFps: 60,
   sceneCuts: [],

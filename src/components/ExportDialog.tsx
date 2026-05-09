@@ -118,8 +118,6 @@ export default function ExportDialog({
   selectedClipIds,
 }: ExportDialogProps) {
   const [fadeAtLoop, setFadeAtLoop] = useState(false)
-  const [normalizeBpm, setNormalizeBpm] = useState(false)
-  const [normBpmTarget, setNormBpmTarget] = useState(120)
   const [interpolateFrames, setInterpolateFrames] = useState(false)
   const [interpMethod, setInterpMethod] = useState<InterpMethod>('minterpolate')
   const [interpFps, setInterpFps] = useState(() => Math.round(videoFps ?? 60))
@@ -305,15 +303,11 @@ export default function ExportDialog({
   }
 
   const getFileName = (job: ExportJob, index: number) => {
-    // Filename BPM must reflect the *output* BPM, not the source — backend
-    // normalizes to 120 when `normalizeBpm` is on, so the file we ship is at
-    // 120bpm regardless of the region's authored tempo.
-    const effectiveBpm = normalizeBpm ? normBpmTarget : job.bpm
     const clipNumber = job.regionIndex >= 0 ? job.regionIndex + 1 : index + 1
     const name = applyPattern(namePattern, {
       name: job.label,
       stem: baseName,
-      bpm: effectiveBpm,
+      bpm: job.bpm,
       beats: job.beats,
       clipIn: job.clipIn,
       clipOut: job.clipOut,
@@ -358,7 +352,6 @@ export default function ExportDialog({
           loopBeats,
           trimToLoop,
           fadeAtLoop,
-          normalizeBpm,
           interpolateFrames,
           interpFps,
           interpMethod,
@@ -637,21 +630,6 @@ export default function ExportDialog({
                   Fade at loop
                 </label>
               )}
-              <div className="export-dialog__norm-row">
-                <label className="export-dialog__check">
-                  <input type="checkbox" checked={normalizeBpm} onChange={e => setNormalizeBpm(e.target.checked)} />
-                  Normalize to
-                </label>
-                {normalizeBpm && (
-                  <input
-                    className="export-dialog__norm-bpm"
-                    type="number" min={1} max={999} step={1}
-                    value={normBpmTarget}
-                    onChange={e => setNormBpmTarget(Number(e.target.value))}
-                  />
-                )}
-                {normalizeBpm && <span className="export-dialog__norm-label">BPM</span>}
-              </div>
               <div className="export-dialog__audio">
                 <label className="export-dialog__check">
                   <input

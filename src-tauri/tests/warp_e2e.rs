@@ -78,7 +78,6 @@ fn warp_opts(interp_fps: Option<u32>) -> WarpOptions {
         add_to_end: false,
         trim_to_loop: false,
         loop_beats: None,
-        normalize_bpm: false,
         fade_at_loop: false,
         clip_in: Some(0.0),
         clip_out: Some(1.0),

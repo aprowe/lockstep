@@ -19,7 +19,6 @@ export interface BuildWarpRequestInput {
   loopBeats: number | null
   trimToLoop: boolean
   fadeAtLoop: boolean
-  normalizeBpm: boolean
   interpolateFrames: boolean
   interpFps: number
   interpMethod: 'minterpolate' | 'rife'
@@ -35,7 +34,7 @@ export interface BuildWarpRequestInput {
  *  `interpolateFrames` toggles frame interpolation (constant fps, blended frames);
  *  when false, variable speed is encoded via PTS. */
 export function buildWarpRequest(input: BuildWarpRequestInput): WarpRequest {
-  const { videoPath, warpData, job, loopBeats, trimToLoop, fadeAtLoop, normalizeBpm, interpolateFrames, interpFps, interpMethod, sceneCuts, audioMode } = input
+  const { videoPath, warpData, job, loopBeats, trimToLoop, fadeAtLoop, interpolateFrames, interpFps, interpMethod, sceneCuts, audioMode } = input
 
   const hasMarkers = !!warpData && warpData.origAnchors.length >= 1
   // Per-region export jobs must only carry anchors that fall within this
@@ -77,7 +76,6 @@ export function buildWarpRequest(input: BuildWarpRequestInput): WarpRequest {
     fade_at_loop: fadeAtLoop && job.addToEnd,
     trim_to_loop: trimToLoop,
     loop_beats: loopBeats ?? null,
-    normalize_bpm: normalizeBpm,
     clip_in: job.clipIn ?? null,
     clip_out: job.clipOut ?? null,
     // Trigger mode plays at 1.0x; frame interpolation makes no sense there.
