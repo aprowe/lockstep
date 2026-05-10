@@ -20,14 +20,13 @@ id: file-menu
 name: File menu
 
 groups:
-  - - Open File
+  - - Open Video
     - Open Folder
-    - Open Anchors…
 
-  - - Import Anchors
-    - Export Anchors
+  - - Open Project
+    - Save Project As
 
-  - - Reset Video Data
+  - - Reset Project
 
   - - Close Video
 

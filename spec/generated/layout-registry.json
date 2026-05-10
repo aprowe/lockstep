@@ -31,36 +31,32 @@
         {
           "items": [
             {
-              "id": "open-file",
-              "label": "Open File"
+              "id": "open-video",
+              "label": "Open Video"
             },
             {
               "id": "open-folder",
               "label": "Open Folder"
-            },
-            {
-              "id": "open-anchors",
-              "label": "Open Anchors…"
             }
           ]
         },
         {
           "items": [
             {
-              "id": "import-anchors",
-              "label": "Import Anchors"
+              "id": "open-project",
+              "label": "Open Project"
             },
             {
-              "id": "export-anchors",
-              "label": "Export Anchors"
+              "id": "save-project-as",
+              "label": "Save Project As"
             }
           ]
         },
         {
           "items": [
             {
-              "id": "reset-video-data",
-              "label": "Reset Video Data"
+              "id": "reset-project",
+              "label": "Reset Project"
             }
           ]
         },

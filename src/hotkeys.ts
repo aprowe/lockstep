@@ -44,8 +44,7 @@ export const HOTKEYS: readonly HotkeyDef[] = [
   // ── File ────────────────────────────────────────────────────────────────
   { id: 'open-file',        keys: 'Ctrl+O',          label: 'Open video file',        category: 'File' },
   { id: 'open-folder',      keys: 'Ctrl+Shift+O',    label: 'Open folder',            category: 'File' },
-  { id: 'import-markers',   keys: 'Ctrl+I',          label: 'Import anchors',         category: 'File' },
-  { id: 'export-markers',   keys: 'Ctrl+E',          label: 'Export anchors',         category: 'File' },
+  { id: 'save-project-as',  keys: 'Ctrl+E',          label: 'Save project as',        category: 'File' },
 
   // ── View ────────────────────────────────────────────────────────────────
   { id: 'ui-scale-up',      keys: 'Ctrl+=',          label: 'Increase UI scale',      category: 'View' },

@@ -341,8 +341,7 @@ export default function App() {
 
   const fileMenu: MenuDef = useMemo(() => buildFileMenu({
     video, anchorCount, openFile, openFolder, openJsonFile, resetVideoData, closeVideo,
-    importMarkers: () => document.getElementById('marker-import')?.click(),
-    exportMarkers: () => { /* TODO: export via thunk */ },
+    saveProjectAs: () => { /* TODO: save project state to a new JSON location */ },
   }), [openFile, openFolder, openJsonFile, resetVideoData, closeVideo, video, anchorCount])
 
   const editMenu: MenuDef = useMemo(() => buildEditMenu({

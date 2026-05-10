@@ -18,22 +18,20 @@ interface FileMenuDeps {
   openJsonFile: () => void
   resetVideoData: () => void
   closeVideo: () => void
-  importMarkers: () => void
-  exportMarkers: () => void
+  saveProjectAs: () => void
 }
 
 export function buildFileMenu(d: FileMenuDeps): MenuDef {
   return {
     label: 'File',
     items: [
-      { label: 'Open File',       shortcut: 'Ctrl+O',       action: d.openFile },
+      { label: 'Open Video',      shortcut: 'Ctrl+O',       action: d.openFile },
       { label: 'Open Folder',     shortcut: 'Ctrl+Shift+O', action: d.openFolder },
-      { label: 'Open Anchors…',                             action: d.openJsonFile },
       { separator: true },
-      { label: 'Import Anchors',  shortcut: 'Ctrl+I',       action: d.importMarkers, disabled: !d.video },
-      { label: 'Export Anchors',  shortcut: 'Ctrl+E',       action: d.exportMarkers, disabled: !d.video || d.anchorCount === 0 },
+      { label: 'Open Project',                               action: d.openJsonFile },
+      { label: 'Save Project As', shortcut: 'Ctrl+E',       action: d.saveProjectAs, disabled: !d.video || d.anchorCount === 0 },
       { separator: true },
-      { label: 'Reset Video Data',                          action: d.resetVideoData, disabled: !d.video },
+      { label: 'Reset Project',                              action: d.resetVideoData, disabled: !d.video },
       { separator: true },
       { label: 'Close Video',                               action: d.closeVideo,     disabled: !d.video },
     ],
