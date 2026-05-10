@@ -17,6 +17,7 @@ function clamp(n: number): number {
 
 function apply(scale: number): void {
   document.documentElement.style.setProperty('--ui-scale', String(scale))
+  window.dispatchEvent(new CustomEvent('ui-scale-change', { detail: scale }))
 }
 
 export function getUiScale(): number {

@@ -52,21 +52,19 @@ const PANEL_TITLES: Record<string, string> = {
 
 const SIDE_PANEL_IDS = ['files', 'clips', 'clip-info', 'scenes', 'markers', 'video-info', 'assistant', 'tasks'] as const
 
-// Bumped from v3 → v4 to invalidate saved layouts so the new Tasks panel
-// shows up in the SE group by default; pre-release so no real users to
-// inconvenience (CLAUDE.md).
-const STORAGE_KEY = 'lockstep:panel-layout:v4'
+// Bumped to v6 to add Assistant to the NE group alongside scenes/markers/tasks.
+const STORAGE_KEY = 'lockstep:panel-layout:v6'
 
 /**
  * Default 4-slot layout the dock falls back to whenever there's no saved
  * layout (or the saved one fails to deserialize):
  *
- *   ┌──────────────┬─────────────┬──────────────────┐
- *   │ clips        │             │ scenes / markers │  (NW · CENTER · NE)
- *   │ (+ files)    │  player +   │  (tabbed)        │
- *   ├──────────────┤  timeline   ├──────────────────┤
- *   │ (empty)      │             │ clip-info        │  (SW · CENTER · SE)
- *   └──────────────┴─────────────┴──────────────────┘
+ *   ┌──────────────┬─────────────┬──────────────────────┐
+ *   │ clips        │             │ scenes/markers/tasks │  (NW · CENTER · NE)
+ *   │ (+ files)    │  player +   │  (tabbed)            │
+ *   ├──────────────┤  timeline   ├──────────────────────┤
+ *   │ (empty)      │             │ clip-info / video-info│  (SW · CENTER · SE)
+ *   └──────────────┴─────────────┴──────────────────────┘
  *
  * Built imperatively with addPanel(...) so we can position relative to the
  * locked center group.
@@ -101,6 +99,16 @@ function buildDefaultLayout(api: DockviewApi) {
     position: { referencePanel: 'scenes' },
     inactive: true,
   })
+  api.addPanel({
+    id: 'tasks', component: 'tasks', title: PANEL_TITLES.tasks,
+    position: { referencePanel: 'scenes' },
+    inactive: true,
+  })
+  api.addPanel({
+    id: 'assistant', component: 'assistant', title: PANEL_TITLES.assistant,
+    position: { referencePanel: 'scenes' },
+    inactive: true,
+  })
 
   // SE — clip-info below the scenes/markers group, with video-info tabbed
   // alongside it (both "metadata about a thing" panels).
@@ -114,15 +122,6 @@ function buildDefaultLayout(api: DockviewApi) {
     position: { referencePanel: 'clip-info' },
     inactive: true,
   })
-  // Tasks tabbed alongside clip-info / video-info so warp + scene jobs stay
-  // visible without claiming new screen real estate. `inactive: true` keeps
-  // clip-info focused on first paint.
-  api.addPanel({
-    id: 'tasks', component: 'tasks', title: PANEL_TITLES.tasks,
-    position: { referencePanel: 'clip-info' },
-    inactive: true,
-  })
-
   // SW is intentionally empty — drag any panel below the clips group to fill it.
 
   lockCenterGroup(api)

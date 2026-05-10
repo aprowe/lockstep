@@ -3,9 +3,10 @@ import ListPanel from '../../components/list/ListPanel'
 import { useFilteredItems } from '../../components/list/useFilteredItems'
 import MarkerRow, { type MarkerRowData } from './MarkerRow'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
-import { removeAnchors, setSelectedIds as setSelectedAnchorIds } from '../../store/slices/warpSlice'
+import { removeAnchors, setSelectedIds as setSelectedAnchorIds, resetBeatLinks, setBeatAnchorsFromTimeline } from '../../store/slices/warpSlice'
 import { selectActiveRegion, selectSelectedIdsSet, selectWarpData } from '../../store/selectors'
 import { useDockBridge } from '../DockContext'
+import { snapAllToBeat } from '../../utils/quantize'
 
 export default function MarkersPanel() {
   const dispatch = useAppDispatch()
@@ -15,6 +16,7 @@ export default function MarkersPanel() {
   const beatAnchors = useAppSelector(s => s.warp.beatAnchors)
   const warpBpm = useAppSelector(s => s.warp.bpm)
   const warpData = useAppSelector(selectWarpData)
+  const gridDiv = useAppSelector(s => s.ui.gridDiv)
   const activeRegion = useAppSelector(selectActiveRegion)
   const filterMode = useAppSelector(s => s.lists.filterMode.markers)
   // Markers selection lives in warp.selectedIds (number ids) so the
@@ -70,6 +72,26 @@ export default function MarkersPanel() {
     if (data) seek(data.time)
   }, [items, seek])
 
+  const hasSelection = selectedAnchorIdSet.size > 0
+
+  const onSnap = useCallback(() => {
+    if (warpBpm <= 0) return
+    const beat = (60 / warpBpm) / Math.max(1, gridDiv)
+    const beatOffset = warpData?.beatZeroTime ?? 0
+    const toSnap = beatAnchors.filter(a => selectedAnchorIdSet.has(a.id))
+    const snapped = snapAllToBeat(toSnap, beat, beatOffset)
+    dispatch(setBeatAnchorsFromTimeline(
+      beatAnchors.map(a => {
+        const s = snapped.find(sa => sa.id === a.id)
+        return s ? { ...a, time: s.time } : a
+      }),
+    ))
+  }, [dispatch, warpBpm, gridDiv, warpData, beatAnchors, selectedAnchorIdSet])
+
+  const onReset = useCallback(() => {
+    dispatch(resetBeatLinks([...selectedAnchorIdSet]))
+  }, [dispatch, selectedAnchorIdSet])
+
   const onDelete = useCallback((ids: string[]) => {
     dispatch(removeAnchors(ids.map(s => Number(s))))
     dispatch(setSelectedAnchorIds([]))
@@ -81,6 +103,29 @@ export default function MarkersPanel() {
 
   if (!video) return <div className="vj-empty-panel">No video</div>
 
+  const actionsBar = (
+    <div className="markers-panel__actions">
+      <button
+        type="button"
+        className="markers-panel__action-btn"
+        onClick={onSnap}
+        disabled={!hasSelection}
+        title="Snap selected markers to nearest beat"
+      >
+        Snap
+      </button>
+      <button
+        type="button"
+        className="markers-panel__action-btn markers-panel__action-btn--secondary"
+        onClick={onReset}
+        disabled={!hasSelection}
+        title="Reset selected markers to source position"
+      >
+        Reset
+      </button>
+    </div>
+  )
+
   return (
     <ListPanel
       listId="markers"
@@ -89,6 +134,7 @@ export default function MarkersPanel() {
       onDelete={onDelete}
       selectedIdsOverride={selectedIdsAsStrings}
       onSelectionChangeOverride={onSelectionChangeOverride}
+      subHeader={actionsBar}
       clipFilterDisabled={!activeRegion}
       emptyHint={
         filterMode === 'clip' && !activeRegion

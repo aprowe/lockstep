@@ -8,7 +8,9 @@ import Toolbar from './components/Toolbar'
 import MenuBar from './components/MenuBar'
 import type { MenuDef, MenuEntry } from './components/MenuBar'
 import { buildFileMenu, buildEditMenu, buildViewMenu } from './menus'
-import { stepUiScale, resetUiScale, UI_SCALE_STEP } from './uiScale'
+import { stepUiScale, resetUiScale, getUiScale, UI_SCALE_STEP } from './uiScale'
+import HudChip from './components/HudChip'
+import { useTransientChip } from './utils/useTransientChip'
 import { calcZoomToRegion, calcNewRegionBoundsFromScenes, calcNewRegionBoundsUpToNext } from './utils/view'
 import { findPreviousTarget } from './utils/navigation'
 import type { View } from './types'
@@ -176,6 +178,14 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
   const [hotkeysOpen, setHotkeysOpen] = useState(false)
+  const [uiScale, setUiScaleState] = useState(getUiScale)
+  useEffect(() => {
+    const handler = (e: Event) => setUiScaleState((e as CustomEvent<number>).detail)
+    window.addEventListener('ui-scale-change', handler)
+    return () => window.removeEventListener('ui-scale-change', handler)
+  }, [])
+  const uiScaleLabel = `${Math.round(uiScale * 100)}%`
+  const uiScaleChipVisible = useTransientChip(uiScaleLabel)
 
   // ? opens the keyboard shortcuts cheat sheet (definition lives in src/hotkeys.ts).
   useEffect(() => {
@@ -455,6 +465,7 @@ export default function App() {
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <HotkeySheet open={hotkeysOpen} onClose={() => setHotkeysOpen(false)} />
+      <HudChip label={uiScaleLabel} title="UI Scale" visible={uiScaleChipVisible} position="top-center" fixed />
     </div>
     </ThumbnailHoverProvider>
   )

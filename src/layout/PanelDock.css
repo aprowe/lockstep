@@ -66,6 +66,11 @@
   transition: none;
 }
 
+/* Slightly more breathing room in each tab. */
+.dockview-theme-lockstep .dv-default-tab-content {
+  padding: 0 10px;
+}
+
 /* No close × on tabs — panels are toggled via the View menu instead, so the
  * × would just be a foot-gun (a closed panel can be brought back, but the
  * click target is small and easy to hit by accident). */

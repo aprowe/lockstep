@@ -115,3 +115,48 @@
 .marker-row--dim {
   opacity: 0.4;
 }
+
+/* ── Marker panel actions bar ─────────────────────────────────────────────── */
+
+.markers-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.markers-panel__action-btn {
+  padding: 2px var(--sp-3);
+  background: rgba(var(--accent-rgb), 0.12);
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  border-radius: 2px;
+  color: var(--fg-2);
+  font-family: inherit;
+  font-size: var(--t-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.markers-panel__action-btn:hover:not(:disabled) {
+  background: rgba(var(--accent-rgb), 0.22);
+  color: var(--fg-1);
+}
+
+.markers-panel__action-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.markers-panel__action-btn--secondary {
+  background: none;
+  border-color: var(--border);
+  color: var(--fg-3);
+}
+
+.markers-panel__action-btn--secondary:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg-1);
+  border-color: var(--fg-5);
+}
+
