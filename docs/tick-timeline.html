@@ -203,10 +203,23 @@ header.top p {
   width: 100%;
   height: 100%;
   cursor: text;
+  touch-action: none;
+  user-select: none;
 }
 
 #tickCanvas.scrubbing { cursor: ew-resize; }
 #tickCanvas.panning { cursor: grabbing; }
+
+@media (max-width: 720px) {
+  header.top { padding: 12px 14px 10px; flex-wrap: wrap; gap: 8px; }
+  header.top p { display: none; }
+  .controls { padding: 8px 10px; gap: 4px; }
+  .transport { padding: 8px 14px; gap: 12px; }
+  .bbt-display { font-size: 18px; min-width: 110px; }
+  footer.hints { padding: 8px 14px; gap: 12px; }
+  footer.hints span { font-size: 10px; }
+  .mode-badge { display: none; }
+}
 
 footer.hints {
   padding: 10px 24px;
@@ -317,6 +330,7 @@ footer.hints kbd {
   <span><kbd>Wheel</kbd>scroll</span>
   <span><kbd>⌘ / Ctrl</kbd>+wheel: zoom</span>
   <span><kbd>Alt</kbd>+drag: pan</span>
+  <span><kbd>Tap</kbd>seek · <kbd>Pinch</kbd>zoom</span>
 </footer>
 
 <script>
@@ -725,6 +739,54 @@ window.addEventListener('mouseup', () => {
   dragMode = null;
   canvas.classList.remove('scrubbing', 'panning');
 });
+
+// -------- Touch --------
+let touchState = null;
+
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  if (e.touches.length === 1) {
+    const x = e.touches[0].clientX - rect.left;
+    setPlayhead(pxToBeats(x), true);
+    touchState = { mode: 'scrub' };
+  } else if (e.touches.length === 2) {
+    const t0 = e.touches[0], t1 = e.touches[1];
+    const cx = (t0.clientX + t1.clientX) / 2 - rect.left;
+    const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+    touchState = {
+      mode: 'pinch',
+      distance0: dist,
+      zoom0: state.zoom,
+      beatsAtCenter: pxToBeats(cx),
+    };
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (!touchState) return;
+  const rect = canvas.getBoundingClientRect();
+  if (touchState.mode === 'scrub' && e.touches.length === 1) {
+    const x = e.touches[0].clientX - rect.left;
+    setPlayhead(pxToBeats(x), true);
+  } else if (touchState.mode === 'pinch' && e.touches.length >= 2) {
+    const t0 = e.touches[0], t1 = e.touches[1];
+    const cx = (t0.clientX + t1.clientX) / 2 - rect.left;
+    const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+    const ratio = dist / touchState.distance0;
+    state.zoom = Math.max(6, Math.min(800, touchState.zoom0 * ratio));
+    state.scroll = Math.max(0, touchState.beatsAtCenter * state.zoom - cx);
+    document.getElementById('zoom').value = Math.min(400, Math.round(state.zoom));
+    draw();
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', (e) => {
+  if (e.touches.length === 0) touchState = null;
+}, { passive: false });
+
+canvas.addEventListener('touchcancel', () => { touchState = null; }, { passive: false });
 
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
