@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lockstep — Tick Timeline Sandbox</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0B0F14;
+  --panel: #11171F;
+  --panel-2: #0E141B;
+  --line: rgba(255,255,255,0.06);
+  --line-strong: rgba(255,255,255,0.12);
+  --text: #EAF2FF;
+  --text-dim: #9AA7B5;
+  --text-faint: #6B7785;
+  --accent: #00E5FF;
+  --accent-warm: #FFB454;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+header.top {
+  padding: 18px 24px 14px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+header.top h1 {
+  font-size: 12px;
+  letter-spacing: 0.28em;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+header.top p {
+  color: var(--text-faint);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  height: 30px;
+}
+
+.group + .group { margin-left: 2px; }
+
+.group label {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.group input[type="number"],
+.group select {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  width: 50px;
+  outline: none;
+  padding: 0;
+}
+
+.group select { width: auto; padding-right: 4px; cursor: pointer; }
+.group select option { background: var(--panel); }
+
+.group .sep {
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.btn {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  height: 30px;
+  padding: 0 14px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+}
+
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn:active { background: rgba(0,229,255,0.08); }
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #00131A;
+  font-weight: 600;
+}
+
+.btn.primary:hover { background: #4DECFF; border-color: #4DECFF; }
+
+.spacer { flex: 1; }
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 24px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.bbt-display {
+  font-family: inherit;
+  font-size: 22px;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  min-width: 140px;
+}
+
+.time-display {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
+
+.stage {
+  flex: 1;
+  position: relative;
+  background: var(--panel-2);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+#tickCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: text;
+}
+
+#tickCanvas.scrubbing { cursor: ew-resize; }
+#tickCanvas.panning { cursor: grabbing; }
+
+footer.hints {
+  padding: 10px 24px;
+  border-top: 1px solid var(--line);
+  background: var(--panel-2);
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+
+footer.hints span {
+  font-size: 11px;
+  color: var(--text-faint);
+  letter-spacing: 0.04em;
+}
+
+footer.hints kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  margin-right: 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  background: var(--panel);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 10px;
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Tick Timeline</h1>
+  <p>DAW-style ruler — Ableton / Bitwig / Logic inspired</p>
+</header>
+
+<div class="controls">
+  <div class="group">
+    <label>BPM</label>
+    <input id="bpm" type="number" min="20" max="300" step="0.5" value="120">
+  </div>
+
+  <div class="group">
+    <label>Sig</label>
+    <input id="tsNum" type="number" min="1" max="32" value="4" style="width:30px">
+    <span class="sep">/</span>
+    <select id="tsDen">
+      <option>2</option><option>4</option><option selected>4</option><option>8</option><option>16</option>
+    </select>
+  </div>
+
+  <div class="group">
+    <label>Snap</label>
+    <select id="snap">
+      <option value="0">Off</option>
+      <option value="4">Bar</option>
+      <option value="1" selected>Beat</option>
+      <option value="0.5">1/8</option>
+      <option value="0.25">1/16</option>
+      <option value="0.125">1/32</option>
+    </select>
+  </div>
+
+  <div class="group">
+    <label>Theme</label>
+    <select id="theme">
+      <option value="ableton" selected>Ableton</option>
+      <option value="bitwig">Bitwig</option>
+      <option value="logic">Logic</option>
+      <option value="lockstep">Lockstep</option>
+    </select>
+  </div>
+
+  <div class="group">
+    <label>Zoom</label>
+    <input id="zoom" type="range" min="6" max="400" step="1" value="48" style="width:140px">
+  </div>
+
+  <div class="spacer"></div>
+
+  <button class="btn" id="goStart" title="Go to start (Home)">⏮</button>
+  <button class="btn primary" id="play" title="Play / Pause (Space)">▶ Play</button>
+  <button class="btn" id="stop" title="Stop">■</button>
+</div>
+
+<div class="transport">
+  <div class="bbt-display" id="bbt">1.1.1</div>
+  <div class="time-display" id="time">00:00.000</div>
+  <div class="spacer"></div>
+  <div class="time-display" id="status">— stopped</div>
+</div>
+
+<div class="stage">
+  <canvas id="tickCanvas"></canvas>
+</div>
+
+<footer class="hints">
+  <span><kbd>Space</kbd>play / pause</span>
+  <span><kbd>←</kbd><kbd>→</kbd>nudge by beat</span>
+  <span><kbd>Home</kbd>to start</span>
+  <span><kbd>Click</kbd>seek</span>
+  <span><kbd>Drag</kbd>scrub on ruler</span>
+  <span><kbd>Wheel</kbd>scroll</span>
+  <span><kbd>⌘ / Ctrl</kbd>+wheel: zoom</span>
+  <span><kbd>Alt</kbd>+drag: pan</span>
+</footer>
+
+<script>
+'use strict';
+
+// -------- Themes (DAW-inspired) --------
+const THEMES = {
+  ableton: {
+    bg: '#1A1A1A',
+    rulerBg: '#2A2A2A',
+    laneBg: '#1A1A1A',
+    barTick: '#FFFFFF',
+    beatTick: '#888888',
+    subTick: '#4A4A4A',
+    gridBar: 'rgba(255,255,255,0.08)',
+    gridBeat: 'rgba(255,255,255,0.04)',
+    gridSub: 'rgba(255,255,255,0.02)',
+    labelMajor: '#FFFFFF',
+    labelMinor: '#9A9A9A',
+    playhead: '#FFCC00',
+    playheadGlow: 'rgba(255,204,0,0.3)',
+    rulerBorder: 'rgba(0,0,0,0.5)',
+  },
+  bitwig: {
+    bg: '#262626',
+    rulerBg: '#1E1E1E',
+    laneBg: '#2C2C2C',
+    barTick: '#E8E8E8',
+    beatTick: '#8C8C8C',
+    subTick: '#555555',
+    gridBar: 'rgba(255,255,255,0.07)',
+    gridBeat: 'rgba(255,255,255,0.035)',
+    gridSub: 'rgba(255,255,255,0.015)',
+    labelMajor: '#FF8A1F',
+    labelMinor: '#8C8C8C',
+    playhead: '#FF8A1F',
+    playheadGlow: 'rgba(255,138,31,0.28)',
+    rulerBorder: 'rgba(0,0,0,0.6)',
+  },
+  logic: {
+    bg: '#2D3033',
+    rulerBg: '#3C4046',
+    laneBg: '#2D3033',
+    barTick: '#0A0A0A',
+    beatTick: '#5A5E64',
+    subTick: '#4A4E54',
+    gridBar: 'rgba(0,0,0,0.22)',
+    gridBeat: 'rgba(0,0,0,0.10)',
+    gridSub: 'rgba(0,0,0,0.05)',
+    labelMajor: '#0A0A0A',
+    labelMinor: '#5A5E64',
+    playhead: '#2A7FE0',
+    playheadGlow: 'rgba(42,127,224,0.3)',
+    rulerBorder: 'rgba(0,0,0,0.4)',
+  },
+  lockstep: {
+    bg: '#0B0F14',
+    rulerBg: '#11171F',
+    laneBg: '#0B0F14',
+    barTick: '#EAF2FF',
+    beatTick: '#6B7785',
+    subTick: '#2F3942',
+    gridBar: 'rgba(234,242,255,0.06)',
+    gridBeat: 'rgba(234,242,255,0.03)',
+    gridSub: 'rgba(234,242,255,0.012)',
+    labelMajor: '#EAF2FF',
+    labelMinor: '#6B7785',
+    playhead: '#00E5FF',
+    playheadGlow: 'rgba(0,229,255,0.32)',
+    rulerBorder: 'rgba(0,0,0,0.5)',
+  },
+};
+
+// -------- State --------
+const state = {
+  bpm: 120,
+  tsNum: 4,
+  tsDen: 4,
+  snap: 1,                // in beats; 0 = off
+  zoom: 48,               // pixels per beat
+  scroll: 0,              // pixels offset from beat 0
+  playheadBeats: 0,
+  playing: false,
+  lastTime: 0,
+  theme: 'ableton',
+};
+
+const RULER_H = 44;
+
+// -------- Canvas setup --------
+const canvas = document.getElementById('tickCanvas');
+const ctx = canvas.getContext('2d');
+let cssW = 0, cssH = 0;
+
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  cssW = rect.width;
+  cssH = rect.height;
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+
+new ResizeObserver(resizeCanvas).observe(canvas);
+
+// -------- Drawing --------
+function draw() {
+  const t = THEMES[state.theme];
+  const w = cssW, h = cssH;
+  const ppb = state.zoom;           // pixels per beat
+  const beatsPerBar = state.tsNum;
+  const scroll = state.scroll;
+
+  // Background — lane area
+  ctx.fillStyle = t.laneBg;
+  ctx.fillRect(0, RULER_H, w, h - RULER_H);
+
+  // Background — ruler
+  ctx.fillStyle = t.rulerBg;
+  ctx.fillRect(0, 0, w, RULER_H);
+
+  // Visible beat range (with overscan)
+  const firstBeat = Math.floor(scroll / ppb) - 1;
+  const lastBeat = Math.ceil((scroll + w) / ppb) + 1;
+
+  // Subdivision visibility based on density
+  const ppSixteenth = ppb / 4;
+  const ppEighth = ppb / 2;
+  const showSixteenths = ppSixteenth >= 5;
+  const showEighths = ppEighth >= 6 && !showSixteenths;
+  const showBeats = ppb >= 10;
+  const labelBeats = ppb >= 56;
+
+  // -- Sub-beat grid lines (lane only, faint) --
+  if (showSixteenths) {
+    ctx.strokeStyle = t.gridSub;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = firstBeat * 4; i <= lastBeat * 4; i++) {
+      if (i % 4 === 0) continue;
+      const x = Math.round(i * ppSixteenth - scroll) + 0.5;
+      ctx.moveTo(x, RULER_H);
+      ctx.lineTo(x, h);
+    }
+    ctx.stroke();
+  } else if (showEighths) {
+    ctx.strokeStyle = t.gridSub;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = firstBeat * 2; i <= lastBeat * 2; i++) {
+      if (i % 2 === 0) continue;
+      const x = Math.round(i * ppEighth - scroll) + 0.5;
+      ctx.moveTo(x, RULER_H);
+      ctx.lineTo(x, h);
+    }
+    ctx.stroke();
+  }
+
+  // -- Beat grid lines (lane) --
+  if (showBeats) {
+    ctx.strokeStyle = t.gridBeat;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let b = firstBeat; b <= lastBeat; b++) {
+      if (b % beatsPerBar === 0) continue;
+      const x = Math.round(b * ppb - scroll) + 0.5;
+      ctx.moveTo(x, RULER_H);
+      ctx.lineTo(x, h);
+    }
+    ctx.stroke();
+  }
+
+  // -- Bar grid lines (lane, stronger) --
+  ctx.strokeStyle = t.gridBar;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  const firstBar = Math.floor(firstBeat / beatsPerBar);
+  const lastBar = Math.ceil(lastBeat / beatsPerBar);
+  for (let bar = firstBar; bar <= lastBar; bar++) {
+    const x = Math.round(bar * beatsPerBar * ppb - scroll) + 0.5;
+    ctx.moveTo(x, RULER_H);
+    ctx.lineTo(x, h);
+  }
+  ctx.stroke();
+
+  // -- Ruler ticks --
+
+  // 16ths (tiny)
+  if (showSixteenths) {
+    ctx.strokeStyle = t.subTick;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = firstBeat * 4; i <= lastBeat * 4; i++) {
+      if (i % 4 === 0) continue;
+      const x = Math.round(i * ppSixteenth - scroll) + 0.5;
+      ctx.moveTo(x, RULER_H - 5);
+      ctx.lineTo(x, RULER_H - 1);
+    }
+    ctx.stroke();
+  } else if (showEighths) {
+    ctx.strokeStyle = t.subTick;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = firstBeat * 2; i <= lastBeat * 2; i++) {
+      if (i % 2 === 0) continue;
+      const x = Math.round(i * ppEighth - scroll) + 0.5;
+      ctx.moveTo(x, RULER_H - 6);
+      ctx.lineTo(x, RULER_H - 1);
+    }
+    ctx.stroke();
+  }
+
+  // Beat ticks (medium)
+  if (showBeats) {
+    ctx.strokeStyle = t.beatTick;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let b = firstBeat; b <= lastBeat; b++) {
+      if (b % beatsPerBar === 0) continue;
+      const x = Math.round(b * ppb - scroll) + 0.5;
+      ctx.moveTo(x, RULER_H - 11);
+      ctx.lineTo(x, RULER_H - 1);
+    }
+    ctx.stroke();
+  }
+
+  // Beat labels (bar.beat)
+  if (labelBeats) {
+    ctx.fillStyle = t.labelMinor;
+    ctx.font = '10px ' + getComputedStyle(document.body).fontFamily;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    for (let b = firstBeat; b <= lastBeat; b++) {
+      if (b % beatsPerBar === 0) continue;
+      const x = Math.round(b * ppb - scroll);
+      const bar = Math.floor(b / beatsPerBar) + 1;
+      const beat = (b % beatsPerBar) + 1;
+      ctx.fillText(`${bar}.${beat}`, x + 3, 6);
+    }
+  }
+
+  // Bar ticks (tall) + labels
+  ctx.strokeStyle = t.barTick;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let bar = firstBar; bar <= lastBar; bar++) {
+    const x = Math.round(bar * beatsPerBar * ppb - scroll) + 0.5;
+    ctx.moveTo(x, 4);
+    ctx.lineTo(x, RULER_H - 1);
+  }
+  ctx.stroke();
+
+  // Bar labels
+  ctx.fillStyle = t.labelMajor;
+  ctx.font = 'bold 11px ' + getComputedStyle(document.body).fontFamily;
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'left';
+  for (let bar = firstBar; bar <= lastBar; bar++) {
+    const x = Math.round(bar * beatsPerBar * ppb - scroll);
+    ctx.fillText(String(bar + 1), x + 4, 5);
+  }
+
+  // Ruler bottom border
+  ctx.strokeStyle = t.rulerBorder;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, RULER_H - 0.5);
+  ctx.lineTo(w, RULER_H - 0.5);
+  ctx.stroke();
+
+  // -- Playhead --
+  const px = Math.round(state.playheadBeats * ppb - scroll) + 0.5;
+  if (px >= -2 && px <= w + 2) {
+    // Glow
+    ctx.strokeStyle = t.playheadGlow;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(px, 0);
+    ctx.lineTo(px, h);
+    ctx.stroke();
+
+    // Line
+    ctx.strokeStyle = t.playhead;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(px, 0);
+    ctx.lineTo(px, h);
+    ctx.stroke();
+
+    // Flag at top
+    ctx.fillStyle = t.playhead;
+    ctx.beginPath();
+    ctx.moveTo(px - 0.5, 0);
+    ctx.lineTo(px + 7, 0);
+    ctx.lineTo(px - 0.5, 7);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+// -------- Helpers --------
+function snapBeats(beats) {
+  if (!state.snap) return beats;
+  return Math.round(beats / state.snap) * state.snap;
+}
+
+function beatsToSeconds(beats) {
+  return beats * 60 / state.bpm;
+}
+
+function formatBBT(beats) {
+  const beatsPerBar = state.tsNum;
+  // Clamp to >= 0 for display
+  const b = Math.max(0, beats);
+  const bar = Math.floor(b / beatsPerBar);
+  const beatInBar = Math.floor(b - bar * beatsPerBar);
+  const frac = b - bar * beatsPerBar - beatInBar;
+  const sixteenth = Math.floor(frac * 4);
+  return `${bar + 1}.${beatInBar + 1}.${sixteenth + 1}`;
+}
+
+function formatTime(beats) {
+  const secs = Math.max(0, beatsToSeconds(beats));
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  const ms = Math.floor((secs - Math.floor(secs)) * 1000);
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(ms).padStart(3,'0')}`;
+}
+
+function updateReadout() {
+  document.getElementById('bbt').textContent = formatBBT(state.playheadBeats);
+  document.getElementById('time').textContent = formatTime(state.playheadBeats);
+}
+
+function setPlayhead(beats, withSnap = false) {
+  let b = withSnap ? snapBeats(beats) : beats;
+  if (b < 0) b = 0;
+  state.playheadBeats = b;
+  updateReadout();
+  draw();
+}
+
+function ensurePlayheadVisible() {
+  const ppb = state.zoom;
+  const px = state.playheadBeats * ppb - state.scroll;
+  const margin = 60;
+  if (px < margin) {
+    state.scroll = state.playheadBeats * ppb - margin;
+  } else if (px > cssW - margin) {
+    state.scroll = state.playheadBeats * ppb - (cssW - margin);
+  }
+  if (state.scroll < 0) state.scroll = 0;
+}
+
+// -------- Interaction --------
+let dragMode = null; // 'scrub' | 'pan' | null
+let dragStartX = 0, dragStartScroll = 0;
+
+function pxToBeats(px) {
+  return (px + state.scroll) / state.zoom;
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  if (e.altKey || e.button === 1) {
+    dragMode = 'pan';
+    dragStartX = e.clientX;
+    dragStartScroll = state.scroll;
+    canvas.classList.add('panning');
+    e.preventDefault();
+    return;
+  }
+
+  // Click on ruler or lane both seek; ruler also enables scrub-drag
+  const beats = pxToBeats(x);
+  setPlayhead(beats, true);
+  if (y < RULER_H) {
+    dragMode = 'scrub';
+    canvas.classList.add('scrubbing');
+  } else {
+    dragMode = 'scrub';
+    canvas.classList.add('scrubbing');
+  }
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!dragMode) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+
+  if (dragMode === 'pan') {
+    const dx = e.clientX - dragStartX;
+    state.scroll = Math.max(0, dragStartScroll - dx);
+    draw();
+  } else if (dragMode === 'scrub') {
+    setPlayhead(pxToBeats(x), true);
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  dragMode = null;
+  canvas.classList.remove('scrubbing', 'panning');
+});
+
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) {
+    // Zoom centered on cursor
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const beatsAtCursor = pxToBeats(x);
+    const factor = Math.exp(-e.deltaY * 0.002);
+    const nextZoom = Math.max(6, Math.min(800, state.zoom * factor));
+    state.zoom = nextZoom;
+    state.scroll = beatsAtCursor * state.zoom - x;
+    if (state.scroll < 0) state.scroll = 0;
+    document.getElementById('zoom').value = Math.min(400, Math.round(state.zoom));
+    draw();
+  } else {
+    // Horizontal scroll — prefer deltaX if present, else fall through to deltaY
+    const dx = e.deltaX !== 0 ? e.deltaX : e.deltaY;
+    state.scroll = Math.max(0, state.scroll + dx);
+    draw();
+  }
+}, { passive: false });
+
+// -------- Transport --------
+function play() {
+  if (state.playing) return;
+  state.playing = true;
+  state.lastTime = performance.now();
+  document.getElementById('play').textContent = '⏸ Pause';
+  document.getElementById('status').textContent = '● playing';
+  requestAnimationFrame(tick);
+}
+
+function pause() {
+  state.playing = false;
+  document.getElementById('play').textContent = '▶ Play';
+  document.getElementById('status').textContent = '— paused';
+}
+
+function stop() {
+  pause();
+  state.playheadBeats = 0;
+  state.scroll = 0;
+  document.getElementById('status').textContent = '— stopped';
+  updateReadout();
+  draw();
+}
+
+function tick(now) {
+  if (!state.playing) return;
+  const dt = (now - state.lastTime) / 1000;
+  state.lastTime = now;
+  state.playheadBeats += dt * state.bpm / 60;
+  ensurePlayheadVisible();
+  updateReadout();
+  draw();
+  requestAnimationFrame(tick);
+}
+
+document.getElementById('play').addEventListener('click', () => {
+  state.playing ? pause() : play();
+});
+document.getElementById('stop').addEventListener('click', stop);
+document.getElementById('goStart').addEventListener('click', () => {
+  state.playheadBeats = 0;
+  state.scroll = 0;
+  updateReadout();
+  draw();
+});
+
+// -------- Keyboard --------
+window.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.code === 'Space') {
+    e.preventDefault();
+    state.playing ? pause() : play();
+  } else if (e.code === 'Home') {
+    e.preventDefault();
+    state.playheadBeats = 0;
+    state.scroll = 0;
+    updateReadout();
+    draw();
+  } else if (e.code === 'ArrowLeft') {
+    e.preventDefault();
+    setPlayhead(state.playheadBeats - (e.shiftKey ? state.tsNum : 1));
+  } else if (e.code === 'ArrowRight') {
+    e.preventDefault();
+    setPlayhead(state.playheadBeats + (e.shiftKey ? state.tsNum : 1));
+  }
+});
+
+// -------- Controls binding --------
+document.getElementById('bpm').addEventListener('input', (e) => {
+  const v = parseFloat(e.target.value);
+  if (!isNaN(v) && v > 0) { state.bpm = v; updateReadout(); }
+});
+document.getElementById('tsNum').addEventListener('input', (e) => {
+  const v = parseInt(e.target.value, 10);
+  if (!isNaN(v) && v > 0) { state.tsNum = v; updateReadout(); draw(); }
+});
+document.getElementById('tsDen').addEventListener('change', (e) => {
+  state.tsDen = parseInt(e.target.value, 10);
+  draw();
+});
+document.getElementById('snap').addEventListener('change', (e) => {
+  state.snap = parseFloat(e.target.value);
+});
+document.getElementById('theme').addEventListener('change', (e) => {
+  state.theme = e.target.value;
+  draw();
+});
+document.getElementById('zoom').addEventListener('input', (e) => {
+  const newZoom = parseFloat(e.target.value);
+  // Keep playhead anchored if visible, else anchor on view center
+  const centerBeats = pxToBeats(cssW / 2);
+  state.zoom = newZoom;
+  state.scroll = Math.max(0, centerBeats * state.zoom - cssW / 2);
+  draw();
+});
+
+// -------- Init --------
+resizeCanvas();
+updateReadout();
+</script>
+</body>
+</html>
