@@ -300,7 +300,7 @@ footer.hints kbd {
 
   <div class="group">
     <label>Zoom</label>
-    <input id="zoom" type="range" min="6" max="400" step="1" value="48" style="width:140px">
+    <input id="zoom" type="range" min="0" max="1000" step="1" value="750" style="width:140px">
   </div>
 
   <div class="spacer"></div>
@@ -420,6 +420,14 @@ const state = {
 
 const RULER_H = 44;
 
+// Zoom range: 0.025 ppb (~120 min visible at 360px) to 600 ppb (very zoomed in).
+// Slider is 0..1000 mapped logarithmically so each step feels equal.
+const ZMIN = 0.025;
+const ZMAX = 600;
+const ZRANGE = Math.log(ZMAX / ZMIN);
+const sliderToZoom = (s) => ZMIN * Math.exp((s / 1000) * ZRANGE);
+const zoomToSlider = (z) => Math.round(Math.log(z / ZMIN) / ZRANGE * 1000);
+
 // -------- Canvas setup --------
 const canvas = document.getElementById('tickCanvas');
 const ctx = canvas.getContext('2d');
@@ -454,45 +462,62 @@ function draw() {
   ctx.fillStyle = t.rulerBg;
   ctx.fillRect(0, 0, w, RULER_H);
 
-  // Visible beat range (with overscan)
-  const firstBeat = Math.floor(scroll / ppb) - 1;
-  const lastBeat = Math.ceil((scroll + w) / ppb) + 1;
+  // Adaptive density: pick a power-of-2 bar grouping so major ticks
+  // land at least TARGET_MAJOR_PX apart. At low zoom this might be 256 bars;
+  // at high zoom it stays 1.
+  const ppbar = ppb * beatsPerBar;
+  const TARGET_MAJOR_PX = 60;
+  let barGroup = 1;
+  while (ppbar * barGroup < TARGET_MAJOR_PX) barGroup *= 2;
+  if (barGroup > 4096) barGroup = 4096;
 
-  // Subdivision visibility based on density
-  const ppSixteenth = ppb / 4;
-  const ppEighth = ppb / 2;
-  const showSixteenths = ppSixteenth >= 5;
-  const showEighths = ppEighth >= 6 && !showSixteenths;
-  const showBeats = ppb >= 10;
-  const labelBeats = ppb >= 56;
+  // Sub-bar tier: medium ticks at every Nth bar within a major group.
+  // 0 = no sub-tier; 1 = every bar; barGroup/8 when zoomed way out.
+  let subBarGroup = 0;
+  if (barGroup >= 8) subBarGroup = barGroup / 8;
+  else if (barGroup >= 2) subBarGroup = 1;
 
-  // -- Sub-beat grid lines (lane only, faint) --
-  if (showSixteenths) {
+  // Beat / sub-beat tiers only render when the major is 1 bar AND
+  // beats are wide enough to be readable.
+  const showBeats = barGroup === 1 && ppb >= 22;
+  const labelBeats = barGroup === 1 && ppb >= 70;
+  const showSixteenths = barGroup === 1 && ppb / 4 >= 6;
+  const showEighths = barGroup === 1 && !showSixteenths && ppb / 2 >= 9;
+
+  const firstBar = Math.floor(scroll / ppbar) - 1;
+  const lastBar = Math.ceil((scroll + w) / ppbar) + 1;
+
+  // -- Sub-beat (16th / 8th) grid + ticks --
+  if (showSixteenths || showEighths) {
+    const div = showSixteenths ? 4 : 2;
+    const ppSub = ppb / div;
+    const firstBeat = Math.floor(scroll / ppb) - 1;
+    const lastBeat = Math.ceil((scroll + w) / ppb) + 1;
     ctx.strokeStyle = t.gridSub;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for (let i = firstBeat * 4; i <= lastBeat * 4; i++) {
-      if (i % 4 === 0) continue;
-      const x = Math.round(i * ppSixteenth - scroll) + 0.5;
+    for (let i = firstBeat * div; i <= lastBeat * div; i++) {
+      if (i % div === 0) continue;
+      const x = Math.round(i * ppSub - scroll) + 0.5;
       ctx.moveTo(x, RULER_H);
       ctx.lineTo(x, h);
     }
     ctx.stroke();
-  } else if (showEighths) {
-    ctx.strokeStyle = t.gridSub;
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = t.subTick;
     ctx.beginPath();
-    for (let i = firstBeat * 2; i <= lastBeat * 2; i++) {
-      if (i % 2 === 0) continue;
-      const x = Math.round(i * ppEighth - scroll) + 0.5;
-      ctx.moveTo(x, RULER_H);
-      ctx.lineTo(x, h);
+    for (let i = firstBeat * div; i <= lastBeat * div; i++) {
+      if (i % div === 0) continue;
+      const x = Math.round(i * ppSub - scroll) + 0.5;
+      ctx.moveTo(x, RULER_H - 5);
+      ctx.lineTo(x, RULER_H - 1);
     }
     ctx.stroke();
   }
 
-  // -- Beat grid lines (lane) --
+  // -- Beat tier (only when not grouped) --
   if (showBeats) {
+    const firstBeat = Math.floor(scroll / ppb) - 1;
+    const lastBeat = Math.ceil((scroll + w) / ppb) + 1;
     ctx.strokeStyle = t.gridBeat;
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -503,52 +528,7 @@ function draw() {
       ctx.lineTo(x, h);
     }
     ctx.stroke();
-  }
-
-  // -- Bar grid lines (lane, stronger) --
-  ctx.strokeStyle = t.gridBar;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  const firstBar = Math.floor(firstBeat / beatsPerBar);
-  const lastBar = Math.ceil(lastBeat / beatsPerBar);
-  for (let bar = firstBar; bar <= lastBar; bar++) {
-    const x = Math.round(bar * beatsPerBar * ppb - scroll) + 0.5;
-    ctx.moveTo(x, RULER_H);
-    ctx.lineTo(x, h);
-  }
-  ctx.stroke();
-
-  // -- Ruler ticks --
-
-  // 16ths (tiny)
-  if (showSixteenths) {
-    ctx.strokeStyle = t.subTick;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let i = firstBeat * 4; i <= lastBeat * 4; i++) {
-      if (i % 4 === 0) continue;
-      const x = Math.round(i * ppSixteenth - scroll) + 0.5;
-      ctx.moveTo(x, RULER_H - 5);
-      ctx.lineTo(x, RULER_H - 1);
-    }
-    ctx.stroke();
-  } else if (showEighths) {
-    ctx.strokeStyle = t.subTick;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let i = firstBeat * 2; i <= lastBeat * 2; i++) {
-      if (i % 2 === 0) continue;
-      const x = Math.round(i * ppEighth - scroll) + 0.5;
-      ctx.moveTo(x, RULER_H - 6);
-      ctx.lineTo(x, RULER_H - 1);
-    }
-    ctx.stroke();
-  }
-
-  // Beat ticks (medium)
-  if (showBeats) {
     ctx.strokeStyle = t.beatTick;
-    ctx.lineWidth = 1;
     ctx.beginPath();
     for (let b = firstBeat; b <= lastBeat; b++) {
       if (b % beatsPerBar === 0) continue;
@@ -557,41 +537,72 @@ function draw() {
       ctx.lineTo(x, RULER_H - 1);
     }
     ctx.stroke();
-  }
-
-  // Beat labels (bar.beat)
-  if (labelBeats) {
-    ctx.fillStyle = t.labelMinor;
-    ctx.font = '10px ' + getComputedStyle(document.body).fontFamily;
-    ctx.textBaseline = 'top';
-    ctx.textAlign = 'left';
-    for (let b = firstBeat; b <= lastBeat; b++) {
-      if (b % beatsPerBar === 0) continue;
-      const x = Math.round(b * ppb - scroll);
-      const bar = Math.floor(b / beatsPerBar) + 1;
-      const beat = (b % beatsPerBar) + 1;
-      ctx.fillText(`${bar}.${beat}`, x + 3, 6);
+    if (labelBeats) {
+      ctx.fillStyle = t.labelMinor;
+      ctx.font = '10px ' + getComputedStyle(document.body).fontFamily;
+      ctx.textBaseline = 'top';
+      ctx.textAlign = 'left';
+      for (let b = firstBeat; b <= lastBeat; b++) {
+        if (b % beatsPerBar === 0) continue;
+        const x = Math.round(b * ppb - scroll);
+        const bar = Math.floor(b / beatsPerBar) + 1;
+        const beat = (b % beatsPerBar) + 1;
+        ctx.fillText(`${bar}.${beat}`, x + 3, 6);
+      }
     }
   }
 
-  // Bar ticks (tall) + labels
-  ctx.strokeStyle = t.barTick;
+  // -- Sub-bar tier (medium ticks, no labels) --
+  if (subBarGroup > 0) {
+    const firstSub = Math.floor(firstBar / subBarGroup) * subBarGroup;
+    const lastSub = Math.ceil(lastBar / subBarGroup) * subBarGroup;
+    ctx.strokeStyle = t.gridBeat;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let bar = firstSub; bar <= lastSub; bar += subBarGroup) {
+      if (bar % barGroup === 0) continue;
+      const x = Math.round(bar * ppbar - scroll) + 0.5;
+      ctx.moveTo(x, RULER_H);
+      ctx.lineTo(x, h);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = t.beatTick;
+    ctx.beginPath();
+    for (let bar = firstSub; bar <= lastSub; bar += subBarGroup) {
+      if (bar % barGroup === 0) continue;
+      const x = Math.round(bar * ppbar - scroll) + 0.5;
+      ctx.moveTo(x, RULER_H - 14);
+      ctx.lineTo(x, RULER_H - 1);
+    }
+    ctx.stroke();
+  }
+
+  // -- Major bar tier (tall ticks + labels every barGroup bars) --
+  const firstMajor = Math.floor(firstBar / barGroup) * barGroup;
+  const lastMajor = Math.ceil(lastBar / barGroup) * barGroup;
+  ctx.strokeStyle = t.gridBar;
   ctx.lineWidth = 1;
   ctx.beginPath();
-  for (let bar = firstBar; bar <= lastBar; bar++) {
-    const x = Math.round(bar * beatsPerBar * ppb - scroll) + 0.5;
+  for (let bar = firstMajor; bar <= lastMajor; bar += barGroup) {
+    const x = Math.round(bar * ppbar - scroll) + 0.5;
+    ctx.moveTo(x, RULER_H);
+    ctx.lineTo(x, h);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = t.barTick;
+  ctx.beginPath();
+  for (let bar = firstMajor; bar <= lastMajor; bar += barGroup) {
+    const x = Math.round(bar * ppbar - scroll) + 0.5;
     ctx.moveTo(x, 4);
     ctx.lineTo(x, RULER_H - 1);
   }
   ctx.stroke();
-
-  // Bar labels
   ctx.fillStyle = t.labelMajor;
   ctx.font = 'bold 11px ' + getComputedStyle(document.body).fontFamily;
   ctx.textBaseline = 'top';
   ctx.textAlign = 'left';
-  for (let bar = firstBar; bar <= lastBar; bar++) {
-    const x = Math.round(bar * beatsPerBar * ppb - scroll);
+  for (let bar = firstMajor; bar <= lastMajor; bar += barGroup) {
+    const x = Math.round(bar * ppbar - scroll);
     ctx.fillText(String(bar + 1), x + 4, 5);
   }
 
@@ -775,9 +786,9 @@ canvas.addEventListener('touchmove', (e) => {
     const cx = (t0.clientX + t1.clientX) / 2 - rect.left;
     const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
     const ratio = dist / touchState.distance0;
-    state.zoom = Math.max(6, Math.min(800, touchState.zoom0 * ratio));
+    state.zoom = Math.max(ZMIN, Math.min(ZMAX, touchState.zoom0 * ratio));
     state.scroll = Math.max(0, touchState.beatsAtCenter * state.zoom - cx);
-    document.getElementById('zoom').value = Math.min(400, Math.round(state.zoom));
+    document.getElementById('zoom').value = zoomToSlider(state.zoom);
     draw();
   }
 }, { passive: false });
@@ -796,11 +807,9 @@ canvas.addEventListener('wheel', (e) => {
     const x = e.clientX - rect.left;
     const beatsAtCursor = pxToBeats(x);
     const factor = Math.exp(-e.deltaY * 0.002);
-    const nextZoom = Math.max(6, Math.min(800, state.zoom * factor));
-    state.zoom = nextZoom;
-    state.scroll = beatsAtCursor * state.zoom - x;
-    if (state.scroll < 0) state.scroll = 0;
-    document.getElementById('zoom').value = Math.min(400, Math.round(state.zoom));
+    state.zoom = Math.max(ZMIN, Math.min(ZMAX, state.zoom * factor));
+    state.scroll = Math.max(0, beatsAtCursor * state.zoom - x);
+    document.getElementById('zoom').value = zoomToSlider(state.zoom);
     draw();
   } else {
     // Horizontal scroll — prefer deltaX if present, else fall through to deltaY
@@ -899,10 +908,8 @@ document.getElementById('theme').addEventListener('change', (e) => {
   draw();
 });
 document.getElementById('zoom').addEventListener('input', (e) => {
-  const newZoom = parseFloat(e.target.value);
-  // Keep playhead anchored if visible, else anchor on view center
   const centerBeats = pxToBeats(cssW / 2);
-  state.zoom = newZoom;
+  state.zoom = sliderToZoom(parseFloat(e.target.value));
   state.scroll = Math.max(0, centerBeats * state.zoom - cssW / 2);
   draw();
 });

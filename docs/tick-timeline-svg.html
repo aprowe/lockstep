@@ -340,7 +340,7 @@ footer.hints kbd {
 
   <div class="group">
     <label>Zoom</label>
-    <input id="zoom" type="range" min="6" max="400" step="1" value="48" style="width:140px">
+    <input id="zoom" type="range" min="0" max="1000" step="1" value="750" style="width:140px">
   </div>
 
   <div class="spacer"></div>
@@ -391,6 +391,12 @@ footer.hints kbd {
 const RULER_H = 44;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+const ZMIN = 0.025;
+const ZMAX = 600;
+const ZRANGE = Math.log(ZMAX / ZMIN);
+const sliderToZoom = (s) => ZMIN * Math.exp((s / 1000) * ZRANGE);
+const zoomToSlider = (z) => Math.round(Math.log(z / ZMIN) / ZRANGE * 1000);
+
 const state = {
   bpm: 120,
   tsNum: 4,
@@ -432,41 +438,49 @@ function render() {
   const beatsPerBar = state.tsNum;
   const scroll = state.scroll;
 
-  // Visible range with overscan
-  const firstBeat = Math.floor(scroll / ppb) - 1;
-  const lastBeat = Math.ceil((scroll + cssW) / ppb) + 1;
+  // Adaptive density: pick a power-of-2 bar grouping so major ticks
+  // land at least TARGET_MAJOR_PX apart.
+  const ppbar = ppb * beatsPerBar;
+  const TARGET_MAJOR_PX = 60;
+  let barGroup = 1;
+  while (ppbar * barGroup < TARGET_MAJOR_PX) barGroup *= 2;
+  if (barGroup > 4096) barGroup = 4096;
 
-  const ppSixteenth = ppb / 4;
-  const ppEighth = ppb / 2;
-  const showSixteenths = ppSixteenth >= 5;
-  const showEighths = ppEighth >= 6 && !showSixteenths;
-  const showBeats = ppb >= 10;
-  const labelBeats = ppb >= 56;
+  let subBarGroup = 0;
+  if (barGroup >= 8) subBarGroup = barGroup / 8;
+  else if (barGroup >= 2) subBarGroup = 1;
 
-  // Build SVG fragments as strings (fastest for SVG bulk-update)
+  const showBeats = barGroup === 1 && ppb >= 22;
+  const labelBeats = barGroup === 1 && ppb >= 70;
+  const showSixteenths = barGroup === 1 && ppb / 4 >= 6;
+  const showEighths = barGroup === 1 && !showSixteenths && ppb / 2 >= 9;
+
+  const firstBar = Math.floor(scroll / ppbar) - 1;
+  const lastBar = Math.ceil((scroll + cssW) / ppbar) + 1;
+
   let gridStr = '';
   let tickStr = '';
   let labelStr = '';
 
-  // Sub-beat grid (lane only) + ticks (ruler)
-  if (showSixteenths) {
-    for (let i = firstBeat * 4; i <= lastBeat * 4; i++) {
-      if (i % 4 === 0) continue;
-      const x = Math.round(i * ppSixteenth - scroll) + 0.5;
+  // Sub-beat (16th / 8th)
+  if (showSixteenths || showEighths) {
+    const div = showSixteenths ? 4 : 2;
+    const ppSub = ppb / div;
+    const tickTop = RULER_H - (showSixteenths ? 5 : 6);
+    const firstBeat = Math.floor(scroll / ppb) - 1;
+    const lastBeat = Math.ceil((scroll + cssW) / ppb) + 1;
+    for (let i = firstBeat * div; i <= lastBeat * div; i++) {
+      if (i % div === 0) continue;
+      const x = Math.round(i * ppSub - scroll) + 0.5;
       gridStr += `<line class="grid-sub" x1="${x}" y1="${RULER_H}" x2="${x}" y2="${cssH}"/>`;
-      tickStr += `<line class="tick-sub" x1="${x}" y1="${RULER_H - 5}" x2="${x}" y2="${RULER_H - 1}"/>`;
-    }
-  } else if (showEighths) {
-    for (let i = firstBeat * 2; i <= lastBeat * 2; i++) {
-      if (i % 2 === 0) continue;
-      const x = Math.round(i * ppEighth - scroll) + 0.5;
-      gridStr += `<line class="grid-sub" x1="${x}" y1="${RULER_H}" x2="${x}" y2="${cssH}"/>`;
-      tickStr += `<line class="tick-sub" x1="${x}" y1="${RULER_H - 6}" x2="${x}" y2="${RULER_H - 1}"/>`;
+      tickStr += `<line class="tick-sub" x1="${x}" y1="${tickTop}" x2="${x}" y2="${RULER_H - 1}"/>`;
     }
   }
 
-  // Beat grid + ticks
+  // Beat tier
   if (showBeats) {
+    const firstBeat = Math.floor(scroll / ppb) - 1;
+    const lastBeat = Math.ceil((scroll + cssW) / ppb) + 1;
     for (let b = firstBeat; b <= lastBeat; b++) {
       if (b % beatsPerBar === 0) continue;
       const x = Math.round(b * ppb - scroll) + 0.5;
@@ -475,19 +489,31 @@ function render() {
       if (labelBeats) {
         const bar = Math.floor(b / beatsPerBar) + 1;
         const beat = (b % beatsPerBar) + 1;
-        labelStr += `<text class="label-beat" x="${x - 0.5 + 3}" y="${16}">${bar}.${beat}</text>`;
+        labelStr += `<text class="label-beat" x="${x - 0.5 + 3}" y="16">${bar}.${beat}</text>`;
       }
     }
   }
 
-  // Bar grid + ticks + labels
-  const firstBar = Math.floor(firstBeat / beatsPerBar);
-  const lastBar = Math.ceil(lastBeat / beatsPerBar);
-  for (let bar = firstBar; bar <= lastBar; bar++) {
-    const x = Math.round(bar * beatsPerBar * ppb - scroll) + 0.5;
+  // Sub-bar tier (medium ticks, no labels)
+  if (subBarGroup > 0) {
+    const firstSub = Math.floor(firstBar / subBarGroup) * subBarGroup;
+    const lastSub = Math.ceil(lastBar / subBarGroup) * subBarGroup;
+    for (let bar = firstSub; bar <= lastSub; bar += subBarGroup) {
+      if (bar % barGroup === 0) continue;
+      const x = Math.round(bar * ppbar - scroll) + 0.5;
+      gridStr += `<line class="grid-beat" x1="${x}" y1="${RULER_H}" x2="${x}" y2="${cssH}"/>`;
+      tickStr += `<line class="tick-beat" x1="${x}" y1="${RULER_H - 14}" x2="${x}" y2="${RULER_H - 1}"/>`;
+    }
+  }
+
+  // Major tier (every barGroup bars)
+  const firstMajor = Math.floor(firstBar / barGroup) * barGroup;
+  const lastMajor = Math.ceil(lastBar / barGroup) * barGroup;
+  for (let bar = firstMajor; bar <= lastMajor; bar += barGroup) {
+    const x = Math.round(bar * ppbar - scroll) + 0.5;
     gridStr += `<line class="grid-bar" x1="${x}" y1="${RULER_H}" x2="${x}" y2="${cssH}"/>`;
     tickStr += `<line class="tick-bar" x1="${x}" y1="4" x2="${x}" y2="${RULER_H - 1}"/>`;
-    labelStr += `<text class="label-bar" x="${x - 0.5 + 4}" y="${15}">${bar + 1}</text>`;
+    labelStr += `<text class="label-bar" x="${x - 0.5 + 4}" y="15">${bar + 1}</text>`;
   }
 
   gGrid.innerHTML = gridStr;
@@ -639,9 +665,9 @@ svg.addEventListener('touchmove', (e) => {
     const cx = (t0.clientX + t1.clientX) / 2 - rect.left;
     const dist = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
     const ratio = dist / touchState.distance0;
-    state.zoom = Math.max(6, Math.min(800, touchState.zoom0 * ratio));
+    state.zoom = Math.max(ZMIN, Math.min(ZMAX, touchState.zoom0 * ratio));
     state.scroll = Math.max(0, touchState.beatsAtCenter * state.zoom - cx);
-    document.getElementById('zoom').value = Math.min(400, Math.round(state.zoom));
+    document.getElementById('zoom').value = zoomToSlider(state.zoom);
     render();
   }
 }, { passive: false });
@@ -659,9 +685,9 @@ svg.addEventListener('wheel', (e) => {
     const x = e.clientX - rect.left;
     const beatsAtCursor = pxToBeats(x);
     const factor = Math.exp(-e.deltaY * 0.002);
-    state.zoom = Math.max(6, Math.min(800, state.zoom * factor));
+    state.zoom = Math.max(ZMIN, Math.min(ZMAX, state.zoom * factor));
     state.scroll = Math.max(0, beatsAtCursor * state.zoom - x);
-    document.getElementById('zoom').value = Math.min(400, Math.round(state.zoom));
+    document.getElementById('zoom').value = zoomToSlider(state.zoom);
     render();
   } else {
     const dx = e.deltaX !== 0 ? e.deltaX : e.deltaY;
@@ -756,9 +782,8 @@ document.getElementById('theme').addEventListener('change', (e) => {
   svg.dataset.theme = e.target.value;
 });
 document.getElementById('zoom').addEventListener('input', (e) => {
-  const newZoom = parseFloat(e.target.value);
   const centerBeats = pxToBeats(cssW / 2);
-  state.zoom = newZoom;
+  state.zoom = sliderToZoom(parseFloat(e.target.value));
   state.scroll = Math.max(0, centerBeats * state.zoom - cssW / 2);
   render();
 });
