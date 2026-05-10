@@ -6,9 +6,9 @@ import './ListThumbnailToggle.css'
 const ORDER: ListThumbnailMode[] = ['none', 'small', 'large']
 
 const ICON_EL: Record<ListThumbnailMode, React.ReactNode> = {
-  none: <IconThumbNone size={14} />,
-  small: <IconThumbSmall size={14} />,
-  large: <IconThumbLarge size={14} />,
+  none: <IconThumbNone size={16} />,
+  small: <IconThumbSmall size={16} />,
+  large: <IconThumbLarge size={16} />,
 }
 
 const LABELS: Record<ListThumbnailMode, string> = {

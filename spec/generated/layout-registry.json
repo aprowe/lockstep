@@ -39,20 +39,20 @@
               "label": "Open Folder"
             },
             {
-              "id": "open-markers",
-              "label": "Open Markers…"
+              "id": "open-anchors",
+              "label": "Open Anchors…"
             }
           ]
         },
         {
           "items": [
             {
-              "id": "import-markers",
-              "label": "Import Markers"
+              "id": "import-anchors",
+              "label": "Import Anchors"
             },
             {
-              "id": "export-markers",
-              "label": "Export Markers"
+              "id": "export-anchors",
+              "label": "Export Anchors"
             }
           ]
         },

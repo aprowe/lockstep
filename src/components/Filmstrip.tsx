@@ -8,6 +8,7 @@ import {
 import { setThumbnail, selectThumbnailPathsFor, selectStripFramesFor } from '../store/slices/thumbnailsSlice'
 import { setFilmstripHeight } from '../store/slices/uiSlice'
 import { secondsToFrames } from '../utils/time'
+import * as devRec from '../utils/devThumbnailRecorder'
 import { visibleSceneCuts } from '../utils/sceneFilter'
 import './Filmstrip.css'
 
@@ -67,6 +68,7 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
       dispatch(
         setThumbnail({ fileHash: p.file_hash, frame: p.frame, path: p.path }),
       )
+      if (p.duration_ms != null) devRec.recordThumbnailDone(p.duration_ms)
     }).then(u => {
       if (cancelled) u()
       else unlisten = u
@@ -115,7 +117,7 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
 
     const timer = setTimeout(() => {
       lastPushedRef.current = signature
-      setThumbnailPriority({
+      const req = {
         fileHash: video.fileHash,
         videoPath: video.path,
         fps,
@@ -129,7 +131,9 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
         viewportFrames,
         thumbWidth,
         maxCachedFrames,
-      }).catch(() => {})
+      }
+      setThumbnailPriority(req).catch(() => {})
+      devRec.recordPriorityPush(req)
     }, PUSH_DEBOUNCE_MS)
     return () => clearTimeout(timer)
   }, [video, playhead, origAnchors, regions, scenes, stripFrames, hoverFrames, view, thumbWidth, maxCachedFrames])

@@ -22,10 +22,10 @@ name: File menu
 groups:
   - - Open File
     - Open Folder
-    - Open Markers…
+    - Open Anchors…
 
-  - - Import Markers
-    - Export Markers
+  - - Import Anchors
+    - Export Anchors
 
   - - Reset Video Data
 

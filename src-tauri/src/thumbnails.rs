@@ -457,10 +457,12 @@ fn schedule<R: Runtime>(
             // Only frames the user is actively watching run at normal priority.
             // Everything else yields to the foreground UI + other workloads.
             let high_priority = (frame - playhead).abs() <= PLAYHEAD_WINDOW;
+            let extract_start = Instant::now();
             let result = tokio::task::spawn_blocking(move || {
                 extract_frame(&video_path, time, &out_for_task, width, high_priority)
             })
             .await;
+            let duration_ms = extract_start.elapsed().as_secs_f64() * 1000.0;
 
             let success = matches!(result, Ok(Ok(())));
 
@@ -484,6 +486,7 @@ fn schedule<R: Runtime>(
                         "file_hash": &file_hash2,
                         "frame": frame,
                         "path": out_path.to_string_lossy().to_string(),
+                        "duration_ms": duration_ms,
                     }),
                 );
             }

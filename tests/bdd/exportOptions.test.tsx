@@ -191,7 +191,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   Scenario('Batch export saves each clip to the destination as it finishes', ({ Given, And, When, Then }) => {
     Given('I have three clips selected for batch export', () => {
       renderDialog({ regions: threeRegions, lastExportFolder: '/dest' })
-      fireEvent.click(screen.getByLabelText('All Regions'))
+      fireEvent.click(screen.getByLabelText('All Clips'))
     })
     And('a destination folder is set', () => {
       // lastExportFolder set above
@@ -227,7 +227,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   Scenario('Batch export continues past a failed clip', ({ Given, And, When, Then }) => {
     Given('I have three clips selected for batch export', () => {
       renderDialog({ regions: threeRegions, lastExportFolder: '/dest' })
-      fireEvent.click(screen.getByLabelText('All Regions'))
+      fireEvent.click(screen.getByLabelText('All Clips'))
     })
     And('a destination folder is set', () => {})
     When('the second clip fails to render', async () => {

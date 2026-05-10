@@ -76,6 +76,7 @@ export interface ThumbnailReadyPayload {
   file_hash: string
   frame: number
   path: string
+  duration_ms?: number
 }
 
 export function listenThumbnailReady(
