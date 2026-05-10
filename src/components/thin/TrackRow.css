@@ -4,7 +4,7 @@
  */
 
 .thin-timeline {
-  --thin-rail-w: calc(64px * var(--ui-scale));
+  --thin-rail-w: calc(72px * var(--ui-scale));
   --thin-row-h: calc(18px * var(--ui-scale));
   display: flex;
   flex-direction: column;
@@ -31,10 +31,10 @@
   justify-content: flex-start;
   padding: 0 var(--sp-3);
   font-family: var(--font-family);
-  font-size: calc(9px * var(--ui-scale));
-  letter-spacing: 0.08em;
+  font-size: calc(10px * var(--ui-scale));
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--fg-4);
+  color: var(--fg-3);
   background: var(--bg-2);
   border-right: 1px solid var(--border);
   white-space: nowrap;
@@ -48,7 +48,7 @@
  * without needing to look at the cursor. */
 .thin-row:hover > .thin-row__rail {
   background: var(--bg-hover);
-  color: var(--fg-2);
+  color: var(--fg-1);
 }
 
 .thin-row__body {

@@ -1,43 +1,38 @@
 .list-filter-tabs {
   display: flex;
+  align-items: center;
   gap: 1px;
-  padding: var(--sp-1) var(--sp-2);
-  background: var(--bg-1);
-  border-bottom: 1px solid var(--border);
 }
 
-/* Visual hierarchy on this panel:
- *   Export (menubar)    — solid accent fill, dominant CTA
- *   Recompute (scenes)  — tinted bg + accent border + accent text
- *   Filter tabs (here)  — softly tinted bg on active, no border, just colored text
- * Filter tabs sit below both because flipping the filter mode is reversible
- * and frequent — they shouldn't pull the eye like an action button. */
 .list-filter-tab {
-  flex: 1;
-  padding: 2px var(--sp-2);
-  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: none;
   border: 1px solid transparent;
-  border-radius: 2px;
+  border-radius: 3px;
   color: var(--fg-4);
-  font-family: inherit;
-  font-size: var(--t-xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   cursor: pointer;
   transition: background 0.08s, color 0.08s, border-color 0.08s;
 }
 
-.list-filter-tab:hover:not(:disabled) {
+.list-filter-tab:hover:not(:disabled):not(.list-filter-tab--active) {
   background: var(--bg-hover);
-  color: var(--fg-2);
+  color: var(--fg-1);
+  border-color: var(--border);
 }
 
 .list-filter-tab--active {
-  background: rgba(var(--accent-rgb), 0.10);
   color: var(--accent);
+  border-color: rgba(var(--accent-rgb), 0.35);
+  background: rgba(var(--accent-rgb), 0.08);
 }
 
+
 .list-filter-tab:disabled {
-  opacity: 0.35;
+  opacity: 0.3;
   cursor: default;
 }

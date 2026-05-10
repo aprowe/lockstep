@@ -67,7 +67,7 @@ export default function MarkersTrack({
   anchors, view, duration,
   selectedIds,
   linkedIds,
-  label = 'Markers',
+  label = 'Anchors',
   space,
   snapInterval, snapOffset = 0, snapTargets,
   onSeek, onAdd, onDelete, onSelect, onContextMenu, onBackgroundContextMenu, onAnchorsChange,

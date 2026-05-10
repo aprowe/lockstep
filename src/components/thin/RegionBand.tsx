@@ -285,7 +285,7 @@ export default function RegionBand({
 
   return (
     <TrackRow
-      label={label ?? (kind === 'input' ? 'Regions' : 'Out')}
+      label={label ?? (kind === 'input' ? 'Clips' : 'Out')}
       kind={`region-${kind}`}
       onBackgroundDoubleClick={handleBgDoubleClick}
       onBackgroundContextMenu={handleBgContextMenu}

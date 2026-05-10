@@ -139,13 +139,13 @@ function EmptyHint({ hasKey }: { hasKey: boolean }) {
       <div className="assistant-empty__title">AI assistant</div>
       <div className="assistant-empty__body">
         Drive Lockstep with natural language. The assistant has tools to read
-        your project (regions, markers, scenes) and to extract frames so a
+        your project (clips, anchors, scenes) and to extract frames so a
         vision-capable model can identify what&apos;s in the video.
       </div>
       <ul className="assistant-empty__examples">
-        <li>&ldquo;Find scenes with horses and create a region around each one.&rdquo;</li>
-        <li>&ldquo;List my regions sorted by length.&rdquo;</li>
-        <li>&ldquo;Add a marker every 4 seconds for the first minute.&rdquo;</li>
+        <li>&ldquo;Find scenes with horses and create a clip around each one.&rdquo;</li>
+        <li>&ldquo;List my clips sorted by length.&rdquo;</li>
+        <li>&ldquo;Add an anchor every 4 seconds for the first minute.&rdquo;</li>
       </ul>
       {!hasKey && (
         <div className="assistant-empty__note">

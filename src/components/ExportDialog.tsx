@@ -460,7 +460,7 @@ export default function ExportDialog({
                 <button
                   className={`export-dialog__mode${mode === 'all' ? ' export-dialog__mode--active' : ''}`}
                   onClick={() => setMode('all')}
-                  aria-label="All Regions"
+                  aria-label="All Clips"
                 >
                   All ({regions.length})
                 </button>

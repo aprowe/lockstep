@@ -444,7 +444,7 @@ export default function WarpView({
       x, y,
       items: [
         {
-          label: targetIds.size > 1 ? `Delete ${targetIds.size} markers` : 'Delete marker',
+          label: targetIds.size > 1 ? `Delete ${targetIds.size} anchors` : 'Delete anchor',
           danger: true,
           action: () => {
             dispatch(removeAnchors([...targetIds]))
@@ -473,7 +473,7 @@ export default function WarpView({
         ...(onSendToNewRegion ? [
           { separator: true as const },
           {
-            label: 'Send to new region',
+            label: 'Send to new clip',
             action: () => {
               const selOrig = origAnchors.filter(a => targetIds.has(a.id))
               if (selOrig.length === 0) return
@@ -565,7 +565,7 @@ export default function WarpView({
       x, y,
       items: [
         {
-          label: 'Create marker here',
+          label: 'Create anchor here',
           action: () => handleThinAnchorAdd(time),
         },
         ...(onSceneAdd ? [{
@@ -573,7 +573,7 @@ export default function WarpView({
           action: () => onSceneAdd(time),
         }] : []),
         ...(onRegionAdd ? [{
-          label: 'Create region here',
+          label: 'Create clip here',
           action: () => onRegionAdd(time),
         }] : []),
       ],

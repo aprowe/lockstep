@@ -28,10 +28,10 @@ export function buildFileMenu(d: FileMenuDeps): MenuDef {
     items: [
       { label: 'Open File',       shortcut: 'Ctrl+O',       action: d.openFile },
       { label: 'Open Folder',     shortcut: 'Ctrl+Shift+O', action: d.openFolder },
-      { label: 'Open Markers…',                             action: d.openJsonFile },
+      { label: 'Open Anchors…',                             action: d.openJsonFile },
       { separator: true },
-      { label: 'Import Markers',  shortcut: 'Ctrl+I',       action: d.importMarkers, disabled: !d.video },
-      { label: 'Export Markers',  shortcut: 'Ctrl+E',       action: d.exportMarkers, disabled: !d.video || d.anchorCount === 0 },
+      { label: 'Import Anchors',  shortcut: 'Ctrl+I',       action: d.importMarkers, disabled: !d.video },
+      { label: 'Export Anchors',  shortcut: 'Ctrl+E',       action: d.exportMarkers, disabled: !d.video || d.anchorCount === 0 },
       { separator: true },
       { label: 'Reset Video Data',                          action: d.resetVideoData, disabled: !d.video },
       { separator: true },

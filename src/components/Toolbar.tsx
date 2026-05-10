@@ -150,9 +150,9 @@ export default function Toolbar({
 
         <div data-layout-sep className="tb-sep" />
 
-        {/* ── Region ── */}
+        {/* ── Clip ── */}
         <div className="tb-group tb-group--region">
-          <span className="tb-group-label">Region</span>
+          <span className="tb-group-label">Clip</span>
           <div className="tb-group-buttons">
             <div className="tb-pair">
               <button
@@ -179,7 +179,7 @@ export default function Toolbar({
               className="tb-btn tb-btn--create"
               onClick={onNewRegion}
               disabled={!onNewRegion}
-              title="New region"
+              title="New clip"
             >
               <IconCreateRegion size={18} />
             </button>
@@ -189,7 +189,7 @@ export default function Toolbar({
                 className="tb-btn tb-btn--nav"
                 onClick={onJumpRegionStart}
                 disabled={!onJumpRegionStart}
-                title="Jump to region start"
+                title="Jump to clip start"
               >
                 <IconGoToRegionStart size={18} />
               </button>
@@ -198,7 +198,7 @@ export default function Toolbar({
                 className="tb-btn tb-btn--nav"
                 onClick={onJumpRegionEnd}
                 disabled={!onJumpRegionEnd}
-                title="Jump to region end"
+                title="Jump to clip end"
               >
                 <IconGoToRegionEnd size={18} />
               </button>
@@ -208,16 +208,16 @@ export default function Toolbar({
 
         <div data-layout-sep className="tb-sep" />
 
-        {/* ── Markers ── */}
+        {/* ── Anchors ── */}
         <div className="tb-group tb-group--marker">
-          <span className="tb-group-label">Markers</span>
+          <span className="tb-group-label">Anchors</span>
           <div className="tb-group-buttons">
             <button
               data-layout-id="new-marker"
               className="tb-btn tb-btn--create"
               onClick={() => onMark?.(playerRef.current?.currentTime ?? 0)}
               disabled={!onMark}
-              title={tooltipFor('Place marker', 'mark')}
+              title={tooltipFor('Place anchor', 'mark')}
             >
               <IconCreateMarker size={18} />
             </button>
@@ -227,7 +227,7 @@ export default function Toolbar({
                 className="tb-btn tb-btn--nav"
                 onClick={onJumpPrev}
                 disabled={!onJumpPrev}
-                title="Previous marker"
+                title="Previous anchor"
               >
                 <IconPrevMarker size={18} />
               </button>
@@ -236,7 +236,7 @@ export default function Toolbar({
                 className="tb-btn tb-btn--nav"
                 onClick={onJumpNext}
                 disabled={!onJumpNext}
-                title="Next marker"
+                title="Next anchor"
               >
                 <IconNextMarker size={18} />
               </button>

@@ -930,7 +930,7 @@ export default function ThinTimeline({
     space: 'input',
     node: (
       <MarkersTrack
-        label="Marker In"
+        label="Anchor In"
         space="input"
         anchors={anchors}
         view={view}
@@ -988,7 +988,7 @@ export default function ThinTimeline({
       space: 'output',
       node: (
         <MarkersTrack
-          label="Marker Out"
+          label="Anchor Out"
           space="output"
           anchors={beatAnchors}
           linkedIds={linkedBeatIds}
@@ -1299,7 +1299,7 @@ export default function ThinTimeline({
           type="button"
           className={`thin-toolbar__btn thin-toolbar__btn--warp${warpCollapsed ? '' : ' thin-toolbar__btn--active'}`}
           onClick={onToggleWarp}
-          title={warpCollapsed ? 'Show warp views (warp, marker out, clip out, speed)' : 'Hide warp views'}
+          title={warpCollapsed ? 'Show warp views (warp, anchor out, clip out, speed)' : 'Hide warp views'}
           aria-pressed={!warpCollapsed}
         >
           <IconWarpToggle aria-hidden="true" size={18} />
@@ -1337,7 +1337,7 @@ export default function ThinTimeline({
           type="button"
           className={`thin-toolbar__btn thin-toolbar__btn--follow${followDrag ? ' thin-toolbar__btn--active' : ''}`}
           onClick={() => dispatch(setTimelineFollowDrag(!followDrag))}
-          title="Playhead follows dragged markers"
+          title="Playhead follows dragged anchors"
           aria-pressed={followDrag}
         >
           <IconFollowDrag aria-hidden="true" size={18} />
@@ -1349,7 +1349,7 @@ export default function ThinTimeline({
           type="button"
           className={`thin-toolbar__btn thin-toolbar__btn--anchors${alwaysAnchors ? ' thin-toolbar__btn--active' : ''}`}
           onClick={() => dispatch(setTimelineAlwaysAnchors(!alwaysAnchors))}
-          title="Always show through-lines for markers"
+          title="Always show through-lines for anchors"
           aria-pressed={alwaysAnchors}
         >
           <IconAlwaysAnchors aria-hidden="true" size={18} />
@@ -1358,7 +1358,7 @@ export default function ThinTimeline({
           type="button"
           className={`thin-toolbar__btn thin-toolbar__btn--regions${alwaysRegions ? ' thin-toolbar__btn--active' : ''}`}
           onClick={() => dispatch(setTimelineAlwaysRegions(!alwaysRegions))}
-          title="Always show through-lines for clip/region edges"
+          title="Always show through-lines for clip edges"
           aria-pressed={alwaysRegions}
         >
           <IconAlwaysRegions aria-hidden="true" size={18} />

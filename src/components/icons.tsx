@@ -412,3 +412,39 @@ export function IconFollowDrag({ size = 14, ...props }: IconProps) {
     </svg>
   );
 }
+
+// ── List filter scope icons ────────────────────────────────────────────────────
+
+/** Show all items — three full-width bars. */
+export function IconFilterAll({ size = 14, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeLinecap="round" {...props}>
+      <line x1="2" y1="4.5"  x2="14" y2="4.5"  strokeWidth="1.4" />
+      <line x1="2" y1="8"    x2="14" y2="8"    strokeWidth="1.4" />
+      <line x1="2" y1="11.5" x2="14" y2="11.5" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+/** Show items inside the current timeline view window. */
+export function IconFilterView({ size = 14, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect x="1.5" y="3" width="13" height="10" rx="1" strokeWidth="1.2" strokeOpacity="0.45" />
+      <rect x="5" y="3" width="6" height="10" rx="0" fill="currentColor" fillOpacity="0.18" stroke="none" />
+      <line x1="5"  y1="3" x2="5"  y2="13" strokeWidth="1.2" />
+      <line x1="11" y1="3" x2="11" y2="13" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
+/** Show items inside the active clip/region. */
+export function IconFilterClip({ size = 14, ...props }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeLinecap="round" {...props}>
+      <path d="M6,2 L3.5,2 L3.5,14 L6,14" strokeWidth="1.4" />
+      <path d="M10,2 L12.5,2 L12.5,14 L10,14" strokeWidth="1.4" />
+      <rect x="3.5" y="5.5" width="9" height="5" fill="currentColor" fillOpacity="0.18" stroke="none" />
+    </svg>
+  );
+}

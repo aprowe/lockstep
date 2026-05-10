@@ -41,8 +41,8 @@ export default function MarkerRow({ data, ctx, onDelete, onDoubleClick, dim }: P
       kind="marker-row"
       className={dim ? 'marker-row--dim' : undefined}
       ctx={ctx}
-      checkboxLabel="Select marker"
-      deleteLabel="Delete marker"
+      checkboxLabel="Select anchor"
+      deleteLabel="Delete anchor"
       onDelete={onDelete}
       onDoubleClick={onDoubleClick}
     >

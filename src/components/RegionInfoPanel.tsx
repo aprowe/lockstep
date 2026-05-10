@@ -250,7 +250,7 @@ export default function RegionInfoPanel({
                 className="rip__detect"
                 onClick={onBpmDetect}
                 disabled={detectingBpm}
-                title="Detect BPM from markers"
+                title="Detect BPM from anchors"
               >
                 {detectingBpm ? '…' : <IconDetectBPM size={16} />}
               </button>

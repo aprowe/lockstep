@@ -20,6 +20,7 @@ import VideoInfoPanel from './panels/VideoInfoPanel'
 import AssistantPanelDock from './panels/AssistantPanel'
 import TasksPanel from './panels/TasksPanel'
 import CenterColumn from './CenterColumn'
+import DevRecorderPanel from '../components/DevRecorderPanel'
 
 // ── Component registry ─────────────────────────────────────────────────────
 //
@@ -36,6 +37,7 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps>> =
   assistant: () => <AssistantPanelDock />,
   tasks: () => <TasksPanel />,
   center: () => <CenterColumn />,
+  ...(import.meta.env.DEV ? { 'thumb-recorder': () => <DevRecorderPanel /> } : {}),
 }
 
 const PANEL_TITLES: Record<string, string> = {
@@ -43,17 +45,18 @@ const PANEL_TITLES: Record<string, string> = {
   clips: 'Clips',
   'clip-info': 'Clip Info',
   scenes: 'Scenes',
-  markers: 'Markers',
+  markers: 'Anchors',
   'video-info': 'Video Info',
   assistant: 'Assistant',
   tasks: 'Tasks',
   center: 'Player',
+  ...(import.meta.env.DEV ? { 'thumb-recorder': 'Thumb Recorder' } : {}),
 }
 
 const SIDE_PANEL_IDS = ['files', 'clips', 'clip-info', 'scenes', 'markers', 'video-info', 'assistant', 'tasks'] as const
 
 // Bumped to v6 to add Assistant to the NE group alongside scenes/markers/tasks.
-const STORAGE_KEY = 'lockstep:panel-layout:v6'
+const STORAGE_KEY = 'lockstep:panel-layout:v7'
 
 /**
  * Default 4-slot layout the dock falls back to whenever there's no saved
@@ -109,6 +112,13 @@ function buildDefaultLayout(api: DockviewApi) {
     position: { referencePanel: 'scenes' },
     inactive: true,
   })
+  if (import.meta.env.DEV) {
+    api.addPanel({
+      id: 'thumb-recorder', component: 'thumb-recorder', title: PANEL_TITLES['thumb-recorder'],
+      position: { referencePanel: 'scenes' },
+      inactive: true,
+    })
+  }
 
   // SE — clip-info below the scenes/markers group, with video-info tabbed
   // alongside it (both "metadata about a thing" panels).
@@ -248,8 +258,10 @@ const PanelDock = forwardRef<PanelDockHandle, PanelDockProps>(function PanelDock
 
 export default PanelDock
 
-export const PANEL_LIST: Array<{ id: string; title: string }> =
-  SIDE_PANEL_IDS.map(id => ({ id, title: PANEL_TITLES[id] }))
+export const PANEL_LIST: Array<{ id: string; title: string }> = [
+  ...SIDE_PANEL_IDS.map(id => ({ id, title: PANEL_TITLES[id] })),
+  ...(import.meta.env.DEV ? [{ id: 'thumb-recorder', title: PANEL_TITLES['thumb-recorder'] }] : []),
+]
 
 function loadLayout(): SerializedDockview | null {
   try {

@@ -27,25 +27,25 @@ export const HOTKEYS: readonly HotkeyDef[] = [
   { id: 'step-back-sec',    keys: 'Alt+Left',        label: 'Step back 1 second',     category: 'Playback' },
   { id: 'step-fwd-sec',     keys: 'Alt+Right',       label: 'Step forward 1 second',  category: 'Playback' },
 
-  // ── Markers ─────────────────────────────────────────────────────────────
-  { id: 'mark',             keys: 'M',               label: 'Drop marker at playhead', category: 'Markers' },
+  // ── Anchors ──────────────────────────────────────────────────────────────
+  { id: 'mark',             keys: 'M',               label: 'Drop anchor at playhead', category: 'Anchors' },
 
-  // ── Regions ─────────────────────────────────────────────────────────────
-  { id: 'set-in',           keys: 'I',               label: 'Set region in point',    category: 'Regions' },
-  { id: 'set-out',          keys: 'O',               label: 'Set region out point',   category: 'Regions' },
-  { id: 'delete-region',    keys: 'Ctrl+Delete',     label: 'Delete active region',   category: 'Regions' },
+  // ── Clips ────────────────────────────────────────────────────────────────
+  { id: 'set-in',           keys: 'I',               label: 'Set clip in point',      category: 'Clips' },
+  { id: 'set-out',          keys: 'O',               label: 'Set clip out point',     category: 'Clips' },
+  { id: 'delete-region',    keys: 'Ctrl+Delete',     label: 'Delete active clip',     category: 'Clips' },
 
   // ── Edit ────────────────────────────────────────────────────────────────
   { id: 'undo',             keys: 'Ctrl+Z',          label: 'Undo',                   category: 'Edit' },
   { id: 'redo',             keys: 'Ctrl+Shift+Z',    label: 'Redo',                   category: 'Edit' },
-  { id: 'select-all',       keys: 'Ctrl+A',          label: 'Select all markers',     category: 'Edit' },
+  { id: 'select-all',       keys: 'Ctrl+A',          label: 'Select all anchors',     category: 'Edit' },
   { id: 'deselect',         keys: 'Escape',          label: 'Deselect',               category: 'Edit' },
 
   // ── File ────────────────────────────────────────────────────────────────
   { id: 'open-file',        keys: 'Ctrl+O',          label: 'Open video file',        category: 'File' },
   { id: 'open-folder',      keys: 'Ctrl+Shift+O',    label: 'Open folder',            category: 'File' },
-  { id: 'import-markers',   keys: 'Ctrl+I',          label: 'Import markers',         category: 'File' },
-  { id: 'export-markers',   keys: 'Ctrl+E',          label: 'Export markers',         category: 'File' },
+  { id: 'import-markers',   keys: 'Ctrl+I',          label: 'Import anchors',         category: 'File' },
+  { id: 'export-markers',   keys: 'Ctrl+E',          label: 'Export anchors',         category: 'File' },
 
   // ── View ────────────────────────────────────────────────────────────────
   { id: 'ui-scale-up',      keys: 'Ctrl+=',          label: 'Increase UI scale',      category: 'View' },

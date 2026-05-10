@@ -146,7 +146,7 @@ export default function ClipsPanel() {
         onActivate={onActivate}
         onDelete={onDelete}
         hideClipFilter
-        emptyHint="Drag on the strip to create a region"
+        emptyHint="Drag on the strip to create a clip"
         prefixRows={
           <div
             className={`clip-row clip-row--full${activeRegionId === null ? ' clip-row--active' : ''}`}
@@ -160,19 +160,6 @@ export default function ClipsPanel() {
               <div className="clip-row__name">No Clip</div>
             </div>
           </div>
-        }
-        headerActions={
-          <button
-            type="button"
-            className="list-panel-add"
-            title="New clip at playhead"
-            onClick={() => {
-              const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(
-                playhead, view, visibleCuts, video.duration, regions,
-              )
-              addRegion(inPoint, outPoint)
-            }}
-          >+</button>
         }
         renderRow={(item, ctx) => {
           // ClipRow reads colorIndex straight off the region; the slice

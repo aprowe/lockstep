@@ -211,12 +211,44 @@ export default function ListPanel<T extends ListItem>({
       style={{ '--list-row-min-height': `${HEIGHT_FOR_MODE[thumbnailMode]}px` } as React.CSSProperties}
     >
       {subHeader && <div className="list-panel__subheader">{subHeader}</div>}
-      <ListFilterTabs
-        mode={filterMode}
-        onChange={mode => dispatch(setListFilterMode({ list: listId, mode }))}
-        hideClipOption={hideClipFilter}
-        clipDisabled={clipFilterDisabled}
-      />
+      <div className="list-panel__header">
+        <div className="list-panel__header-left">
+          <ListFilterTabs
+            mode={filterMode}
+            onChange={mode => dispatch(setListFilterMode({ list: listId, mode }))}
+            hideClipOption={hideClipFilter}
+            clipDisabled={clipFilterDisabled}
+          />
+          {multiSelectMode && (
+            <div className="list-panel__selection">
+              <span className="list-panel__selection-count">{selectedSet.size} selected</span>
+              <button
+                type="button"
+                className="list-panel-add"
+                title="Clear selection"
+                onClick={() => onSelectionChange([])}
+              >
+                <IconDeselect size={16} />
+              </button>
+              <button
+                type="button"
+                className="list-panel-add"
+                title="Delete selected"
+                onClick={() => onDelete?.([...selectedSet])}
+              >
+                <IconTrash size={16} />
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="list-panel__header-actions">
+          {headerActions}
+          <ListThumbnailToggle
+            mode={thumbnailMode}
+            onChange={mode => dispatch(setListThumbnailMode({ list: listId, mode }))}
+          />
+        </div>
+      </div>
       {filterMode === 'viewport' && (
         <div className="list-panel__filter-context" title="Current timeline view">
           {formatTime(view.start)} – {formatTime(view.end)}
@@ -232,38 +264,6 @@ export default function ListPanel<T extends ListItem>({
           <span className="list-panel__filter-context-name">{activeRegion.name}</span>
         </div>
       )}
-      <div className="list-panel__header">
-        {multiSelectMode ? (
-          <div className="list-panel__selection">
-            <span className="list-panel__selection-count">{selectedSet.size} selected</span>
-            <button
-              type="button"
-              className="list-panel-add"
-              title="Clear selection"
-              onClick={() => onSelectionChange([])}
-            >
-              <IconDeselect size={14} />
-            </button>
-            <button
-              type="button"
-              className="list-panel-add"
-              title="Delete selected"
-              onClick={() => onDelete?.([...selectedSet])}
-            >
-              <IconTrash size={14} />
-            </button>
-          </div>
-        ) : (
-          <div />
-        )}
-        <div className="list-panel__header-actions">
-          {headerActions}
-          <ListThumbnailToggle
-            mode={thumbnailMode}
-            onChange={mode => dispatch(setListThumbnailMode({ list: listId, mode }))}
-          />
-        </div>
-      </div>
       <div className="list-panel__rows">
         {prefixRows}
         {items.map(item => renderRow(item, buildCtx(item)))}

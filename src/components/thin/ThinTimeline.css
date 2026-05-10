@@ -96,8 +96,8 @@
 }
 
 .thin-timeline > .thin-timeline__section > .warp-connector-wrap .warp-connector__rail-cell {
-  font-size: calc(9px * var(--ui-scale));
-  letter-spacing: 0.08em;
+  font-size: calc(10px * var(--ui-scale));
+  letter-spacing: 0.06em;
   padding: 0 var(--sp-3);
   background: var(--bg-2);
   border-right: 1px solid var(--border);

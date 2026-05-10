@@ -110,7 +110,7 @@ export default function MarkersPanel() {
         className="markers-panel__action-btn"
         onClick={onSnap}
         disabled={!hasSelection}
-        title="Snap selected markers to nearest beat"
+        title="Snap selected anchors to nearest beat"
       >
         Snap
       </button>
@@ -119,7 +119,7 @@ export default function MarkersPanel() {
         className="markers-panel__action-btn markers-panel__action-btn--secondary"
         onClick={onReset}
         disabled={!hasSelection}
-        title="Reset selected markers to source position"
+        title="Reset selected anchors to source position"
       >
         Reset
       </button>
@@ -138,12 +138,12 @@ export default function MarkersPanel() {
       clipFilterDisabled={!activeRegion}
       emptyHint={
         filterMode === 'clip' && !activeRegion
-          ? 'Select a clip to scope markers'
+          ? 'Select a clip to scope anchors'
           : filterMode === 'clip'
-            ? 'No markers in the active clip'
+            ? 'No anchors in the active clip'
             : filterMode === 'viewport'
-              ? 'No markers in view'
-              : 'No markers placed'
+              ? 'No anchors in view'
+              : 'No anchors placed'
       }
       renderRow={(item, ctx) => (
         <MarkerRow
