@@ -23,6 +23,14 @@
 //! - **TTR p50 / p95**: median and 95th-percentile wall-clock time-to-ready,
 //!   in ms, across every wanted-but-uncached frame in the trace. Frames never
 //!   ready before trace end count as `trace_end + 5s`.
+//!
+//! ## Optimization
+//!
+//! Pass `--optimize` to run CMA-ES over the additive-scorer's seven continuous
+//! parameters. Objective is scalarized:
+//!   `objective = TTR_p95_secs + 10·req_miss + 5·strip_miss`
+//! averaged across `--seeds N` (default 5) seeded sims per evaluation. The
+//! best config found is appended to the report.
 
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::env;
@@ -643,19 +651,382 @@ fn truncate(s: &str, n: usize) -> String {
     if s.len() <= n { s.to_string() } else { format!("{}…", &s[..n.saturating_sub(1)]) }
 }
 
+// ── CMA-ES optimizer ──────────────────────────────────────────────────────────
+//
+// Standard (μ/μ_w, λ)-CMA-ES per Hansen 2016, full covariance, search in a
+// normalized [0,1]^n hypercube. Bound-handling = clamp at evaluation. Eigen-
+// decomposition done in-place with Jacobi rotations (sweeps until off-diagonal
+// mass < tol). Seven parameters, ~9 pop, ~60 generations ≈ 540 evals * seeds
+// replicates — under a second for tiny traces, single-digit seconds otherwise.
+
+/// One search dimension in the normalized space. `log: true` means the [0,1]
+/// coordinate maps log-uniformly between `lo` and `hi` — used for radii /
+/// falloffs that span orders of magnitude.
+struct Dim {
+    #[allow(dead_code)] name: &'static str,
+    lo: f64,
+    hi: f64,
+    log: bool,
+}
+
+const DIMS: [Dim; 7] = [
+    Dim { name: "req_radius",   lo: 1.0,  hi: 15.0,  log: false },
+    Dim { name: "w_dist",       lo: 0.0,  hi: 3.0,   log: false },
+    Dim { name: "dist_falloff", lo: 20.0, hi: 400.0, log: true  },
+    Dim { name: "w_rec",        lo: 0.0,  hi: 2.0,   log: false },
+    Dim { name: "rec_tau_secs", lo: 5.0,  hi: 500.0, log: true  },
+    Dim { name: "w_mark",       lo: 0.0,  hi: 5.0,   log: false },
+    Dim { name: "mark_radius",  lo: 10.0, hi: 400.0, log: true  },
+];
+
+fn unit_to_param(d: &Dim, u: f64) -> f64 {
+    let u = u.clamp(0.0, 1.0);
+    if d.log {
+        (d.lo.ln() + u * (d.hi.ln() - d.lo.ln())).exp()
+    } else {
+        d.lo + u * (d.hi - d.lo)
+    }
+}
+
+fn param_to_unit(d: &Dim, v: f64) -> f64 {
+    if d.log {
+        ((v.max(d.lo).min(d.hi).ln() - d.lo.ln()) / (d.hi.ln() - d.lo.ln())).clamp(0.0, 1.0)
+    } else {
+        ((v - d.lo) / (d.hi - d.lo)).clamp(0.0, 1.0)
+    }
+}
+
+fn z_to_params(z: &[f64], cache_size: usize) -> Params {
+    Params {
+        cache_size,
+        req_radius:   unit_to_param(&DIMS[0], z[0]).round() as i64,
+        w_dist:       unit_to_param(&DIMS[1], z[1]),
+        dist_falloff: unit_to_param(&DIMS[2], z[2]),
+        w_rec:        unit_to_param(&DIMS[3], z[3]),
+        rec_tau_secs: unit_to_param(&DIMS[4], z[4]),
+        w_mark:       unit_to_param(&DIMS[5], z[5]),
+        mark_radius:  unit_to_param(&DIMS[6], z[6]),
+        include_scenes_as_markers: false,
+        pin_strip_frames: false,
+    }
+}
+
+fn params_to_z(p: &Params) -> Vec<f64> {
+    vec![
+        param_to_unit(&DIMS[0], p.req_radius as f64),
+        param_to_unit(&DIMS[1], p.w_dist),
+        param_to_unit(&DIMS[2], p.dist_falloff),
+        param_to_unit(&DIMS[3], p.w_rec),
+        param_to_unit(&DIMS[4], p.rec_tau_secs),
+        param_to_unit(&DIMS[5], p.w_mark),
+        param_to_unit(&DIMS[6], p.mark_radius),
+    ]
+}
+
+/// Scalarized multi-objective: tight on required-window misses (10× weight),
+/// medium on strip misses (5×), and TTR p95 in seconds adds linearly. Averaged
+/// over `seeds` independent sim runs to attenuate lognormal noise.
+fn objective(rec: &Recording, params: &Params, seeds: u64) -> f64 {
+    let mut sum = 0.0;
+    for s in 1..=seeds {
+        let m = run_with_state(rec, &Policy::Scored(params.clone()), s);
+        let ttr_s = (m.ttr_p(0.95) as f64) / 1000.0;
+        sum += ttr_s + 10.0 * m.req_miss_rate() + 5.0 * m.strip_miss_rate();
+    }
+    sum / (seeds as f64)
+}
+
+// ── Tiny linear algebra (symmetric eigen via Jacobi) ─────────────────────────
+
+fn eye(n: usize) -> Vec<Vec<f64>> {
+    let mut m = vec![vec![0.0; n]; n];
+    for i in 0..n { m[i][i] = 1.0; }
+    m
+}
+
+fn mat_vec(m: &[Vec<f64>], v: &[f64]) -> Vec<f64> {
+    let n = m.len();
+    let mut out = vec![0.0; n];
+    for i in 0..n {
+        let mut s = 0.0;
+        for j in 0..n { s += m[i][j] * v[j]; }
+        out[i] = s;
+    }
+    out
+}
+
+/// Returns (eigenvalues, eigenvectors-as-columns-of-B). Operates on a copy of
+/// `a` (must be symmetric). 50 sweeps is well above what 7×7 ever needs.
+fn jacobi_eigen(a_in: &[Vec<f64>]) -> (Vec<f64>, Vec<Vec<f64>>) {
+    let n = a_in.len();
+    let mut a: Vec<Vec<f64>> = a_in.iter().map(|r| r.clone()).collect();
+    let mut v = eye(n);
+    for _ in 0..50 {
+        let mut off = 0.0;
+        for p in 0..n {
+            for q in (p+1)..n { off += a[p][q].abs(); }
+        }
+        if off < 1e-12 { break; }
+        for p in 0..n {
+            for q in (p+1)..n {
+                if a[p][q].abs() < 1e-14 { continue; }
+                let theta = (a[q][q] - a[p][p]) / (2.0 * a[p][q]);
+                let t = if theta >= 0.0 {
+                    1.0 / (theta + (1.0 + theta*theta).sqrt())
+                } else {
+                    1.0 / (theta - (1.0 + theta*theta).sqrt())
+                };
+                let c = 1.0 / (1.0 + t*t).sqrt();
+                let s = t * c;
+                let app = a[p][p]; let aqq = a[q][q]; let apq = a[p][q];
+                a[p][p] = app - t * apq;
+                a[q][q] = aqq + t * apq;
+                a[p][q] = 0.0; a[q][p] = 0.0;
+                for i in 0..n {
+                    if i != p && i != q {
+                        let aip = a[i][p]; let aiq = a[i][q];
+                        a[i][p] = c*aip - s*aiq;
+                        a[p][i] = a[i][p];
+                        a[i][q] = s*aip + c*aiq;
+                        a[q][i] = a[i][q];
+                    }
+                    let vip = v[i][p]; let viq = v[i][q];
+                    v[i][p] = c*vip - s*viq;
+                    v[i][q] = s*vip + c*viq;
+                }
+            }
+        }
+    }
+    let evals: Vec<f64> = (0..n).map(|i| a[i][i]).collect();
+    (evals, v)
+}
+
+struct CmaEs {
+    n: usize,
+    mean: Vec<f64>,
+    sigma: f64,
+    c: Vec<Vec<f64>>,
+    b: Vec<Vec<f64>>,   // columns = eigenvectors of C
+    d: Vec<f64>,        // sqrt of eigenvalues of C
+    pc: Vec<f64>,
+    ps: Vec<f64>,
+    gen: usize,
+    last_eigen_gen: usize,
+
+    lambda: usize,
+    mu: usize,
+    weights: Vec<f64>,
+    mueff: f64,
+    cc: f64,
+    cs: f64,
+    c1: f64,
+    cmu: f64,
+    damps: f64,
+    chi_n: f64,
+}
+
+impl CmaEs {
+    fn new(initial_mean: Vec<f64>, initial_sigma: f64) -> Self {
+        let n = initial_mean.len();
+        let nf = n as f64;
+        let lambda = 4 + (3.0 * nf.ln()).floor() as usize;
+        let mu = lambda / 2;
+
+        // Recombination weights: ln((λ+1)/2) - ln(i), positive μ kept + renormalized.
+        let raw: Vec<f64> = (1..=mu)
+            .map(|i| ((lambda as f64 + 1.0) / 2.0).ln() - (i as f64).ln())
+            .collect();
+        let sum_w: f64 = raw.iter().sum();
+        let weights: Vec<f64> = raw.iter().map(|w| w / sum_w).collect();
+        let mueff: f64 = 1.0 / weights.iter().map(|w| w * w).sum::<f64>();
+
+        let cc = (4.0 + mueff / nf) / (nf + 4.0 + 2.0 * mueff / nf);
+        let cs = (mueff + 2.0) / (nf + mueff + 5.0);
+        let c1 = 2.0 / ((nf + 1.3).powi(2) + mueff);
+        let cmu = ((2.0 * (mueff - 2.0 + 1.0 / mueff)) / ((nf + 2.0).powi(2) + mueff)).min(1.0 - c1);
+        let damps = 1.0 + 2.0 * ((mueff - 1.0).max(0.0) / (nf + 1.0)).sqrt().max(0.0) + cs;
+        let chi_n = nf.sqrt() * (1.0 - 1.0 / (4.0 * nf) + 1.0 / (21.0 * nf * nf));
+
+        Self {
+            n, mean: initial_mean, sigma: initial_sigma,
+            c: eye(n), b: eye(n), d: vec![1.0; n],
+            pc: vec![0.0; n], ps: vec![0.0; n],
+            gen: 0, last_eigen_gen: 0,
+            lambda, mu, weights, mueff, cc, cs, c1, cmu, damps, chi_n,
+        }
+    }
+
+    /// Sample `lambda` candidates from N(mean, sigma^2 * C).
+    fn ask(&self, rng: &mut Rng) -> Vec<Vec<f64>> {
+        let mut out = Vec::with_capacity(self.lambda);
+        for _ in 0..self.lambda {
+            // y = B * D * z, where z ~ N(0,I)
+            let z: Vec<f64> = (0..self.n).map(|_| rng.std_normal()).collect();
+            let dz: Vec<f64> = z.iter().zip(self.d.iter()).map(|(zi, di)| zi * di).collect();
+            let y = mat_vec(&self.b, &dz);
+            let x: Vec<f64> = self.mean.iter().zip(y.iter()).map(|(m, yi)| m + self.sigma * yi).collect();
+            out.push(x);
+        }
+        out
+    }
+
+    fn tell(&mut self, samples: Vec<Vec<f64>>, fitnesses: Vec<f64>) {
+        // Sort indices ascending by fitness (minimization).
+        let mut idx: Vec<usize> = (0..samples.len()).collect();
+        idx.sort_by(|&a, &b| fitnesses[a].partial_cmp(&fitnesses[b]).unwrap_or(std::cmp::Ordering::Equal));
+
+        let m_old = self.mean.clone();
+        // Weighted mean of best μ.
+        let mut new_mean = vec![0.0; self.n];
+        for k in 0..self.mu {
+            let xk = &samples[idx[k]];
+            let w = self.weights[k];
+            for i in 0..self.n { new_mean[i] += w * xk[i]; }
+        }
+        self.mean = new_mean;
+
+        // y_w = (mean - m_old) / sigma  ==  sum w_k * y_k
+        let yw: Vec<f64> = self.mean.iter().zip(m_old.iter())
+            .map(|(m, mo)| (m - mo) / self.sigma).collect();
+
+        // C^{-1/2} y_w  =  B * diag(1/D) * B^T * y_w
+        let bt_yw = {
+            let mut out = vec![0.0; self.n];
+            for j in 0..self.n {
+                let mut s = 0.0;
+                for i in 0..self.n { s += self.b[i][j] * yw[i]; }
+                out[j] = s;
+            }
+            out
+        };
+        let dinv_btyw: Vec<f64> = bt_yw.iter().zip(self.d.iter())
+            .map(|(v, di)| v / di.max(1e-20)).collect();
+        let c_inv_half_yw = mat_vec(&self.b, &dinv_btyw);
+
+        // p_sigma update
+        let coef = (self.cs * (2.0 - self.cs) * self.mueff).sqrt();
+        for i in 0..self.n {
+            self.ps[i] = (1.0 - self.cs) * self.ps[i] + coef * c_inv_half_yw[i];
+        }
+        let ps_norm: f64 = self.ps.iter().map(|x| x * x).sum::<f64>().sqrt();
+
+        // h_sigma gate (avoid spurious C inflation while sigma is still moving)
+        let denom = (1.0 - (1.0 - self.cs).powi(2 * (self.gen as i32 + 1))).sqrt().max(1e-20);
+        let h_sigma = if ps_norm / denom < (1.4 + 2.0 / (self.n as f64 + 1.0)) * self.chi_n { 1.0 } else { 0.0 };
+
+        // p_c update
+        let coef2 = (self.cc * (2.0 - self.cc) * self.mueff).sqrt();
+        for i in 0..self.n {
+            self.pc[i] = (1.0 - self.cc) * self.pc[i] + h_sigma * coef2 * yw[i];
+        }
+
+        // Covariance update: rank-1 (pc ⊗ pc) + rank-μ (Σ w_k y_k ⊗ y_k)
+        let delta_hs = (1.0 - h_sigma) * self.cc * (2.0 - self.cc);
+        for i in 0..self.n {
+            for j in 0..self.n {
+                let old = self.c[i][j];
+                let rank1 = self.pc[i] * self.pc[j] + delta_hs * old;
+                let mut rank_mu = 0.0;
+                for k in 0..self.mu {
+                    let xk = &samples[idx[k]];
+                    let yk_i = (xk[i] - m_old[i]) / self.sigma;
+                    let yk_j = (xk[j] - m_old[j]) / self.sigma;
+                    rank_mu += self.weights[k] * yk_i * yk_j;
+                }
+                self.c[i][j] = (1.0 - self.c1 - self.cmu) * old
+                             + self.c1 * rank1
+                             + self.cmu * rank_mu;
+            }
+        }
+
+        // Sigma update
+        self.sigma *= ((self.cs / self.damps) * (ps_norm / self.chi_n - 1.0)).exp();
+        // Soft cap so a runaway sigma can't push us to ±∞.
+        self.sigma = self.sigma.clamp(1e-6, 10.0);
+
+        self.gen += 1;
+
+        // Re-eigen every ~n/(c1+cmu)/10 generations (Hansen's rule of thumb).
+        let eigen_period = (1.0 / (self.c1 + self.cmu) / (self.n as f64) / 10.0).ceil() as usize;
+        if self.gen - self.last_eigen_gen >= eigen_period.max(1) {
+            // Symmetrize defensively.
+            for i in 0..self.n {
+                for j in (i+1)..self.n {
+                    let avg = 0.5 * (self.c[i][j] + self.c[j][i]);
+                    self.c[i][j] = avg; self.c[j][i] = avg;
+                }
+            }
+            let (evals, evecs) = jacobi_eigen(&self.c);
+            self.b = evecs;
+            self.d = evals.iter().map(|e| e.max(1e-20).sqrt()).collect();
+            self.last_eigen_gen = self.gen;
+        }
+    }
+}
+
+fn optimize_cmaes(rec: &Recording, cache_size: usize, generations: usize, seeds: u64)
+    -> (Params, f64, Vec<f64>)
+{
+    // Start from the sandbox defaults — they're a decent prior for this objective.
+    let start = params_to_z(&Params::sandbox_default(cache_size));
+    let mut cma = CmaEs::new(start, 0.3);
+    let mut rng = Rng::new(42);
+    let mut best_z = cma.mean.clone();
+    let mut best_f = f64::INFINITY;
+    let mut trace: Vec<f64> = Vec::with_capacity(generations);
+
+    for _ in 0..generations {
+        let samples = cma.ask(&mut rng);
+        let fitnesses: Vec<f64> = samples.iter().map(|x| {
+            let p = z_to_params(x, cache_size);
+            objective(rec, &p, seeds)
+        }).collect();
+        for (x, &f) in samples.iter().zip(fitnesses.iter()) {
+            if f < best_f { best_f = f; best_z = x.clone(); }
+        }
+        trace.push(best_f);
+        cma.tell(samples, fitnesses);
+    }
+    (z_to_params(&best_z, cache_size), best_f, trace)
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
+    let raw: Vec<String> = env::args().collect();
+    // Manual flag parsing — keeps the crate dependency-free.
+    let mut positional: Vec<String> = Vec::new();
+    let mut optimize = false;
+    let mut generations: usize = 60;
+    let mut seeds: u64 = 5;
+    let mut i = 1;
+    while i < raw.len() {
+        let a = &raw[i];
+        match a.as_str() {
+            "--optimize" | "-O" => optimize = true,
+            "--seeds" => {
+                i += 1;
+                seeds = raw.get(i).and_then(|s| s.parse().ok()).unwrap_or(5).max(1);
+            }
+            "--generations" | "--gens" => {
+                i += 1;
+                generations = raw.get(i).and_then(|s| s.parse().ok()).unwrap_or(60).max(1);
+            }
+            _ => positional.push(a.clone()),
+        }
+        i += 1;
+    }
+    if positional.is_empty() {
         eprintln!(
-            "usage: {} <recording.jsonl> [cache_size]\n\nProduces a markdown table comparing cache policies.",
-            args[0],
+            "usage: {} <recording.jsonl> [cache_size] [--optimize] [--seeds N] [--generations N]\n\n\
+             Produces a markdown table comparing cache policies. With --optimize, runs CMA-ES\n\
+             over the additive-scorer parameters.",
+            raw[0],
         );
         std::process::exit(2);
     }
-    let path = &args[1];
-    let cache_size: usize = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(2000);
+    let path = &positional[0];
+    let cache_size: usize = positional.get(1).and_then(|s| s.parse().ok()).unwrap_or(2000);
 
     let rec = match parse_recording(path) {
         Ok(r) => r,
@@ -747,6 +1118,50 @@ fn main() {
         "(swept {} configs over req_radius × w_dist × w_rec × w_mark × mark_radius)",
         sweep_rows.len(),
     );
+
+    // ── CMA-ES optimization ──────────────────────────────────────────────────
+    if optimize {
+        println!();
+        println!("## CMA-ES optimization");
+        println!();
+        println!(
+            "Search space: 7 params (req_radius, w_dist, dist_falloff, w_rec, rec_tau, w_mark, mark_radius).\n\
+             Objective per eval: TTR_p95_secs + 10·req_miss + 5·strip_miss, averaged over {seeds} seeds.\n\
+             Population λ=auto, generations={generations}, initial σ=0.3.\n"
+        );
+
+        let (best, best_f, trace) = optimize_cmaes(&rec, cache_size, generations, seeds);
+
+        // Convergence trace — print every Kth generation so it's readable.
+        let stride = (trace.len() / 10).max(1);
+        println!("Convergence (best-so-far):");
+        for (g, f) in trace.iter().enumerate().filter(|(g, _)| g % stride == 0 || *g == trace.len() - 1) {
+            println!("- gen {:>3}: {:.4}", g, f);
+        }
+        println!();
+
+        println!("Best objective: **{:.4}**\n", best_f);
+        println!("Best params:");
+        println!("- req_radius:   {}", best.req_radius);
+        println!("- w_dist:       {:.3}", best.w_dist);
+        println!("- dist_falloff: {:.1}", best.dist_falloff);
+        println!("- w_rec:        {:.3}", best.w_rec);
+        println!("- rec_tau_secs: {:.1}", best.rec_tau_secs);
+        println!("- w_mark:       {:.3}", best.w_mark);
+        println!("- mark_radius:  {:.1}", best.mark_radius);
+        println!();
+
+        // Re-run once with seed=1 so the row matches the baseline section's seed.
+        let pol = Policy::Scored(best.clone());
+        let m = run_with_state(&rec, &pol, 1);
+        println!("## Final comparison: CMA-ES best vs prod-tiered (seed=1)\n");
+        let rows = vec![
+            ("Prod-tiered".to_string(), run_with_state(&rec, &Policy::ProdTiered { cache_size }, 1)),
+            ("Sandbox-default".to_string(), run_with_state(&rec, &Policy::Scored(Params::sandbox_default(cache_size)), 1)),
+            ("CMA-ES best".to_string(), m),
+        ];
+        print_table(&rows);
+    }
 }
 
 fn run_with_state(rec: &Recording, policy: &Policy, seed: u64) -> Metrics {
@@ -796,7 +1211,11 @@ fn run_with_state(rec: &Recording, policy: &Policy, seed: u64) -> Metrics {
                 metrics.ttr_ms.push(state.now_ms - req_ms);
             }
             evict_overflow(&mut state, policy);
-            fill_workers(&mut state, policy, &rec.stats, &mut rng);
+            // Only top up workers while there are still pushes to come — otherwise
+            // pick_next keeps returning candidates and we'd churn indefinitely.
+            if !pushes.is_empty() {
+                fill_workers(&mut state, policy, &rec.stats, &mut rng);
+            }
         }
 
         if Some(next_ts) == next_push_ts {
