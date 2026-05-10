@@ -5,6 +5,7 @@ import {
   updateRegionInOut as updateRegionInOutAction,
   updateRegionBeatTimes as updateRegionBeatTimesAction,
   updateRegionLock as updateRegionLockAction,
+  renameRegion as renameRegionAction,
 } from '../../store/slices/regionSlice'
 import { setBpm as setBpmAction } from '../../store/slices/warpSlice'
 import { selectActiveRegion, selectWarpData } from '../../store/selectors'
@@ -43,6 +44,7 @@ export default function ClipInfoPanel() {
       onUpdateRegionBeatTimes={(id, inBT, outBT) =>
         dispatch(updateRegionBeatTimesAction({ id, inBeatTime: inBT, outBeatTime: outBT }))
       }
+      onRename={(id, name) => dispatch(renameRegionAction({ id, name }))}
       onLockChange={(lock, lockedBeats) => {
         if (activeRegionId) dispatch(updateRegionLockAction({ id: activeRegionId, lock, lockedBeats }))
       }}

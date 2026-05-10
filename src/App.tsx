@@ -104,7 +104,6 @@ export default function App() {
   // ── Redux state ─────────────────────────────────────────────────────────
   const video = useAppSelector(s => s.video.video)
   const folderVideos = useAppSelector(s => s.video.folderVideos)
-  const markerCountByPath = useAppSelector(s => s.video.markerCountByPath)
   const detectingBpm = useAppSelector(s => s.video.detectingBpm)
   const regions = useAppSelector(s => s.region.regions)
   const activeRegionId = useAppSelector(s => s.region.activeRegionId)

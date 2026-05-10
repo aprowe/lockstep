@@ -108,17 +108,17 @@ export default function ScenesPanel() {
 
   const subHeader = (
     <>
-      <div className="scenes-panel__row">
-        <label className="scenes-panel__label">Threshold</label>
-        <input
-          type="number"
-          className="scenes-panel__input"
-          min={0} max={100} step={1}
-          value={draftThreshold}
-          onChange={e => setDraftThreshold(e.target.value)}
-        />
-        {/* Empty cell — keeps the threshold + min-gap rows column-aligned. */}
-        <span />
+      <div className="scenes-panel__controls">
+        <div className="scenes-panel__row">
+          <label className="scenes-panel__label">Threshold</label>
+          <input
+            type="number"
+            className="scenes-panel__input"
+            min={0} max={100} step={1}
+            value={draftThreshold}
+            onChange={e => setDraftThreshold(e.target.value)}
+          />
+        </div>
         <button
           type="button"
           className="scenes-panel__btn"
@@ -128,23 +128,23 @@ export default function ScenesPanel() {
         >
           {thresholdChanged ? 'Apply' : 'Scan'}
         </button>
-      </div>
-      <div className="scenes-panel__row">
-        <label className="scenes-panel__label" title="Collapse cuts closer than this into one segment.">Min gap</label>
-        <input
-          type="number"
-          className="scenes-panel__input"
-          min={0} max={60} step={0.25}
-          value={minGap}
-          onChange={e => {
-            if (!videoPath) return
-            const v = Number.parseFloat(e.target.value)
-            dispatch(setSceneMinGapAction({
-              path: videoPath, minGap: Number.isFinite(v) && v >= 0 ? v : 0,
-            }))
-          }}
-        />
-        <span className="scenes-panel__unit">s</span>
+        <div className="scenes-panel__row">
+          <label className="scenes-panel__label" title="Collapse cuts closer than this into one segment.">Min gap</label>
+          <input
+            type="number"
+            className="scenes-panel__input"
+            min={0} max={60} step={0.25}
+            value={minGap}
+            onChange={e => {
+              if (!videoPath) return
+              const v = Number.parseFloat(e.target.value)
+              dispatch(setSceneMinGapAction({
+                path: videoPath, minGap: Number.isFinite(v) && v >= 0 ? v : 0,
+              }))
+            }}
+          />
+          <span className="scenes-panel__unit">s</span>
+        </div>
         <button
           type="button"
           className="scenes-panel__btn scenes-panel__btn--secondary"

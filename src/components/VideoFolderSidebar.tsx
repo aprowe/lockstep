@@ -7,7 +7,7 @@ interface VideoFolderSidebarProps {
   onOpenFolder: () => void
   onSelectVideo: (path: string) => void
   width?: number
-  markerCountByPath?: Record<string, number>
+  clipCountByPath?: Record<string, number>
   onCollapse?: () => void
 }
 
@@ -17,7 +17,7 @@ export default function VideoFolderSidebar({
   onOpenFolder,
   onSelectVideo,
   width,
-  markerCountByPath = {},
+  clipCountByPath = {},
   onCollapse,
 }: VideoFolderSidebarProps) {
   return (
@@ -67,7 +67,7 @@ export default function VideoFolderSidebar({
           }}
         >
           {videos.map(v => {
-            const count = markerCountByPath[v.path]
+            const count = clipCountByPath[v.path]
             return (
               <div
                 key={v.path}
@@ -78,7 +78,7 @@ export default function VideoFolderSidebar({
                 <span className="vf-entry__icon">▶</span>
                 <span className="vf-entry__name">{v.name}</span>
                 {count != null && count > 0 && (
-                  <span className="vf-entry__markers" title={`${count} marker${count === 1 ? '' : 's'}`}>
+                  <span className="vf-entry__markers" title={`${count} clip${count === 1 ? '' : 's'}`}>
                     {count}
                   </span>
                 )}

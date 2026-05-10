@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Region, WarpData } from '../types'
-import { IconLockClosed, IconLockOpen, IconDetectBPM } from './icons'
+import { IconLockClosed, IconLockOpen, IconDetectBPM, IconRename } from './icons'
 import './RegionInfoPanel.css'
 
 type LockTarget = 'bpm' | 'beats'
@@ -14,6 +14,7 @@ interface RegionInfoPanelProps {
   onUpdateRegionBeatTimes?: (id: string, inBeatTime?: number, outBeatTime?: number) => void
   /** Called when lock state changes */
   onLockChange?: (lock: 'bpm' | 'beats', lockedBeats?: number) => void
+  onRename?: (id: string, name: string) => void
   /** Called when user clicks Detect BPM */
   onBpmDetect?: () => void
   detectingBpm?: boolean
@@ -42,6 +43,7 @@ export default function RegionInfoPanel({
   onUpdateRegionInOut,
   onUpdateRegionBeatTimes,
   onLockChange,
+  onRename,
   onBpmDetect,
   detectingBpm,
 }: RegionInfoPanelProps) {
@@ -67,6 +69,8 @@ export default function RegionInfoPanel({
   const [inInput, setInInput] = useState('')
   const [outInput, setOutInput] = useState('')
   const [durInput, setDurInput] = useState('')
+  const [editingName, setEditingName] = useState(false)
+  const [nameInput, setNameInput] = useState('')
   const [editingIn, setEditingIn] = useState(false)
   const [editingOut, setEditingOut] = useState(false)
   const [editingDur, setEditingDur] = useState(false)
@@ -189,79 +193,36 @@ export default function RegionInfoPanel({
         <span className="rip__title">{title}</span>
       </div>
       <div className="rip__body">
-        {/* In / Out / Dur — orig-space times (top timeline). */}
         {activeRegion && (
-          <>
-            <div className="rip__row">
-              <span className="rip__label">In</span>
-              {editingIn ? (
-                <input
-                  className="rip__input rip__input--time"
-                  type="text"
-                  value={inInput}
-                  onChange={e => setInInput(e.target.value)}
-                  onBlur={commitIn}
-                  onKeyDown={e => { if (e.key === 'Enter') commitIn(); if (e.key === 'Escape') setEditingIn(false); e.stopPropagation() }}
-                  autoFocus
-                />
-              ) : (
-                <span
-                  className="rip__value rip__value--editable"
-                  onClick={() => { setInInput(formatTimecode(activeRegion.inPoint)); setEditingIn(true) }}
-                  title="Click to edit"
+          <div className="rip__name">
+            {editingName ? (
+              <input
+                className="rip__input rip__input--name"
+                type="text"
+                value={nameInput}
+                onChange={e => setNameInput(e.target.value)}
+                onBlur={() => { if (nameInput.trim()) onRename?.(activeRegion.id, nameInput.trim()); setEditingName(false) }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { if (nameInput.trim()) onRename?.(activeRegion.id, nameInput.trim()); setEditingName(false) }
+                  if (e.key === 'Escape') setEditingName(false)
+                  e.stopPropagation()
+                }}
+                autoFocus
+              />
+            ) : (
+              <>
+                <span className="rip__name-text">{activeRegion.name}</span>
+                <button
+                  className="rip__name-edit"
+                  onClick={() => { setNameInput(activeRegion.name); setEditingName(true) }}
+                  title="Rename clip"
                 >
-                  {formatTimecode(activeRegion.inPoint)}
-                </span>
-              )}
-            </div>
-            <div className="rip__row">
-              <span className="rip__label">Out</span>
-              {editingOut ? (
-                <input
-                  className="rip__input rip__input--time"
-                  type="text"
-                  value={outInput}
-                  onChange={e => setOutInput(e.target.value)}
-                  onBlur={commitOut}
-                  onKeyDown={e => { if (e.key === 'Enter') commitOut(); if (e.key === 'Escape') setEditingOut(false); e.stopPropagation() }}
-                  autoFocus
-                />
-              ) : (
-                <span
-                  className="rip__value rip__value--editable"
-                  onClick={() => { setOutInput(formatTimecode(activeRegion.outPoint)); setEditingOut(true) }}
-                  title="Click to edit"
-                >
-                  {formatTimecode(activeRegion.outPoint)}
-                </span>
-              )}
-            </div>
-            <div className="rip__row">
-              <span className="rip__label">Dur</span>
-              {editingDur ? (
-                <input
-                  className="rip__input rip__input--time"
-                  type="text"
-                  value={durInput}
-                  onChange={e => setDurInput(e.target.value)}
-                  onBlur={commitDur}
-                  onKeyDown={e => { if (e.key === 'Enter') commitDur(); if (e.key === 'Escape') setEditingDur(false); e.stopPropagation() }}
-                  autoFocus
-                />
-              ) : (
-                <span
-                  className="rip__value rip__value--editable"
-                  onClick={() => { setDurInput(formatTimecode(activeRegion.outPoint - activeRegion.inPoint)); setEditingDur(true) }}
-                  title="Click to edit"
-                >
-                  {formatTimecode(activeRegion.outPoint - activeRegion.inPoint)}
-                </span>
-              )}
-            </div>
-          </>
+                  <IconRename size={12} />
+                </button>
+              </>
+            )}
+          </div>
         )}
-
-        {activeRegion && <div className="rip__divider" />}
 
         {/* BPM + Beats grid — beat-space timing (bottom timeline). */}
         {activeRegion && <div className="rip__grid">
@@ -333,6 +294,80 @@ export default function RegionInfoPanel({
             </div>
           )} */}
         </div>}
+
+        {activeRegion && <div className="rip__divider" />}
+
+        {/* In / Out / Dur — orig-space times (top timeline). */}
+        {activeRegion && (
+          <>
+            <div className="rip__row">
+              <span className="rip__label">In</span>
+              {editingIn ? (
+                <input
+                  className="rip__input rip__input--time"
+                  type="text"
+                  value={inInput}
+                  onChange={e => setInInput(e.target.value)}
+                  onBlur={commitIn}
+                  onKeyDown={e => { if (e.key === 'Enter') commitIn(); if (e.key === 'Escape') setEditingIn(false); e.stopPropagation() }}
+                  autoFocus
+                />
+              ) : (
+                <span
+                  className="rip__value rip__value--editable"
+                  onClick={() => { setInInput(formatTimecode(activeRegion.inPoint)); setEditingIn(true) }}
+                  title="Click to edit"
+                >
+                  {formatTimecode(activeRegion.inPoint)}
+                </span>
+              )}
+            </div>
+            <div className="rip__row">
+              <span className="rip__label">Out</span>
+              {editingOut ? (
+                <input
+                  className="rip__input rip__input--time"
+                  type="text"
+                  value={outInput}
+                  onChange={e => setOutInput(e.target.value)}
+                  onBlur={commitOut}
+                  onKeyDown={e => { if (e.key === 'Enter') commitOut(); if (e.key === 'Escape') setEditingOut(false); e.stopPropagation() }}
+                  autoFocus
+                />
+              ) : (
+                <span
+                  className="rip__value rip__value--editable"
+                  onClick={() => { setOutInput(formatTimecode(activeRegion.outPoint)); setEditingOut(true) }}
+                  title="Click to edit"
+                >
+                  {formatTimecode(activeRegion.outPoint)}
+                </span>
+              )}
+            </div>
+            <div className="rip__row">
+              <span className="rip__label">Dur</span>
+              {editingDur ? (
+                <input
+                  className="rip__input rip__input--time"
+                  type="text"
+                  value={durInput}
+                  onChange={e => setDurInput(e.target.value)}
+                  onBlur={commitDur}
+                  onKeyDown={e => { if (e.key === 'Enter') commitDur(); if (e.key === 'Escape') setEditingDur(false); e.stopPropagation() }}
+                  autoFocus
+                />
+              ) : (
+                <span
+                  className="rip__value rip__value--editable"
+                  onClick={() => { setDurInput(formatTimecode(activeRegion.outPoint - activeRegion.inPoint)); setEditingDur(true) }}
+                  title="Click to edit"
+                >
+                  {formatTimecode(activeRegion.outPoint - activeRegion.inPoint)}
+                </span>
+              )}
+            </div>
+          </>
+        )}
 
       </div>
     </div>

@@ -4,7 +4,7 @@ import type { SavedVideoState, Region } from '../../types'
 import { openVideo, openFolder, loadVideoFromPath, listFolderVideos } from '../../api/video'
 import { saveVideoState, loadVideoState, getFileHash } from '../../api/storage'
 import { checkVideoSidecar, deleteVideoSidecar, openJsonFile as openJsonFileApi, readJsonSidecarForVideo, loadLlcProject } from '../../api/warp'
-import { setVideo, clearVideo, setFolderVideos, setMarkerCount, setMarkersLoaded, setDetectingBpm } from '../slices/videoSlice'
+import { setVideo, clearVideo, setFolderVideos, setMarkerCount, setClipCount, setMarkersLoaded, setDetectingBpm } from '../slices/videoSlice'
 import { loadAnchors, clearAnchors, setBpm, setMinStretch, setMaxStretch, setLoopBeats, setTrimToLoop, setAddToEnd, setGlobalMarkers, setPlayhead, bumpAnchorIdCounter } from '../slices/warpSlice'
 import { setRegions, setActiveRegionId } from '../slices/regionSlice'
 import { loadCached as loadCachedScenes, setMinGap as setSceneMinGap } from '../slices/sceneSlice'
@@ -68,13 +68,16 @@ export const openFolderThunk = createAsyncThunk(
       dispatch(setActiveRegionId(null))
       dispatch(setRegions([]))
       dispatch(setMarkerCount({}))
-      // Load marker counts for sidebar badges
+      dispatch(setClipCount({}))
+      // Load marker and clip counts for sidebar badges
       for (const entry of entries) {
         try {
           const hash = await getFileHash(entry.path)
           const state = await loadVideoState(hash)
           const count = state?.defaultRegion?.origAnchors?.length ?? 0
           dispatch({ type: 'video/updateMarkerCount', payload: { path: entry.path, count } })
+          const clipCount = state?.regions?.length ?? 0
+          dispatch({ type: 'video/updateClipCount', payload: { path: entry.path, count: clipCount } })
         } catch {}
       }
     } catch (e: any) {
@@ -95,12 +98,15 @@ export const loadFolderFromPathThunk = createAsyncThunk(
       dispatch(setActiveRegionId(null))
       dispatch(setRegions([]))
       dispatch(setMarkerCount({}))
+      dispatch(setClipCount({}))
       for (const entry of entries) {
         try {
           const hash = await getFileHash(entry.path)
           const state = await loadVideoState(hash)
           const count = state?.defaultRegion?.origAnchors?.length ?? 0
           dispatch({ type: 'video/updateMarkerCount', payload: { path: entry.path, count } })
+          const clipCount = state?.regions?.length ?? 0
+          dispatch({ type: 'video/updateClipCount', payload: { path: entry.path, count: clipCount } })
         } catch {}
       }
     } catch (e: any) {

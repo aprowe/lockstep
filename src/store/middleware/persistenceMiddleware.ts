@@ -3,7 +3,7 @@ import type { RootState } from '../store'
 import type { SavedVideoState } from '../../types'
 import { saveVideoState } from '../../api/storage'
 import { writeVideoSidecar } from '../../api/warp'
-import { updateMarkerCount } from '../slices/videoSlice'
+import { updateMarkerCount, updateClipCount } from '../slices/videoSlice'
 import {
   setOrigAnchors,
   setBeatAnchors,
@@ -127,8 +127,9 @@ persistenceMiddleware.startListening({
       await writeVideoSidecar(vid.path, JSON.stringify(savedState, null, 2))
     } catch { /* read-only location — best effort */ }
 
-    // Update marker count for sidebar badge
+    // Update sidebar badge counts
     const count = savedState.defaultRegion.origAnchors.length
     listenerApi.dispatch(updateMarkerCount({ path: vid.path, count }))
+    listenerApi.dispatch(updateClipCount({ path: vid.path, count: state.region.regions.length }))
   },
 })
