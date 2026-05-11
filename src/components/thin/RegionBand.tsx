@@ -91,6 +91,7 @@ export default function RegionBand({
     else if (p && p.kind === 'move' && onMove) onMove(p.id, p.inPoint, p.outPoint)
     if (h !== null) gesture.setSnapHints(space, h)
     gesture.setDragTime(space, dt)
+    if (p) gesture.setDragRegion(p.id, p.inPoint, p.outPoint)
   }, [onResize, onMove, space])
 
   /** True when a numeric value matches one of the snap-hint times (within float epsilon). */
