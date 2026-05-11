@@ -12,6 +12,7 @@ import {
 import type { PlaybackLoopMode } from '../store/slices/uiSlice'
 import { secondsToFrames } from '../utils/time'
 import { tooltipFor } from '../hotkeys'
+import { useGesture } from '../store/gesture'
 import './Toolbar.css'
 
 function pad(n: number) { return String(Math.floor(n)).padStart(2, '0') }
@@ -61,6 +62,9 @@ export default function Toolbar({
   playbackLoopMode, onPlaybackLoopModeChange,
   currentBeat,
 }: ToolbarProps) {
+  const scrubTime = useGesture(s => s.scrubTime)
+  const displayTime = scrubTime ?? currentTime
+
   const [speed, setSpeed] = useState(1)
   const [editingFrame, setEditingFrame] = useState(false)
   const [frameInput, setFrameInput] = useState('')
@@ -297,7 +301,7 @@ export default function Toolbar({
         </div>
         <div className="tb-time">
           <div className="tb-time__clock">
-            <span data-layout-id="play-time" className="tb-time__current">{fmt(currentTime)}</span>
+            <span data-layout-id="play-time" className="tb-time__current">{fmt(displayTime)}</span>
             <span className="tb-time__total">{fmt(duration)}</span>
           </div>
           <div className="tb-time__counts">
@@ -331,7 +335,7 @@ export default function Toolbar({
                 onClick={() => { setFrameInput(String(Math.round(currentTime * fps))); setEditingFrame(true) }}
                 title="Click to edit frame"
               >
-                <span className="tb-time__count-value">{secondsToFrames(currentTime, fps)}</span>
+                <span className="tb-time__count-value">{secondsToFrames(displayTime, fps)}</span>
                 <span className="tb-time__count-label">frames</span>
               </span>
             )}
