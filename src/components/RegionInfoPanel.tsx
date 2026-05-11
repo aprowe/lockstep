@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Region, WarpData } from '../types'
 import { IconLockClosed, IconLockOpen, IconDetectBPM, IconRename } from './icons'
+import { useGesture } from '../store/gesture'
 import './RegionInfoPanel.css'
 
 type LockTarget = 'bpm' | 'beats'
@@ -74,6 +75,15 @@ export default function RegionInfoPanel({
   const [editingIn, setEditingIn] = useState(false)
   const [editingOut, setEditingOut] = useState(false)
   const [editingDur, setEditingDur] = useState(false)
+
+  const dragRegion = useGesture(s => s.dragRegion)
+  const isLiveDrag = dragRegion?.id === activeRegion?.id
+  const liveIn  = isLiveDrag ? dragRegion!.inPoint  : (activeRegion?.inPoint  ?? 0)
+  const liveOut = isLiveDrag ? dragRegion!.outPoint : (activeRegion?.outPoint ?? 0)
+  const liveBeatSpan = isLiveDrag
+    ? (activeRegion?.outBeatTime ?? liveOut) - (activeRegion?.inBeatTime ?? liveIn)
+    : beatSpan
+  const liveTotalBeats = beat > 0 ? liveBeatSpan / beat : 0
 
   useEffect(() => { setBpmInput(String(bpm)) }, [bpm])
   useEffect(() => {
@@ -264,7 +274,7 @@ export default function RegionInfoPanel({
                 <input
                   className="rip__input"
                   type="number" min={0.5} max={99999} step={1}
-                  value={beatsInput}
+                  value={isLiveDrag && liveTotalBeats > 0 ? liveTotalBeats.toFixed(1) : beatsInput}
                   onChange={e => setBeatsInput(e.target.value)}
                   onBlur={commitBeats}
                   onKeyDown={e => { if (e.key === 'Enter') commitBeats(); e.stopPropagation() }}
@@ -315,10 +325,10 @@ export default function RegionInfoPanel({
               ) : (
                 <span
                   className="rip__value rip__value--editable"
-                  onClick={() => { setInInput(formatTimecode(activeRegion.inPoint)); setEditingIn(true) }}
+                  onClick={() => { setInInput(formatTimecode(liveIn)); setEditingIn(true) }}
                   title="Click to edit"
                 >
-                  {formatTimecode(activeRegion.inPoint)}
+                  {formatTimecode(liveIn)}
                 </span>
               )}
             </div>
@@ -337,10 +347,10 @@ export default function RegionInfoPanel({
               ) : (
                 <span
                   className="rip__value rip__value--editable"
-                  onClick={() => { setOutInput(formatTimecode(activeRegion.outPoint)); setEditingOut(true) }}
+                  onClick={() => { setOutInput(formatTimecode(liveOut)); setEditingOut(true) }}
                   title="Click to edit"
                 >
-                  {formatTimecode(activeRegion.outPoint)}
+                  {formatTimecode(liveOut)}
                 </span>
               )}
             </div>
@@ -359,10 +369,10 @@ export default function RegionInfoPanel({
               ) : (
                 <span
                   className="rip__value rip__value--editable"
-                  onClick={() => { setDurInput(formatTimecode(activeRegion.outPoint - activeRegion.inPoint)); setEditingDur(true) }}
+                  onClick={() => { setDurInput(formatTimecode(liveOut - liveIn)); setEditingDur(true) }}
                   title="Click to edit"
                 >
-                  {formatTimecode(activeRegion.outPoint - activeRegion.inPoint)}
+                  {formatTimecode(liveOut - liveIn)}
                 </span>
               )}
             </div>
