@@ -7,6 +7,7 @@ import { removeAnchors, setSelectedIds as setSelectedAnchorIds, resetBeatLinks, 
 import { selectActiveRegion, selectSelectedIdsSet, selectWarpData } from '../../store/selectors'
 import { useDockBridge } from '../DockContext'
 import { snapAllToBeat } from '../../utils/quantize'
+import { useGesture } from '../../store/gesture'
 
 export default function MarkersPanel() {
   const dispatch = useAppDispatch()
@@ -27,6 +28,12 @@ export default function MarkersPanel() {
     () => new Set(Array.from(selectedAnchorIdSet, n => String(n))),
     [selectedAnchorIdSet],
   )
+
+  const lassoSelection = useGesture(s => s.lassoSelection)
+  const selectedIdsOverride = useMemo(() => {
+    if (lassoSelection) return new Set(Array.from(lassoSelection.anchorIds, n => String(n)))
+    return selectedIdsAsStrings
+  }, [lassoSelection, selectedIdsAsStrings])
 
   // Build all rows up-front; let useFilteredItems window them by mode.
   const allItems = useMemo<MarkerRowData[]>(() => {
@@ -132,7 +139,7 @@ export default function MarkersPanel() {
       items={items}
       onActivate={onActivate}
       onDelete={onDelete}
-      selectedIdsOverride={selectedIdsAsStrings}
+      selectedIdsOverride={selectedIdsOverride}
       onSelectionChangeOverride={onSelectionChangeOverride}
       subHeader={actionsBar}
       clipFilterDisabled={!activeRegion}
