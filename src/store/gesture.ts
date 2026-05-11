@@ -92,6 +92,8 @@ export const gesture = {
     setState({ ...state, dragTime: next })
   },
   setDragRegion(id: string, inPoint: number, outPoint: number) {
+    const cur = state.dragRegion
+    if (cur && cur.id === id && cur.inPoint === inPoint && cur.outPoint === outPoint) return
     setState({ ...state, dragRegion: { id, inPoint, outPoint } })
   },
   setScrubTime(t: number | null) {
