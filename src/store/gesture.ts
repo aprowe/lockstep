@@ -24,6 +24,13 @@ export interface GestureState {
   /** Time of the actively-dragged marker, tagged by which space owns it.
    *  null when no marker is being dragged. */
   dragTime: { space: Space; time: number } | null
+  dragRegion: { id: string; inPoint: number; outPoint: number } | null
+  scrubTime: number | null
+  lassoSelection: {
+    clipIds: ReadonlySet<string>
+    anchorIds: ReadonlySet<number>
+    sceneTimes: ReadonlySet<number>
+  } | null
 }
 
 const EMPTY_HINTS: readonly number[] = Object.freeze([])
@@ -35,6 +42,9 @@ const initialState: GestureState = {
   snapHintsIn: EMPTY_HINTS,
   snapHintsOut: EMPTY_HINTS,
   dragTime: null,
+  dragRegion: null,
+  scrubTime: null,
+  lassoSelection: null,
 }
 
 let state: GestureState = initialState
@@ -81,6 +91,20 @@ export const gesture = {
     if (cur && next && cur.space === next.space && cur.time === next.time) return
     setState({ ...state, dragTime: next })
   },
+  setDragRegion(id: string, inPoint: number, outPoint: number) {
+    setState({ ...state, dragRegion: { id, inPoint, outPoint } })
+  },
+  setScrubTime(t: number | null) {
+    if (state.scrubTime === t) return
+    setState({ ...state, scrubTime: t })
+  },
+  setLassoSelection(
+    clipIds: ReadonlySet<string>,
+    anchorIds: ReadonlySet<number>,
+    sceneTimes: ReadonlySet<number>,
+  ) {
+    setState({ ...state, lassoSelection: { clipIds, anchorIds, sceneTimes } })
+  },
   /** Clear every transient field at once. Called by the window pointer-up /
    *  blur listener and usable by any caller that knows a gesture is done. */
   clearAll() {
@@ -96,7 +120,7 @@ function subscribe(fn: () => void): () => void {
   return () => { listeners.delete(fn) }
 }
 
-function getSnapshot(): GestureState {
+export function getSnapshot(): GestureState {
   return state
 }
 
