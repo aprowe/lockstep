@@ -1,0 +1,187 @@
+.canvas-timeline {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.canvas-timeline__body {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.canvas-timeline__rail {
+  width: calc(72px * var(--ui-scale));
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-2);
+  border-right: 1px solid var(--border);
+}
+
+.canvas-timeline__rail-minimap {
+  height: 24px;
+  flex-shrink: 0;
+  background: var(--bg-4);
+  display: flex;
+  align-items: center;
+  padding-left: 8px;
+  font: calc(9px * var(--ui-scale))/1 var(--font-family);
+  color: var(--fg-4);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.canvas-timeline__rail-sep {
+  height: 1px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.canvas-timeline__rail-row {
+  display: flex;
+  align-items: center;
+  padding-left: 8px;
+  font: calc(9px * var(--ui-scale))/1 var(--font-family);
+  color: var(--fg-4);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  user-select: none;
+  transition: color 0.1s, background 0.1s;
+}
+.canvas-timeline__rail-row--hover {
+  color: var(--fg-1);
+  background: var(--bg-hover);
+}
+
+.canvas-timeline__rail-grip {
+  height: 5px;
+  margin: -2px 0;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  cursor: ns-resize;
+}
+.canvas-timeline__rail-grip::before {
+  content: '';
+  position: absolute;
+  inset: 2px 0;
+  height: 1px;
+  background: var(--border);
+  transition: inset 0.1s, background 0.1s;
+}
+.canvas-timeline__rail-grip:hover::before {
+  inset: 0;
+  height: 5px;
+  background: rgba(var(--blue-rgb), 0.35);
+}
+
+.ct-accent {
+  position: absolute;
+  left: 0;
+  width: 3px;
+  pointer-events: none;
+}
+.ct-accent--input  { background: var(--space-input); }
+.ct-accent--warp   { background: var(--space-warp); }
+.ct-accent--output { background: var(--space-output); }
+
+.canvas-timeline__canvas {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: block;
+  height: 100%;
+}
+
+/* Toolbar mirrors .thin-toolbar from ThinTimeline.css */
+.canvas-timeline__toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: calc(3px * var(--ui-scale)) calc(6px * var(--ui-scale));
+  background: var(--bg-4);
+  border-top: 1px solid var(--border);
+}
+
+.ct-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(26px * var(--ui-scale));
+  height: calc(26px * var(--ui-scale));
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--btn-color, var(--fg-4));
+  opacity: 0.78;
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s, opacity 0.1s;
+}
+.ct-btn:hover {
+  background: var(--bg-hover);
+  color: color-mix(in srgb, var(--btn-color, var(--fg-2)) 92%, white);
+  opacity: 1;
+}
+.ct-btn--active {
+  background: color-mix(in srgb, var(--btn-color, var(--fg-2)) 5%, transparent);
+  border-color: color-mix(in srgb, var(--btn-color, var(--fg-2)) 65%, transparent);
+  color: color-mix(in srgb, var(--btn-color, var(--fg-2)) 92%, white);
+  opacity: 1;
+}
+.ct-btn--active:hover {
+  background: color-mix(in srgb, var(--btn-color, var(--fg-2)) 12%, transparent);
+}
+.ct-btn--disabled { opacity: 0.35; cursor: default; }
+
+.ct-btn--warp    { --btn-color: var(--space-warp); }
+.ct-btn--thumbs  { --btn-color: var(--scene-cut); }
+.ct-btn--follow  { --btn-color: var(--playhead); }
+.ct-btn--anchors { --btn-color: var(--space-input); }
+.ct-btn--regions { --btn-color: var(--error); }
+.ct-btn--zoom    { --btn-color: var(--error); }
+.ct-btn--scenes  { --btn-color: var(--scene-cut); }
+
+.ct-sep {
+  width: 1px;
+  height: calc(18px * var(--ui-scale));
+  background: var(--border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+.ct-spacer { flex: 1; }
+
+.ct-grid-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ct-grid-label {
+  font: calc(10px * var(--ui-scale))/1 var(--font-family);
+  letter-spacing: 0.06em;
+  color: var(--fg-4);
+  text-transform: uppercase;
+}
+
+.ct-select {
+  font: calc(11px * var(--ui-scale))/1 var(--font-family);
+  color: var(--fg-2);
+  background: var(--bg-6);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: calc(3px * var(--ui-scale)) calc(5px * var(--ui-scale));
+  cursor: pointer;
+  outline: none;
+}
+.ct-select:focus { border-color: var(--border-hi); }

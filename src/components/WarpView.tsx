@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ContextMenu from './ContextMenu'
-import ThinTimeline from './thin/ThinTimeline'
+import CanvasTimeline, { CanvasTimelineToolbar } from './CanvasTimeline'
 import type { RegionBlock } from './thin/RegionBand'
 import type { ContextMenuState } from './ContextMenu'
 import {
@@ -594,7 +594,7 @@ export default function WarpView({
       onMouseLeave={() => setMouseOver(false)}
       onMouseDown={e => { if (e.button === 1) e.preventDefault() }}
     >
-      <ThinTimeline
+      <CanvasTimeline
         duration={duration}
         outputDuration={outputDuration}
         view={view}
@@ -661,8 +661,12 @@ export default function WarpView({
         onTimelineDelete={onTimelineDelete}
         onTimelineDeselect={onTimelineDeselect}
         warpCollapsed={warpCollapsed}
+      />
+      <CanvasTimelineToolbar
+        warpCollapsed={warpCollapsed}
         onToggleWarp={() => dispatch(setWarpCollapsed(!warpCollapsed))}
         onZoomToRegion={onZoomToRegion}
+        gridDiv={gridDiv}
         onGridDivChange={v => dispatch(setGridDiv(v))}
       />
       <input
