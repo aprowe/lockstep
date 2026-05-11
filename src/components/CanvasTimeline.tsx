@@ -12,7 +12,7 @@ import {
   IconThumbStrip, IconFollowDrag, IconZoomToRegion,
 } from './icons'
 import { computeSnap, pixelsToSeconds } from '../utils/snap'
-import { gesture, useGesture } from '../store/gesture'
+import { gesture, getSnapshot, useGesture } from '../store/gesture'
 import { getUiScale } from '../uiScale'
 import { useSetThumbnailHover } from './ThumbnailPopup'
 import './CanvasTimeline.css'
@@ -424,6 +424,10 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
   // Live anchor arrays during drag
   const liveAnchorsIn  = useRef<Anchor[]>([])
   const liveAnchorsOut = useRef<Anchor[]>([])
+  const liveRegion = useRef<{ id: string; inPoint: number; outPoint: number } | null>(null)
+  const lassoAnchorIds  = useRef<Set<number>>(new Set())
+  const lassoClipIds    = useRef<Set<string>>(new Set())
+  const lassoSceneTimes = useRef<Set<number>>(new Set())
 
   type DragKind =
     | { kind: 'seek'; space: 'input' | 'output' }
@@ -1451,6 +1455,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
     if (drag.kind === 'seek') {
       const MAX = drag.space === 'output' ? p.outputDuration : p.duration
       const t = Math.max(0, Math.min(MAX, pxToT(mx)))
+      gesture.setScrubTime(t)
       if (drag.space === 'output') p.onSeekBeat?.(t)
       else p.onSeek?.(t)
       return
@@ -1536,13 +1541,12 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
       gesture.setDragTime(space, snapped)
       if (drag.edge === 'in') {
         const newIn = Math.max(0, Math.min(drag.origOut - 0.1, snapped))
-        if (drag.isOutput) p.onRegionResizeOutput?.(drag.id, newIn, drag.origOut)
-        else p.onRegionResize?.(drag.id, newIn, drag.origOut)
+        liveRegion.current = { id: drag.id, inPoint: newIn, outPoint: drag.origOut }
       } else {
         const newOut = Math.max(drag.origIn + 0.1, Math.min(MAX, snapped))
-        if (drag.isOutput) p.onRegionResizeOutput?.(drag.id, drag.origIn, newOut)
-        else p.onRegionResize?.(drag.id, drag.origIn, newOut)
+        liveRegion.current = { id: drag.id, inPoint: drag.origIn, outPoint: newOut }
       }
+      gesture.setDragRegion(drag.id, liveRegion.current.inPoint, liveRegion.current.outPoint)
       return
     }
 
@@ -1563,8 +1567,8 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
       const snappedEdge = result.hit?.subjectIndex === 1 ? newOut : newIn
       gesture.setSnapHints(space, snapCandidates([rawIn, rawOut], targets, grid, hintThresholdSec))
       gesture.setDragTime(space, snappedEdge)
-      if (drag.isOutput) p.onRegionMoveOutput?.(drag.id, newIn, newOut)
-      else p.onRegionMove?.(drag.id, newIn, newOut)
+      liveRegion.current = { id: drag.id, inPoint: newIn, outPoint: newOut }
+      gesture.setDragRegion(drag.id, newIn, newOut)
       return
     }
 
@@ -1573,11 +1577,10 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
       if (!drag.active && dx * dx + dy * dy < 16) return
       if (!drag.active) {
         drag.active = true
-        if (!drag.additive) {
-          p.onConnectorSelectionChange?.(new Set())
-          p.onClipsSelectionChange?.(new Set())
-          p.onScenesSelectionChange?.(new Set())
-        }
+        lassoAnchorIds.current  = new Set(drag.initialAnchorIds)
+        lassoClipIds.current    = new Set(drag.initialClipIds)
+        lassoSceneTimes.current = new Set(drag.initialSceneTimes)
+        gesture.setLassoSelection(lassoClipIds.current, lassoAnchorIds.current, lassoSceneTimes.current)
       }
       drag.curX = mx
       drag.curY = my
@@ -1598,18 +1601,19 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
         const ids = new Set(drag.initialAnchorIds)
         if (wantIn)  for (const a of p.anchors)     if (a.time >= loT && a.time <= hiT) ids.add(a.id)
         if (wantOut) for (const a of p.beatAnchors)  if (a.time >= loT && a.time <= hiT) ids.add(a.id)
-        p.onConnectorSelectionChange?.(ids)
+        lassoAnchorIds.current = ids
       }
       if (wantClips) {
         const ids = new Set(drag.initialClipIds)
         for (const r of p.regions) if (r.outPoint > loT && r.inPoint < hiT) ids.add(r.id)
-        p.onClipsSelectionChange?.(ids)
+        lassoClipIds.current = ids
       }
       if (wantScenes) {
         const times = new Set(drag.initialSceneTimes)
         for (const t of p.scenes) if (t >= loT && t <= hiT) times.add(t)
-        p.onScenesSelectionChange?.(times)
+        lassoSceneTimes.current = times
       }
+      gesture.setLassoSelection(lassoClipIds.current, lassoAnchorIds.current, lassoSceneTimes.current)
       drawRef.current()
       return
     }
@@ -1625,6 +1629,27 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
         p.onAnchorsChange?.(liveAnchorsIn.current)
       if (drag.space === 'output' && liveAnchorsOut.current.length)
         p.onBeatAnchorsChange?.(liveAnchorsOut.current)
+    }
+    if (drag?.kind === 'region-edge' || drag?.kind === 'region-move') {
+      const r = liveRegion.current
+      if (r) {
+        if (drag.kind === 'region-edge') {
+          if (drag.isOutput) p.onRegionResizeOutput?.(r.id, r.inPoint, r.outPoint)
+          else p.onRegionResize?.(r.id, r.inPoint, r.outPoint)
+        } else {
+          if (drag.isOutput) p.onRegionMoveOutput?.(r.id, r.inPoint, r.outPoint)
+          else p.onRegionMove?.(r.id, r.inPoint, r.outPoint)
+        }
+      }
+      liveRegion.current = null
+    }
+    if (drag?.kind === 'lasso' && drag.active) {
+      p.onConnectorSelectionChange?.(lassoAnchorIds.current)
+      p.onClipsSelectionChange?.(lassoClipIds.current)
+      p.onScenesSelectionChange?.(lassoSceneTimes.current)
+      lassoAnchorIds.current  = new Set()
+      lassoClipIds.current    = new Set()
+      lassoSceneTimes.current = new Set()
     }
     if (drag?.kind === 'lasso' && !drag.active && !drag.additive) {
       p.onTimelineDeselect?.()
