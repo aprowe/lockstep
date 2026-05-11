@@ -4,6 +4,7 @@ import { useFilteredItems } from '../../components/list/useFilteredItems'
 import ContextMenu, { type ContextMenuState } from '../../components/ContextMenu'
 import ClipRow from './ClipRow'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import { useGesture } from '../../store/gesture'
 import {
   addRegion as addRegionAction,
   deleteRegion as deleteRegionAction,
@@ -42,6 +43,7 @@ export default function ClipsPanel() {
     [sceneCuts, userSceneCuts, sceneMinGap],
   )
   const filterMode = useAppSelector(s => s.lists.filterMode.clips)
+  const lassoSelection = useGesture(s => s.lassoSelection)
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
 
@@ -147,6 +149,7 @@ export default function ClipsPanel() {
         onDelete={onDelete}
         hideClipFilter
         emptyHint="Drag on the strip to create a clip"
+        selectedIdsOverride={lassoSelection?.clipIds}
         prefixRows={
           <div
             className={`clip-row clip-row--full${activeRegionId === null ? ' clip-row--active' : ''}`}
