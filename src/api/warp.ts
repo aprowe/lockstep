@@ -10,7 +10,6 @@ export interface WarpRequest {
   add_to_end: boolean
   trim_to_loop: boolean
   loop_beats: number | null
-  normalize_bpm: boolean
   fade_at_loop: boolean
   clip_in?: number | null
   clip_out?: number | null
@@ -25,6 +24,12 @@ export interface WarpRequest {
   /** Source-time positions (seconds) of hard scene cuts. RIFE uses these
    *  to avoid blending frames across a cut. Optional. */
   scene_cuts?: number[]
+  /** How the audio is muxed into the output:
+   *  - 'tempo' (default) — atempo preserves pitch while length matches video
+   *  - 'pitch' — asetrate re-pitches with speed (turntable-style)
+   *  - 'none' — strip audio entirely (`-an`)
+   */
+  audio_mode?: 'tempo' | 'pitch' | 'none' | null
 }
 
 export interface WarpProgressPayload {

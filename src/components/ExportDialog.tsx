@@ -6,7 +6,7 @@ import { useAppDispatch, useAppSelector } from '../store/hooks'
 import { setLastExportFolder } from '../store/slices/uiSlice'
 import { addJob as addJobAction, updateJob, removeJob } from '../store/slices/jobsSlice'
 import { cancelJobThunk } from '../store/thunks/jobsThunks'
-import { buildWarpRequest } from '../utils/exportRequest'
+import { buildWarpRequest, type AudioMode } from '../utils/exportRequest'
 import { visibleSceneCuts } from '../utils/sceneFilter'
 import './ExportDialog.css'
 
@@ -104,11 +104,15 @@ export default function ExportDialog({
   const [selectedLogJobId, setSelectedLogJobId] = useState<string | null>(null)
 
   const [fadeAtLoop, setFadeAtLoop] = useState(false)
-  const [normalizeBpm, setNormalizeBpm] = useState(false)
-  const [normBpmTarget, setNormBpmTarget] = useState(120)
   const [interpolateFrames, setInterpolateFrames] = useState(false)
   const [interpMethod, setInterpMethod] = useState<InterpMethod>('rife')
   const [interpFps, setInterpFps] = useState(() => Math.round(videoFps ?? 60))
+  const [normalizeBpm, setNormalizeBpm] = useState(false)
+  const [normBpmTarget, setNormBpmTarget] = useState(120)
+  // Audio export mode: 'tempo' keeps pitch (default), 'pitch' re-pitches with speed, 'none' omits audio.
+  const [includeAudio, setIncludeAudio] = useState(true)
+  const [pitchAudio, setPitchAudio] = useState(false)
+  const audioMode: AudioMode = !includeAudio ? 'none' : pitchAudio ? 'pitch' : 'tempo'
   const [status, setStatus] = useState<'idle' | 'processing' | 'done' | 'error'>('idle')
   const [progress, setProgress] = useState(0)
   const [currentJobLabel, setCurrentJobLabel] = useState('')
@@ -263,15 +267,11 @@ export default function ExportDialog({
   }
 
   const getFileName = (job: ExportJob, index: number) => {
-    // Filename BPM must reflect the *output* BPM, not the source — backend
-    // normalizes to 120 when `normalizeBpm` is on, so the file we ship is at
-    // 120bpm regardless of the region's authored tempo.
-    const effectiveBpm = normalizeBpm ? normBpmTarget : job.bpm
     const clipNumber = job.regionIndex >= 0 ? job.regionIndex + 1 : index + 1
     const name = applyPattern(namePattern, {
       name: job.label,
       stem: baseName,
-      bpm: effectiveBpm,
+      bpm: job.bpm,
       beats: job.beats,
       clipIn: job.clipIn,
       clipOut: job.clipOut,
@@ -313,11 +313,11 @@ export default function ExportDialog({
           loopBeats,
           trimToLoop,
           fadeAtLoop,
-          normalizeBpm,
           interpolateFrames,
           interpFps,
           interpMethod,
           sceneCuts,
+          audioMode,
         }))
         reduxDispatch(addJobAction({ id: jobId, kind: 'warp', label: job.label }))
         // Auto-select each new job unless a previous one errored (keep that visible).
@@ -543,6 +543,29 @@ export default function ExportDialog({
                     Fade at loop
                   </label>
                 )}
+                <div className="export-dialog__audio">
+                  <label className="export-dialog__check">
+                    <input
+                      type="checkbox"
+                      checked={includeAudio}
+                      onChange={e => setIncludeAudio(e.target.checked)}
+                    />
+                    Include Audio
+                  </label>
+                  {includeAudio && (
+                    <label
+                      className="export-dialog__check export-dialog__audio-sub"
+                      title="When on, audio pitches up/down with the video speed (asetrate). When off, atempo preserves pitch."
+                    >
+                      <input
+                        type="checkbox"
+                        checked={pitchAudio}
+                        onChange={e => setPitchAudio(e.target.checked)}
+                      />
+                      Pitch with speed
+                    </label>
+                  )}
+                </div>
                 <div className="export-dialog__norm-row">
                   <label className="export-dialog__check">
                     <input type="checkbox" checked={normalizeBpm} onChange={e => setNormalizeBpm(e.target.checked)} />

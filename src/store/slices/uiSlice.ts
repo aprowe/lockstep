@@ -67,6 +67,12 @@ function saveTimelinePrefs(state: UiState) {
  *  `warp.trimToLoop` / `warp.loopBeats`. */
 export type PlaybackLoopMode = 'continue' | 'stop' | 'loop'
 
+/** Controls how the video player's playback rate is set during playback:
+ *  - `orig`  — native 1× speed (default)
+ *  - `beat`  — dynamic rate computed from the current warp segment so that
+ *              beat-time progresses at 1× (previews the warped export) */
+export type PlaybackMode = 'orig' | 'beat'
+
 interface UiState {
   timelineHeight: number
   sidebarWidth: number
@@ -82,9 +88,17 @@ interface UiState {
   timelineAlwaysAnchors: boolean
   timelineAlwaysRegions: boolean
   timelineAlwaysScenes: boolean
+  /** Global anchor-lock toggle (§13). When true, beat anchors inside the active
+   *  clipout window are position-locked: resize (lock='beats') keeps them in
+   *  beat-space; body-pan carries them with the clip. Alt inverts this for a
+   *  single gesture. */
+  anchorLock: boolean
   playing: boolean
   /** What playback does at the end of the active clip / video. */
   playbackLoopMode: PlaybackLoopMode
+  /** Whether the video plays at native speed or at the warp-adjusted rate
+   *  that previews beat-time playback. */
+  playbackMode: PlaybackMode
   exportOpen: boolean
   /** Source-of-truth view. WarpView keeps a local copy for high-frequency
    *  gesture updates and syncs back on gesture end. */
@@ -109,8 +123,10 @@ const initialState: UiState = {
   timelineAlwaysAnchors: _prefs.alwaysAnchors,
   timelineAlwaysRegions: _prefs.alwaysRegions,
   timelineAlwaysScenes: _prefs.alwaysScenes,
+  anchorLock: false,
   playing: false,
   playbackLoopMode: 'continue',
+  playbackMode: 'orig',
   exportOpen: false,
   view: { start: 0, end: 60 },
   lastExportFolder: null,
@@ -166,11 +182,17 @@ const uiSlice = createSlice({
       state.timelineAlwaysScenes = action.payload
       saveTimelinePrefs(state)
     },
+    setAnchorLock(state, action: PayloadAction<boolean>) {
+      state.anchorLock = action.payload
+    },
     setPlaying(state, action: PayloadAction<boolean>) {
       state.playing = action.payload
     },
     setPlaybackLoopMode(state, action: PayloadAction<PlaybackLoopMode>) {
       state.playbackLoopMode = action.payload
+    },
+    setPlaybackMode(state, action: PayloadAction<PlaybackMode>) {
+      state.playbackMode = action.payload
     },
     setExportOpen(state, action: PayloadAction<boolean>) {
       state.exportOpen = action.payload
@@ -198,8 +220,10 @@ export const {
   setTimelineAlwaysAnchors,
   setTimelineAlwaysRegions,
   setTimelineAlwaysScenes,
+  setAnchorLock,
   setPlaying,
   setPlaybackLoopMode,
+  setPlaybackMode,
   setExportOpen,
   setView,
   setLastExportFolder,

@@ -16,6 +16,7 @@ import thumbnailsReducer from '../../src/store/slices/thumbnailsSlice'
 import settingsReducer from '../../src/store/slices/settingsSlice'
 import listsReducer from '../../src/store/slices/listsSlice'
 import jobsReducer from '../../src/store/slices/jobsSlice'
+import dragReducer from '../../src/store/slices/dragSlice'
 import { persistenceMiddleware } from '../../src/store/middleware/persistenceMiddleware'
 import { historyMiddleware } from '../../src/store/middleware/historyMiddleware'
 import type { VideoInfo, SavedVideoState } from '../../src/types'
@@ -33,6 +34,7 @@ export function makeStore() {
       settings: settingsReducer,
       lists: listsReducer,
       jobs: jobsReducer,
+      drag: dragReducer,
     },
     middleware: (getDefault) =>
       getDefault()

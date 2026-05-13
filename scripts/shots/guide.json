@@ -1,0 +1,130 @@
+[
+  {
+    "name": "01-overview",
+    "seed": {
+      "video": { "duration": 60, "name": "dance_cut.mp4" },
+      "bpm": 128,
+      "anchors": [
+        [4.2, 4.0],
+        [8.4, 8.0],
+        [12.6, 12.0]
+      ],
+      "regions": [
+        { "name": "Intro",  "inPoint": 0,  "outPoint": 20 },
+        { "name": "Verse",  "inPoint": 20, "outPoint": 45 },
+        { "name": "Outro",  "inPoint": 45, "outPoint": 60 }
+      ],
+      "view": { "start": 0, "end": 60 }
+    },
+    "evaluate": "for(const t of document.querySelectorAll('.dv-tab')){if((t.textContent||'').trim().startsWith('Clips')){t.click();break;}} setTimeout(()=>{for(const t of document.querySelectorAll('.dv-tab')){if((t.textContent||'').trim().startsWith('Anchors')){t.click();break;}}},50)",
+    "waitMs": 400
+  },
+  {
+    "name": "03-bpm-panel",
+    "seed": {
+      "video": { "duration": 60, "name": "dance_cut.mp4" },
+      "bpm": 128,
+      "anchors": [
+        [4.2, 4.0],
+        [8.4, 8.0]
+      ],
+      "regions": [
+        { "name": "Intro", "inPoint": 0, "outPoint": 20, "bpm": 128 },
+        { "name": "Verse", "inPoint": 20, "outPoint": 45, "bpm": 128 }
+      ],
+      "activeRegion": "Verse",
+      "view": { "start": 0, "end": 60 }
+    },
+    "evaluate": "for(const t of document.querySelectorAll('.dv-tab')){if((t.textContent||'').trim().startsWith('Clip Info')){t.click();break;}}",
+    "selector": ".rip",
+    "waitMs": 300
+  },
+  {
+    "name": "04-markers-on-timeline",
+    "seed": {
+      "video": { "duration": 60, "name": "dance_cut.mp4" },
+      "bpm": 120,
+      "anchors": [
+        [5.0, 5.0],
+        [10.0, 10.0],
+        [15.0, 15.0],
+        [20.0, 20.0],
+        [25.0, 25.0]
+      ],
+      "regions": [
+        { "name": "Intro", "inPoint": 0, "outPoint": 30 }
+      ],
+      "view": { "start": 0, "end": 30 }
+    },
+    "waitMs": 500
+  },
+  {
+    "name": "05-align-handle",
+    "seed": {
+      "video": { "duration": 60, "name": "dance_cut.mp4" },
+      "bpm": 120,
+      "anchors": [
+        [5.1, 5.0],
+        [10.3, 10.0],
+        [15.2, 15.0],
+        [20.4, 20.0],
+        [25.1, 25.0]
+      ],
+      "regions": [
+        { "name": "Intro", "inPoint": 0, "outPoint": 30 }
+      ],
+      "view": { "start": 0, "end": 30 }
+    },
+    "waitMs": 500
+  },
+  {
+    "name": "06-regions",
+    "seed": {
+      "video": { "duration": 60, "name": "dance_cut.mp4" },
+      "bpm": 128,
+      "anchors": [
+        [5.0, 5.0],
+        [15.0, 15.0],
+        [30.0, 30.0],
+        [45.0, 45.0]
+      ],
+      "regions": [
+        { "name": "Intro",  "inPoint": 0,  "outPoint": 20, "bpm": 120 },
+        { "name": "Verse",  "inPoint": 20, "outPoint": 45, "bpm": 128 },
+        { "name": "Drop",   "inPoint": 45, "outPoint": 60, "bpm": 140 }
+      ],
+      "activeRegion": "Verse",
+      "view": { "start": 0, "end": 60 }
+    },
+    "evaluate": "for(const t of document.querySelectorAll('.dv-tab')){if((t.textContent||'').trim().startsWith('Clips')){t.click();break;}}",
+    "waitMs": 400
+  },
+  {
+    "name": "07-export-dialog",
+    "seed": {
+      "video": { "duration": 60, "name": "dance_cut.mp4" },
+      "bpm": 128,
+      "regions": [
+        { "name": "Intro",  "inPoint": 0,  "outPoint": 20, "bpm": 120 },
+        { "name": "Verse",  "inPoint": 20, "outPoint": 45, "bpm": 128 },
+        { "name": "Drop",   "inPoint": 45, "outPoint": 60, "bpm": 140 }
+      ],
+      "activeRegion": "Verse",
+      "view": { "start": 0, "end": 60 },
+      "exportOpen": true
+    },
+    "selector": ".export-dialog",
+    "waitMs": 300
+  },
+  {
+    "name": "09-hotkey-sheet",
+    "seed": {
+      "video": { "duration": 60, "name": "dance_cut.mp4" },
+      "bpm": 120,
+      "view": { "start": 0, "end": 60 }
+    },
+    "evaluate": "window.dispatchEvent(new KeyboardEvent('keydown', {key:'?', bubbles:true}))",
+    "selector": ".hk-dialog",
+    "waitMs": 300
+  }
+]

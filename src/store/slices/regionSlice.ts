@@ -1,5 +1,9 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { Region } from '../../types'
+import { clampRegionInOut } from '../../timeline/model/clampRegion'
+import { conformedRegionUpdate } from '../../timeline/model/conformedRegionUpdate'
+import { commitLinkingEvent } from '../../timeline/model/linkingEvent'
+import { effectiveBeatBounds } from '../../timeline/model/effectiveBounds'
 
 interface RegionState {
   regions: Region[]
@@ -63,29 +67,17 @@ const regionSlice = createSlice({
     updateRegionInOut(state, action: PayloadAction<{ id: string; inPoint: number; outPoint: number }>) {
       const r = state.regions.find(r => r.id === action.payload.id)
       if (!r) return
-      let { inPoint: newIn, outPoint: newOut } = action.payload
-      const length = r.outPoint - r.inPoint
-      const MIN_LENGTH = 1
-
-      if (newIn > r.outPoint) {
-        // Start moved past the original end → shift end to preserve length
-        newOut = newIn + length
-      } else if (newOut < r.inPoint) {
-        // End moved before the original start → shift start to preserve length
-        newIn = newOut - length
-      } else if (newOut - newIn < MIN_LENGTH) {
-        // Span is below minimum: clamp whichever boundary moved
-        if (newIn !== r.inPoint) {
-          newIn = newOut - MIN_LENGTH  // start moved too close → pull start back
-        } else {
-          newOut = newIn + MIN_LENGTH  // end moved too close → push end forward
-        }
-      }
-
-      r.inPoint = newIn
-      r.outPoint = newOut
-      r.inBeatTime = undefined
-      r.outBeatTime = undefined
+      const next = clampRegionInOut(
+        { inPoint: r.inPoint, outPoint: r.outPoint },
+        { inPoint: action.payload.inPoint, outPoint: action.payload.outPoint },
+      )
+      r.inPoint = next.inPoint
+      r.outPoint = next.outPoint
+      // Preserve diverged beat-space bounds (inBeatTime/outBeatTime). When the
+      // region was in its default-linked state (both undefined), they stay
+      // undefined (clipout renders linked to the new input bounds). When the
+      // user had already diverged them, they stay where they were — dragging
+      // clipin only moves the input bounds.
     },
     updateRegionBeatTimes(state, action: PayloadAction<{ id: string; inBeatTime?: number; outBeatTime?: number }>) {
       const r = state.regions.find(r => r.id === action.payload.id)
@@ -98,7 +90,7 @@ const regionSlice = createSlice({
       const r = state.regions.find(r => r.id === action.payload.id)
       if (r) {
         r.lock = action.payload.lock
-        r.lockedBeats = action.payload.lockedBeats
+        if (action.payload.lockedBeats !== undefined) r.lockedBeats = action.payload.lockedBeats
       }
     },
     renameRegion(state, action: PayloadAction<{ id: string; name: string }>) {
@@ -120,6 +112,168 @@ const regionSlice = createSlice({
       const r = state.regions.find(r => r.id === action.payload.id)
       if (r) r.triggerMode = action.payload.triggerMode
     },
+    /** Commit a boundary-coincidence linking event (design §3.2, §5a/§5b).
+     *  The edge that was linked snaps its beat-space bound to beatAnchorTime;
+     *  the other edge is preserved. lockedBeats is recomputed from the new
+     *  clipout length × bpm / 60 — always lock='bpm' semantics (lock-bypass
+     *  design §3.2: bpm stays, lockedBeats absorbs the change regardless of
+     *  region.lock setting). r.bpm and r.lock are NOT overwritten — they are
+     *  echoed unchanged by commitLinkingEvent. */
+    applyLinkingEvent(state, action: PayloadAction<{
+      id: string
+      edge: 'in' | 'out'
+      side: 'input' | 'output'
+      /** Beat-space time of the paired BEAT anchor at the moment of pointerUp.
+       *  (Caller resolves the AnchorPair via linkState; only the beatAnchor
+       *  is needed downstream.) */
+      beatAnchorTime: number
+      /** Current input (orig) anchors — forwarded to commitLinkingEvent so the
+       *  effective bound for the NON-linked edge accounts for input-anchor
+       *  conform. Pass empty arrays when anchor conform is not relevant. */
+      origAnchors?: readonly { id: number; time: number }[]
+      /** Current beat anchors — paired with origAnchors above. */
+      beatAnchors?: readonly { id: number; time: number }[]
+    }>) {
+      const r = state.regions.find(r => r.id === action.payload.id)
+      if (!r) return
+      // Build a synthetic Anchor for the committer (id is informational here —
+      // commitLinkingEvent only reads `time`).
+      const beatAnchor = { id: -1, time: action.payload.beatAnchorTime }
+      const result = commitLinkingEvent({
+        region: r,
+        edge: action.payload.edge,
+        side: action.payload.side,
+        beatAnchor,
+        origAnchors: action.payload.origAnchors ?? [],
+        beatAnchors: action.payload.beatAnchors ?? [],
+      })
+      r.inBeatTime = result.inBeatTime
+      r.outBeatTime = result.outBeatTime
+      r.lockedBeats = result.lockedBeats
+      // r.bpm and r.lock are explicitly NOT overwritten — commitLinkingEvent
+      // echoes them unchanged (lock-bypass design §3.2: bpm stays, lockedBeats
+      // absorbs the change, regardless of region.lock setting).
+    },
+    /** Direct BPM edit with grid-vs-stretch branching (design §6.4 / §11).
+     *  stretch=false (grid model): clipout length stays, lockedBeats recomputes.
+     *  stretch=true  (stretch model): length rescales to keep lockedBeats fixed;
+     *    anchor rescale is OUT OF SCOPE — the caller is responsible for
+     *    dispatching warp-slice anchor updates via stretchRescale.
+     *
+     *  `origAnchors` / `beatAnchors` are used to compute the effective beat
+     *  bounds so that input-anchor conform is reflected in the current length. */
+    applyBpmEdit(state, action: PayloadAction<{
+      id: string
+      newBpm: number
+      /** true = stretch model (length rescales, lockedBeats preserved).
+       *  false = grid model (length stays, lockedBeats recomputes). */
+      stretch: boolean
+      origAnchors?: readonly { id: number; time: number }[]
+      beatAnchors?: readonly { id: number; time: number }[]
+    }>) {
+      const r = state.regions.find(r => r.id === action.payload.id)
+      if (!r) return
+      const { newBpm, stretch } = action.payload
+      const { inBeatTime, outBeatTime } = effectiveBeatBounds(
+        r,
+        action.payload.origAnchors ?? [],
+        action.payload.beatAnchors ?? [],
+      )
+      if (stretch) {
+        const oldLength = outBeatTime - inBeatTime
+        const lockedBeats = r.lockedBeats ?? (oldLength * r.bpm) / 60
+        // Stretch: length = 60 × lockedBeats / bpm; lockedBeats unchanged.
+        const newLength = (60 * lockedBeats) / newBpm
+        r.bpm = newBpm
+        r.lockedBeats = lockedBeats
+        r.inBeatTime = inBeatTime
+        r.outBeatTime = inBeatTime + newLength
+      } else {
+        // Grid: length stays, lockedBeats recomputes from new bpm.
+        const length = outBeatTime - inBeatTime
+        r.bpm = newBpm
+        r.lockedBeats = (length * newBpm) / 60
+      }
+    },
+
+    /** Direct beats edit with grid-vs-stretch branching (design §6.4 / §11).
+     *  stretch=false (grid model): clipout length stays, bpm recomputes.
+     *  stretch=true  (stretch model): length rescales to keep bpm fixed.
+     *
+     *  `origAnchors` / `beatAnchors` are used to compute the effective beat
+     *  bounds so that input-anchor conform is reflected in the current length. */
+    applyBeatsEdit(state, action: PayloadAction<{
+      id: string
+      newLockedBeats: number
+      stretch: boolean
+      origAnchors?: readonly { id: number; time: number }[]
+      beatAnchors?: readonly { id: number; time: number }[]
+    }>) {
+      const r = state.regions.find(r => r.id === action.payload.id)
+      if (!r) return
+      const { newLockedBeats, stretch } = action.payload
+      const { inBeatTime, outBeatTime } = effectiveBeatBounds(
+        r,
+        action.payload.origAnchors ?? [],
+        action.payload.beatAnchors ?? [],
+      )
+      if (stretch) {
+        // Stretch: length rescales to keep bpm constant.
+        const newLength = (60 * newLockedBeats) / r.bpm
+        r.lockedBeats = newLockedBeats
+        r.inBeatTime = inBeatTime
+        r.outBeatTime = inBeatTime + newLength
+      } else {
+        // Grid: length stays, bpm recomputes.
+        const length = outBeatTime - inBeatTime
+        r.lockedBeats = newLockedBeats
+        r.bpm = (60 * newLockedBeats) / length
+      }
+    },
+
+    /** Commit a conform event: the clipout's beat-space bounds change because
+     *  an anchor was moved onto / off / across the clip boundary, or the user
+     *  dragged the clipout edge directly. Diverges beat-space from input-space
+     *  and updates whichever of {bpm, lockedBeats} the region's lock says
+     *  should derive from the new clipout length. The clipin input bounds
+     *  (inPoint/outPoint) are NOT touched — clipin stays where the user put it.
+     *
+     *  `origAnchors` / `beatAnchors` are forwarded to `conformedRegionUpdate`
+     *  so the effective pre-conform length accounts for input-anchor conform
+     *  (used only for the `lock='beats'` / no-snapshot fallback path). */
+    /** Reset a region's beat-space boundaries back to the default-linked state
+     *  (inBeatTime = undefined, outBeatTime = undefined). lockedBeats is
+     *  intentionally left unchanged — it represents the user's beat-count
+     *  setting and should not be discarded by a boundary reset. */
+    resetRegionBoundary(state, action: PayloadAction<{ id: string }>) {
+      const r = state.regions.find(r => r.id === action.payload.id)
+      if (!r) return
+      r.inBeatTime = undefined
+      r.outBeatTime = undefined
+    },
+    applyConformedClipout(state, action: PayloadAction<{
+      id: string
+      inBeatTime: number
+      outBeatTime: number
+      origAnchors?: readonly { id: number; time: number }[]
+      beatAnchors?: readonly { id: number; time: number }[]
+    }>) {
+      const r = state.regions.find(r => r.id === action.payload.id)
+      if (!r) return
+      const newLength = action.payload.outBeatTime - action.payload.inBeatTime
+      if (newLength <= 0) return
+      const update = conformedRegionUpdate(
+        r,
+        action.payload.inBeatTime,
+        action.payload.outBeatTime,
+        action.payload.origAnchors ?? [],
+        action.payload.beatAnchors ?? [],
+      )
+      r.inBeatTime = action.payload.inBeatTime
+      r.outBeatTime = action.payload.outBeatTime
+      if (update.bpm !== undefined) r.bpm = update.bpm
+      if (update.lockedBeats !== undefined) r.lockedBeats = update.lockedBeats
+    },
   },
 })
 
@@ -135,6 +289,11 @@ export const {
   updateRegionBpm,
   updateRegionStretch,
   updateRegionTriggerMode,
+  applyLinkingEvent,
+  resetRegionBoundary,
+  applyConformedClipout,
+  applyBpmEdit,
+  applyBeatsEdit,
 } = regionSlice.actions
 
 export default regionSlice.reducer

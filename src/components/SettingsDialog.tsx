@@ -8,6 +8,7 @@ import {
   setAssistantModel,
   setGeminiApiKey,
   setGeminiModel,
+  setSmoothPan,
   resetSettings,
   THEMES,
   type Theme,
@@ -63,6 +64,7 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const thumbWidth = useAppSelector(s => s.settings.thumbWidth)
   const maxCachedFrames = useAppSelector(s => s.settings.maxCachedFrames)
   const theme = useAppSelector(s => s.settings.theme)
+  const smoothPan = useAppSelector(s => s.settings.smoothPan)
   const apiKey = useAppSelector(s => s.settings.anthropicApiKey)
   const assistantModel = useAppSelector(s => s.settings.assistantModel)
   const geminiKey = useAppSelector(s => s.settings.geminiApiKey)
@@ -127,6 +129,21 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                     <option key={t} value={t}>{THEME_LABELS[t]}</option>
                   ))}
                 </select>
+              </div>
+            </div>
+
+            <div className="settings-row">
+              <label className="settings-row__label" htmlFor="smooth-pan-toggle">
+                <span className="settings-row__title">Smooth pan</span>
+                <span className="settings-row__hint">Lerp-animate the timeline when scrolling or panning.</span>
+              </label>
+              <div className="settings-row__control">
+                <input
+                  id="smooth-pan-toggle"
+                  type="checkbox"
+                  checked={smoothPan}
+                  onChange={e => dispatch(setSmoothPan(e.target.checked))}
+                />
               </div>
             </div>
           </section>

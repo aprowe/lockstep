@@ -3,7 +3,9 @@ import {
   selectSortedOrig,
   selectSortedBeat,
   selectOutputDuration,
-  selectSelectedIdsSet,
+  selectSelectedOrigIdsSet,
+  selectSelectedBeatIdsSet,
+  selectSelectedIdsUnion,
   selectLinkedBeatSet,
   selectDimmedAnchorIds,
   selectWarpData,
@@ -18,7 +20,8 @@ function makeState(overrides: {
   origAnchors?: Anchor[]
   beatAnchors?: Anchor[]
   linkedBeatIds?: number[]
-  selectedIds?: number[]
+  selectedOrigIds?: number[]
+  selectedBeatIds?: number[]
   beatZeroId?: number | null
   duration?: number
   regions?: Region[]
@@ -39,7 +42,8 @@ function makeState(overrides: {
       origAnchors: overrides.origAnchors ?? [],
       beatAnchors: overrides.beatAnchors ?? [],
       linkedBeatIds: overrides.linkedBeatIds ?? [],
-      selectedIds: overrides.selectedIds ?? [],
+      selectedOrigIds: overrides.selectedOrigIds ?? [],
+      selectedBeatIds: overrides.selectedBeatIds ?? [],
       bpm: 120,
       minStretch: 0.5,
       maxStretch: 2.0,
@@ -106,13 +110,35 @@ describe('selectOutputDuration', () => {
   })
 })
 
-describe('selectSelectedIdsSet', () => {
-  it('returns a Set of the selectedIds', () => {
-    const state = makeState({ selectedIds: [1, 3, 5] })
-    const set = selectSelectedIdsSet(state)
+describe('selectSelectedOrigIdsSet', () => {
+  it('returns a Set of selectedOrigIds', () => {
+    const state = makeState({ selectedOrigIds: [1, 3, 5] })
+    const set = selectSelectedOrigIdsSet(state)
     expect(set).toBeInstanceOf(Set)
     expect(set.has(1)).toBe(true)
     expect(set.has(3)).toBe(true)
+    expect(set.has(2)).toBe(false)
+  })
+})
+
+describe('selectSelectedBeatIdsSet', () => {
+  it('returns a Set of selectedBeatIds', () => {
+    const state = makeState({ selectedBeatIds: [2, 4] })
+    const set = selectSelectedBeatIdsSet(state)
+    expect(set).toBeInstanceOf(Set)
+    expect(set.has(2)).toBe(true)
+    expect(set.has(4)).toBe(true)
+    expect(set.has(1)).toBe(false)
+  })
+})
+
+describe('selectSelectedIdsUnion', () => {
+  it('returns the union of orig and beat selected ids', () => {
+    const state = makeState({ selectedOrigIds: [1, 3], selectedBeatIds: [3, 5] })
+    const set = selectSelectedIdsUnion(state)
+    expect(set.has(1)).toBe(true)
+    expect(set.has(3)).toBe(true)
+    expect(set.has(5)).toBe(true)
     expect(set.has(2)).toBe(false)
   })
 })

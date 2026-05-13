@@ -9,8 +9,8 @@ import { useSyncExternalStore } from 'react'
  * release — easier to own that invariant in one module than to scatter
  * cleanup across every interactive row.
  *
- * Children (MarkersTrack, RegionBand, SceneRow) publish into this store
- * directly. Consumers (ThinTimeline) subscribe via `useGesture()`.
+ * Children publish into this store directly. Consumers subscribe via
+ * `useGesture()`.
  */
 
 export type Space = 'input' | 'output'
@@ -19,22 +19,49 @@ export interface GestureState {
   hoveredAnchorId: number | null
   hoveredRegionId: string | null
   hoveredSceneTime: number | null
+  /** Pair id of the warp connector line currently under the mouse, or null
+   *  when no connector is hovered. Drives the brighten/thicken style applied
+   *  to the diagonal connector and the matching marker stems. */
+  hoveredWarpLineId: number | null
   snapHintsIn: readonly number[]
   snapHintsOut: readonly number[]
   /** Time of the actively-dragged marker, tagged by which space owns it.
    *  null when no marker is being dragged. */
   dragTime: { space: Space; time: number } | null
+  scrubTime: number | null
+  lassoSelection: {
+    /** Clipin (input-space) region ids swept by the live lasso. */
+    clipinIds: ReadonlySet<string>
+    /** Clipout (output-space) region ids swept by the live lasso. */
+    clipoutIds: ReadonlySet<string>
+    /** Input-space anchor ids swept by the live lasso. */
+    origAnchorIds: ReadonlySet<number>
+    /** Beat-space anchor ids swept by the live lasso. */
+    beatAnchorIds: ReadonlySet<number>
+    sceneTimes: ReadonlySet<number>
+  } | null
+  /** Currently-held modifier keys that affect the active drag.
+   *  alt — transient stretch-mode toggle during BPM edit (§6.2).
+   *  shift — transient anchor-lock mode toggle (§13).
+   *  Always defined (never null). */
+  modifierKeys: { alt: boolean; shift: boolean }
 }
 
 const EMPTY_HINTS: readonly number[] = Object.freeze([])
+
+const INITIAL_MODIFIER_KEYS = Object.freeze({ alt: false, shift: false })
 
 const initialState: GestureState = {
   hoveredAnchorId: null,
   hoveredRegionId: null,
   hoveredSceneTime: null,
+  hoveredWarpLineId: null,
   snapHintsIn: EMPTY_HINTS,
   snapHintsOut: EMPTY_HINTS,
   dragTime: null,
+  scrubTime: null,
+  lassoSelection: null,
+  modifierKeys: INITIAL_MODIFIER_KEYS,
 }
 
 let state: GestureState = initialState
@@ -65,6 +92,10 @@ export const gesture = {
     if (state.hoveredSceneTime === time) return
     setState({ ...state, hoveredSceneTime: time })
   },
+  setHoveredWarpLine(id: number | null) {
+    if (state.hoveredWarpLineId === id) return
+    setState({ ...state, hoveredWarpLineId: id })
+  },
   setSnapHints(space: Space, times: readonly number[] | null) {
     const next = times && times.length > 0 ? times : EMPTY_HINTS
     const key = space === 'input' ? 'snapHintsIn' : 'snapHintsOut'
@@ -81,6 +112,24 @@ export const gesture = {
     if (cur && next && cur.space === next.space && cur.time === next.time) return
     setState({ ...state, dragTime: next })
   },
+  setScrubTime(t: number | null) {
+    if (state.scrubTime === t) return
+    setState({ ...state, scrubTime: t })
+  },
+  setLassoSelection(
+    clipinIds: ReadonlySet<string>,
+    clipoutIds: ReadonlySet<string>,
+    origAnchorIds: ReadonlySet<number>,
+    beatAnchorIds: ReadonlySet<number>,
+    sceneTimes: ReadonlySet<number>,
+  ) {
+    setState({ ...state, lassoSelection: { clipinIds, clipoutIds, origAnchorIds, beatAnchorIds, sceneTimes } })
+  },
+  setModifierKeys(keys: { alt: boolean; shift: boolean }) {
+    const cur = state.modifierKeys
+    if (cur.alt === keys.alt && cur.shift === keys.shift) return
+    setState({ ...state, modifierKeys: keys })
+  },
   /** Clear every transient field at once. Called by the window pointer-up /
    *  blur listener and usable by any caller that knows a gesture is done. */
   clearAll() {
@@ -96,7 +145,7 @@ function subscribe(fn: () => void): () => void {
   return () => { listeners.delete(fn) }
 }
 
-function getSnapshot(): GestureState {
+export function getSnapshot(): GestureState {
   return state
 }
 

@@ -846,371 +846,7 @@
         "When paused, the widened window is not applied — the existing small dead-zone (~0.05s) keeps single-frame nudges stable."
       ]
     },
-    "region-creation::30fd066b": {
-      "feature": "Region Creation",
-      "scenario": "New region size is the larger of 10% of view or 5 seconds",
-      "isOutline": true,
-      "steps": [
-        "Given the current viewport span is <viewSpan> seconds",
-        "When a new region is created",
-        "Then the region span is <expectedSpan> seconds"
-      ],
-      "file": "spec/features/region-creation.feature",
-      "line": 3
-    },
-    "region-creation::089f7025": {
-      "feature": "Region Creation",
-      "scenario": "New region from the timeline is is aligned on the cursor position",
-      "isOutline": false,
-      "steps": [
-        "Given the current viewport span is 40 seconds",
-        "And the video duration is 120 seconds",
-        "When a new region is created at cursor position 60 seconds",
-        "Then the region spans from 60 to 65 seconds"
-      ],
-      "file": "spec/features/region-creation.feature",
-      "line": 15
-    },
-    "region-creation::622d79ba": {
-      "feature": "Region Creation",
-      "scenario": "New region from the region list is aligned on the playhead",
-      "isOutline": false,
-      "steps": [
-        "Given the current viewport span is 40 seconds",
-        "And the video duration is 120 seconds",
-        "When a new region is created at playhead position 60 seconds",
-        "Then the region spans from 60 to 65 seconds"
-      ],
-      "file": "spec/features/region-creation.feature",
-      "line": 21
-    },
-    "region-creation::beaf3038": {
-      "feature": "Region Creation",
-      "scenario": "Region is clamped to the start of the video",
-      "isOutline": false,
-      "steps": [
-        "Given the current viewport span is 40 seconds",
-        "And the video duration is 120 seconds",
-        "When a new region is created at cursor position -0.5 seconds",
-        "Then the region in-point is 0"
-      ],
-      "file": "spec/features/region-creation.feature",
-      "line": 27
-    },
-    "region-creation::220bf2e0": {
-      "feature": "Region Creation",
-      "scenario": "Region is clamped to the end of the video",
-      "isOutline": false,
-      "steps": [
-        "Given the current viewport span is 40 seconds",
-        "And the video duration is 120 seconds",
-        "When a new region is created at cursor position 119.5 seconds",
-        "Then the region out-point is 120"
-      ],
-      "file": "spec/features/region-creation.feature",
-      "line": 33
-    },
-    "region-creation::95af3b45": {
-      "feature": "Region Creation",
-      "scenario": "Region is selected when created",
-      "isOutline": false,
-      "steps": [
-        "Given Region A is selected",
-        "When Region B is created",
-        "Then Region B is selected",
-        "And the viewport has not changed"
-      ],
-      "file": "spec/features/region-creation.feature",
-      "line": 39
-    },
-    "region-creation::60eb8748": {
-      "feature": "Region Creation",
-      "scenario": "No scene markers at all — falls back to 5s / 10% rule",
-      "isOutline": false,
-      "steps": [
-        "Given the viewport is from 50 to 90 seconds",
-        "And the video duration is 120 seconds",
-        "And there are no scene markers",
-        "And there are no other regions",
-        "When a new region is created at cursor position 60 seconds",
-        "Then the region spans from 60 to 65 seconds"
-      ],
-      "file": "spec/features/region-creation.feature",
-      "line": 50
-    },
-    "region-creation::728bc8d1": {
-      "feature": "Region Creation",
-      "scenario": "Snaps between surrounding scene markers when both are in view",
-      "isOutline": false,
-      "steps": [
-        "Given the viewport is from 50 to 90 seconds",
-        "And the video duration is 120 seconds",
-        "And there is a scene marker at 55 seconds",
-        "And there is a scene marker at 70 seconds",
-        "And there are no other regions",
-        "When a new region is created at cursor position 60 seconds",
-        "Then the region spans from 55 to 70 seconds"
-      ],
-      "file": "spec/features/region-creation.feature",
-      "line": 58
-    },
-    "region-creation::3f2b3bed": {
-      "feature": "Region Creation",
-      "scenario": "No next scene marker in view — out-point stops at the viewport end",
-      "isOutline": false,
-      "steps": [
-        "Given the viewport is from 50 to 90 seconds",
-        "And the video duration is 120 seconds",
-        "And there is a scene marker at 55 seconds",
-        "And there are no other regions",
-        "When a new region is created at cursor position 60 seconds",
-        "Then the region spans from 55 to 90 seconds"
-      ],
-      "file": "spec/features/region-creation.feature",
-      "line": 67
-    },
-    "region-creation::a5661c96": {
-      "feature": "Region Creation",
-      "scenario": "No previous scene marker in view — in-point starts at the viewport start",
-      "isOutline": false,
-      "steps": [
-        "Given the viewport is from 50 to 90 seconds",
-        "And the video duration is 120 seconds",
-        "And there is a scene marker at 80 seconds",
-        "And there are no other regions",
-        "When a new region is created at cursor position 60 seconds",
-        "Then the region spans from 50 to 80 seconds"
-      ],
-      "file": "spec/features/region-creation.feature",
-      "line": 75
-    },
-    "region-creation::fe66bfde": {
-      "feature": "Region Creation",
-      "scenario": "No scene markers in view — region fills the viewport around the cursor",
-      "isOutline": false,
-      "steps": [
-        "Given the viewport is from 50 to 90 seconds",
-        "And the video duration is 120 seconds",
-        "And there is a scene marker at 10 seconds",
-        "And there is a scene marker at 110 seconds",
-        "And there are no other regions",
-        "When a new region is created at cursor position 60 seconds",
-        "Then the region spans from 50 to 90 seconds"
-      ],
-      "file": "spec/features/region-creation.feature",
-      "line": 83
-    },
-    "region-creation::dfeb811f": {
-      "feature": "Region Creation",
-      "scenario": "Previous region out-point takes precedence over an earlier scene marker",
-      "isOutline": false,
-      "steps": [
-        "Given the viewport is from 50 to 100 seconds",
-        "And the video duration is 120 seconds",
-        "And there is a scene marker at 55 seconds",
-        "And there is a region from 60 to 70 seconds",
-        "When a new region is created at cursor position 80 seconds",
-        "Then the region spans from 70 to 100 seconds"
-      ],
-      "file": "spec/features/region-creation.feature",
-      "line": 92
-    },
-    "region-creation::373255c3": {
-      "feature": "Region Creation",
-      "scenario": "Next region in-point takes precedence over a later scene marker",
-      "isOutline": false,
-      "steps": [
-        "Given the viewport is from 50 to 100 seconds",
-        "And the video duration is 120 seconds",
-        "And there is a scene marker at 95 seconds",
-        "And there is a region from 80 to 90 seconds",
-        "When a new region is created at cursor position 60 seconds",
-        "Then the region spans from 50 to 80 seconds"
-      ],
-      "file": "spec/features/region-creation.feature",
-      "line": 100
-    },
-    "region-creation::5d8f7863": {
-      "feature": "Region Creation",
-      "scenario": "Cursor inside an existing region — behaves as if the playhead is just past the region's out",
-      "isOutline": false,
-      "steps": [
-        "Given the viewport is from 50 to 100 seconds",
-        "And the video duration is 120 seconds",
-        "And there is a region from 60 to 70 seconds",
-        "And there is a scene marker at 80 seconds",
-        "When a new region is created at cursor position 65 seconds",
-        "Then the region spans from 70 to 80 seconds"
-      ],
-      "file": "spec/features/region-creation.feature",
-      "line": 108
-    },
-    "region-editing::5b468a4b": {
-      "feature": "Region Editing",
-      "scenario": "A regions start bounds can be undone",
-      "isOutline": false,
-      "steps": [
-        "Given A region with start 10 and end 20",
-        "When The regions start is changed to 15",
-        "And The change is undone",
-        "Then the regions start is 10"
-      ],
-      "file": "spec/features/region-editing.feature",
-      "line": 5,
-      "tests": [
-        "tests/bdd/regionEditing.test.ts"
-      ],
-      "hints": [
-        "dispatch updateRegionInOut, then undo, assert store state"
-      ]
-    },
-    "region-editing::9c0aa13b": {
-      "feature": "Region Editing",
-      "scenario": "A regions end bounds can be undone",
-      "isOutline": false,
-      "steps": [
-        "Given A region with start 10 and end 20",
-        "When The regions end is changed to 25",
-        "And The change is undone",
-        "Then the regions start is 10"
-      ],
-      "file": "spec/features/region-editing.feature",
-      "line": 13,
-      "tests": [
-        "tests/bdd/regionEditing.test.ts"
-      ],
-      "hints": [
-        "dispatch updateRegionInOut, then undo, assert store state"
-      ]
-    },
-    "region-editing::40ad3af0": {
-      "feature": "Region Editing",
-      "scenario": "A regions start bound being changed to after end moves region",
-      "isOutline": false,
-      "steps": [
-        "Given A region with start 10 and end 20",
-        "When The regions start is changed to 25",
-        "Then The regions moved to (25,35) so its length is unchanged"
-      ],
-      "file": "spec/features/region-editing.feature",
-      "line": 21,
-      "tests": [
-        "tests/bdd/regionEditing.test.ts"
-      ],
-      "hints": [
-        "dispatch updateRegionInOut with inPoint > outPoint, assert region shifts to preserve length"
-      ]
-    },
-    "region-editing::eec30ad5": {
-      "feature": "Region Editing",
-      "scenario": "Out point set for region before beginning point creates a new region",
-      "isOutline": false,
-      "steps": [
-        "Given a region with start 30 and end 40",
-        "When the Set Out Point Button is clicked when the playhead is at 20",
-        "Then a new region is created starting at 20. The region is 10% of the viewport, minimum 5 seconds, max up to the next region,"
-      ],
-      "file": "spec/features/region-editing.feature",
-      "line": 28,
-      "tests": [
-        "tests/bdd/regionEditing.test.ts"
-      ],
-      "hints": [
-        "dispatch updateRegionInOut with outPoint < inPoint, assert region shifts"
-      ]
-    },
-    "region-editing::fb4e23f1": {
-      "feature": "Region Editing",
-      "scenario": "In point set for region after end point creates a new region",
-      "isOutline": false,
-      "steps": [
-        "Given a region with start 10 and end 20",
-        "When the Set In Point Button is clicked when the playhead is at 30",
-        "Then a new region is created starting at 30. The region is 10% of the viewport, minimum 5 seconds, max up to the next region or end of video"
-      ],
-      "file": "spec/features/region-editing.feature",
-      "line": 35,
-      "tests": [
-        "tests/bdd/regionEditing.test.ts"
-      ],
-      "hints": [
-        "mirror of the out-before-in scenario; uses calcNewRegionBoundsUpToNext"
-      ]
-    },
-    "region-editing::c8493472": {
-      "feature": "Region Editing",
-      "scenario": "A region is prevented from being too small",
-      "isOutline": true,
-      "steps": [
-        "Given the current region spans from 10 to 20 seconds and min length 1",
-        "When the region is attempet to resize to <a> to <b>",
-        "Then the region span is now <c> to <d> seconds"
-      ],
-      "file": "spec/features/region-editing.feature",
-      "line": 42,
-      "tests": [
-        "tests/bdd/regionEditing.test.ts"
-      ],
-      "hints": [
-        "use Scenario Outline examples as test.each; dispatch updateRegionInOut, assert clamped result"
-      ]
-    },
-    "region-editing::35ddd908": {
-      "feature": "Region Editing",
-      "scenario": "A regions zoom action is called when double clicked",
-      "isOutline": false,
-      "steps": [
-        "Given A region",
-        "When the user double clicks the handle",
-        "Then The zoom action is called"
-      ],
-      "file": "spec/features/region-editing.feature",
-      "line": 56,
-      "tests": [
-        "tests/bdd/regionZoom.test.tsx"
-      ],
-      "hints": [
-        "render Timeline with clip overlay via tests/harnesses/timeline.tsx, fireEvent.doubleClick on .clip-overlay__bar, assert onClipOverlayZoom spy called with region id"
-      ]
-    },
-    "region-editing::7a5597d1": {
-      "feature": "Region Editing",
-      "scenario": "A region when zoom action is called fills up the time bar",
-      "isOutline": false,
-      "steps": [
-        "Given A region that is not perfectly fit to the timeline",
-        "When the user calls the zoom action into that region",
-        "Then the zoom and bounds are set so the region is 100% of the timeline"
-      ],
-      "file": "spec/features/region-editing.feature",
-      "line": 64,
-      "tests": [
-        "tests/bdd/regionZoom.test.tsx"
-      ],
-      "hints": [
-        "call calcZoomToRegion(currentView, regionIn, regionOut, null), assert nextView equals { start: regionIn, end: regionOut }"
-      ]
-    },
-    "region-editing::404dfafc": {
-      "feature": "Region Editing",
-      "scenario": "A region already zoomed when zoom action is called will zoom out",
-      "isOutline": false,
-      "steps": [
-        "Given A region had the zoom action called on",
-        "And zoom / pan is still centered on the region",
-        "When the user calls the zoom action again",
-        "Then the zoom and bounds are set to what it was when the user called the zoom action"
-      ],
-      "file": "spec/features/region-editing.feature",
-      "line": 72,
-      "tests": [
-        "tests/bdd/regionZoom.test.tsx"
-      ],
-      "hints": [
-        "call calcZoomToRegion with current view matching region (viewFitsRegion=true), pass savedView as restore param, assert nextView equals savedView and previousView is null"
-      ]
-    },
-    "region-editing::4dd632ec": {
+    "region-editing::2e73871c": {
       "feature": "Region Editing",
       "scenario": "Clicking a region moves the playhead to its start",
       "isOutline": true,
@@ -1222,7 +858,7 @@
         "And the playback state is unchanged"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 83,
+      "line": 8,
       "tests": [
         "tests/bdd/regionClickSeek.test.tsx"
       ],
@@ -1241,7 +877,7 @@
         "Then the playhead moves to 30 seconds"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 96,
+      "line": 20,
       "tests": [
         "tests/bdd/regionClickSeek.test.tsx"
       ],
@@ -1262,29 +898,12 @@
         "And committing the edit updates the clip's name"
       ],
       "file": "spec/features/region-editing.feature",
-      "line": 106,
+      "line": 30,
       "tests": [
         "tests/bdd/clipSidebarRename.test.tsx"
       ],
       "hints": [
         "ClipSidebar row needs an onContextMenu handler that opens the existing ContextMenu with a \"Rename\" item. Selecting it calls the same handleStartRename(region) path the double-click already uses."
-      ]
-    },
-    "ruler-layer::0b84503c": {
-      "feature": "Ruler Layer",
-      "scenario": "input ruler is scrubbed",
-      "isOutline": false,
-      "steps": [
-        "Given [a video is loaded]",
-        "When the mouse is dragged horizontally along the [input ruler]",
-        "Then the playhead scrubs along with the mouse movement",
-        "And the video frame updates to match the playhead position"
-      ],
-      "file": "spec/features/ruler-layer.feature",
-      "line": 3,
-      "defs": [
-        "a video is loaded",
-        "input ruler"
       ]
     },
     "thumbnail-scrolling::90ecf3d8": {
@@ -1414,6 +1033,2466 @@
         "scene strip"
       ]
     },
+    "clip-bounds::e94121f9": {
+      "feature": "Clip Bounds",
+      "scenario": "A new region is default-linked",
+      "isOutline": false,
+      "steps": [
+        "Given a region is freshly created from 10 to 20 seconds",
+        "Then inBeatTime equals inPoint (10) and outBeatTime equals outPoint (20)",
+        "And clipin and clipout render at the same horizontal positions",
+        "And the region is reported as default-linked"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 20
+    },
+    "clip-bounds::5097f090": {
+      "feature": "Clip Bounds",
+      "scenario": "Default-linked clipout renders at the clipin bounds",
+      "isOutline": false,
+      "steps": [
+        "Given a region exists in its default-linked state",
+        "And no anchor sits on either boundary",
+        "Then clipout's in-edge displays at inPoint",
+        "And clipout's out-edge displays at outPoint"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 26
+    },
+    "clip-bounds::9395ff6f": {
+      "feature": "Clip Bounds",
+      "scenario": "Region is diverged after any operation that breaks input/beat equality",
+      "isOutline": false,
+      "steps": [
+        "Given a region in its default-linked state",
+        "When inBeatTime is set to a value different from inPoint by any path",
+        "Then the region is reported as diverged",
+        "And clipin and clipout no longer share horizontal positions"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 32
+    },
+    "clip-bounds::5a8b1c35": {
+      "feature": "Clip Bounds",
+      "scenario": "A region's start bound can be undone",
+      "isOutline": false,
+      "steps": [
+        "Given a region with start 10 and end 20",
+        "When the region's start is changed to 15",
+        "And the change is undone",
+        "Then the region's start is 10"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 41,
+      "tests": [
+        "tests/bdd/timeline/clip-bounds.test.ts"
+      ]
+    },
+    "clip-bounds::71d71386": {
+      "feature": "Clip Bounds",
+      "scenario": "A region's end bound can be undone",
+      "isOutline": false,
+      "steps": [
+        "Given a region with start 10 and end 20",
+        "When the region's end is changed to 25",
+        "And the change is undone",
+        "Then the region's start is 10"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 47
+    },
+    "clip-bounds::81a824ce": {
+      "feature": "Clip Bounds",
+      "scenario": "Setting in-point past out-point shifts the region to preserve length",
+      "isOutline": false,
+      "steps": [
+        "Given a region with start 10 and end 20",
+        "When the region's start is changed to 25",
+        "Then the region moves to (25,35) so its length is unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 53
+    },
+    "clip-bounds::1e62c5a7": {
+      "feature": "Clip Bounds",
+      "scenario": "Set-Out-Point with playhead before in-point creates a new region",
+      "isOutline": false,
+      "steps": [
+        "Given a region with start 30 and end 40",
+        "When the Set Out Point Button is clicked when the playhead is at 20",
+        "Then a new region is created starting at 20."
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 58
+    },
+    "clip-bounds::a08c0625": {
+      "feature": "Clip Bounds",
+      "scenario": "Set-In-Point with playhead after out-point creates a new region",
+      "isOutline": false,
+      "steps": [
+        "Given a region with start 10 and end 20",
+        "When the Set In Point Button is clicked when the playhead is at 30",
+        "Then a new region is created starting at 30."
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 63
+    },
+    "clip-bounds::06c30b25": {
+      "feature": "Clip Bounds",
+      "scenario": "A region is prevented from being too small",
+      "isOutline": true,
+      "steps": [
+        "Given the current region spans from 10 to 20 seconds and min length 1",
+        "When the region is attempted to resize to <a> to <b>",
+        "Then the region span is now <c> to <d> seconds"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 68
+    },
+    "clip-bounds::8636d673": {
+      "feature": "Clip Bounds",
+      "scenario": "A region's zoom action is called when double-clicked",
+      "isOutline": false,
+      "steps": [
+        "Given a region",
+        "When the user double-clicks the handle",
+        "Then the zoom action is called"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 79
+    },
+    "clip-bounds::05c4aa04": {
+      "feature": "Clip Bounds",
+      "scenario": "Zoom-to-region fills the timeline",
+      "isOutline": false,
+      "steps": [
+        "Given a region that is not perfectly fit to the timeline",
+        "When the user calls the zoom action on that region",
+        "Then the zoom and bounds are set so the region is 100% of the timeline"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 84
+    },
+    "clip-bounds::dee40ba3": {
+      "feature": "Clip Bounds",
+      "scenario": "Zoom-to-region a second time restores the prior view",
+      "isOutline": false,
+      "steps": [
+        "Given a region that had the zoom action called on it",
+        "And zoom / pan is still centered on the region",
+        "When the user calls the zoom action again",
+        "Then the zoom and bounds are set to what they were before the first zoom"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 89
+    },
+    "clip-bounds::cace54c4": {
+      "feature": "Clip Bounds",
+      "scenario": "Dragging an anchor does not move the clip boundary",
+      "isOutline": false,
+      "steps": [
+        "Given a region exists from 10 to 20 seconds",
+        "And an anchor is placed at the region's in point",
+        "When the user drags the anchor to a new position",
+        "Then the region's in point remains at 10 seconds",
+        "And only the anchor moves"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 100
+    },
+    "clip-bounds::d53a858f": {
+      "feature": "Clip Bounds",
+      "scenario": "Dragging a clip in does not move anchors",
+      "isOutline": false,
+      "steps": [
+        "Given a region exists from 10 to 20 seconds",
+        "And an anchor in is placed at 15 seconds",
+        "When the user drags the clip in to a new position",
+        "Then the anchor in remains at 15 seconds",
+        "And only the clip boundaries move"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 107
+    },
+    "clip-bounds::2af351c2": {
+      "feature": "Clip Bounds",
+      "scenario": "Dragging a default-linked clip in also moves the clipout edges",
+      "isOutline": false,
+      "steps": [
+        "Given a region exists from 10 to 20 seconds",
+        "When the user drags the clip in to 15 - 25",
+        "Then clip out edges move as well, since they are linked"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 114
+    },
+    "clip-bounds::cc923ff9": {
+      "feature": "Clip Bounds",
+      "scenario": "In-edge is input-linked while their input times coincide",
+      "isOutline": false,
+      "steps": [
+        "Given a region exists with inPoint at 10 seconds",
+        "And an input anchor exists at input time 10 seconds",
+        "Then the region's in-edge is reported as input-linked to that anchor"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 137
+    },
+    "clip-bounds::c4dc46fe": {
+      "feature": "Clip Bounds",
+      "scenario": "Out-edge is input-linked symmetrically",
+      "isOutline": false,
+      "steps": [
+        "Given a region with outPoint at 20 seconds",
+        "And an input anchor at input time 20 seconds",
+        "Then the region's out-edge is reported as input-linked to that anchor"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 142
+    },
+    "clip-bounds::f6af8104": {
+      "feature": "Clip Bounds",
+      "scenario": "Input-link is broken the moment coincidence is lost",
+      "isOutline": false,
+      "steps": [
+        "Given a region's in-edge is input-linked to an input anchor",
+        "When the input anchor's input time changes such that it no longer equals inPoint",
+        "Then the in-edge is no longer input-linked",
+        "And inBeatTime keeps its last committed value (no auto-revert)"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 147
+    },
+    "clip-bounds::ab18be68": {
+      "feature": "Clip Bounds",
+      "scenario": "Any path to input-coincidence establishes the input-link",
+      "isOutline": false,
+      "steps": [
+        "Given a region exists with inPoint at 10 seconds",
+        "And no input anchor sits at 10 seconds yet",
+        "When an input anchor is created at 10 seconds by any path (drag, button, programmatic)",
+        "Then the region's in-edge becomes input-linked to that new anchor"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 153
+    },
+    "clip-bounds::0d279ada": {
+      "feature": "Clip Bounds",
+      "scenario": "When two input anchors share an input time, the earliest pair id wins",
+      "isOutline": false,
+      "steps": [
+        "Given two input anchors share input time 10 seconds with pair ids 3 and 7",
+        "And a region exists with inPoint at 10 seconds",
+        "Then the in-edge is reported as input-linked to the anchor with pair id 3"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 159
+    },
+    "clip-bounds::cedbf97a": {
+      "feature": "Clip Bounds",
+      "scenario": "In-edge is output-linked while a beat anchor's time equals inBeatTime",
+      "isOutline": false,
+      "steps": [
+        "Given a region exists with inBeatTime at 5 seconds",
+        "And a beat anchor exists at beat time 5 seconds",
+        "Then the region's in-edge is reported as output-linked to that beat anchor",
+        "And the clipout's in-edge displays at the beat anchor's beat time"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 166
+    },
+    "clip-bounds::cfd0b60b": {
+      "feature": "Clip Bounds",
+      "scenario": "Out-edge is output-linked symmetrically",
+      "isOutline": false,
+      "steps": [
+        "Given a region with outBeatTime at 20 seconds",
+        "And a beat anchor at beat time 20 seconds",
+        "Then the region's out-edge is reported as output-linked to that beat anchor"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 172
+    },
+    "clip-bounds::030eeecd": {
+      "feature": "Clip Bounds",
+      "scenario": "Output-link is broken the moment coincidence is lost",
+      "isOutline": false,
+      "steps": [
+        "Given a region's out-edge is output-linked to a beat anchor",
+        "When the beat anchor's beat time changes such that it no longer equals outBeatTime",
+        "Then the out-edge is no longer output-linked",
+        "And outBeatTime keeps its last committed value (no auto-revert)"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 177
+    },
+    "clip-bounds::fc32d974": {
+      "feature": "Clip Bounds",
+      "scenario": "Any path to output-coincidence establishes the output-link",
+      "isOutline": false,
+      "steps": [
+        "Given a region exists with outBeatTime at 20 seconds",
+        "And no beat anchor sits at beat time 20 yet",
+        "When a beat anchor is created at beat time 20 by any path (drag, programmatic)",
+        "Then the region's out-edge becomes output-linked to that new beat anchor"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 183
+    },
+    "clip-bounds::5fcca95f": {
+      "feature": "Clip Bounds",
+      "scenario": "When two beat anchors share a beat time, the earliest pair id wins",
+      "isOutline": false,
+      "steps": [
+        "Given two beat anchors share beat time 20 seconds with pair ids 3 and 7",
+        "And a region exists with outBeatTime at 20 seconds",
+        "Then the out-edge is reported as output-linked to the anchor with pair id 3"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 189
+    },
+    "clip-bounds::a7c3e530": {
+      "feature": "Clip Bounds",
+      "scenario": "An edge can be input-linked and output-linked simultaneously",
+      "isOutline": false,
+      "steps": [
+        "Given a region with inPoint 10 and inBeatTime 6",
+        "And an input anchor at input time 10 with paired beat anchor at beat time 6",
+        "Then the in-edge is reported as input-linked to the input anchor",
+        "And the in-edge is reported as output-linked to the paired beat anchor"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 194
+    },
+    "clip-bounds::de128f69": {
+      "feature": "Clip Bounds",
+      "scenario": "All linking effects are live during the drag, not yet committed",
+      "isOutline": false,
+      "steps": [
+        "Given a region with inPoint 10, outPoint 20, BPM 120, lock='bpm'",
+        "And an input anchor pair with input time 12 and beat time 6",
+        "When the user drags the input anchor toward the in-edge",
+        "And the anchor's input time momentarily reaches 10",
+        "Then the clipout's in-edge displays at beat time 6 (the paired beat anchor)",
+        "And the RegionInfoPanel shows the new lockedBeats live",
+        "And nothing has yet been committed to undoable state"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 212,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::129afddf": {
+      "feature": "Clip Bounds",
+      "scenario": "Linking event commits on pointerUp at coincidence",
+      "isOutline": false,
+      "steps": [
+        "Given a region with inPoint 10, outPoint 20, BPM 120, lock='bpm'",
+        "And an input anchor pair with input time 10 after the drag, beat time 6",
+        "When the user releases the anchor while still at input time 10",
+        "Then inBeatTime is set to 6",
+        "And lockedBeats is recomputed as clipoutLength × bpm / 60",
+        "And BPM is unchanged",
+        "And lock is unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 221
+    },
+    "clip-bounds::e2c70d37": {
+      "feature": "Clip Bounds",
+      "scenario": "No commit if coincidence is broken before pointerUp",
+      "isOutline": false,
+      "steps": [
+        "Given a region with inPoint at 10",
+        "And an input anchor passes through input time 10 during a drag",
+        "When the user releases the anchor at input time 12 (not coincident)",
+        "Then no commit fires",
+        "And inBeatTime, outBeatTime, BPM, lockedBeats all match pre-drag values"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 231,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::3e6ec881": {
+      "feature": "Clip Bounds",
+      "scenario": "Linking event ignores lock — beats always absorbs",
+      "isOutline": true,
+      "steps": [
+        "Given a region with lock=<lock>, BPM 120, lockedBeats 20",
+        "When the user drags an anchor onto the in-edge and releases at coincidence",
+        "And the resulting clipout length is 8 seconds",
+        "Then BPM stays at 120",
+        "And lockedBeats becomes 16",
+        "And lock stays at <lock>"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 238
+    },
+    "clip-bounds::2acee4ea": {
+      "feature": "Clip Bounds",
+      "scenario": "Symmetric for out-edge linking",
+      "isOutline": false,
+      "steps": [
+        "Given a region with inPoint 10, outPoint 20, BPM 120, lock='bpm'",
+        "And an input anchor pair at input time 20, beat time 18",
+        "When the user releases the anchor coincident with outPoint",
+        "Then outBeatTime is set to 18",
+        "And lockedBeats recomputes from the new clipout length",
+        "And BPM is unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 250
+    },
+    "clip-bounds::e12f10b0": {
+      "feature": "Clip Bounds",
+      "scenario": "Linking via Set-In-Point button when playhead is on an anchor",
+      "isOutline": false,
+      "steps": [
+        "Given an input anchor exists at input time 10 with paired beat time 6",
+        "And the playhead is at 10",
+        "And a region exists with inPoint 12 (currently unlinked)",
+        "When the user clicks Set In Point",
+        "Then inPoint becomes 10",
+        "And inBeatTime is set to 6",
+        "And lockedBeats recomputes",
+        "And BPM is unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 258
+    },
+    "clip-bounds::8d1af4ca": {
+      "feature": "Clip Bounds",
+      "scenario": "Linking via clip body drag onto an anchor",
+      "isOutline": false,
+      "steps": [
+        "Given a region with inPoint 12, outPoint 22, lock='beats', lockedBeats 20",
+        "And an input anchor pair at input time 10, beat time 6",
+        "When the user drags the clip body so inPoint lands on 10 and releases",
+        "Then inPoint is 10 and outPoint is 20",
+        "And inBeatTime is set to 6",
+        "And lockedBeats recomputes (BPM stays — even though lock='beats')"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 268
+    },
+    "clip-bounds::a6f4c36c": {
+      "feature": "Clip Bounds",
+      "scenario": "Output-side linking effects are live during the drag",
+      "isOutline": false,
+      "steps": [
+        "Given a region with inBeatTime 5, outBeatTime 20, BPM 120, lock='bpm'",
+        "And a beat anchor at beat time 8 (not currently coincident with either edge)",
+        "When the user drags the beat anchor toward the out-edge",
+        "And the anchor's beat time momentarily reaches 20",
+        "Then the clipout's out-edge displays at the beat anchor's live position",
+        "And the RegionInfoPanel shows the new lockedBeats live",
+        "And nothing has yet been committed to undoable state"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 282
+    },
+    "clip-bounds::b8e81d29": {
+      "feature": "Clip Bounds",
+      "scenario": "Output-side linking commits on pointerUp at coincidence",
+      "isOutline": false,
+      "steps": [
+        "Given a region with inBeatTime 5, outBeatTime 20, BPM 120, lock='bpm', lockedBeats 30",
+        "And a beat anchor whose beat time, after the drag, is 22",
+        "When the user releases the beat anchor while its beat time equals the clipout's out-edge (i.e. outBeatTime adopts 22)",
+        "Then outBeatTime is set to 22",
+        "And lockedBeats is recomputed as clipoutLength × bpm / 60 (17 × 120 / 60 = 34)",
+        "And BPM is unchanged",
+        "And lock is unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 291
+    },
+    "clip-bounds::ba5066a5": {
+      "feature": "Clip Bounds",
+      "scenario": "No output-side commit if coincidence is broken before pointerUp",
+      "isOutline": false,
+      "steps": [
+        "Given a region with outBeatTime at 20",
+        "And a beat anchor passes through beat time 20 during a drag",
+        "When the user releases the beat anchor at beat time 18 (not coincident with outBeatTime)",
+        "Then no commit fires",
+        "And outBeatTime, BPM, lockedBeats all match pre-drag values"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 300
+    },
+    "clip-bounds::9681d7b6": {
+      "feature": "Clip Bounds",
+      "scenario": "Output-side linking event ignores lock — beats always absorbs",
+      "isOutline": true,
+      "steps": [
+        "Given a region with lock=<lock>, BPM 120, lockedBeats 20, clipoutLength 10",
+        "When the user drags a beat anchor onto the out-edge and releases at coincidence",
+        "And the resulting clipout length is 8 seconds",
+        "Then BPM stays at 120",
+        "And lockedBeats becomes 16",
+        "And lock stays at <lock>"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 307
+    },
+    "clip-bounds::6aca21d6": {
+      "feature": "Clip Bounds",
+      "scenario": "Symmetric for in-edge output-linking",
+      "isOutline": false,
+      "steps": [
+        "Given a region with inBeatTime 5, outBeatTime 20, BPM 120, lock='bpm'",
+        "And a beat anchor whose beat time, after the drag, is 3",
+        "When the user releases the beat anchor coincident with the clipout's in-edge (inBeatTime adopts 3)",
+        "Then inBeatTime is set to 3",
+        "And lockedBeats recomputes from the new clipout length",
+        "And BPM is unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 319
+    },
+    "clip-bounds::048403db": {
+      "feature": "Clip Bounds",
+      "scenario": "Output-side linking via clipout edge drag onto a beat anchor",
+      "isOutline": false,
+      "steps": [
+        "Given a region with outBeatTime 20, BPM 120, lockedBeats 30",
+        "And a beat anchor exists at beat time 22 (not currently linked to any edge)",
+        "When the user drags the clipout out-edge until it coincides with the anchor at 22 and releases",
+        "Then outBeatTime is 22",
+        "And the out-edge is output-linked to that beat anchor",
+        "And lockedBeats recomputes (BPM stays — linking event always behaves like lock='bpm')"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 327
+    },
+    "clip-bounds::a1d78742": {
+      "feature": "Clip Bounds",
+      "scenario": "Output-side linking event commits via controller-driven beat-anchor drag",
+      "isOutline": false,
+      "steps": [
+        "Given a region with inBeatTime 5, outBeatTime 20, BPM 120, lock bpm, lockedBeats 30 and a beat anchor at beat time 18",
+        "When the user drags the beat anchor from beat time 18 to beat time 20 in the output track and releases",
+        "Then the region's outBeatTime is committed to 20",
+        "And lockedBeats recomputes to 30 from the new clipout length"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 335
+    },
+    "clip-bounds::f0e33aba": {
+      "feature": "Clip Bounds",
+      "scenario": "Linked beat-anchor drag is live before commit",
+      "isOutline": false,
+      "steps": [
+        "Given a region's in-edge is linked to an anchor pair",
+        "When the user drags the paired beat anchor in output space",
+        "Then the clipout's in-edge follows the beat anchor live",
+        "And the dependent value (BPM or lockedBeats, per lock) updates live",
+        "And nothing is committed until pointerUp"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 347
+    },
+    "clip-bounds::196667f4": {
+      "feature": "Clip Bounds",
+      "scenario": "Linked beat-anchor move respects lock='bpm'",
+      "isOutline": false,
+      "steps": [
+        "Given a region with BPM 120, lock='bpm', clipout length 10 seconds",
+        "And the in-edge is linked to a beat anchor at beat time 5",
+        "When the user drags the beat anchor to beat time 7 and releases",
+        "Then inBeatTime updates to 7",
+        "And clipout length is 8 seconds",
+        "And BPM stays at 120",
+        "And lockedBeats becomes 16"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 354
+    },
+    "clip-bounds::eedb788e": {
+      "feature": "Clip Bounds",
+      "scenario": "Linked beat-anchor move respects lock='beats'",
+      "isOutline": false,
+      "steps": [
+        "Given a region with BPM 120, lock='beats', lockedBeats 20, clipout length 10",
+        "And the in-edge is linked to a beat anchor at beat time 5",
+        "When the user drags the beat anchor to beat time 7 and releases",
+        "Then inBeatTime updates",
+        "And clipout length is 8 seconds",
+        "And lockedBeats stays at 20",
+        "And BPM becomes 150"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 363
+    },
+    "clip-bounds::7fd0d32d": {
+      "feature": "Clip Bounds",
+      "scenario": "Symmetric for out-edge linked-anchor move",
+      "isOutline": false,
+      "steps": [
+        "Given a region's out-edge is linked to a beat anchor",
+        "When the user drags the paired beat anchor and releases",
+        "Then outBeatTime tracks the new beat time",
+        "And the lock-dependent value (BPM or lockedBeats) updates"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 372
+    },
+    "clip-bounds::01e85177": {
+      "feature": "Clip Bounds",
+      "scenario": "Dragging the INPUT anchor while linked unlinks (no length change)",
+      "isOutline": false,
+      "steps": [
+        "Given a region's in-edge is linked to an input anchor",
+        "When the user drags the input anchor away from inPoint and releases",
+        "Then the in-edge is no longer linked",
+        "And inBeatTime is unchanged",
+        "And BPM and lockedBeats are unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 378
+    },
+    "clip-bounds::293237ae": {
+      "feature": "Clip Bounds",
+      "scenario": "Clipout in-edge drag is live before commit",
+      "isOutline": false,
+      "steps": [
+        "Given a region exists",
+        "When the user begins dragging the clipout's in-edge",
+        "Then inBeatTime updates live with the cursor",
+        "And the lock-dependent value updates live",
+        "And nothing is committed until pointerUp"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 390
+    },
+    "clip-bounds::4577f792": {
+      "feature": "Clip Bounds",
+      "scenario": "Clipout in-edge drag commits with lock-dependent derivation",
+      "isOutline": true,
+      "steps": [
+        "Given a region with BPM 120, lock=<lock>, lockedBeats 20, clipout length 10",
+        "When the user drags the clipout in-edge to make clipout length <newLen> and releases",
+        "Then BPM is <newBpm>",
+        "And lockedBeats is <newBeats>",
+        "And inPoint and outPoint are unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 397
+    },
+    "clip-bounds::509fff08": {
+      "feature": "Clip Bounds",
+      "scenario": "Clipout out-edge drag mirrors the in-edge drag",
+      "isOutline": false,
+      "steps": [
+        "Given a region with BPM 120, lock='bpm', clipout length 10",
+        "When the user drags the clipout out-edge to make clipout length 12 and releases",
+        "Then BPM stays at 120",
+        "And lockedBeats becomes 24",
+        "And outBeatTime updates (inBeatTime unchanged)",
+        "And inPoint and outPoint are unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 410
+    },
+    "clip-bounds::3f7f7100": {
+      "feature": "Clip Bounds",
+      "scenario": "Clipout edge drag breaks any prior link on that edge",
+      "isOutline": false,
+      "steps": [
+        "Given a region's in-edge is linked to an input anchor",
+        "When the user drags the clipout's in-edge by any nonzero amount",
+        "Then the in-edge is no longer linked (inBeatTime ≠ the anchor's beat time)"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 418
+    },
+    "clip-bounds::9577055c": {
+      "feature": "Clip Bounds",
+      "scenario": "Clipout edge drag snaps in output space only",
+      "isOutline": false,
+      "steps": [
+        "Given the user is dragging a clipout in-edge or out-edge",
+        "Then the edge snaps to beat anchors",
+        "And to other regions' clipout edges",
+        "And to the BPM grid (output space only)",
+        "And not to scene cuts (scenes live in input space)"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 424,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::6dcf0bb7": {
+      "feature": "Clip Bounds",
+      "scenario": "Clipout edge cannot resize below minimum length",
+      "isOutline": false,
+      "steps": [
+        "Given a region with clipout length 1 second",
+        "When the user drags an edge such that the resulting length would be less than 0.1 seconds",
+        "Then the moving edge stops at 0.1 seconds from the opposite edge"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 432,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::287497ff": {
+      "feature": "Clip Bounds",
+      "scenario": "Clipout edge cannot extend past output bounds",
+      "isOutline": false,
+      "steps": [
+        "Given a region near the start or end of the output timeline",
+        "When the user drags an edge past [0, OUTPUT_MAX]",
+        "Then the edge clamps to the boundary"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 438,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
+      "unresolvedRefs": [
+        "0 output max"
+      ]
+    },
+    "clip-bounds::b92723ee": {
+      "feature": "Clip Bounds",
+      "scenario": "Clipout body drag is live before commit",
+      "isOutline": false,
+      "steps": [
+        "Given a region exists",
+        "When the user begins dragging the clipout body",
+        "Then both inBeatTime and outBeatTime update live by the same delta",
+        "And clipoutLength, BPM, and lockedBeats all stay unchanged in the preview"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 447
+    },
+    "clip-bounds::06d6d8b1": {
+      "feature": "Clip Bounds",
+      "scenario": "Clipout body drag commits on pointerUp",
+      "isOutline": false,
+      "steps": [
+        "Given a region with inBeatTime 10, outBeatTime 30, BPM 120, lockedBeats 40",
+        "When the user drags the clipout body by +5 seconds and releases",
+        "Then inBeatTime is 15 and outBeatTime is 35",
+        "And clipoutLength stays at 20",
+        "And BPM stays at 120",
+        "And lockedBeats stays at 40",
+        "And inPoint and outPoint are unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 453
+    },
+    "clip-bounds::5884f009": {
+      "feature": "Clip Bounds",
+      "scenario": "Clipout body drag breaks any prior link on either edge",
+      "isOutline": false,
+      "steps": [
+        "Given a region's in-edge or out-edge is linked to an input anchor",
+        "When the user drags the clipout body by any nonzero amount",
+        "Then any linked-to-anchor state on either edge is cleared"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 462
+    },
+    "clip-bounds::46814eb5": {
+      "feature": "Clip Bounds",
+      "scenario": "Clipout body drag snaps symmetrically",
+      "isOutline": false,
+      "steps": [
+        "Given the user is translating the clipout body",
+        "Then the dominant edge (whichever has the closer snap target) wins the snap",
+        "And the other edge translates by the same delta"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 468,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::5d0fbf94": {
+      "feature": "Clip Bounds",
+      "scenario": "Clipout body drag cannot translate past output bounds",
+      "isOutline": false,
+      "steps": [
+        "Given a region near the start or end of the output timeline",
+        "When the user drags the body past [0, OUTPUT_MAX]",
+        "Then the body clamps so both edges remain inside the bounds"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 474,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
+      "unresolvedRefs": [
+        "0 output max"
+      ]
+    },
+    "clip-bounds::a200dc2d": {
+      "feature": "Clip Bounds",
+      "scenario": "BPM tick grid updates live while dragging a clip",
+      "isOutline": false,
+      "steps": [
+        "Given a region exists",
+        "When the user drags the clip in the clipin track",
+        "Then the BPM tick grid repositions in real time to reflect the new clip in point"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 482,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::77988e41": {
+      "feature": "Clip Bounds",
+      "scenario": "BPM tick grid updates live while dragging an anchor on the clip boundary",
+      "isOutline": false,
+      "steps": [
+        "Given a region exists",
+        "And an anchor sits exactly on the region's in point",
+        "When the user drags the anchor",
+        "Then the BPM tick grid repositions in real time to reflect the anchor's current beat position"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 488,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::55c7f113": {
+      "feature": "Clip Bounds",
+      "scenario": "Changing lock from 'bpm' to 'beats' snapshots the current beat count",
+      "isOutline": false,
+      "steps": [
+        "Given a region with BPM 120, clipout length 10, lock='bpm'",
+        "And lockedBeats is currently 20 (derived from current length)",
+        "When the user changes lock to 'beats'",
+        "Then lockedBeats becomes the snapshot of beats at the moment of switch (20)",
+        "And BPM, lockedBeats, and clipout length are otherwise unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 502
+    },
+    "clip-bounds::563261aa": {
+      "feature": "Clip Bounds",
+      "scenario": "Changing lock from 'beats' to 'bpm' keeps current BPM as the fixed quantity",
+      "isOutline": false,
+      "steps": [
+        "Given a region with lock='beats', lockedBeats 20, clipout length 10, BPM 120",
+        "When the user changes lock to 'bpm'",
+        "Then BPM stays at 120 (now the fixed quantity)",
+        "And lockedBeats and clipout length are unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 509
+    },
+    "clip-bounds::c44357be": {
+      "feature": "Clip Bounds",
+      "scenario": "Lock setting persists across operations until the user changes it",
+      "isOutline": false,
+      "steps": [
+        "Given a region with lock='beats'",
+        "When the user performs any clipout edit (resize, pan, or linked-anchor move)",
+        "Then lock remains 'beats' afterward"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 515
+    },
+    "clip-bounds::371413d9": {
+      "feature": "Clip Bounds",
+      "scenario": "Lock changing mid-drag rebases the live preview",
+      "isOutline": false,
+      "steps": [
+        "Given a clipout-resize drag is in progress with live preview visible",
+        "When the user toggles lock via UI mid-drag",
+        "Then the live preview rebases to the new lock setting immediately",
+        "And the eventual commit (pointerUp) uses the lock value at commit time"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 521,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::13c5b917": {
+      "feature": "Clip Bounds",
+      "scenario": "Direct BPM edit uses the grid model (length stays, lockedBeats absorbs)",
+      "isOutline": false,
+      "steps": [
+        "Given a region with BPM 120, lockedBeats 20, inBeatTime 0, outBeatTime 10",
+        "When applyBpmEdit is dispatched with newBpm 150 and stretch false",
+        "Then BPM becomes 150",
+        "And clipout length stays at 10",
+        "And lockedBeats becomes 25",
+        "And inPoint and outPoint stay unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 540
+    },
+    "clip-bounds::3a323e38": {
+      "feature": "Clip Bounds",
+      "scenario": "Stretch-mode BPM edit while DEFAULT-LINKED rescales clipin AND clipout together",
+      "isOutline": false,
+      "steps": [
+        "Given a default-linked region with inPoint 10, outPoint 20, BPM 120, lockedBeats 20",
+        "When the user enters BPM 150 while holding the stretch modifier (Alt)",
+        "Then BPM becomes 150",
+        "And clipout length rescales to 8",
+        "And the region stays default-linked (inPoint/outPoint follow to 10..18)",
+        "And inner beat anchors rescale proportionally around inBeatTime"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 549,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::6943a1c3": {
+      "feature": "Clip Bounds",
+      "scenario": "Stretch-mode BPM edit on a diverged region rescales only the clipout",
+      "isOutline": false,
+      "steps": [
+        "Given a diverged region with inPoint 10, outPoint 20, inBeatTime 5, outBeatTime 15, BPM 120, lockedBeats 20",
+        "When applyBpmEdit is dispatched with newBpm 150 and stretch true",
+        "Then BPM becomes 150",
+        "And outBeatTime rescales to 13.33 (clipout length goes from 10 to 8)",
+        "And inPoint stays at 10 and outPoint stays at 20",
+        "And inBeatTime stays at 5 and the region remains diverged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 557
+    },
+    "clip-bounds::4c0606b3": {
+      "feature": "Clip Bounds",
+      "scenario": "Stretch-mode beats edit on a diverged region rescales only the clipout",
+      "isOutline": false,
+      "steps": [
+        "Given a diverged region with inPoint 10, outPoint 20, inBeatTime 5, outBeatTime 15, BPM 120, lockedBeats 20",
+        "When applyBeatsEdit is dispatched with newLockedBeats 16 and stretch true",
+        "Then lockedBeats becomes 16",
+        "And clipout length rescales to 8 (60 x 16 / 120)",
+        "And BPM stays at 120",
+        "And inPoint stays at 10 and outPoint stays at 20",
+        "And inBeatTime stays at 5 and the region remains diverged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 565
+    },
+    "clip-bounds::e9c981c6": {
+      "feature": "Clip Bounds",
+      "scenario": "Direct beats edit uses the grid model (length stays, BPM absorbs)",
+      "isOutline": false,
+      "steps": [
+        "Given a region with BPM 120, lockedBeats 20, inBeatTime 0, outBeatTime 10",
+        "When applyBeatsEdit is dispatched with newLockedBeats 10 and stretch false",
+        "Then lockedBeats becomes 10",
+        "And BPM becomes 60",
+        "And clipout length stays at 10",
+        "And inPoint and outPoint stay unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 574
+    },
+    "clip-bounds::d3fdfab8": {
+      "feature": "Clip Bounds",
+      "scenario": "Stretch-mode beats edit follows the same linked/diverged rule",
+      "isOutline": false,
+      "steps": [
+        "Given a default-linked region with inPoint 10, outPoint 20, BPM 120, lockedBeats 20",
+        "When the user enters new lockedBeats 16 while holding the stretch modifier (Alt)",
+        "Then lockedBeats becomes 16",
+        "And clipout length rescales to 8 (60 × 16 / 120)",
+        "And the region stays default-linked (inPoint/outPoint follow to 10..18)",
+        "And BPM stays at 120"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 583,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::9256fe98": {
+      "feature": "Clip Bounds",
+      "scenario": "Stretch-mode rescale only considers the ACTIVE region's anchors",
+      "isOutline": false,
+      "steps": [
+        "Given the active region overlaps another region in beat space",
+        "And a beat anchor falls inside both regions' clipout windows",
+        "When the user performs a stretch-modifier BPM edit on the active region",
+        "Then the shared anchor is rescaled as part of the active region's clipout"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 592,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::fefe71d6": {
+      "feature": "Clip Bounds",
+      "scenario": "lock × stretch-modifier matrix on BPM edit (diverged region)",
+      "isOutline": true,
+      "steps": [
+        "Given a diverged region with BPM 120, lockedBeats 20, clipout length 10, lock=<lock>",
+        "When the user enters BPM 150 with modifier=<mod>",
+        "Then clipout length becomes <newLen>",
+        "And lockedBeats becomes <newBeats>",
+        "And inner anchors rescale only when <anchorRescale>",
+        "And clipin (inPoint/outPoint) stays unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 599,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::5a38d8ad": {
+      "feature": "Clip Bounds",
+      "scenario": "Input-anchor drag away from boundary unlinks without changing inBeatTime",
+      "isOutline": false,
+      "steps": [
+        "Given a region's in-edge is linked to an input anchor",
+        "When the user drags the input anchor away from inPoint and releases",
+        "Then the in-edge is no longer linked",
+        "And inBeatTime keeps its last committed value",
+        "And BPM and lockedBeats are unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 617
+    },
+    "clip-bounds::345274d2": {
+      "feature": "Clip Bounds",
+      "scenario": "Clip body or edge drag away from anchor unlinks without changing inBeatTime",
+      "isOutline": false,
+      "steps": [
+        "Given a region's in-edge is linked to an input anchor",
+        "When the user drags the clipin body or in-edge so inPoint no longer matches the anchor",
+        "Then the in-edge is no longer linked",
+        "And inBeatTime keeps its last committed value"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 624
+    },
+    "clip-bounds::5e32172b": {
+      "feature": "Clip Bounds",
+      "scenario": "Anchor deletion unlinks but leaves clipout diverged",
+      "isOutline": false,
+      "steps": [
+        "Given a region's in-edge is linked to an input anchor",
+        "When the user deletes the input anchor (or its paired beat anchor)",
+        "Then the in-edge is no longer linked",
+        "And inBeatTime keeps its last committed value",
+        "And no auto-revert to inPoint occurs"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 630
+    },
+    "clip-bounds::34c0c63f": {
+      "feature": "Clip Bounds",
+      "scenario": "Re-linking is a fresh linking event",
+      "isOutline": false,
+      "steps": [
+        "Given a region whose in-edge was previously linked then unlinked, inBeatTime now diverged",
+        "When a different input anchor's input time later coincides with inPoint",
+        "And the user commits the gesture (pointerUp at coincidence)",
+        "Then inBeatTime is redefined from the new anchor's paired beat time",
+        "And lockedBeats recomputes",
+        "And BPM is unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 637
+    },
+    "clip-bounds::a613bbbd": {
+      "feature": "Clip Bounds",
+      "scenario": "Anchor-lock toolbar button toggles the global setting",
+      "isOutline": false,
+      "steps": [
+        "Given the canvas toolbar anchor-lock button shows state.ui.anchorLock=false",
+        "When the user clicks the anchor-lock button",
+        "Then state.ui.anchorLock becomes true",
+        "And the button shows the active / on state",
+        "When the user clicks the button again",
+        "Then state.ui.anchorLock becomes false"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 665,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::0454d8b5": {
+      "feature": "Clip Bounds",
+      "scenario": "Alt-held preview inverts the anchor-lock button display",
+      "isOutline": false,
+      "steps": [
+        "Given state.ui.anchorLock is false",
+        "When the user holds Alt",
+        "Then the anchor-lock toolbar button visually displays its inverted (ON) state",
+        "And state.ui.anchorLock is still false (no persistent change)",
+        "When the user releases Alt",
+        "Then the button returns to its normal (OFF) display"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 674,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::bc41ff96": {
+      "feature": "Clip Bounds",
+      "scenario": "Alt-held preview works the other way when global lock is ON",
+      "isOutline": false,
+      "steps": [
+        "Given state.ui.anchorLock is true",
+        "When the user holds Alt",
+        "Then the anchor-lock toolbar button visually displays its inverted (OFF) state",
+        "And state.ui.anchorLock is still true (no persistent change)"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 683,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::dabcfefb": {
+      "feature": "Clip Bounds",
+      "scenario": "Holding Alt during resize inverts anchor-lock for that gesture only",
+      "isOutline": false,
+      "steps": [
+        "Given state.ui.anchorLock is false",
+        "And the user begins a clipout resize gesture",
+        "When the user holds Alt during the drag",
+        "Then the gesture behaves as if anchorLock were true for this gesture only",
+        "And state.ui.anchorLock stays at false after pointerUp"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 689
+    },
+    "clip-bounds::3a3a8ceb": {
+      "feature": "Clip Bounds",
+      "scenario": "Holding Alt during clipout body-pan inverts anchor-lock for that gesture only",
+      "isOutline": false,
+      "steps": [
+        "Given state.ui.anchorLock is false",
+        "And the user begins a clipout body-pan gesture",
+        "When the user holds Alt during the drag",
+        "Then beat anchors inside the clipout window translate with the body for this gesture only",
+        "And state.ui.anchorLock stays at false after pointerUp"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 696
+    },
+    "clip-bounds::72d82c96": {
+      "feature": "Clip Bounds",
+      "scenario": "Resize with anchor-lock ON and lock='beats' rescales anchors proportionally",
+      "isOutline": false,
+      "steps": [
+        "Given state.ui.anchorLock is true",
+        "And a region with lock='beats', BPM 120, lockedBeats 20, clipout length 10",
+        "And beat anchors at beat times 12 and 16 (inside clipout window 10..20)",
+        "When the user drags the clipout out-edge to make clipout length 8 and releases",
+        "Then BPM becomes 150 (length × bpm / 60 = lockedBeats → bpm = 60 × 20 / 8)",
+        "And lockedBeats stays at 20",
+        "And the beat anchors rescale proportionally around inBeatTime (12 → 11.6, 16 → 14.8)"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 703
+    },
+    "clip-bounds::7cef4a91": {
+      "feature": "Clip Bounds",
+      "scenario": "Resize with anchor-lock OFF and lock='beats' keeps anchors in place",
+      "isOutline": false,
+      "steps": [
+        "Given state.ui.anchorLock is false",
+        "And a region with lock='beats', BPM 120, lockedBeats 20, clipout length 10",
+        "And beat anchors at beat times 12 and 16 (inside clipout window 10..20)",
+        "When the user drags the clipout out-edge to make clipout length 8 and releases",
+        "Then BPM becomes 150",
+        "And lockedBeats stays at 20",
+        "And the beat anchors stay at beat times 12 and 16 (unchanged)"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 712
+    },
+    "clip-bounds::17ce6ab7": {
+      "feature": "Clip Bounds",
+      "scenario": "Resize with anchor-lock ON and lock='bpm' is unchanged (anchors stay either way)",
+      "isOutline": false,
+      "steps": [
+        "Given state.ui.anchorLock is true",
+        "And a region with lock='bpm', BPM 120, lockedBeats 20, clipout length 10",
+        "And beat anchors at beat times 12 and 16",
+        "When the user drags the clipout out-edge to make clipout length 8 and releases",
+        "Then BPM stays at 120",
+        "And lockedBeats becomes 16",
+        "And the beat anchors stay at beat times 12 and 16"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 721
+    },
+    "clip-bounds::13a9236b": {
+      "feature": "Clip Bounds",
+      "scenario": "Clipout body-pan with anchor-lock ON carries all inner anchors",
+      "isOutline": false,
+      "steps": [
+        "Given state.ui.anchorLock is true",
+        "And a region with inBeatTime 10, outBeatTime 30",
+        "And beat anchors at beat times 12, 18, and 25 (all inside the clipout window)",
+        "When the user drags the clipout body by +5 seconds and releases",
+        "Then inBeatTime is 15 and outBeatTime is 35",
+        "And the beat anchors are now at beat times 17, 23, and 30 (moved by +5)",
+        "And anchors outside the original clipout window are unchanged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 730
+    },
+    "clip-bounds::453661d7": {
+      "feature": "Clip Bounds",
+      "scenario": "Clipout body-pan with anchor-lock OFF does not move anchors (default)",
+      "isOutline": false,
+      "steps": [
+        "Given state.ui.anchorLock is false",
+        "And a region with inBeatTime 10, outBeatTime 30",
+        "And beat anchors at beat times 12, 18, and 25",
+        "When the user drags the clipout body by +5 seconds and releases",
+        "Then inBeatTime is 15 and outBeatTime is 35",
+        "And the beat anchors stay at 12, 18, and 25"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 739
+    },
+    "clip-bounds::a24479ad": {
+      "feature": "Clip Bounds",
+      "scenario": "Anchor-lock affects only the active region's anchors",
+      "isOutline": false,
+      "steps": [
+        "Given state.ui.anchorLock is true",
+        "And the active region overlaps another region in beat space",
+        "And a beat anchor falls inside both regions' clipout windows",
+        "When the user pans the active region's clipout body",
+        "Then the shared anchor moves with the active region"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 748,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::abb7525e": {
+      "feature": "Clip Bounds",
+      "scenario": "Cancel during any conform / clipout gesture discards the preview",
+      "isOutline": true,
+      "steps": [
+        "Given a <gesture> is in progress with live preview visible",
+        "When <cancel>",
+        "Then all preview values revert to pre-gesture state",
+        "And no commit enters the undo stack"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 760
+    },
+    "clip-bounds::4b3a2daa": {
+      "feature": "Clip Bounds",
+      "scenario": "Reset Boundary button clears inBeatTime and outBeatTime",
+      "isOutline": false,
+      "steps": [
+        "Given a region with inPoint 10, outPoint 20, inBeatTime 5, outBeatTime 18 (diverged)",
+        "When the user clicks the Reset Boundary button",
+        "Then inBeatTime becomes undefined",
+        "And outBeatTime becomes undefined",
+        "And the region is reported as default-linked",
+        "And clipin and clipout render at the same horizontal positions"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 780,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::6b478351": {
+      "feature": "Clip Bounds",
+      "scenario": "Reset Boundary is disabled when the region is already default-linked",
+      "isOutline": false,
+      "steps": [
+        "Given a region in its default-linked state (inBeatTime and outBeatTime are undefined)",
+        "Then the Reset Boundary button is disabled (not clickable)"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 789,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::5e052548": {
+      "feature": "Clip Bounds",
+      "scenario": "Reset Boundary is undoable",
+      "isOutline": false,
+      "steps": [
+        "Given a region with inBeatTime 5, outBeatTime 18 (diverged)",
+        "When the user clicks the Reset Boundary button",
+        "And the change is undone",
+        "Then inBeatTime is 5 and outBeatTime is 18 again",
+        "And the region is reported as diverged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 794,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::eca9042f": {
+      "feature": "Clip Bounds",
+      "scenario": "PointerDown on a region body sets it as the active region",
+      "isOutline": false,
+      "steps": [
+        "Given region A is the active region",
+        "And region B is not the active region",
+        "When the user presses the pointer on region B's body",
+        "Then region B becomes the active region immediately (before any movement)",
+        "And no drag has yet committed"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 808,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::e6ee79e9": {
+      "feature": "Clip Bounds",
+      "scenario": "PointerDown on a region edge sets it as the active region",
+      "isOutline": false,
+      "steps": [
+        "Given region A is the active region",
+        "And region B is not the active region",
+        "When the user presses the pointer on region B's in-edge or out-edge",
+        "Then region B becomes the active region immediately"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 816,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::6546b492": {
+      "feature": "Clip Bounds",
+      "scenario": "Active region's edge wins coincident boundary hit",
+      "isOutline": false,
+      "steps": [
+        "Given region A (active) and region B share an x-position boundary",
+        "And region A's out-edge and region B's in-edge are at the same screen coordinate",
+        "When the user presses the pointer at that x-position",
+        "Then the hit is resolved to region A's out-edge",
+        "And region B's in-edge is not dragged"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 823,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::97d60eb3": {
+      "feature": "Clip Bounds",
+      "scenario": "Non-active region's edge wins when the active region has no edge there",
+      "isOutline": false,
+      "steps": [
+        "Given region A (active) has no edge near x-position P",
+        "And region B (non-active) has an edge at x-position P",
+        "When the user presses the pointer at x-position P",
+        "Then the hit is resolved to region B's edge"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 831,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::b1e369e3": {
+      "feature": "Clip Bounds",
+      "scenario": "Conform is visual-only — inBeatTime not written during display",
+      "isOutline": false,
+      "steps": [
+        "Given a default-linked region with inPoint 10",
+        "And an input anchor pair at inputTime 10, beatTime 6",
+        "Then the clipout's in-edge displays at beat time 6 (conformed visual)",
+        "And inBeatTime is still undefined (region is still default-linked)",
+        "And the undo stack has no new entry"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 846,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::363ea605": {
+      "feature": "Clip Bounds",
+      "scenario": "Conformed-marker carry — interacting with the clipout commits and carries the anchor",
+      "isOutline": false,
+      "steps": [
+        "Given a default-linked region with inPoint 10",
+        "And an input anchor pair at inputTime 10 (conformed at in-edge), beatTime 6",
+        "When the user drags the clipout out-edge (any interaction with the clipout)",
+        "Then inBeatTime is committed to 6 (the conformed value) at drag start",
+        "And the paired beat anchor at beatTime 6 moves with the clipout out-edge during the drag",
+        "And the commit enters the undo stack at pointerUp"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 854,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::a4c52201": {
+      "feature": "Clip Bounds",
+      "scenario": "Conformed-marker carry is symmetric for the out-edge",
+      "isOutline": false,
+      "steps": [
+        "Given a default-linked region with outPoint 20",
+        "And an input anchor pair at inputTime 20 (conformed at out-edge), beatTime 18",
+        "When the user drags the clipout body (any interaction with the clipout)",
+        "Then outBeatTime is committed to 18 at drag start",
+        "And the paired beat anchor at beatTime 18 carries with the clipout body translation"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 863,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::c1bdcca2": {
+      "feature": "Clip Bounds",
+      "scenario": "Clipout edge drag with lock='beats' excludes BPM grid and beat anchors from snaps",
+      "isOutline": false,
+      "steps": [
+        "Given a region with lock='beats' and a clipout out-edge being dragged",
+        "And a BPM grid line and a beat anchor are nearby",
+        "Then neither the BPM grid line nor the beat anchor appears as a snap target",
+        "And other regions' clipout edges still appear as snap targets"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 878,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::9cb52b80": {
+      "feature": "Clip Bounds",
+      "scenario": "Clipout edge drag with lock='beats' adds self-region clipin bounds as snap targets",
+      "isOutline": false,
+      "steps": [
+        "Given a region with lock='beats', inPoint 10, outPoint 20",
+        "And the clipout out-edge is being dragged in beat space",
+        "Then the region's own clipin projected bounds (10 and 20, in beat-space coords) are offered as snap targets"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 885,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::ca51e732": {
+      "feature": "Clip Bounds",
+      "scenario": "Set-In-Point with playhead inside the region moves the in-point",
+      "isOutline": false,
+      "steps": [
+        "Given a region with start 10 and end 30",
+        "And the playhead is at 20 (inside the region)",
+        "When the Set In Point Button is clicked",
+        "Then the region's start moves to 20",
+        "And the region now spans 20 to 30",
+        "And no new region is created"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 898,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "clip-bounds::9e6bea9e": {
+      "feature": "Clip Bounds",
+      "scenario": "Set-Out-Point with playhead inside the region moves the out-point",
+      "isOutline": false,
+      "steps": [
+        "Given a region with start 10 and end 30",
+        "And the playhead is at 20 (inside the region)",
+        "When the Set Out Point Button is clicked",
+        "Then the region's end moves to 20",
+        "And the region now spans 10 to 20",
+        "And no new region is created"
+      ],
+      "file": "spec/features/timeline/clip-bounds.feature",
+      "line": 907,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
+    },
+    "timeline-drag-gestures::448918af": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Lasso arms on pointerdown in an empty area",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "When the user presses the mouse in an empty area of the timeline",
+        "Then the controller arms a lasso gesture but does not yet activate it"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 5,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-drag-gestures::3c7c10b4": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Lasso activates after 4 pixels of movement",
+      "isOutline": false,
+      "steps": [
+        "Given a lasso gesture is armed",
+        "When the pointer moves more than 4 pixels from the start position",
+        "Then the lasso activates and begins updating selection"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 10
+    },
+    "timeline-drag-gestures::5433c758": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Lasso released before threshold becomes a click",
+      "isOutline": false,
+      "steps": [
+        "Given a lasso gesture is armed but never crossed the 4 pixel threshold",
+        "When the user releases the pointer with no modifier keys held",
+        "Then a regular click is dispatched at that position"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 15
+    },
+    "timeline-drag-gestures::dd37817c": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Lasso released before threshold with Ctrl held only seeks",
+      "isOutline": false,
+      "steps": [
+        "Given a lasso gesture is armed with Ctrl held but never crossed the threshold",
+        "When the user releases the pointer",
+        "Then the playhead seeks to the click position",
+        "And selections are not cleared"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 20
+    },
+    "timeline-drag-gestures::501530e5": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Lasso vertical coverage decides which selection sets update",
+      "isOutline": false,
+      "steps": [
+        "Given a lasso gesture is active",
+        "When the lasso vertically covers a markerin or markerout row",
+        "Then anchor selection updates",
+        "When the lasso vertically covers a clipin or clipout row",
+        "Then clip selection updates",
+        "When the lasso vertically covers the scenes row",
+        "Then scene selection updates"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 26
+    },
+    "timeline-drag-gestures::6925abd7": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Ctrl-held at lasso start makes the lasso additive",
+      "isOutline": false,
+      "steps": [
+        "Given an existing selection",
+        "When the user starts a lasso with Ctrl or Cmd held",
+        "Then the lasso adds to the existing selection rather than replacing it"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 35
+    },
+    "timeline-drag-gestures::2239b39c": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Anchor drag input-space snaps to scenes and clip boundaries",
+      "isOutline": false,
+      "steps": [
+        "Given an anchor exists on the input track",
+        "When the user drags the anchor close to a scene cut or clip edge",
+        "Then the anchor snaps to that target",
+        "And no BPM grid snapping applies in input space"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 40
+    },
+    "timeline-drag-gestures::2108b313": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Anchor drag output-space snaps to BPM grid clamped to smallest visible tick",
+      "isOutline": false,
+      "steps": [
+        "Given an anchor exists on the output track",
+        "And a snap interval is configured",
+        "When the user drags the anchor",
+        "Then the anchor snaps to the BPM grid",
+        "And the effective grid spacing is never finer than the smallest visible tick"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 46
+    },
+    "timeline-drag-gestures::70edb5c8": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Snap hint candidates published during anchor drag input",
+      "isOutline": false,
+      "steps": [
+        "Given the user is dragging an anchor in input space",
+        "Then up to 2 snap candidates on each side of the cursor are published",
+        "And the timeline highlights them as preview hints"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 53
+    },
+    "timeline-drag-gestures::111315b8": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Only the active snap hint publishes during anchor drag output",
+      "isOutline": false,
+      "steps": [
+        "Given the user is dragging an anchor in output space",
+        "Then only the currently snapping target is published as a hint"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 58
+    },
+    "timeline-drag-gestures::c4b917fc": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Region edge drag snaps to anchors, scenes, other regions, and grid (output only)",
+      "isOutline": false,
+      "steps": [
+        "Given a region exists",
+        "When the user drags one edge of the region",
+        "Then the edge snaps to anchors in the matching space",
+        "And scenes only when in input space",
+        "And other regions' edges in either space",
+        "And the BPM grid only in output space"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 62
+    },
+    "timeline-drag-gestures::9c6436b3": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Region-move publishes drag time for whichever edge wins the snap",
+      "isOutline": false,
+      "steps": [
+        "Given a region is being moved",
+        "When one of its edges wins a snap",
+        "Then the published drag time corresponds to that edge"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 70
+    },
+    "timeline-drag-gestures::c0e67928": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Region edge clamp — minimum 0.1 second span",
+      "isOutline": false,
+      "steps": [
+        "Given a region is being resized",
+        "When the resize would shrink the region below 0.1 seconds",
+        "Then the edge stops at 0.1 seconds from the opposite edge"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 75
+    },
+    "timeline-drag-gestures::b2112391": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Region edge clamp — region stays inside [0, MAX]",
+      "isOutline": false,
+      "steps": [
+        "Given a region is being resized",
+        "When the resize would push an edge outside [0, MAX]",
+        "Then the edge stops at the boundary"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 80,
+      "unresolvedRefs": [
+        "0 max"
+      ]
+    },
+    "timeline-drag-gestures::33bf6d9a": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Follow-drag mode also seeks the playhead while dragging an anchor",
+      "isOutline": false,
+      "steps": [
+        "Given Follow-drag is enabled",
+        "When the user drags an anchor",
+        "Then the playhead also seeks to the anchor's current time"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 85
+    },
+    "timeline-drag-gestures::f619c166": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Scrub during ruler drag publishes scrubTime",
+      "isOutline": false,
+      "steps": [
+        "Given the user is dragging on the ruler",
+        "Then the controller publishes scrubTime continuously",
+        "And consumers (timecode, thin minimap) see the live time"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 90
+    },
+    "timeline-drag-gestures::6e50c146": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "pointercancel during drag resets state without committing",
+      "isOutline": false,
+      "steps": [
+        "Given a drag is in progress",
+        "When the OS sends pointercancel",
+        "Then the drag state resets",
+        "And no commit intent fires"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 95
+    },
+    "timeline-drag-gestures::4cee7a1b": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Window blur during drag resets state without committing",
+      "isOutline": false,
+      "steps": [
+        "Given a drag is in progress",
+        "When the window loses focus",
+        "Then the drag state resets",
+        "And no commit intent fires"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 101
+    },
+    "timeline-drag-gestures::e18e9f1c": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Escape key during drag resets state without committing",
+      "isOutline": false,
+      "steps": [
+        "Given a drag is in progress",
+        "When the user presses Escape",
+        "Then the drag state resets",
+        "And no commit intent fires"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 107
+    },
+    "timeline-drag-gestures::3b86b97b": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Cursor changes by hit kind",
+      "isOutline": true,
+      "steps": [
+        "Given the user hovers over <hit>",
+        "Then the cursor becomes <cursor>"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 113
+    },
+    "timeline-drag-gestures::da5f137b": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Cursor becomes grabbing while dragging an anchor or region",
+      "isOutline": false,
+      "steps": [
+        "Given the user is dragging an anchor or region body",
+        "Then the cursor is grabbing for the duration of the drag"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 123
+    },
+    "timeline-drag-gestures::6d164af1": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Right-click dispatches by hit kind",
+      "isOutline": true,
+      "steps": [
+        "Given the user right-clicks <hit>",
+        "Then the controller emits <intent>"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 127
+    },
+    "timeline-drag-gestures::2b20f5d4": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Double-click dispatches by hit kind",
+      "isOutline": true,
+      "steps": [
+        "Given the user double-clicks <hit>",
+        "Then the controller emits <intent>"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 138
+    },
+    "timeline-drag-gestures::4093b3c8": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Double-click on an empty track creates the right object",
+      "isOutline": true,
+      "steps": [
+        "Given the user double-clicks on an empty area of <row>",
+        "Then the controller emits <intent>"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 147
+    },
+    "timeline-drag-gestures::ddc30029": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Delete or Backspace fires timelineDelete",
+      "isOutline": false,
+      "steps": [
+        "When the user presses Delete or Backspace with the timeline focused",
+        "Then the controller emits timelineDelete"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 156
+    },
+    "timeline-drag-gestures::0f10a583": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Cmd/Ctrl+D fires timelineDeselect",
+      "isOutline": false,
+      "steps": [
+        "When the user presses Cmd/Ctrl + D with the timeline focused",
+        "Then the controller emits timelineDeselect"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 160
+    },
+    "timeline-drag-gestures::53cf1201": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Hovering a scene drives the scene-thumbnail popup",
+      "isOutline": false,
+      "steps": [
+        "Given a scene marker exists",
+        "When the user hovers over the diamond",
+        "Then the global scene-thumbnail popup positions itself at the diamond",
+        "When the user hovers off the diamond",
+        "Then the popup hides"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 164
+    },
+    "timeline-drag-gestures::62c91fe9": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Multiple selected objects drag together",
+      "isOutline": false,
+      "steps": [
+        "Given several timeline objects of the same kind are selected",
+        "When the user drags any one of the selected objects",
+        "Then every selected object moves by the same time delta",
+        "And the relative spacing between them is preserved"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 173
+    },
+    "timeline-drag-gestures::099ca0bf": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Mixed-type multi-select drags coherently",
+      "isOutline": false,
+      "steps": [
+        "Given an anchor and a clip and a scene marker are all selected",
+        "When the user drags any one of the selected objects",
+        "Then all three move together by the same time delta",
+        "And each stays in its own track"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 179
+    },
+    "timeline-drag-gestures::91e904af": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Dragging an input anchor moves only the input anchor",
+      "isOutline": false,
+      "steps": [
+        "Given an input anchor and an output beat anchor share the same pair id",
+        "When the user drags the input anchor",
+        "Then only the input anchor moves",
+        "And the beat partner's time is unchanged"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 185
+    },
+    "timeline-drag-gestures::bae8dfa5": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Dragging an output anchor moves only the output anchor",
+      "isOutline": false,
+      "steps": [
+        "Given an input anchor and an output beat anchor share the same pair id",
+        "When the user drags the output anchor in beat space",
+        "Then only the beat anchor moves",
+        "And the input partner's time is unchanged"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 191
+    },
+    "timeline-drag-gestures::5b10c89d": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Dragging a warp line moves both paired anchors by the same delta",
+      "isOutline": false,
+      "steps": [
+        "Given an input anchor and an output beat anchor share the same pair id",
+        "When the user drags the warp line connecting that pair",
+        "Then both the input anchor and the beat anchor move by the same delta",
+        "And no other anchors are affected"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 197
+    },
+    "timeline-drag-gestures::fdb77587": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Dragging a warp line for a pair without a partner does nothing",
+      "isOutline": false,
+      "steps": [
+        "Given an input anchor with no beat-space partner of the same id",
+        "When the user attempts to drag the warp line at that anchor",
+        "Then no anchor moves",
+        "And no commit intent fires"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 203
+    },
+    "timeline-drag-gestures::b6d9f795": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Dragging a clip with linked in/out moves both bounds together",
+      "isOutline": false,
+      "steps": [
+        "Given a region whose inBeatTime equals inPoint and outBeatTime equals outPoint (default-linked)",
+        "When the user drags the clipin track on the region body",
+        "Then both the input bounds and the beat-space bounds move by the same delta",
+        "And the linked state is preserved"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 209
+    },
+    "timeline-drag-gestures::9a25a682": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Dragging a clip after its bounds diverged moves only the input bounds",
+      "isOutline": false,
+      "steps": [
+        "Given a region whose inBeatTime or outBeatTime has diverged from the input bounds (no longer linked)",
+        "When the user drags the clipin track on the region body",
+        "Then only the input bounds (inPoint / outPoint) move",
+        "And the beat-space bounds (inBeatTime / outBeatTime) stay where they were"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 215
+    },
+    "timeline-drag-gestures::de7625a2": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Combined-selection drag moves all selected objects by the same delta",
+      "isOutline": false,
+      "steps": [
+        "Given multiple objects of mixed kinds (anchors, regions, scenes) are selected",
+        "When the user drags any one of the selected objects",
+        "Then every selected object moves by the same time delta",
+        "And objects that were not selected do not move"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 223
+    },
+    "timeline-drag-gestures::1d9c30b0": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Combined-selection drag captures both spaces when input and output anchors are selected",
+      "isOutline": false,
+      "steps": [
+        "Given an input anchor and a beat anchor are both in the current selection",
+        "When the user drags any selected anchor",
+        "Then the input anchor and the beat anchor both move by the same time delta",
+        "And no warp-line gesture is needed — the selection already pairs them"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 229
+    },
+    "timeline-drag-gestures::bd2a359e": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Clicking a warp line selects both paired anchors (no drag)",
+      "isOutline": false,
+      "steps": [
+        "Given an input anchor and an output beat anchor share the same pair id",
+        "When the user clicks the warp line connecting them without dragging",
+        "Then both the input anchor id and the beat anchor id are added to their respective selections on pointerUp",
+        "And no anchor moves"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 235
+    },
+    "timeline-drag-gestures::2c09e971": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Dragging a warp line moves the pair without changing selection",
+      "isOutline": false,
+      "steps": [
+        "Given an input anchor and an output beat anchor share the same pair id",
+        "When the user clicks and drags the warp line in one continuous gesture",
+        "Then both partner anchors move by the same time delta as the drag",
+        "And no selection intent fires (drag does not change selection)"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 241
+    },
+    "timeline-drag-gestures::4528643d": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Hovering over a warp connector publishes a hovered state for the pair",
+      "isOutline": false,
+      "steps": [
+        "Given an input anchor and an output beat anchor share the same pair id",
+        "When the user moves the mouse over the warp connector line",
+        "Then the controller publishes a hovered-warp-line intent for that pair id",
+        "And the cursor becomes grab"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 247
+    },
+    "timeline-drag-gestures::bd339d90": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Hover state clears when the mouse leaves the warp connector",
+      "isOutline": false,
+      "steps": [
+        "Given the user is hovering a warp connector",
+        "When the mouse moves off the connector onto an empty area",
+        "Then the hovered-warp-line is published as null",
+        "And the cursor returns to its default"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 253
+    },
+    "timeline-drag-gestures::759fdd27": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Dragging a warp connector or a paired anchor selection snaps to BOTH input and output targets",
+      "isOutline": false,
+      "steps": [
+        "Given a paired pointer drag is active — either started from a warp connector OR from a selection containing both partner ids",
+        "And there is a scene cut in input space and a BPM grid line in output space",
+        "When the user drags the pair",
+        "Then the snap considers both the input-space targets AND the output-space targets",
+        "And the winning delta aligns whichever side has the closest target"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 259
+    },
+    "timeline-drag-gestures::afeb7c1e": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Pair drag live-updates both anchors during pointerMove",
+      "isOutline": false,
+      "steps": [
+        "Given a pair drag is in progress",
+        "When the pointer moves",
+        "Then the live input anchor time and the live beat anchor time both update by the current drag delta",
+        "And pubDragTime publishes the drag time for at least one of the two spaces (or both, controller choice)"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 266
+    },
+    "timeline-drag-gestures::b0cb8982": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Combined drag publishes live positions for every captured region",
+      "isOutline": false,
+      "steps": [
+        "Given two regions are both in the current selection",
+        "When the user drags one of them",
+        "Then the gesture store publishes live in/out points for both regions during the drag",
+        "And the gesture store's \"most recent\" singular dragRegion remains addressable for legacy consumers"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 278
+    },
+    "timeline-drag-gestures::df663120": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Combined anchor+region drag publishes live region positions for every captured region",
+      "isOutline": false,
+      "steps": [
+        "Given an anchor and two regions are all in the current selection",
+        "When the user drags the anchor",
+        "Then the gesture store publishes live in/out points for both captured regions during the drag"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 284
+    },
+    "timeline-drag-gestures::449a930c": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Clicking an unselected object selects it on pointerUp (not pointerDown)",
+      "isOutline": false,
+      "steps": [
+        "Given an unselected anchor exists",
+        "When the user presses and releases on the anchor without moving",
+        "Then the anchor becomes selected on pointerUp",
+        "And no selection intent fired on pointerDown"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 296
+    },
+    "timeline-drag-gestures::3c2d6175": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Dragging an unselected object moves only that object and does not change selection",
+      "isOutline": false,
+      "steps": [
+        "Given an unselected anchor exists",
+        "And there is an unrelated selection elsewhere",
+        "When the user presses on the anchor and drags it",
+        "Then only the dragged anchor moves",
+        "And the unrelated selection is unchanged",
+        "And no selection intent fires during or after the drag"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 302
+    },
+    "timeline-drag-gestures::28f46bef": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Dragging a selected object performs a combined drag and does not change selection",
+      "isOutline": false,
+      "steps": [
+        "Given an anchor is selected",
+        "And another anchor is also selected",
+        "When the user presses on the first anchor and drags",
+        "Then both anchors move by the same delta (combined drag)",
+        "And the selection set is unchanged after pointerUp"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 310
+    },
+    "timeline-drag-gestures::b771d9d4": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Clicking an unselected region selects it on pointerUp",
+      "isOutline": false,
+      "steps": [
+        "Given an unselected region exists",
+        "When the user presses and releases on the region without moving",
+        "Then the region becomes selected on pointerUp",
+        "And no regionSelect intent fired on pointerDown"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 317
+    },
+    "timeline-drag-gestures::86a77e53": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Dragging an unselected region moves only that region and does not change selection",
+      "isOutline": false,
+      "steps": [
+        "Given an unselected region exists",
+        "And there is an unrelated selection elsewhere",
+        "When the user presses on the region and drags it",
+        "Then only the dragged region moves",
+        "And the unrelated selection is unchanged",
+        "And no regionSelect intent fires during or after the drag"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 323
+    },
+    "timeline-drag-gestures::a26c8398": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Clicking a region-edge selects the region on pointerUp",
+      "isOutline": false,
+      "steps": [
+        "Given a region exists",
+        "When the user presses and releases on the region's edge without moving",
+        "Then the region becomes selected on pointerUp",
+        "And no regionSelect intent fired on pointerDown"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 331
+    },
+    "timeline-drag-gestures::9926d882": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Clicking a warp-line defers select to pointerUp",
+      "isOutline": false,
+      "steps": [
+        "Given an input anchor and an output beat anchor share the same pair id",
+        "When the user presses and releases on the warp line without moving",
+        "Then both partners get selected on pointerUp",
+        "And no selection intent fired on pointerDown"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 337
+    },
+    "timeline-drag-gestures::8db2b2c1": {
+      "feature": "Timeline Drag Gestures",
+      "scenario": "Dragging a warp connector translates anchors by cursor pixel delta, not by input-anchor alignment",
+      "isOutline": false,
+      "steps": [
+        "Given an input anchor at 10 seconds and a beat anchor at 20 seconds share the same pair id",
+        "And the user grabs the warp connector midway between the two",
+        "When the user moves the cursor by 50 pixels (which in the current view equals 5 seconds)",
+        "Then the input anchor moves to 15 seconds",
+        "And the beat anchor moves to 25 seconds",
+        "And the pair did not \"snap\" to align with the initial grab point"
+      ],
+      "file": "spec/features/timeline/drag.feature",
+      "line": 349
+    },
+    "region-creation::30fd066b": {
+      "feature": "Region Creation",
+      "scenario": "New region size is the larger of 10% of view or 5 seconds",
+      "isOutline": true,
+      "steps": [
+        "Given the current viewport span is <viewSpan> seconds",
+        "When a new region is created",
+        "Then the region span is <expectedSpan> seconds"
+      ],
+      "file": "spec/features/timeline/region-creation.feature",
+      "line": 3
+    },
+    "region-creation::089f7025": {
+      "feature": "Region Creation",
+      "scenario": "New region from the timeline is is aligned on the cursor position",
+      "isOutline": false,
+      "steps": [
+        "Given the current viewport span is 40 seconds",
+        "And the video duration is 120 seconds",
+        "When a new region is created at cursor position 60 seconds",
+        "Then the region spans from 60 to 65 seconds"
+      ],
+      "file": "spec/features/timeline/region-creation.feature",
+      "line": 15
+    },
+    "region-creation::622d79ba": {
+      "feature": "Region Creation",
+      "scenario": "New region from the region list is aligned on the playhead",
+      "isOutline": false,
+      "steps": [
+        "Given the current viewport span is 40 seconds",
+        "And the video duration is 120 seconds",
+        "When a new region is created at playhead position 60 seconds",
+        "Then the region spans from 60 to 65 seconds"
+      ],
+      "file": "spec/features/timeline/region-creation.feature",
+      "line": 21
+    },
+    "region-creation::beaf3038": {
+      "feature": "Region Creation",
+      "scenario": "Region is clamped to the start of the video",
+      "isOutline": false,
+      "steps": [
+        "Given the current viewport span is 40 seconds",
+        "And the video duration is 120 seconds",
+        "When a new region is created at cursor position -0.5 seconds",
+        "Then the region in-point is 0"
+      ],
+      "file": "spec/features/timeline/region-creation.feature",
+      "line": 27
+    },
+    "region-creation::220bf2e0": {
+      "feature": "Region Creation",
+      "scenario": "Region is clamped to the end of the video",
+      "isOutline": false,
+      "steps": [
+        "Given the current viewport span is 40 seconds",
+        "And the video duration is 120 seconds",
+        "When a new region is created at cursor position 119.5 seconds",
+        "Then the region out-point is 120"
+      ],
+      "file": "spec/features/timeline/region-creation.feature",
+      "line": 33
+    },
+    "region-creation::95af3b45": {
+      "feature": "Region Creation",
+      "scenario": "Region is selected when created",
+      "isOutline": false,
+      "steps": [
+        "Given Region A is selected",
+        "When Region B is created",
+        "Then Region B is selected",
+        "And the viewport has not changed"
+      ],
+      "file": "spec/features/timeline/region-creation.feature",
+      "line": 39
+    },
+    "region-creation::60eb8748": {
+      "feature": "Region Creation",
+      "scenario": "No scene markers at all — falls back to 5s / 10% rule",
+      "isOutline": false,
+      "steps": [
+        "Given the viewport is from 50 to 90 seconds",
+        "And the video duration is 120 seconds",
+        "And there are no scene markers",
+        "And there are no other regions",
+        "When a new region is created at cursor position 60 seconds",
+        "Then the region spans from 60 to 65 seconds"
+      ],
+      "file": "spec/features/timeline/region-creation.feature",
+      "line": 50
+    },
+    "region-creation::728bc8d1": {
+      "feature": "Region Creation",
+      "scenario": "Snaps between surrounding scene markers when both are in view",
+      "isOutline": false,
+      "steps": [
+        "Given the viewport is from 50 to 90 seconds",
+        "And the video duration is 120 seconds",
+        "And there is a scene marker at 55 seconds",
+        "And there is a scene marker at 70 seconds",
+        "And there are no other regions",
+        "When a new region is created at cursor position 60 seconds",
+        "Then the region spans from 55 to 70 seconds"
+      ],
+      "file": "spec/features/timeline/region-creation.feature",
+      "line": 58
+    },
+    "region-creation::3f2b3bed": {
+      "feature": "Region Creation",
+      "scenario": "No next scene marker in view — out-point stops at the viewport end",
+      "isOutline": false,
+      "steps": [
+        "Given the viewport is from 50 to 90 seconds",
+        "And the video duration is 120 seconds",
+        "And there is a scene marker at 55 seconds",
+        "And there are no other regions",
+        "When a new region is created at cursor position 60 seconds",
+        "Then the region spans from 55 to 90 seconds"
+      ],
+      "file": "spec/features/timeline/region-creation.feature",
+      "line": 67
+    },
+    "region-creation::a5661c96": {
+      "feature": "Region Creation",
+      "scenario": "No previous scene marker in view — in-point starts at the viewport start",
+      "isOutline": false,
+      "steps": [
+        "Given the viewport is from 50 to 90 seconds",
+        "And the video duration is 120 seconds",
+        "And there is a scene marker at 80 seconds",
+        "And there are no other regions",
+        "When a new region is created at cursor position 60 seconds",
+        "Then the region spans from 50 to 80 seconds"
+      ],
+      "file": "spec/features/timeline/region-creation.feature",
+      "line": 75
+    },
+    "region-creation::fe66bfde": {
+      "feature": "Region Creation",
+      "scenario": "No scene markers in view — region fills the viewport around the cursor",
+      "isOutline": false,
+      "steps": [
+        "Given the viewport is from 50 to 90 seconds",
+        "And the video duration is 120 seconds",
+        "And there is a scene marker at 10 seconds",
+        "And there is a scene marker at 110 seconds",
+        "And there are no other regions",
+        "When a new region is created at cursor position 60 seconds",
+        "Then the region spans from 50 to 90 seconds"
+      ],
+      "file": "spec/features/timeline/region-creation.feature",
+      "line": 83
+    },
+    "region-creation::dfeb811f": {
+      "feature": "Region Creation",
+      "scenario": "Previous region out-point takes precedence over an earlier scene marker",
+      "isOutline": false,
+      "steps": [
+        "Given the viewport is from 50 to 100 seconds",
+        "And the video duration is 120 seconds",
+        "And there is a scene marker at 55 seconds",
+        "And there is a region from 60 to 70 seconds",
+        "When a new region is created at cursor position 80 seconds",
+        "Then the region spans from 70 to 100 seconds"
+      ],
+      "file": "spec/features/timeline/region-creation.feature",
+      "line": 92
+    },
+    "region-creation::373255c3": {
+      "feature": "Region Creation",
+      "scenario": "Next region in-point takes precedence over a later scene marker",
+      "isOutline": false,
+      "steps": [
+        "Given the viewport is from 50 to 100 seconds",
+        "And the video duration is 120 seconds",
+        "And there is a scene marker at 95 seconds",
+        "And there is a region from 80 to 90 seconds",
+        "When a new region is created at cursor position 60 seconds",
+        "Then the region spans from 50 to 80 seconds"
+      ],
+      "file": "spec/features/timeline/region-creation.feature",
+      "line": 100
+    },
+    "region-creation::5d8f7863": {
+      "feature": "Region Creation",
+      "scenario": "Cursor inside an existing region — behaves as if the playhead is just past the region's out",
+      "isOutline": false,
+      "steps": [
+        "Given the viewport is from 50 to 100 seconds",
+        "And the video duration is 120 seconds",
+        "And there is a region from 60 to 70 seconds",
+        "And there is a scene marker at 80 seconds",
+        "When a new region is created at cursor position 65 seconds",
+        "Then the region spans from 70 to 80 seconds"
+      ],
+      "file": "spec/features/timeline/region-creation.feature",
+      "line": 108
+    },
+    "ruler-layer::0b84503c": {
+      "feature": "Ruler Layer",
+      "scenario": "input ruler is scrubbed",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "When the mouse is dragged horizontally along the [input ruler]",
+        "Then the playhead scrubs along with the mouse movement",
+        "And the video frame updates to match the playhead position"
+      ],
+      "file": "spec/features/timeline/ruler.feature",
+      "line": 3,
+      "defs": [
+        "a video is loaded",
+        "input ruler"
+      ]
+    },
+    "timeline-tracks::74c299b9": {
+      "feature": "Timeline Tracks",
+      "scenario": "Click on empty area when nothing is selected",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "When the user clicks on an empty area of the timeline",
+        "Then the playhead jumps to the clicked time"
+      ],
+      "file": "spec/features/timeline/tracks.feature",
+      "line": 11,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-tracks::a6fb4913": {
+      "feature": "Timeline Tracks",
+      "scenario": "Click on empty area when something is selected",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "And there is a non empty selection of objects",
+        "When the user clicks on an empty area of the timeline",
+        "Then the playhead stays where it is",
+        "And selection is cleared"
+      ],
+      "file": "spec/features/timeline/tracks.feature",
+      "line": 16,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
     "timeline-tracks::6eef362f": {
       "feature": "Timeline Tracks",
       "scenario": "Right-click on the timeline opens a three-section context menu",
@@ -1424,8 +3503,8 @@
         "Then a context menu appears with three sections: target-specific, track-specific, and global timeline actions",
         "And global actions may be promoted to track-specific when the context calls for it"
       ],
-      "file": "spec/features/timeline_tracks.feature",
-      "line": 3,
+      "file": "spec/features/timeline/tracks.feature",
+      "line": 23,
       "defs": [
         "a video is loaded"
       ]
@@ -1442,8 +3521,8 @@
         "When the mouse is released",
         "Then the objects inside the lasso are selected"
       ],
-      "file": "spec/features/timeline_tracks.feature",
-      "line": 9,
+      "file": "spec/features/timeline/tracks.feature",
+      "line": 29,
       "defs": [
         "a video is loaded"
       ]
@@ -1461,8 +3540,8 @@
         "When the mouse is released",
         "Then all objects inside the lasso are selected"
       ],
-      "file": "spec/features/timeline_tracks.feature",
-      "line": 17,
+      "file": "spec/features/timeline/tracks.feature",
+      "line": 37,
       "defs": [
         "a video is loaded"
       ]
@@ -1477,8 +3556,8 @@
         "When the user drags across both boundaries of the clip",
         "Then the clip is selected"
       ],
-      "file": "spec/features/timeline_tracks.feature",
-      "line": 26,
+      "file": "spec/features/timeline/tracks.feature",
+      "line": 46,
       "defs": [
         "a video is loaded"
       ]
@@ -1493,8 +3572,8 @@
         "When the user double-clicks",
         "Then the track creates a new <object> at the cursor position"
       ],
-      "file": "spec/features/timeline_tracks.feature",
-      "line": 32,
+      "file": "spec/features/timeline/tracks.feature",
+      "line": 52,
       "defs": [
         "a video is loaded"
       ]
@@ -1509,8 +3588,8 @@
         "When the user double-clicks",
         "Then the track performs <action> for the <object> under the cursor"
       ],
-      "file": "spec/features/timeline_tracks.feature",
-      "line": 43,
+      "file": "spec/features/timeline/tracks.feature",
+      "line": 63,
       "defs": [
         "a video is loaded"
       ]
@@ -1525,8 +3604,8 @@
         "When the user right-clicks",
         "Then the context menu shows <actions> above the track and global options"
       ],
-      "file": "spec/features/timeline_tracks.feature",
-      "line": 54,
+      "file": "spec/features/timeline/tracks.feature",
+      "line": 74,
       "defs": [
         "a video is loaded"
       ]
@@ -1541,8 +3620,183 @@
         "When the user right-clicks",
         "Then the context menu shows <actions> above the track and global options"
       ],
-      "file": "spec/features/timeline_tracks.feature",
-      "line": 67,
+      "file": "spec/features/timeline/tracks.feature",
+      "line": 87,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-viewport::b69d7605": {
+      "feature": "Timeline Viewport",
+      "scenario": "Wheel scroll pans the viewport horizontally",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "When the user scrolls the mouse wheel with no modifier keys",
+        "Then the viewport pans horizontally",
+        "And the viewport zoom span stays the same"
+      ],
+      "file": "spec/features/timeline/viewport.feature",
+      "line": 6,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-viewport::7d810b12": {
+      "feature": "Timeline Viewport",
+      "scenario": "Shift + wheel pans horizontally even when deltaY is 0",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "When the user scrolls the mouse wheel while holding Shift",
+        "Then the viewport pans horizontally regardless of deltaX"
+      ],
+      "file": "spec/features/timeline/viewport.feature",
+      "line": 12,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-viewport::36bb2bb3": {
+      "feature": "Timeline Viewport",
+      "scenario": "Ctrl/Cmd + wheel zooms around the cursor",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "And the cursor is at horizontal position X on the timeline",
+        "When the user scrolls the mouse wheel while holding Ctrl or Cmd",
+        "Then the viewport zooms in or out",
+        "And the time at horizontal position X stays at horizontal position X"
+      ],
+      "file": "spec/features/timeline/viewport.feature",
+      "line": 17,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-viewport::c35e82a4": {
+      "feature": "Timeline Viewport",
+      "scenario": "Alt + click + drag pans the viewport",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "When the user holds Alt and drags the timeline",
+        "Then the viewport pans by the drag delta"
+      ],
+      "file": "spec/features/timeline/viewport.feature",
+      "line": 24,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-viewport::1ce3ca0a": {
+      "feature": "Timeline Viewport",
+      "scenario": "Middle-mouse drag pans the viewport",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "When the user drags the timeline with the middle mouse button",
+        "Then the viewport pans by the drag delta"
+      ],
+      "file": "spec/features/timeline/viewport.feature",
+      "line": 29,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-viewport::0c8056dc": {
+      "feature": "Timeline Viewport",
+      "scenario": "Clicking the minimap recenters the viewport",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "When the user clicks at a position on the minimap",
+        "Then the viewport recenters on the clicked time",
+        "And the viewport span is preserved"
+      ],
+      "file": "spec/features/timeline/viewport.feature",
+      "line": 34,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-viewport::e1754e95": {
+      "feature": "Timeline Viewport",
+      "scenario": "Dragging across the minimap recenters continuously",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "When the user drags the mouse across the minimap",
+        "Then the viewport recenters continuously to follow the cursor"
+      ],
+      "file": "spec/features/timeline/viewport.feature",
+      "line": 40,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-viewport::185ed2eb": {
+      "feature": "Timeline Viewport",
+      "scenario": "Zoom is clamped to a minimum span of 0.1 seconds",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "When the user attempts to zoom in past the minimum span",
+        "Then the viewport span stops at 0.1 seconds"
+      ],
+      "file": "spec/features/timeline/viewport.feature",
+      "line": 45,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-viewport::40e55c56": {
+      "feature": "Timeline Viewport",
+      "scenario": "Zoom is clamped to a maximum of twice the video duration",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "When the user attempts to zoom out past the maximum span",
+        "Then the viewport span stops at twice the video duration"
+      ],
+      "file": "spec/features/timeline/viewport.feature",
+      "line": 50,
+      "defs": [
+        "a video is loaded"
+      ]
+    },
+    "timeline-viewport::ca7f472b": {
+      "feature": "Timeline Viewport",
+      "scenario": "Viewport is always clamped to the video duration",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "When the viewport would extend before 0 or past the video duration",
+        "Then the viewport edges are clamped to [0, videoDuration]"
+      ],
+      "file": "spec/features/timeline/viewport.feature",
+      "line": 55,
+      "defs": [
+        "a video is loaded"
+      ],
+      "unresolvedRefs": [
+        "0 videoduration"
+      ]
+    },
+    "timeline-viewport::1bf697c2": {
+      "feature": "Timeline Viewport",
+      "scenario": "Zoom-to-region toggles back to the previous view on a second invoke",
+      "isOutline": false,
+      "steps": [
+        "Given [a video is loaded]",
+        "And a region exists",
+        "When the user invokes Zoom-to-region once",
+        "Then the viewport zooms to the region",
+        "When the user invokes Zoom-to-region again on the same region",
+        "Then the viewport restores the previous view"
+      ],
+      "file": "spec/features/timeline/viewport.feature",
+      "line": 60,
       "defs": [
         "a video is loaded"
       ]

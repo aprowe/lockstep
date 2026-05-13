@@ -291,12 +291,6 @@
   cursor: pointer;
 }
 
-.export-dialog__norm-row {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
-
 .export-dialog__norm-bpm {
   width: 50px;
   padding: 2px var(--sp-1);
@@ -311,9 +305,15 @@
 }
 .export-dialog__norm-bpm:focus { border-color: var(--accent); }
 
-.export-dialog__norm-label {
-  font-size: var(--t-sm);
-  color: var(--fg-4);
+/* ── Audio panel ────────────────────────────────────────────── */
+.export-dialog__audio {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.export-dialog__audio-sub {
+  margin-left: 22px;
 }
 
 /* ── Interpolation panel ────────────────────────────────────── */

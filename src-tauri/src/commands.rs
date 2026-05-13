@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::ffmpeg::video_duration;
-use crate::processor::{estimate_bpm, remap_video, InterpMethod, WarpOptions};
+use crate::processor::{estimate_bpm, remap_video, AudioMode, InterpMethod, WarpOptions};
 use crate::scene::{detect_cuts, ScanWindow, DEFAULT_THRESHOLD};
 use crate::video::{get_video_info, VideoInfo};
 
@@ -218,7 +218,6 @@ pub struct WarpRequest {
     pub add_to_end: bool,
     pub trim_to_loop: bool,
     pub loop_beats: Option<u32>,
-    pub normalize_bpm: bool,
     pub fade_at_loop: bool,
     pub clip_in: Option<f64>,
     pub clip_out: Option<f64>,
@@ -231,6 +230,9 @@ pub struct WarpRequest {
     pub trigger_mode: bool,
     #[serde(default)]
     pub scene_cuts: Vec<f64>,
+    /// "tempo" (default, atempo preserves pitch), "pitch" (asetrate pitches
+    /// with speed), or "none" (omit audio).
+    pub audio_mode: Option<String>,
 }
 
 #[tauri::command]
@@ -243,7 +245,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
     let out_path_str = out_path.to_string_lossy().to_string();
 
     log::info!(
-        "start_warp[{job_id}]: path={} bpm={:.3} anchors={} clip={:?}→{:?} interp={:?}@{:?} normalize_bpm={} trim_to_loop={} trigger={}",
+        "start_warp[{job_id}]: path={} bpm={:.3} anchors={} clip={:?}→{:?} interp={:?}@{:?} audio={:?} trim_to_loop={} trigger={}",
         req.path,
         req.bpm,
         req.orig_times.len(),
@@ -251,7 +253,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
         req.clip_out,
         req.interp_method,
         req.interp_fps,
-        req.normalize_bpm,
+        req.audio_mode,
         req.trim_to_loop,
         req.trigger_mode,
     );
@@ -283,7 +285,6 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
             add_to_end: req.add_to_end,
             trim_to_loop: req.trim_to_loop,
             loop_beats: req.loop_beats,
-            normalize_bpm: req.normalize_bpm,
             fade_at_loop: req.fade_at_loop,
             clip_in: req.clip_in,
             clip_out: req.clip_out,
@@ -292,6 +293,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
             no_smooth: req.no_smooth,
             trigger_mode: req.trigger_mode,
             scene_cuts: req.scene_cuts,
+            audio_mode: AudioMode::from_str(req.audio_mode.as_deref()),
         };
 
         let result = tokio::task::spawn_blocking(move || {

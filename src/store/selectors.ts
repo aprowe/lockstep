@@ -2,6 +2,8 @@ import { createSelector } from '@reduxjs/toolkit'
 import type { RootState } from './store'
 import type { Anchor } from '../types'
 import { computeOutputDuration } from '../utils/quantize'
+import { effectiveBeatBounds } from '../timeline/model/effectiveBounds'
+import type { EffectiveBeatBounds } from '../timeline/model/effectiveBounds'
 
 // ── Region selectors ────────────────────────────────────────────────────────
 
@@ -35,9 +37,22 @@ export const selectSortedBeat = createSelector(
     sortedOrig.map(oa => beatAnchors.find(ba => ba.id === oa.id) ?? { id: oa.id, time: oa.time }),
 )
 
-export const selectSelectedIdsSet = createSelector(
-  (s: RootState) => s.warp.selectedIds,
+export const selectSelectedOrigIdsSet = createSelector(
+  (s: RootState) => s.warp.selectedOrigIds,
   (ids) => new Set(ids),
+)
+
+export const selectSelectedBeatIdsSet = createSelector(
+  (s: RootState) => s.warp.selectedBeatIds,
+  (ids) => new Set(ids),
+)
+
+/** Union of orig + beat selected ids — used where a single "is any space
+ *  selected" query is needed (e.g. Delete key handling, region thunks). */
+export const selectSelectedIdsUnion = createSelector(
+  (s: RootState) => s.warp.selectedOrigIds,
+  (s: RootState) => s.warp.selectedBeatIds,
+  (origIds, beatIds) => new Set([...origIds, ...beatIds]),
 )
 
 export const selectLinkedBeatSet = createSelector(
@@ -92,6 +107,21 @@ export const selectWarpData = createSelector(
       beatZeroTime: beatOffset,
       addToEnd: warp.addToEnd,
     }
+  },
+)
+
+// ── Effective beat bounds ────────────────────────────────────────────────────
+
+/** Effective beat-space bounds for the active region: explicit inBeatTime/
+ *  outBeatTime win; then input-anchor conform fills in defaults; then falls
+ *  back to inPoint/outPoint. Returns null when no region is active. */
+export const selectEffectiveBeatBoundsForActive = createSelector(
+  selectActiveRegion,
+  (s: RootState) => s.warp.origAnchors,
+  (s: RootState) => s.warp.beatAnchors,
+  (region, origAnchors, beatAnchors): EffectiveBeatBounds | null => {
+    if (!region) return null
+    return effectiveBeatBounds(region, origAnchors, beatAnchors)
   },
 )
 

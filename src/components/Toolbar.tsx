@@ -9,9 +9,10 @@ import {
   IconCreateScene, IconPrevScene, IconNextScene,
   IconLoopStop, IconLoopRepeat, IconLoopContinue,
 } from './icons'
-import type { PlaybackLoopMode } from '../store/slices/uiSlice'
+import type { PlaybackLoopMode, PlaybackMode } from '../store/slices/uiSlice'
 import { secondsToFrames } from '../utils/time'
 import { tooltipFor } from '../hotkeys'
+import { useGesture } from '../store/gesture'
 import './Toolbar.css'
 
 function pad(n: number) { return String(Math.floor(n)).padStart(2, '0') }
@@ -51,6 +52,11 @@ interface ToolbarProps {
    *  in-point if there is one, else to the warp's beat-zero. Null when
    *  no BPM is set yet. */
   currentBeat?: number | null
+  /** Current playback mode: 'orig' (1×) or 'beat' (warp-rate preview). */
+  playbackMode?: PlaybackMode
+  onPlaybackModeChange?: (mode: PlaybackMode) => void
+  /** Called whenever the speed dropdown value changes. */
+  onSpeedChange?: (speed: number) => void
 }
 
 export default function Toolbar({
@@ -60,7 +66,12 @@ export default function Toolbar({
   onNewScene, onPrevScene, onNextScene,
   playbackLoopMode, onPlaybackLoopModeChange,
   currentBeat,
+  playbackMode = 'orig', onPlaybackModeChange,
+  onSpeedChange,
 }: ToolbarProps) {
+  const scrubTime = useGesture(s => s.scrubTime)
+  const displayTime = scrubTime ?? currentTime
+
   const [speed, setSpeed] = useState(1)
   const [editingFrame, setEditingFrame] = useState(false)
   const [frameInput, setFrameInput] = useState('')
@@ -105,7 +116,7 @@ export default function Toolbar({
     p.pause()
     p.seek(p.currentTime + frames / fps)
   }
-  const changeSpeed = (rate: number) => { setSpeed(rate); playerRef.current?.setPlaybackRate(rate) }
+  const changeSpeed = (rate: number) => { setSpeed(rate); playerRef.current?.setPlaybackRate(rate); onSpeedChange?.(rate) }
 
   return (
     <div className="toolbar">
@@ -297,7 +308,7 @@ export default function Toolbar({
         </div>
         <div className="tb-time">
           <div className="tb-time__clock">
-            <span data-layout-id="play-time" className="tb-time__current">{fmt(currentTime)}</span>
+            <span data-layout-id="play-time" className="tb-time__current">{fmt(displayTime)}</span>
             <span className="tb-time__total">{fmt(duration)}</span>
           </div>
           <div className="tb-time__counts">
@@ -331,8 +342,8 @@ export default function Toolbar({
                 onClick={() => { setFrameInput(String(Math.round(currentTime * fps))); setEditingFrame(true) }}
                 title="Click to edit frame"
               >
-                <span className="tb-time__count-value">{secondsToFrames(currentTime, fps)}</span>
-                <span className="tb-time__count-label">frames</span>
+                <span className="tb-time__count-value">{secondsToFrames(displayTime, fps)}</span>
+                <span className="tb-time__count-label">F</span>
               </span>
             )}
             <span
@@ -343,9 +354,31 @@ export default function Toolbar({
               <span className="tb-time__count-value">
                 {currentBeat != null ? currentBeat.toFixed(1) : '—'}
               </span>
-              <span className="tb-time__count-label">beats</span>
+              <span className="tb-time__count-label">B</span>
             </span>
           </div>
+          {onPlaybackModeChange && (
+            <div className="tb-playback-mode" title="Playback preview mode">
+              <button
+                data-layout-id="playback-mode-orig"
+                className={`tb-playback-mode__btn tb-playback-mode__btn--orig${playbackMode === 'orig' ? ' tb-playback-mode__btn--active' : ''}`}
+                onClick={() => onPlaybackModeChange('orig')}
+                title="Original speed (1×)"
+                aria-pressed={playbackMode === 'orig'}
+              >
+                orig
+              </button>
+              <button
+                data-layout-id="playback-mode-beat"
+                className={`tb-playback-mode__btn tb-playback-mode__btn--beat${playbackMode === 'beat' ? ' tb-playback-mode__btn--active' : ''}`}
+                onClick={() => onPlaybackModeChange('beat')}
+                title="Beat-time preview (warp rate)"
+                aria-pressed={playbackMode === 'beat'}
+              >
+                beat
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

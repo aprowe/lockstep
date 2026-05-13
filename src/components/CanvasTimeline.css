@@ -4,6 +4,7 @@
   min-height: 0;
   flex: 1;
   overflow: hidden;
+  padding: 0 2px;
 }
 
 .canvas-timeline__body {
@@ -100,6 +101,7 @@
   min-height: 0;
   display: block;
   height: 100%;
+  outline: none;
 }
 
 /* Toolbar mirrors .thin-toolbar from ThinTimeline.css */
@@ -143,13 +145,14 @@
 }
 .ct-btn--disabled { opacity: 0.35; cursor: default; }
 
-.ct-btn--warp    { --btn-color: var(--space-warp); }
-.ct-btn--thumbs  { --btn-color: var(--scene-cut); }
-.ct-btn--follow  { --btn-color: var(--playhead); }
-.ct-btn--anchors { --btn-color: var(--space-input); }
-.ct-btn--regions { --btn-color: var(--error); }
-.ct-btn--zoom    { --btn-color: var(--error); }
-.ct-btn--scenes  { --btn-color: var(--scene-cut); }
+.ct-btn--warp        { --btn-color: var(--space-warp); }
+.ct-btn--thumbs      { --btn-color: var(--scene-cut); }
+.ct-btn--follow      { --btn-color: var(--playhead); }
+.ct-btn--anchors     { --btn-color: var(--space-input); }
+.ct-btn--regions     { --btn-color: var(--error); }
+.ct-btn--zoom        { --btn-color: var(--error); }
+.ct-btn--scenes      { --btn-color: var(--scene-cut); }
+.ct-btn--anchor-lock { --btn-color: #e11d48; }
 
 .ct-sep {
   width: 1px;

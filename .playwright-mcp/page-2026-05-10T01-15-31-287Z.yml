@@ -1,0 +1,42 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - button "Lockstep" [ref=e7] [cursor=pointer]:
+        - img "Lockstep" [ref=e8]
+        - generic [ref=e11]: Lockstep
+      - button "File" [ref=e13] [cursor=pointer]
+      - button "Edit" [ref=e15] [cursor=pointer]
+      - button "View" [ref=e17] [cursor=pointer]
+    - button "Export" [disabled] [ref=e19]
+    - generic [ref=e20]:
+      - button "Minimize" [ref=e21] [cursor=pointer]:
+        - img [ref=e22]
+      - button "Maximize" [ref=e23] [cursor=pointer]:
+        - img [ref=e24]
+      - button "Close" [ref=e26] [cursor=pointer]:
+        - img [ref=e27]
+  - generic [ref=e40]:
+    - generic [ref=e42]:
+      - generic [ref=e45]:
+        - generic [ref=e48] [cursor=pointer]: Clips
+        - generic [ref=e51] [cursor=pointer]: Files
+      - generic [ref=e55]: No video
+    - generic [ref=e60]:
+      - paragraph [ref=e61]: Open a file or folder to get started
+      - button "Load Video" [ref=e62] [cursor=pointer]
+    - generic [ref=e68]:
+      - generic [ref=e70]:
+        - generic [ref=e73]:
+          - generic [ref=e76] [cursor=pointer]: Scenes
+          - generic [ref=e79] [cursor=pointer]: Markers
+          - generic [ref=e82] [cursor=pointer]: Tasks
+          - generic [ref=e85] [cursor=pointer]: Assistant
+        - generic [ref=e88]: No video
+      - generic [ref=e90]:
+        - generic [ref=e93]:
+          - generic [ref=e96] [cursor=pointer]: Clip Info
+          - generic [ref=e99] [cursor=pointer]: Video Info
+        - generic [ref=e103]: No video
+  - generic:
+    - generic: UI Scale
+    - generic: 100%

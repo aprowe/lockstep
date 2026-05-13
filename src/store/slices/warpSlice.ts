@@ -16,7 +16,11 @@ interface WarpState {
   loopBeats: number | null
   trimToLoop: boolean
   addToEnd: boolean
-  selectedIds: number[]
+  /** Selected anchor IDs in input (orig) space. An anchor is "fully selected"
+   *  only when its id appears in BOTH selectedOrigIds and selectedBeatIds. */
+  selectedOrigIds: number[]
+  /** Selected anchor IDs in beat (output) space. */
+  selectedBeatIds: number[]
   playhead: number
 }
 
@@ -32,7 +36,8 @@ const initialState: WarpState = {
   loopBeats: null,
   trimToLoop: false,
   addToEnd: false,
-  selectedIds: [],
+  selectedOrigIds: [],
+  selectedBeatIds: [],
   playhead: 0,
 }
 
@@ -68,7 +73,8 @@ const warpSlice = createSlice({
       state.origAnchors = state.origAnchors.filter(a => !ids.has(a.id))
       state.beatAnchors = state.beatAnchors.filter(a => !ids.has(a.id))
       state.linkedBeatIds = state.linkedBeatIds.filter(id => !ids.has(id))
-      state.selectedIds = state.selectedIds.filter(id => !ids.has(id))
+      state.selectedOrigIds = state.selectedOrigIds.filter(id => !ids.has(id))
+      state.selectedBeatIds = state.selectedBeatIds.filter(id => !ids.has(id))
       if (state.beatZeroId !== null && ids.has(state.beatZeroId)) {
         state.beatZeroId = null
       }
@@ -152,7 +158,8 @@ const warpSlice = createSlice({
       state.origAnchors = []
       state.beatAnchors = []
       state.linkedBeatIds = []
-      state.selectedIds = []
+      state.selectedOrigIds = []
+      state.selectedBeatIds = []
       state.beatZeroId = null
     },
     /** Bulk-set both anchor arrays + linked IDs (used for import, undo/redo) */
@@ -220,14 +227,27 @@ const warpSlice = createSlice({
     },
 
     // ── Selection ─────────────────────────────────────────────────────────
-    setSelectedIds(state, action: PayloadAction<number[]>) {
-      state.selectedIds = action.payload
+    /** Set selected IDs in input (orig) space only. */
+    setSelectedOrigIds(state, action: PayloadAction<number[]>) {
+      state.selectedOrigIds = action.payload
+    },
+    /** Set selected IDs in beat (output) space only. */
+    setSelectedBeatIds(state, action: PayloadAction<number[]>) {
+      state.selectedBeatIds = action.payload
+    },
+    /** Set selected IDs in both spaces simultaneously (e.g. warp-line click). */
+    setSelectedBothIds(state, action: PayloadAction<number[]>) {
+      state.selectedOrigIds = action.payload
+      state.selectedBeatIds = action.payload
     },
     selectAll(state) {
-      state.selectedIds = state.origAnchors.map(a => a.id)
+      const ids = state.origAnchors.map(a => a.id)
+      state.selectedOrigIds = ids
+      state.selectedBeatIds = ids
     },
     deselectAll(state) {
-      state.selectedIds = []
+      state.selectedOrigIds = []
+      state.selectedBeatIds = []
     },
 
     // ── Playhead ──────────────────────────────────────────────────────────
@@ -258,7 +278,9 @@ export const {
   setLoopBeats,
   setTrimToLoop,
   setAddToEnd,
-  setSelectedIds,
+  setSelectedOrigIds,
+  setSelectedBeatIds,
+  setSelectedBothIds,
   selectAll,
   deselectAll,
   setPlayhead,

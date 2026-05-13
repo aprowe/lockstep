@@ -4,6 +4,7 @@ import type { SavedVideoState } from '../../types'
 import { saveVideoState } from '../../api/storage'
 import { writeVideoSidecar } from '../../api/warp'
 import { updateMarkerCount, updateClipCount } from '../slices/videoSlice'
+import { dragEnd } from '../slices/dragSlice'
 import {
   setOrigAnchors,
   setBeatAnchors,
@@ -35,6 +36,11 @@ import {
   updateRegionBpm,
   updateRegionStretch,
   updateRegionTriggerMode,
+  applyLinkingEvent,
+  resetRegionBoundary,
+  applyConformedClipout,
+  applyBpmEdit,
+  applyBeatsEdit,
 } from '../slices/regionSlice'
 import { setCuts as setScenes, addCut, deleteCut, setMinGap as setSceneMinGap } from '../slices/sceneSlice'
 
@@ -53,8 +59,12 @@ const shouldSave = isAnyOf(
   setRegions, addRegion, deleteRegion,
   updateRegionInOut, updateRegionBeatTimes, updateRegionLock,
   renameRegion, updateRegionBpm, updateRegionStretch, updateRegionTriggerMode,
+  applyLinkingEvent, resetRegionBoundary, applyConformedClipout,
+  applyBpmEdit, applyBeatsEdit,
   // Scene detection results + user edits + min-gap setting
   setScenes, addCut, deleteCut, setSceneMinGap,
+  // Drag end — one save after all the pointer-move commits complete
+  dragEnd,
 )
 
 persistenceMiddleware.startListening({
@@ -67,6 +77,11 @@ persistenceMiddleware.startListening({
     await listenerApi.delay(500)
 
     const state = listenerApi.getState() as RootState
+    // Gate: skip rapid pointer-move commits during a drag. dragEnd IS in
+    // shouldSave so when it arrives drag.active is already false — that triggers
+    // the single post-drag save.
+    if (state.drag.active) return
+
     const vid = state.video.video
     if (!vid) return
 

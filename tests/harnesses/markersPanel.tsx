@@ -14,7 +14,7 @@ import MarkersPanel from '../../src/layout/panels/MarkersPanel'
 import { ThumbnailHoverProvider } from '../../src/components/ThumbnailPopup'
 import { DockBridgeProvider, type DockBridge } from '../../src/layout/DockContext'
 import { setVideo } from '../../src/store/slices/videoSlice'
-import { loadAnchors, setSelectedIds as setSelectedAnchorIds } from '../../src/store/slices/warpSlice'
+import { loadAnchors, setSelectedOrigIds as setSelectedOrigAnchorIds } from '../../src/store/slices/warpSlice'
 import { setListFilterMode, type ListFilterMode } from '../../src/store/slices/listsSlice'
 import { setView } from '../../src/store/slices/uiSlice'
 import type { Anchor, View } from '../../src/types'
@@ -41,7 +41,7 @@ export function renderMarkersPanel(opts: RenderMarkersPanelOptions = {}) {
   store.dispatch(setVideo(makeVideoInfo({ duration: 120 })))
   store.dispatch(loadAnchors({ origAnchors: anchors, beatAnchors }))
   if (opts.selectedAnchorIds) {
-    store.dispatch(setSelectedAnchorIds(opts.selectedAnchorIds))
+    store.dispatch(setSelectedOrigAnchorIds(opts.selectedAnchorIds))
   }
   if (opts.view) store.dispatch(setView(opts.view))
   if (opts.filterMode) {

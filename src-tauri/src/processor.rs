@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tempfile::TempDir;
 
-use crate::ffmpeg::video_duration;
+use crate::ffmpeg::{audio_sample_rate, video_duration};
 use crate::pipeline::{
     post::{apply_post_processing, PostOptions},
     rife_pass::apply_warp_aware_rife,
@@ -32,7 +32,7 @@ fn check_cancel(flag: &AtomicBool) -> Result<(), String> {
 
 // Backward-compat re-exports: callers (commands, cli, tests) import these via
 // `crate::processor::`. Keep the surface stable during refactors.
-pub use crate::pipeline::options::{InterpMethod, WarpOptions};
+pub use crate::pipeline::options::{AudioMode, InterpMethod, WarpOptions};
 
 // ── BPM Estimation ──────────────────────────────────────────────────────────
 
@@ -130,6 +130,9 @@ where
     // ffmpeg — at low fps, two markers placed within ~1/fps would otherwise
     // produce a zero-frame intermediate file and stall the concat demuxer.
     let source_fps = crate::ffmpeg::video_fps(input_path).unwrap_or(30.0);
+    // Sample rate is only consulted by the `Pitch` audio mode; probing here
+    // keeps the segments + post stages decoupled from ffprobe.
+    let sample_rate = audio_sample_rate(input_path);
     progress(
         0.0,
         &format!(
@@ -192,6 +195,8 @@ where
             &plans,
             opts.interp_fps,
             opts.interp_method,
+            opts.audio_mode,
+            sample_rate,
             tmp_path,
             progress,
         )?;
@@ -216,7 +221,6 @@ where
             add_to_end: opts.add_to_end,
             trim_to_loop: opts.trim_to_loop,
             loop_beats: opts.loop_beats,
-            normalize_bpm: opts.normalize_bpm,
         },
         tmp_path,
         progress,

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Region, WarpData } from '../types'
+import type { EffectiveBeatBounds } from '../timeline/model/effectiveBounds'
 import { IconLockClosed, IconLockOpen, IconDetectBPM, IconRename } from './icons'
 import './RegionInfoPanel.css'
 
@@ -9,6 +10,10 @@ interface RegionInfoPanelProps {
   activeRegion: Region | null
   warpData: WarpData | null
   duration: number
+  /** Effective beat-space bounds for the active region (from selectEffectiveBeatBoundsForActive).
+   *  When provided, these are used in place of region.inBeatTime/outBeatTime for
+   *  beat-span and related computations so that input-anchor conform is reflected. */
+  effectiveBounds?: EffectiveBeatBounds | null
   onBpmChange: (bpm: number) => void
   onUpdateRegionInOut?: (id: string, inPoint: number, outPoint: number) => void
   onUpdateRegionBeatTimes?: (id: string, inBeatTime?: number, outBeatTime?: number) => void
@@ -18,6 +23,12 @@ interface RegionInfoPanelProps {
   /** Called when user clicks Detect BPM */
   onBpmDetect?: () => void
   detectingBpm?: boolean
+  /** Called when user commits a BPM value. stretch=true when Alt was held. */
+  onApplyBpmEdit?: (newBpm: number, stretch: boolean) => void
+  /** Called when user commits a beats value. stretch=true when Alt was held. */
+  onApplyBeatsEdit?: (newLockedBeats: number, stretch: boolean) => void
+  /** Called when user clicks Reset Boundary — clears diverged beat-space bounds. */
+  onResetBoundary?: () => void
 }
 
 function formatTimecode(s: number): string {
@@ -39,6 +50,7 @@ export default function RegionInfoPanel({
   activeRegion,
   warpData,
   duration,
+  effectiveBounds,
   onBpmChange,
   onUpdateRegionInOut,
   onUpdateRegionBeatTimes,
@@ -46,13 +58,25 @@ export default function RegionInfoPanel({
   onRename,
   onBpmDetect,
   detectingBpm,
+  onApplyBpmEdit,
+  onApplyBeatsEdit,
+  onResetBoundary,
 }: RegionInfoPanelProps) {
   const bpm = warpData?.bpm ?? 120
 
   const beat = bpm > 0 ? 60 / bpm : 0
-  // Beat-space span defines the actual timing — bottom handle controls this
+  // Beat-space span defines the actual timing — use effective bounds when
+  // available so input-anchor conform is reflected in derived values.
+  const effectiveInBeat = effectiveBounds?.inBeatTime
+    ?? activeRegion?.inBeatTime
+    ?? activeRegion?.inPoint
+    ?? 0
+  const effectiveOutBeat = effectiveBounds?.outBeatTime
+    ?? activeRegion?.outBeatTime
+    ?? activeRegion?.outPoint
+    ?? duration
   const beatSpan = activeRegion
-    ? (activeRegion.outBeatTime ?? activeRegion.outPoint) - (activeRegion.inBeatTime ?? activeRegion.inPoint)
+    ? effectiveOutBeat - effectiveInBeat
     : duration
   const regionSpan = beatSpan  // use beat-space span for all calculations
   const totalBeats = beat > 0 ? beatSpan / beat : 0
@@ -74,11 +98,29 @@ export default function RegionInfoPanel({
   const [editingIn, setEditingIn] = useState(false)
   const [editingOut, setEditingOut] = useState(false)
   const [editingDur, setEditingDur] = useState(false)
+  /** Tracks whether Alt is currently held over a BPM/beats input. */
+  const [altHeld, setAltHeld] = useState(false)
+  /** Ref holding the last committed altKey state for use inside blur handlers
+   *  (synthetic blur events do not carry keyboard modifiers reliably). */
+  const altHeldRef = useRef(false)
 
-  useEffect(() => { setBpmInput(String(bpm)) }, [bpm])
+  // Slice is live during drag (controller dispatches commit thunks on every
+  // pointerMove; history + persistence middleware gate on drag.active). Read
+  // all display values directly from the region — no gesture-store overlay.
+  const regionBpm = activeRegion?.bpm ?? null
+  const regionLockedBeats = activeRegion?.lockedBeats ?? null
+  const liveIn  = activeRegion?.inPoint  ?? 0
+  const liveOut = activeRegion?.outPoint ?? 0
+
+  // Sync bpmInput from region BPM when active (live during clipout drag) or
+  // global BPM otherwise.
   useEffect(() => {
-    setBeatsInput(totalBeats > 0 ? totalBeats.toFixed(1) : '')
-  }, [totalBeats])
+    setBpmInput(String(regionBpm ?? bpm))
+  }, [regionBpm, bpm])
+  useEffect(() => {
+    const displayBeats = regionLockedBeats ?? totalBeats
+    setBeatsInput(displayBeats > 0 ? displayBeats.toFixed(1) : '')
+  }, [regionLockedBeats, totalBeats])
 
   // When beats are locked and region span changes externally → adjust BPM
   useEffect(() => {
@@ -106,25 +148,29 @@ export default function RegionInfoPanel({
 
   // ── Commit helpers ──────────────────────────────────────
 
-  const commitBpm = () => {
+  const commitBpm = (stretch = altHeldRef.current) => {
     const n = parseFloat(bpmInput)
-    if (n > 0 && n <= 999) onBpmChange(n)
-    else setBpmInput(String(bpm))
+    if (n > 0 && n <= 999) {
+      if (activeRegion && onApplyBpmEdit) {
+        onApplyBpmEdit(n, stretch)
+      } else {
+        onBpmChange(n)
+      }
+    } else {
+      setBpmInput(String(bpm))
+    }
   }
 
-  // The out boundary is "linked" when its beat-space time matches the orig-space
-  // time — i.e., 1.0x playback at that boundary. Changes to beat count should
-  // propagate to both orig and beat space in that case; otherwise they affect
-  // only beat space (bottom timeline).
+  // The out boundary is "linked" when its effective beat-space time matches the
+  // orig-space time — i.e., 1.0x playback at that boundary. Uses effective
+  // bounds so input-anchor conform counts as diverged for this check.
   const outLinked = !activeRegion
-    || activeRegion.outBeatTime === undefined
-    || Math.abs(activeRegion.outBeatTime - activeRegion.outPoint) < 0.001
+    || Math.abs(effectiveOutBeat - activeRegion.outPoint) < 0.001
 
   const applyBeatCount = (n: number) => {
     if (!activeRegion || beat <= 0) return
     onLockChange?.(lock, n)
-    const inBeat = activeRegion.inBeatTime ?? activeRegion.inPoint
-    const newOutBeat = inBeat + n * beat
+    const newOutBeat = effectiveInBeat + n * beat
     if (outLinked) {
       // Linked → move both orig and beat-space out. updateRegionInOut clears
       // beat-space overrides, re-establishing the linked (identity) mapping.
@@ -134,18 +180,22 @@ export default function RegionInfoPanel({
     } else {
       // Not linked → only change the bottom (beat-space) boundary.
       if (!onUpdateRegionBeatTimes) return
-      onUpdateRegionBeatTimes(activeRegion.id, activeRegion.inBeatTime, newOutBeat)
+      onUpdateRegionBeatTimes(activeRegion.id, effectiveBounds?.inBeatTime ?? activeRegion.inBeatTime, newOutBeat)
     }
   }
 
-  const commitBeats = () => {
+  const commitBeats = (stretch = altHeldRef.current) => {
     if (!activeRegion || beat <= 0) {
       setBeatsInput(totalBeats > 0 ? totalBeats.toFixed(1) : '')
       return
     }
     const n = parseFloat(beatsInput)
     if (n > 0 && n <= 99999) {
-      applyBeatCount(n)
+      if (onApplyBeatsEdit) {
+        onApplyBeatsEdit(n, stretch)
+      } else {
+        applyBeatCount(n)
+      }
     } else {
       setBeatsInput(totalBeats > 0 ? totalBeats.toFixed(1) : '')
     }
@@ -227,14 +277,29 @@ export default function RegionInfoPanel({
         {/* BPM + Beats grid — beat-space timing (bottom timeline). */}
         {activeRegion && <div className="rip__grid">
           <span className="rip__label">BPM</span>
-          <div className="rip__field">
+          <div className="rip__field rip__field--bpm" title={altHeld ? 'Alt: stretch mode — length rescales' : 'Enter BPM (hold Alt to stretch)'}>
             <input
-              className="rip__input"
+              className={`rip__input${altHeld ? ' rip__input--stretch' : ''}`}
               type="number" min={1} max={999}
               value={bpmInput}
               onChange={e => setBpmInput(e.target.value)}
-              onBlur={commitBpm}
-              onKeyDown={e => { if (e.key === 'Enter') commitBpm(); e.stopPropagation() }}
+              onBlur={e => {
+                // Prefer the native event's altKey when available (real browser blurring
+                // while Alt is held). Fall back to the ref set by the last keyDown/keyUp
+                // — reliable for the Enter-to-commit path.
+                const stretch = (e.nativeEvent as MouseEvent).altKey ?? altHeldRef.current
+                altHeldRef.current = false
+                setAltHeld(false)
+                commitBpm(stretch)
+              }}
+              onKeyDown={e => {
+                altHeldRef.current = e.altKey
+                setAltHeld(e.altKey)
+                if (e.key === 'Enter') { commitBpm(e.altKey); (e.target as HTMLInputElement).blur() }
+                if (e.key === 'Escape') { setBpmInput(String(bpm)); altHeldRef.current = false; setAltHeld(false); (e.target as HTMLInputElement).blur() }
+                e.stopPropagation()
+              }}
+              onKeyUp={e => { altHeldRef.current = e.altKey; setAltHeld(e.altKey) }}
             />
             {activeRegion && (
               <button
@@ -258,16 +323,28 @@ export default function RegionInfoPanel({
           </div>
 
           <span className="rip__label">Beats</span>
-          <div className="rip__field">
+          <div className="rip__field rip__field--beats" title={altHeld ? 'Alt: stretch mode — length rescales' : 'Enter beats (hold Alt to stretch)'}>
             {activeRegion ? (
               <>
                 <input
-                  className="rip__input"
+                  className={`rip__input${altHeld ? ' rip__input--stretch' : ''}`}
                   type="number" min={0.5} max={99999} step={1}
                   value={beatsInput}
                   onChange={e => setBeatsInput(e.target.value)}
-                  onBlur={commitBeats}
-                  onKeyDown={e => { if (e.key === 'Enter') commitBeats(); e.stopPropagation() }}
+                  onBlur={e => {
+                    const stretch = (e.nativeEvent as MouseEvent).altKey ?? altHeldRef.current
+                    altHeldRef.current = false
+                    setAltHeld(false)
+                    commitBeats(stretch)
+                  }}
+                  onKeyDown={e => {
+                    altHeldRef.current = e.altKey
+                    setAltHeld(e.altKey)
+                    if (e.key === 'Enter') { commitBeats(e.altKey); (e.target as HTMLInputElement).blur() }
+                    if (e.key === 'Escape') { setBeatsInput(totalBeats > 0 ? totalBeats.toFixed(1) : ''); altHeldRef.current = false; setAltHeld(false); (e.target as HTMLInputElement).blur() }
+                    e.stopPropagation()
+                  }}
+                  onKeyUp={e => { altHeldRef.current = e.altKey; setAltHeld(e.altKey) }}
                 />
                 <button
                   className={`rip__lock${lock === 'beats' ? ' rip__lock--active' : ''}`}
@@ -284,15 +361,24 @@ export default function RegionInfoPanel({
             )}
           </div>
 
-          {/* Beat adj buttons span full grid width, below Beats row */}
-          {/* {activeRegion && (
+          {/* Reset Boundary — always shown when handler is available; disabled
+               when both boundaries are default-linked (nothing to reset). */}
+          {activeRegion && onResetBoundary && (
             <div className="rip__btn-group rip__btn-group--full">
-              <button className="rip__adj" onClick={() => adjustBeats(totalBeats / 2)} title="Halve beats">÷2</button>
-              <button className="rip__adj" onClick={() => adjustBeats(Math.round(totalBeats) - 1)} title="Remove 1 beat">−1</button>
-              <button className="rip__adj" onClick={() => adjustBeats(Math.round(totalBeats) + 1)} title="Add 1 beat">+1</button>
-              <button className="rip__adj" onClick={() => adjustBeats(totalBeats * 2)} title="Double beats">×2</button>
+              <button
+                className="rip__adj rip__adj--reset"
+                onClick={onResetBoundary}
+                disabled={activeRegion.inBeatTime === undefined && activeRegion.outBeatTime === undefined}
+                title={
+                  activeRegion.inBeatTime === undefined && activeRegion.outBeatTime === undefined
+                    ? 'Beat-space boundaries are already at default (linked to clip in/out)'
+                    : 'Reset the beat-space boundary back to default (linked to clip in/out)'
+                }
+              >
+                Reset Boundary
+              </button>
             </div>
-          )} */}
+          )}
         </div>}
 
         {activeRegion && <div className="rip__divider" />}
@@ -315,10 +401,10 @@ export default function RegionInfoPanel({
               ) : (
                 <span
                   className="rip__value rip__value--editable"
-                  onClick={() => { setInInput(formatTimecode(activeRegion.inPoint)); setEditingIn(true) }}
+                  onClick={() => { setInInput(formatTimecode(liveIn)); setEditingIn(true) }}
                   title="Click to edit"
                 >
-                  {formatTimecode(activeRegion.inPoint)}
+                  {formatTimecode(liveIn)}
                 </span>
               )}
             </div>
@@ -337,10 +423,10 @@ export default function RegionInfoPanel({
               ) : (
                 <span
                   className="rip__value rip__value--editable"
-                  onClick={() => { setOutInput(formatTimecode(activeRegion.outPoint)); setEditingOut(true) }}
+                  onClick={() => { setOutInput(formatTimecode(liveOut)); setEditingOut(true) }}
                   title="Click to edit"
                 >
-                  {formatTimecode(activeRegion.outPoint)}
+                  {formatTimecode(liveOut)}
                 </span>
               )}
             </div>
@@ -359,10 +445,10 @@ export default function RegionInfoPanel({
               ) : (
                 <span
                   className="rip__value rip__value--editable"
-                  onClick={() => { setDurInput(formatTimecode(activeRegion.outPoint - activeRegion.inPoint)); setEditingDur(true) }}
+                  onClick={() => { setDurInput(formatTimecode(liveOut - liveIn)); setEditingDur(true) }}
                   title="Click to edit"
                 >
-                  {formatTimecode(activeRegion.outPoint - activeRegion.inPoint)}
+                  {formatTimecode(liveOut - liveIn)}
                 </span>
               )}
             </div>

@@ -6,9 +6,12 @@ import {
   updateRegionBeatTimes as updateRegionBeatTimesAction,
   updateRegionLock as updateRegionLockAction,
   renameRegion as renameRegionAction,
+  resetRegionBoundary as resetRegionBoundaryAction,
+  applyBpmEdit as applyBpmEditAction,
+  applyBeatsEdit as applyBeatsEditAction,
 } from '../../store/slices/regionSlice'
 import { setBpm as setBpmAction } from '../../store/slices/warpSlice'
-import { selectActiveRegion, selectWarpData } from '../../store/selectors'
+import { selectActiveRegion, selectWarpData, selectEffectiveBeatBoundsForActive } from '../../store/selectors'
 
 export default function ClipInfoPanel() {
   const dispatch = useAppDispatch()
@@ -17,6 +20,8 @@ export default function ClipInfoPanel() {
   const activeRegionId = useAppSelector(s => s.region.activeRegionId)
   const warpData = useAppSelector(selectWarpData)
   const origAnchors = useAppSelector(s => s.warp.origAnchors)
+  const beatAnchors = useAppSelector(s => s.warp.beatAnchors)
+  const effectiveBounds = useAppSelector(selectEffectiveBeatBoundsForActive)
   const [detectingBpm, setDetectingBpm] = useState(false)
 
   const handleBpmDetect = useCallback(async () => {
@@ -37,6 +42,7 @@ export default function ClipInfoPanel() {
       activeRegion={activeRegion ?? null}
       warpData={warpData}
       duration={video.duration}
+      effectiveBounds={effectiveBounds}
       onBpmChange={bpm => dispatch(setBpmAction(bpm))}
       onUpdateRegionInOut={(id, inP, outP) =>
         dispatch(updateRegionInOutAction({ id, inPoint: inP, outPoint: outP }))
@@ -50,6 +56,15 @@ export default function ClipInfoPanel() {
       }}
       onBpmDetect={handleBpmDetect}
       detectingBpm={detectingBpm}
+      onApplyBpmEdit={(newBpm, stretch) => {
+        if (activeRegionId) dispatch(applyBpmEditAction({ id: activeRegionId, newBpm, stretch, origAnchors, beatAnchors }))
+      }}
+      onApplyBeatsEdit={(newLockedBeats, stretch) => {
+        if (activeRegionId) dispatch(applyBeatsEditAction({ id: activeRegionId, newLockedBeats, stretch, origAnchors, beatAnchors }))
+      }}
+      onResetBoundary={() => {
+        if (activeRegionId) dispatch(resetRegionBoundaryAction({ id: activeRegionId }))
+      }}
     />
   )
 }

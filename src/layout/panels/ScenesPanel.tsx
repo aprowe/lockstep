@@ -9,6 +9,7 @@ import { setListSelection } from '../../store/slices/listsSlice'
 import { selectActiveRegion } from '../../store/selectors'
 import { visibleSceneCuts } from '../../utils/sceneFilter'
 import { useDockBridge } from '../DockContext'
+import { useGesture } from '../../store/gesture'
 import './ScenesPanel.css'
 
 // Stable empty-array sentinel — `?? []` in a selector allocates a fresh
@@ -65,6 +66,16 @@ export default function ScenesPanel() {
       }
     })
   }, [video, filteredCuts, regions])
+
+  const lassoSelection = useGesture(s => s.lassoSelection)
+  const lassoSceneIdSet = useMemo(() => {
+    if (!lassoSelection) return undefined
+    const result = new Set<string>()
+    for (const item of allItems) {
+      if (lassoSelection.sceneTimes.has(item.start)) result.add(item.id)
+    }
+    return result
+  }, [lassoSelection, allItems])
 
   const items = useFilteredItems({
     items: allItems,
@@ -183,6 +194,7 @@ export default function ScenesPanel() {
       items={items}
       onActivate={onActivate}
       onDelete={onDelete}
+      selectedIdsOverride={lassoSceneIdSet}
       subHeader={subHeader}
       clipFilterDisabled={!activeRegion}
       emptyHint={

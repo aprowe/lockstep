@@ -88,6 +88,20 @@ pub fn has_audio_stream(path: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// Sample rate of the first audio stream, in Hz. Falls back to 44100 when the
+/// file has no audio or ffprobe can't read it. Pitched-audio mode needs this
+/// so `asetrate=SR/ratio,aresample=SR` can keep the output stream at the
+/// source's native rate after pitch-shifting.
+pub fn audio_sample_rate(path: &str) -> u32 {
+    let Ok(info) = ffprobe_json(path) else { return 44100 };
+    info["streams"]
+        .as_array()
+        .and_then(|arr| arr.iter().find(|s| s["codec_type"].as_str() == Some("audio")))
+        .and_then(|s| s["sample_rate"].as_str())
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(44100)
+}
+
 pub fn ffprobe_json(path: &str) -> Result<serde_json::Value, String> {
     let bin = find_bin("ffprobe");
     let mut cmd = Command::new(&bin);

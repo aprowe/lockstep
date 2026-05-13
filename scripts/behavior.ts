@@ -220,6 +220,9 @@ function parseFeatureFile(
   let pendingTests: string[] = []
   let pendingHints: string[] = []
   let pendingTags: string[]  = []
+  // featureTags: tag tokens declared on the line(s) directly above `Feature:`.
+  // Per Gherkin semantics, these cascade to every scenario in the file.
+  let featureTags: string[]  = []
   // scenarioTests/Hints/Tags: annotations for the CURRENT scenario being built
   let scenarioTests: string[] = []
   let scenarioHints: string[] = []
@@ -246,8 +249,10 @@ function parseFeatureFile(
     const id = `${toSlug(featureTitle)}::${shortHash(hashInput)}`
     if (behaviors[id]) console.warn(`  WARN: ID collision in ${relPath}: ${id}`)
     const entry: BehaviorEntry = { feature: featureTitle, scenario: scenarioTitle, isOutline, steps: steps.map(s => s.trim()), file: relPath, line: scenarioLine }
-    const todo = scenarioTags.includes('@todo')
-    const otherTags = scenarioTags.filter(t => t !== '@todo')
+    // Feature-level tags cascade to every scenario (Gherkin semantics).
+    const effectiveTags = [...new Set([...featureTags, ...scenarioTags])]
+    const todo = effectiveTags.includes('@todo')
+    const otherTags = effectiveTags.filter(t => t !== '@todo')
     if (todo) entry.todo = true
     if (otherTags.length > 0) entry.tags = otherTags
     if (directResolved.length > 0) entry.defs = directResolved
@@ -261,7 +266,12 @@ function parseFeatureFile(
 
   for (const [i, raw] of lines.entries()) {
     const t = raw.trim()
-    if (FEATURE_RE.test(t))  { featureTitle = t.replace(/^Feature\s*:\s*/i, '').trim(); continue }
+    if (FEATURE_RE.test(t))  {
+      featureTitle = t.replace(/^Feature\s*:\s*/i, '').trim()
+      // Tags accumulated before `Feature:` cascade to every scenario in the file.
+      if (pendingTags.length > 0) { featureTags = pendingTags; pendingTags = [] }
+      continue
+    }
     // Collect @test / @hint from comment lines (multi-line hints joined with space)
     if (t.startsWith('#')) {
       const testMatch = t.match(/^#\s*@test\s+(.+)/)

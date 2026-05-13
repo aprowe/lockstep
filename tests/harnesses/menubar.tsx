@@ -35,6 +35,7 @@ function defaultDeps() {
     panels: [],
     visiblePanelIds: new Set<string>(),
     showShortcuts: noop,
+    saveProjectAs: noop,
   }
 }
 

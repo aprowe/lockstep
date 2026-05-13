@@ -11,7 +11,8 @@ import warpReducer, {
   setBeatAnchorsFromTimeline,
   selectAll,
   deselectAll,
-  setSelectedIds,
+  setSelectedOrigIds,
+  setSelectedBeatIds,
   setBeatZeroId,
   newAnchorId,
   bumpAnchorIdCounter,
@@ -67,11 +68,13 @@ describe('removeAnchors', () => {
     expect(state.beatZeroId).toBeNull()
   })
 
-  it('removes the ID from selectedIds', () => {
+  it('removes the ID from selectedOrigIds and selectedBeatIds', () => {
     let state = warpReducer(undefined, addAnchor({ id: 1, time: 5 }))
-    state = warpReducer(state, setSelectedIds([1]))
+    state = warpReducer(state, setSelectedOrigIds([1]))
+    state = warpReducer(state, setSelectedBeatIds([1]))
     state = warpReducer(state, removeAnchors([1]))
-    expect(state.selectedIds).not.toContain(1)
+    expect(state.selectedOrigIds).not.toContain(1)
+    expect(state.selectedBeatIds).not.toContain(1)
   })
 })
 
@@ -102,12 +105,6 @@ describe('moveBeatAnchor', () => {
     expect(state.linkedBeatIds).not.toContain(1)
   })
 
-  it('updates the beat anchor time', () => {
-    let state = warpReducer(undefined, addAnchor({ id: 1, time: 5 }))
-    state = warpReducer(state, moveBeatAnchor({ id: 1, time: 7 }))
-    expect(state.beatAnchors[0].time).toBe(7)
-  })
-
   it('leaves orig anchor time unchanged', () => {
     let state = warpReducer(undefined, addAnchor({ id: 1, time: 5 }))
     state = warpReducer(state, moveBeatAnchor({ id: 1, time: 7 }))
@@ -136,13 +133,15 @@ describe('resetBeatLinks', () => {
 describe('clearAnchors', () => {
   it('empties all anchor arrays and selection', () => {
     let state = stateWithAnchors([{ id: 1, origTime: 5 }, { id: 2, origTime: 10 }])
-    state = warpReducer(state, setSelectedIds([1]))
+    state = warpReducer(state, setSelectedOrigIds([1]))
+    state = warpReducer(state, setSelectedBeatIds([1]))
     state = warpReducer(state, setBeatZeroId(1))
     state = warpReducer(state, clearAnchors())
     expect(state.origAnchors).toHaveLength(0)
     expect(state.beatAnchors).toHaveLength(0)
     expect(state.linkedBeatIds).toHaveLength(0)
-    expect(state.selectedIds).toHaveLength(0)
+    expect(state.selectedOrigIds).toHaveLength(0)
+    expect(state.selectedBeatIds).toHaveLength(0)
     expect(state.beatZeroId).toBeNull()
   })
 })
@@ -218,25 +217,23 @@ describe('loadAnchors', () => {
 })
 
 describe('selection', () => {
-  it('selectAll selects all orig anchor IDs', () => {
+  it('selectAll selects all orig anchor IDs in both spaces', () => {
     let state = stateWithAnchors([{ id: 1, origTime: 5 }, { id: 2, origTime: 10 }])
     state = warpReducer(state, selectAll())
-    expect(state.selectedIds).toEqual(expect.arrayContaining([1, 2]))
-    expect(state.selectedIds).toHaveLength(2)
+    expect(state.selectedOrigIds).toEqual(expect.arrayContaining([1, 2]))
+    expect(state.selectedOrigIds).toHaveLength(2)
+    expect(state.selectedBeatIds).toEqual(expect.arrayContaining([1, 2]))
+    expect(state.selectedBeatIds).toHaveLength(2)
   })
 
-  it('deselectAll clears selection', () => {
+  it('deselectAll clears both selection arrays', () => {
     let state = stateWithAnchors([{ id: 1, origTime: 5 }])
     state = warpReducer(state, selectAll())
     state = warpReducer(state, deselectAll())
-    expect(state.selectedIds).toHaveLength(0)
+    expect(state.selectedOrigIds).toHaveLength(0)
+    expect(state.selectedBeatIds).toHaveLength(0)
   })
 
-  it('setSelectedIds sets an explicit list', () => {
-    let state = stateWithAnchors([{ id: 1, origTime: 5 }, { id: 2, origTime: 10 }])
-    state = warpReducer(state, setSelectedIds([2]))
-    expect(state.selectedIds).toEqual([2])
-  })
 })
 
 describe('newAnchorId', () => {

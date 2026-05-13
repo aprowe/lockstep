@@ -55,7 +55,6 @@ fn main() {
     let mut positional: Vec<String> = Vec::new();
     let mut output: Option<String> = None;
     let mut clip_selector: Option<String> = None;
-    let mut normalize_bpm = false;
     let mut fade_at_loop = false;
     let mut interp_fps: Option<u32> = None;
     let mut interp_method: InterpMethod = InterpMethod::Minterpolate;
@@ -73,7 +72,6 @@ fn main() {
                 i += 1;
                 clip_selector = args.get(i).cloned();
             }
-            "--normalize-bpm" => normalize_bpm = true,
             "--fade-at-loop"  => fade_at_loop = true,
             "--fps" => {
                 i += 1;
@@ -155,7 +153,6 @@ fn main() {
         beat_zero_time: dr.beat_zero_anchor_time.unwrap_or(0.0),
         trim_to_loop: dr.trim_to_loop.unwrap_or(false),
         loop_beats,
-        normalize_bpm,
         fade_at_loop,
         interp_fps,
         interp_method,
@@ -207,7 +204,6 @@ struct BaseOpts {
     beat_zero_time: f64,
     trim_to_loop: bool,
     loop_beats: Option<u32>,
-    normalize_bpm: bool,
     fade_at_loop: bool,
     interp_fps: Option<u32>,
     interp_method: InterpMethod,
@@ -236,7 +232,6 @@ fn build_opts(base: &BaseOpts, region: Option<&Region>, dr: &DefaultRegion) -> W
         add_to_end: region.and_then(|r| r.add_to_end).or(dr.add_to_end).unwrap_or(false),
         trim_to_loop: base.trim_to_loop,
         loop_beats: base.loop_beats,
-        normalize_bpm: base.normalize_bpm,
         fade_at_loop: base.fade_at_loop,
         clip_in: region.map(|r| r.in_point),
         clip_out: region.map(|r| r.out_point),
@@ -245,6 +240,7 @@ fn build_opts(base: &BaseOpts, region: Option<&Region>, dr: &DefaultRegion) -> W
         no_smooth: base.no_smooth,
         trigger_mode,
         scene_cuts: Vec::new(),
+        audio_mode: Default::default(),
     }
 }
 
@@ -312,7 +308,6 @@ fn print_usage() {
     eprintln!("options:");
     eprintln!("  -o, --output <path>    output file or directory (required)");
     eprintln!("  -c, --clip <idx|name>  select a single clip (index or name substring)");
-    eprintln!("  --normalize-bpm        speed output to 120 BPM");
     eprintln!("  --fade-at-loop         add fade at loop point");
     eprintln!("  --fps <n>              output at constant <n> fps with frame interpolation");
     eprintln!("  --interp-method <m>    interpolation method: minterpolate (default) | rife");

@@ -8,7 +8,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::ffmpeg::{atempo_chain, run_ffmpeg};
-use crate::pipeline::options::InterpMethod;
+use crate::pipeline::options::{AudioMode, InterpMethod};
 use crate::pipeline::time_map::TimeMap;
 
 /// One pre-computed segment: a slice of the source between `in_start` and
@@ -96,11 +96,21 @@ pub fn plan_segments(
 /// Encode all segments, returning the list of produced files in order.
 /// Progress is reported in the range `[0.02, 0.80]` for compatibility with the
 /// legacy `remap_video` progress mapping.
+///
+/// `audio_mode` selects how the audio track is processed:
+///   * `Tempo` — `atempo` keeps pitch fixed while length matches the new video.
+///   * `Pitch` — `asetrate=sample_rate/ratio,aresample=sample_rate` re-pitches
+///     the audio with the speed change (turntable-style).
+///   * `None`  — `-an`; output has no audio stream.
+/// `sample_rate` is only consulted in `Pitch` mode; pass the source's native
+/// rate (or 44100 if unknown) so the resampler restores it after asetrate.
 pub fn encode_segments<F>(
     input_path: &str,
     plans: &[SegmentPlan],
     interp_fps: Option<u32>,
     interp_method: InterpMethod,
+    audio_mode: AudioMode,
+    sample_rate: u32,
     tmp_path: &Path,
     progress: &F,
 ) -> Result<Vec<PathBuf>, String>
@@ -131,12 +141,34 @@ where
             vf.push_str(&format!(",tpad=stop_duration={:.6}:stop_mode=clone", plan.pad_dur));
         }
 
-        // Build audio filter: retime via atempo, optional silence pad.
-        let mut af = atempo_chain(1.0 / plan.ratio);
-        if plan.pad_dur > 0.001 {
-            af.push_str(&format!(",apad=pad_dur={:.6}", plan.pad_dur));
-        }
-        let atempo = af;
+        // Build audio filter from the chosen mode. `Tempo` keeps pitch fixed
+        // via atempo; `Pitch` re-pitches with speed via asetrate; `None` has
+        // no audio filter (we use `-an` below).
+        let af_opt: Option<String> = match audio_mode {
+            AudioMode::None => None,
+            AudioMode::Tempo => {
+                let mut af = atempo_chain(1.0 / plan.ratio);
+                if plan.pad_dur > 0.001 {
+                    af.push_str(&format!(",apad=pad_dur={:.6}", plan.pad_dur));
+                }
+                Some(af)
+            }
+            AudioMode::Pitch => {
+                // setpts uses ratio = out_dur/in_dur (slowdown when > 1). The
+                // matching audio expression scales the sample rate by 1/ratio
+                // so the audio plays at the same speed as the video, then
+                // resample back to the original rate so the muxer is happy.
+                let new_rate = (sample_rate as f64 / plan.ratio).max(1.0);
+                let mut af = format!(
+                    "asetrate={new_rate:.0},aresample={sample_rate}"
+                );
+                if plan.pad_dur > 0.001 {
+                    af.push_str(&format!(",apad=pad_dur={:.6}", plan.pad_dur));
+                }
+                Some(af)
+            }
+        };
+
         let ss = format!("{}", plan.in_start);
         let t = format!("{}", plan.in_dur);
         let fps_args: Vec<&str> = match inline_interp {
@@ -144,21 +176,27 @@ where
             None => vec![],
         };
 
-        // Try with audio first.
-        let mut args = vec![
-            "-y", "-hide_banner", "-loglevel", "error",
-            "-ss", &ss, "-t", &t, "-i", input_path,
-            "-vf", &vf,
-            "-af", &atempo,
-            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-            "-c:a", "aac", "-b:a", "192k",
-            "-avoid_negative_ts", "make_zero",
-        ];
-        args.extend_from_slice(&fps_args);
-        args.push(&seg_out_str);
+        let result = if let Some(af) = af_opt.as_deref() {
+            // Try with audio first.
+            let mut args = vec![
+                "-y", "-hide_banner", "-loglevel", "error",
+                "-ss", &ss, "-t", &t, "-i", input_path,
+                "-vf", &vf,
+                "-af", af,
+                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-c:a", "aac", "-b:a", "192k",
+                "-avoid_negative_ts", "make_zero",
+            ];
+            args.extend_from_slice(&fps_args);
+            args.push(&seg_out_str);
+            run_ffmpeg(&args)
+        } else {
+            Err("audio disabled".to_string())
+        };
 
-        if run_ffmpeg(&args).is_err() {
-            // Fallback: no audio (source segment may have no audio track).
+        if result.is_err() {
+            // Fallback: no audio (either user requested it or the source
+            // segment has no audio track to filter).
             let mut args_na = vec![
                 "-y", "-hide_banner", "-loglevel", "error",
                 "-ss", &ss, "-t", &t, "-i", input_path,

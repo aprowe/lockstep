@@ -4,6 +4,7 @@ import { useFilteredItems } from '../../components/list/useFilteredItems'
 import ContextMenu, { type ContextMenuState } from '../../components/ContextMenu'
 import ClipRow from './ClipRow'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
+import { useGesture } from '../../store/gesture'
 import {
   addRegion as addRegionAction,
   deleteRegion as deleteRegionAction,
@@ -13,7 +14,7 @@ import {
 } from '../../store/slices/regionSlice'
 import { setExportOpen as setExportOpenAction } from '../../store/slices/uiSlice'
 import { setListSelection, setPendingEdit } from '../../store/slices/listsSlice'
-import { calcNewRegionBoundsFromScenes } from '../../utils/view'
+import { calcNewRegionBoundsFromScenes } from '../../timeline/model/newRegionBounds'
 import { visibleSceneCuts } from '../../utils/sceneFilter'
 import { useDockBridge } from '../DockContext'
 
@@ -42,6 +43,7 @@ export default function ClipsPanel() {
     [sceneCuts, userSceneCuts, sceneMinGap],
   )
   const filterMode = useAppSelector(s => s.lists.filterMode.clips)
+  const lassoSelection = useGesture(s => s.lassoSelection)
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
 
@@ -97,10 +99,17 @@ export default function ClipsPanel() {
 
   const onDelete = useCallback((ids: string[]) => {
     for (const id of ids) dispatch(deleteRegionAction(id))
-    dispatch(setListSelection({ list: 'clips', ids: [] }))
+    dispatch(setListSelection({ list: 'clipin', ids: [] }))
+    dispatch(setListSelection({ list: 'clipout', ids: [] }))
   }, [dispatch])
 
-  const selectedClipIds = useAppSelector(s => s.lists.selection.clips)
+  // Union of both clip spaces for context-menu replace-select logic.
+  const selectedClipinIds = useAppSelector(s => s.lists.selection.clipin)
+  const selectedClipoutIds = useAppSelector(s => s.lists.selection.clipout)
+  const selectedClipIds = useMemo(
+    () => [...new Set([...selectedClipinIds, ...selectedClipoutIds])],
+    [selectedClipinIds, selectedClipoutIds],
+  )
 
   const openContextMenu = useCallback((e: React.MouseEvent, id: string) => {
     e.preventDefault(); e.stopPropagation()
@@ -111,7 +120,9 @@ export default function ClipsPanel() {
     // before showing the menu, so menu actions hit the row the user
     // visually targeted instead of a stale multi-selection.
     if (!selectedClipIds.includes(id)) {
-      dispatch(setListSelection({ list: 'clips', ids: [id] }))
+      // Replace-select: put this id in both spaces so it's visible on both tracks.
+      dispatch(setListSelection({ list: 'clipin', ids: [id] }))
+      dispatch(setListSelection({ list: 'clipout', ids: [id] }))
       dispatch(setActiveRegionIdAction(id))
     }
     setContextMenu({
@@ -147,12 +158,16 @@ export default function ClipsPanel() {
         onDelete={onDelete}
         hideClipFilter
         emptyHint="Drag on the strip to create a clip"
+        selectedIdsOverride={lassoSelection
+          ? new Set([...(lassoSelection.clipinIds ?? new Set()), ...(lassoSelection.clipoutIds ?? new Set())])
+          : undefined}
         prefixRows={
           <div
             className={`clip-row clip-row--full${activeRegionId === null ? ' clip-row--active' : ''}`}
             onClick={() => {
               dispatch(setActiveRegionIdAction(null))
-              dispatch(setListSelection({ list: 'clips', ids: [] }))
+              dispatch(setListSelection({ list: 'clipin', ids: [] }))
+              dispatch(setListSelection({ list: 'clipout', ids: [] }))
             }}
           >
             <span className="clip-row__swatch" style={{ background: 'var(--bg-5)' }} />

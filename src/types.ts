@@ -105,6 +105,10 @@ export interface ClipOverlay {
   selected?: boolean
   /** 0-based index for color cycling (optional, defaults to 0) */
   colorIndex?: number
+  /** Explicit beat-space in boundary (undefined = default-linked: use origToBeat(inPoint)) */
+  inBeatTime?: number
+  /** Explicit beat-space out boundary (undefined = default-linked: use origToBeat(outPoint)) */
+  outBeatTime?: number
 }
 
 /** Multi-selection state for markers */

@@ -9,7 +9,7 @@ import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
  * selected to that one item; shift/ctrl variants only touch selection.
  */
 
-export type ListId = 'clips' | 'markers' | 'scenes'
+export type ListId = 'clips' | 'markers' | 'scenes' | 'clipin' | 'clipout'
 export type ListThumbnailMode = 'none' | 'small' | 'large'
 /** Visibility filter applied to each list's items.
  *   global   — every item, no filter
@@ -37,9 +37,9 @@ interface ListsState {
 }
 
 const initialState: ListsState = {
-  selection: { clips: [], markers: [], scenes: [] },
-  thumbnailMode: { clips: 'none', markers: 'none', scenes: 'none' },
-  filterMode: { clips: 'global', markers: 'global', scenes: 'global' },
+  selection: { clips: [], markers: [], scenes: [], clipin: [], clipout: [] },
+  thumbnailMode: { clips: 'none', markers: 'none', scenes: 'none', clipin: 'none', clipout: 'none' },
+  filterMode: { clips: 'global', markers: 'global', scenes: 'global', clipin: 'global', clipout: 'global' },
   pendingEdit: null,
 }
 

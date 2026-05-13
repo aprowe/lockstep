@@ -3,10 +3,11 @@ import ListPanel from '../../components/list/ListPanel'
 import { useFilteredItems } from '../../components/list/useFilteredItems'
 import MarkerRow, { type MarkerRowData } from './MarkerRow'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
-import { removeAnchors, setSelectedIds as setSelectedAnchorIds, resetBeatLinks, setBeatAnchorsFromTimeline } from '../../store/slices/warpSlice'
-import { selectActiveRegion, selectSelectedIdsSet, selectWarpData } from '../../store/selectors'
+import { removeAnchors, setSelectedOrigIds as setSelectedOrigAnchorIds, setSelectedBeatIds as setSelectedBeatAnchorIds, resetBeatLinks, setBeatAnchorsFromTimeline } from '../../store/slices/warpSlice'
+import { selectActiveRegion, selectSelectedIdsUnion, selectWarpData } from '../../store/selectors'
 import { useDockBridge } from '../DockContext'
 import { snapAllToBeat } from '../../utils/quantize'
+import { useGesture } from '../../store/gesture'
 
 export default function MarkersPanel() {
   const dispatch = useAppDispatch()
@@ -19,14 +20,24 @@ export default function MarkersPanel() {
   const gridDiv = useAppSelector(s => s.ui.gridDiv)
   const activeRegion = useAppSelector(selectActiveRegion)
   const filterMode = useAppSelector(s => s.lists.filterMode.markers)
-  // Markers selection lives in warp.selectedIds (number ids) so the
-  // timeline lasso and the list stay in sync — same source of truth on
-  // both sides. Stringified for ListPanel's id contract.
-  const selectedAnchorIdSet = useAppSelector(selectSelectedIdsSet)
+  // Markers selection: union of orig + beat selected anchor ids so both
+  // spaces appear highlighted in the panel. Stringified for ListPanel's
+  // id contract.
+  const selectedAnchorIdSet = useAppSelector(selectSelectedIdsUnion)
   const selectedIdsAsStrings = useMemo(
     () => new Set(Array.from(selectedAnchorIdSet, n => String(n))),
     [selectedAnchorIdSet],
   )
+
+  const lassoSelection = useGesture(s => s.lassoSelection)
+  const selectedIdsOverride = useMemo(() => {
+    if (lassoSelection) {
+      // Show both orig and beat lassoed anchors in the panel.
+      const merged = new Set([...lassoSelection.origAnchorIds, ...lassoSelection.beatAnchorIds])
+      return new Set(Array.from(merged, n => String(n)))
+    }
+    return selectedIdsAsStrings
+  }, [lassoSelection, selectedIdsAsStrings])
 
   // Build all rows up-front; let useFilteredItems window them by mode.
   const allItems = useMemo<MarkerRowData[]>(() => {
@@ -94,11 +105,15 @@ export default function MarkersPanel() {
 
   const onDelete = useCallback((ids: string[]) => {
     dispatch(removeAnchors(ids.map(s => Number(s))))
-    dispatch(setSelectedAnchorIds([]))
+    dispatch(setSelectedOrigAnchorIds([]))
+    dispatch(setSelectedBeatAnchorIds([]))
   }, [dispatch])
 
   const onSelectionChangeOverride = useCallback((ids: string[]) => {
-    dispatch(setSelectedAnchorIds(ids.map(s => Number(s))))
+    // Panel selection corresponds to input (orig) space anchors.
+    const numIds = ids.map(s => Number(s))
+    dispatch(setSelectedOrigAnchorIds(numIds))
+    dispatch(setSelectedBeatAnchorIds([]))
   }, [dispatch])
 
   if (!video) return <div className="vj-empty-panel">No video</div>
@@ -132,7 +147,7 @@ export default function MarkersPanel() {
       items={items}
       onActivate={onActivate}
       onDelete={onDelete}
-      selectedIdsOverride={selectedIdsAsStrings}
+      selectedIdsOverride={selectedIdsOverride}
       onSelectionChangeOverride={onSelectionChangeOverride}
       subHeader={actionsBar}
       clipFilterDisabled={!activeRegion}

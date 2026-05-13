@@ -11,7 +11,8 @@ import { buildFileMenu, buildEditMenu, buildViewMenu } from './menus'
 import { stepUiScale, resetUiScale, getUiScale, UI_SCALE_STEP } from './uiScale'
 import HudChip from './components/HudChip'
 import { useTransientChip } from './utils/useTransientChip'
-import { calcZoomToRegion, calcNewRegionBoundsFromScenes, calcNewRegionBoundsUpToNext } from './utils/view'
+import { calcZoomToRegion } from './utils/view'
+import { calcNewRegionBoundsFromScenes, calcNewRegionBoundsUpToNext } from './timeline/model/newRegionBounds'
 import { findPreviousTarget } from './utils/navigation'
 import type { View } from './types'
 import PanelDock, { PANEL_LIST, type PanelDockHandle } from './layout/PanelDock'
@@ -58,7 +59,6 @@ import {
   loadAnchors,
   setBpm as setBpmAction,
   setBeatZeroId,
-  setSelectedIds as setSelectedIdsWarp,
   selectAll as selectAllWarp,
   deselectAll as deselectAllWarp,
   setPlayhead as setPlayheadAction,
@@ -69,7 +69,6 @@ import {
   setBeatAnchorsFromTimeline,
 } from './store/slices/warpSlice'
 import {
-  selectSelectedIdsSet,
   selectWarpData,
   selectActiveRegion as selectActiveRegionRedux,
 } from './store/selectors'
@@ -170,7 +169,13 @@ export default function App() {
   const aggPct = totalJobsCount > 0 ? totalProgressSum / totalJobsCount * 100 : 0
   const completedJobsCount = allJobs.filter(j => j.status !== 'running').length
   const aggLabel = totalJobsCount > 0 ? `${completedJobsCount}/${totalJobsCount}` : ''
-  const selectedClipIds = useAppSelector(s => s.lists.selection.clips)
+  const selectedClipinIds = useAppSelector(s => s.lists.selection.clipin)
+  const selectedClipoutIds = useAppSelector(s => s.lists.selection.clipout)
+  // Union of both spaces for ExportDialog pre-selection (export doesn't distinguish clipin/clipout).
+  const selectedClipIds = useMemo(
+    () => [...new Set([...selectedClipinIds, ...selectedClipoutIds])],
+    [selectedClipinIds, selectedClipoutIds],
+  )
   const [clipContextMenu, setClipContextMenu] = useState<ContextMenuState | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [pendingZoom, setPendingZoom] = useState<{ start: number; end: number } | null>(null)

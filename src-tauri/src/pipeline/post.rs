@@ -1,5 +1,4 @@
-//! Stage 4 — Post-processing: loop trimming, beat-zero rearrangement, BPM
-//! normalization.
+//! Stage 4 — Post-processing: loop trimming and beat-zero rearrangement.
 //!
 //! These branches all operate on the already-retimed `output_path` and mutate
 //! it in place via temp files. A local `PostOptions` struct carries only the
@@ -7,7 +6,7 @@
 
 use std::path::Path;
 
-use crate::ffmpeg::{atempo_chain, has_audio_stream, run_ffmpeg, video_duration};
+use crate::ffmpeg::{has_audio_stream, run_ffmpeg, video_duration};
 
 /// Subset of `WarpOptions` relevant to post-processing. Keeping this separate
 /// from the full request makes the stage easier to test and reuse.
@@ -19,7 +18,6 @@ pub struct PostOptions {
     pub add_to_end: bool,
     pub trim_to_loop: bool,
     pub loop_beats: Option<u32>,
-    pub normalize_bpm: bool,
 }
 
 pub fn apply_post_processing<F>(
@@ -140,30 +138,6 @@ where
                 std::fs::rename(&trimmed, output_path).map_err(|e| e.to_string())?;
             }
         }
-    }
-
-    if opts.normalize_bpm && (opts.bpm - 120.0).abs() > 0.01 {
-        let speed = 120.0 / opts.bpm;
-        let normed = format!("{output_path}.norm.mp4");
-        let atempo = atempo_chain(speed);
-        let vf = format!("setpts=PTS/{speed:.6}");
-        let mut args: Vec<&str> = vec![
-            "-y", "-hide_banner", "-loglevel", "error",
-            "-i", output_path,
-            "-vf", vf.as_str(),
-        ];
-        if has_audio {
-            args.extend_from_slice(&["-af", atempo.as_str()]);
-        }
-        args.extend_from_slice(&["-c:v", "libx264", "-preset", "fast", "-crf", "23"]);
-        if has_audio {
-            args.extend_from_slice(&["-c:a", "aac", "-b:a", "192k"]);
-        } else {
-            args.push("-an");
-        }
-        args.push(&normed);
-        run_ffmpeg(&args)?;
-        std::fs::rename(&normed, output_path).map_err(|e| e.to_string())?;
     }
 
     Ok(())

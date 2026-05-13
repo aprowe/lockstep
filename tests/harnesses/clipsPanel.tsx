@@ -14,7 +14,7 @@ import { DockBridgeProvider, type DockBridge } from '../../src/layout/DockContex
 import { setVideo } from '../../src/store/slices/videoSlice'
 import { setRegions, setActiveRegionId } from '../../src/store/slices/regionSlice'
 import { setListSelection, setListFilterMode, setPendingEdit, type ListFilterMode } from '../../src/store/slices/listsSlice'
-import { setSelectedIds as setSelectedAnchorIds } from '../../src/store/slices/warpSlice'
+import { setSelectedOrigIds as setSelectedOrigAnchorIds } from '../../src/store/slices/warpSlice'
 import { setView } from '../../src/store/slices/uiSlice'
 import type { Region, View } from '../../src/types'
 import type { VideoPlayerHandle } from '../../src/components/VideoPlayer'
@@ -56,7 +56,7 @@ export function renderClipsPanel(opts: RenderClipsPanelOptions = {}) {
     store.dispatch(setListSelection({ list: 'clips', ids: opts.selectedClipIds }))
   }
   if (opts.selectedMarkerIds) {
-    store.dispatch(setSelectedAnchorIds(opts.selectedMarkerIds))
+    store.dispatch(setSelectedOrigAnchorIds(opts.selectedMarkerIds))
   }
   if (opts.view) {
     store.dispatch(setView(opts.view))

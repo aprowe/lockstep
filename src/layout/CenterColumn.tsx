@@ -1,22 +1,19 @@
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import VideoPlayer from '../components/VideoPlayer'
 import Filmstrip from '../components/Filmstrip'
 import WarpView from '../components/WarpView'
 import Toolbar from '../components/Toolbar'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
-import { selectActiveRegion, selectSelectedIdsSet, selectWarpData } from '../store/selectors'
+import { selectActiveRegion, selectSelectedIdsUnion, selectWarpData } from '../store/selectors'
 import {
   setOrigAnchorsFromTimeline,
   setPlayhead as setPlayheadAction,
   newAnchorId,
-  removeAnchors as removeAnchorsAction,
-  setSelectedIds as setSelectedAnchorIdsAction,
 } from '../store/slices/warpSlice'
 import {
   addRegion as addRegionAction,
   deleteRegion as deleteRegionAction,
   setActiveRegionId as setActiveRegionIdAction,
-  updateRegionInOut as updateRegionInOutAction,
   updateRegionBeatTimes as updateRegionBeatTimesAction,
 } from '../store/slices/regionSlice'
 import {
@@ -25,9 +22,12 @@ import {
   setView as setViewAction,
   setTimelineHeight as setTimelineHeightAction,
   setPlaybackLoopMode as setPlaybackLoopModeAction,
+  setPlaybackMode as setPlaybackModeAction,
   type PlaybackLoopMode,
+  type PlaybackMode,
 } from '../store/slices/uiSlice'
 import { openFileThunk } from '../store/thunks/videoThunks'
+import { setInPointToPlayhead, setOutPointToPlayhead, moveRegionBounds, panClipinBounds, deleteTimelineSelection, deselectTimelineSelection } from '../store/thunks/regionThunks'
 import {
   addCut as addSceneCutAction,
   deleteCut as deleteSceneCutAction,
@@ -35,7 +35,8 @@ import {
   type ScannedRange,
 } from '../store/slices/sceneSlice'
 import { setListSelection, setPendingEdit } from '../store/slices/listsSlice'
-import { calcZoomToRegion, calcNewRegionBoundsFromScenes, calcNewRegionBoundsUpToNext } from '../utils/view'
+import { calcZoomToRegion } from '../utils/view'
+import { calcNewRegionBoundsFromScenes } from '../timeline/model/newRegionBounds'
 import { findPreviousTarget } from '../utils/navigation'
 import { visibleSceneCuts } from '../utils/sceneFilter'
 import type { View } from '../types'
@@ -72,6 +73,8 @@ export default function CenterColumn() {
 
   const warpData = useAppSelector(selectWarpData)
   const origAnchors = useAppSelector(s => s.warp.origAnchors)
+  const beatAnchors = useAppSelector(s => s.warp.beatAnchors)
+  const playbackMode = useAppSelector(s => s.ui.playbackMode)
   const regions = useAppSelector(s => s.region.regions)
   const activeRegionId = useAppSelector(s => s.region.activeRegionId)
   const activeRegion = useAppSelector(selectActiveRegion)
@@ -99,9 +102,18 @@ export default function CenterColumn() {
   const filteredSceneCuts = visibleSceneCuts(sceneCuts, userSceneCuts, sceneMinGap)
   // Multi-selection set from the clips list — surfaced on the timeline so
   // drag/edit gestures show which clips are about to be affected.
-  const selectedClipIds = useAppSelector(s => s.lists.selection.clips)
-  const selectedClipSet = useMemo(() => new Set(selectedClipIds), [selectedClipIds])
-  const selectedAnchorIds = useAppSelector(selectSelectedIdsSet)
+  const selectedClipinIds = useAppSelector(s => s.lists.selection.clipin)
+  const selectedClipoutIds = useAppSelector(s => s.lists.selection.clipout)
+  const selectedClipinSet = useMemo(() => new Set(selectedClipinIds), [selectedClipinIds])
+  const selectedClipoutSet = useMemo(() => new Set(selectedClipoutIds), [selectedClipoutIds])
+  // Union of both spaces for contexts that don't need to distinguish (e.g. clipOverlays.selected)
+  const selectedClipSet = useMemo(
+    () => new Set([...selectedClipinSet, ...selectedClipoutSet]),
+    [selectedClipinSet, selectedClipoutSet],
+  )
+  // Union of orig + beat selected anchor ids — used for Delete key handling,
+  // region thunks, and the marker panel's selectedIdsOverride.
+  const selectedAnchorIds = useAppSelector(selectSelectedIdsUnion)
   // Lasso-driven scene-cut selection — lives in sceneSlice (not lists.selection
   // because scene rows in the panel address segments, not cuts; conflating the
   // two would make panel checkboxes reflect timeline lasso state).
@@ -113,32 +125,11 @@ export default function CenterColumn() {
 
   // Delete the union of every timeline-side selection in one shot. Fires
   // from Delete / Backspace when the timeline root has keyboard focus.
-  const handleTimelineDelete = useCallback(() => {
-    if (selectedClipIds.length > 0) {
-      for (const id of selectedClipIds) dispatch(deleteRegionAction(id))
-      dispatch(setListSelection({ list: 'clips', ids: [] }))
-    }
-    if (selectedAnchorIds.size > 0) {
-      dispatch(removeAnchorsAction([...selectedAnchorIds]))
-      dispatch(setSelectedAnchorIdsAction([]))
-    }
-    if (selectedSceneCutTimes.length > 0 && videoPath) {
-      for (const t of selectedSceneCutTimes) {
-        dispatch(deleteSceneCutAction({ path: videoPath, cut: t }))
-      }
-      // deleteCut already drops matching entries from selectedCutTimes,
-      // but call setSelectedCutTimes([]) to be explicit and clear in one go.
-      dispatch(setSelectedSceneCutTimesAction([]))
-    }
-  }, [selectedClipIds, selectedAnchorIds, selectedSceneCutTimes, videoPath, dispatch])
+  const handleTimelineDelete = useCallback(() => dispatch(deleteTimelineSelection()), [dispatch])
 
   // Clear every timeline-side selection — Cmd+D and the empty-click
   // deselect (Policy B from docs/INTERACTION_DESIGN.md).
-  const handleTimelineDeselect = useCallback(() => {
-    if (selectedClipIds.length > 0) dispatch(setListSelection({ list: 'clips', ids: [] }))
-    if (selectedAnchorIds.size > 0) dispatch(setSelectedAnchorIdsAction([]))
-    if (selectedSceneCutTimes.length > 0) dispatch(setSelectedSceneCutTimesAction([]))
-  }, [selectedClipIds, selectedAnchorIds, selectedSceneCutTimes, dispatch])
+  const handleTimelineDeselect = useCallback(() => dispatch(deselectTimelineSelection()), [dispatch])
 
   // Saved viewport from before the user zoomed into a region — restored when
   // the same zoom action toggles back out.
@@ -149,9 +140,74 @@ export default function CenterColumn() {
   const folderVideos = useAppSelector(s => s.video.folderVideos)
   const markersLoaded = useAppSelector(s => s.video.markersLoaded)
 
-  // Empty / loading state — rendered in the center slot whenever there's
-  // no usable video, so the rest of the dock (file browser etc.) stays
-  // reachable around it.
+  // ── Beat-time playback rate ───────────────────────────────────────────────
+  // Keep refs current so the effect closure never captures stale values.
+  const playbackModeRef = useRef(playbackMode); playbackModeRef.current = playbackMode
+  const origAnchorsRef  = useRef(origAnchors);  origAnchorsRef.current  = origAnchors
+  const beatAnchorsRef  = useRef(beatAnchors);  beatAnchorsRef.current  = beatAnchors
+  // Tracks the speed-dropdown multiplier set in Toolbar (default 1×).
+  const speedRef = useRef(1)
+
+  useEffect(() => {
+    /** Given the sorted orig/beat anchor arrays and the current video time,
+     *  return the playbackRate that makes beat-time advance at 1×.
+     *  Returns 1 when outside the anchor range or when < 2 anchors exist. */
+    function computeBeatRate(currentTime: number): number {
+      const oAnchors = origAnchorsRef.current
+      const bAnchors = beatAnchorsRef.current
+      if (oAnchors.length < 2) return 1
+      // Build sorted pairs
+      const sorted = [...oAnchors]
+        .sort((a, b) => a.time - b.time)
+        .map(oa => {
+          const ba = bAnchors.find(b => b.id === oa.id)
+          return { origTime: oa.time, beatTime: ba ? ba.time : oa.time }
+        })
+      // Find the segment containing currentTime
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const o0 = sorted[i].origTime
+        const o1 = sorted[i + 1].origTime
+        if (currentTime >= o0 && currentTime <= o1) {
+          const origSpan = o1 - o0
+          const beatSpan = sorted[i + 1].beatTime - sorted[i].beatTime
+          if (beatSpan <= 0 || origSpan <= 0) return 1
+          // rate = origSpan / beatSpan → beat advances 1s per 1s of wall-clock
+          return origSpan / beatSpan
+        }
+      }
+      return 1 // outside anchor range
+    }
+
+    const v = playerRef.current?.videoElement
+    if (!v) return
+
+    const handleTimeUpdate = () => {
+      const dropdownSpeed = speedRef.current
+      if (playbackModeRef.current === 'beat') {
+        const beatRate = computeBeatRate(v.currentTime) * dropdownSpeed
+        // Clamp to browser-supported range (most browsers: 0.0625–16)
+        v.playbackRate = Math.max(0.0625, Math.min(16, beatRate))
+      } else {
+        if (v.playbackRate !== dropdownSpeed) v.playbackRate = dropdownSpeed
+      }
+    }
+
+    v.addEventListener('timeupdate', handleTimeUpdate)
+    // Apply immediately in case mode changes while paused
+    handleTimeUpdate()
+    return () => {
+      v.removeEventListener('timeupdate', handleTimeUpdate)
+      // Restore native rate when effect is cleaned up
+      if (v.playbackRate !== 1) v.playbackRate = 1
+    }
+  // Re-attach whenever the video element changes (new src load) or mode changes.
+  // Anchor changes are picked up via refs — no need to re-run the effect.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerRef, playbackMode, video?.path])
+
+  // ── Empty / loading state ─────────────────────────────────────────────────
+  // Rendered in the center slot whenever there's no usable video, so the
+  // rest of the dock (file browser etc.) stays reachable around it.
   if (!video) {
     return (
       <div className="vj-center vj-center--empty">
@@ -205,7 +261,7 @@ export default function CenterColumn() {
   }
   const deleteRegion = (id: string) => dispatch(deleteRegionAction(id))
   const updateRegionInOut = (id: string, inP: number, outP: number) =>
-    dispatch(updateRegionInOutAction({ id, inPoint: inP, outPoint: outP }))
+    dispatch(moveRegionBounds({ id, inPoint: inP, outPoint: outP }))
   const updateRegionBeatTimes = (id: string, inBT?: number, outBT?: number) =>
     dispatch(updateRegionBeatTimesAction({ id, inBeatTime: inBT, outBeatTime: outBT }))
 
@@ -299,34 +355,8 @@ export default function CenterColumn() {
         onJumpRegionEnd={activeRegion ? () => {
           playerRef.current?.seek(activeRegion.outPoint)
         } : undefined}
-        onSetIn={activeRegion ? () => {
-          if (playhead > activeRegion.outPoint) {
-            const { inPoint, outPoint } = calcNewRegionBoundsUpToNext(
-              playhead, view.end - view.start, regions, video.duration,
-            )
-            const id = addRegion(inPoint, outPoint)
-            if (id) setActiveRegionId(id)
-          } else {
-            updateRegionInOut(activeRegion.id, playhead, activeRegion.outPoint)
-          }
-        } : () => {
-          const id = addRegion(playhead, video.duration)
-          if (id) setActiveRegionId(id)
-        }}
-        onSetOut={activeRegion ? () => {
-          if (playhead < activeRegion.inPoint) {
-            const { inPoint, outPoint } = calcNewRegionBoundsUpToNext(
-              playhead, view.end - view.start, regions, video.duration,
-            )
-            const id = addRegion(inPoint, outPoint)
-            if (id) setActiveRegionId(id)
-          } else {
-            updateRegionInOut(activeRegion.id, activeRegion.inPoint, playhead)
-          }
-        } : () => {
-          const id = addRegion(0, Math.max(playhead, 0.1))
-          if (id) setActiveRegionId(id)
-        }}
+        onSetIn={() => dispatch(setInPointToPlayhead({ playhead, viewSpan: view.end - view.start, duration: video.duration }))}
+        onSetOut={() => dispatch(setOutPointToPlayhead({ playhead, viewSpan: view.end - view.start, duration: video.duration }))}
         onNewRegion={() => {
           const { inPoint, outPoint } = calcNewRegionBoundsFromScenes(
             playhead, view, filteredSceneCuts, video.duration, regions,
@@ -361,6 +391,9 @@ export default function CenterColumn() {
         } : undefined}
         playbackLoopMode={playbackLoopMode}
         onPlaybackLoopModeChange={(m: PlaybackLoopMode) => dispatch(setPlaybackLoopModeAction(m))}
+        playbackMode={playbackMode}
+        onPlaybackModeChange={(m: PlaybackMode) => dispatch(setPlaybackModeAction(m))}
+        onSpeedChange={rate => { speedRef.current = rate }}
         currentBeat={(() => {
           const bpm = warpData?.bpm ?? 0
           if (bpm <= 0) return null
@@ -412,6 +445,8 @@ export default function CenterColumn() {
               active: isActive,
               selected: selectedClipSet.has(r.id) && !(isActive && onlySelfSelected),
               colorIndex: r.colorIndex,
+              inBeatTime: r.inBeatTime,
+              outBeatTime: r.outBeatTime,
             }
           })}
           onClipOverlaySelect={id => {
@@ -421,15 +456,19 @@ export default function CenterColumn() {
               if (region) playerRef.current?.seek(region.inPoint)
             }
           }}
-          selectedClipIds={selectedClipSet}
-          onClipsSelectionChange={ids => dispatch(setListSelection({ list: 'clips', ids: [...ids] }))}
+          selectedClipinIds={selectedClipinSet}
+          selectedClipoutIds={selectedClipoutSet}
+          onClipsSelectionChange={(clipinIds, clipoutIds) => {
+            dispatch(setListSelection({ list: 'clipin', ids: [...clipinIds] }))
+            dispatch(setListSelection({ list: 'clipout', ids: [...clipoutIds] }))
+          }}
           selectedSceneTimes={selectedSceneCutSet}
           onScenesSelectionChange={times => dispatch(setSelectedSceneCutTimesAction([...times]))}
           userSceneTimes={userSceneCutSet}
           onTimelineDelete={handleTimelineDelete}
           onTimelineDeselect={handleTimelineDeselect}
           onClipOverlayResize={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
-          onClipOverlayMove={(id, inP, outP) => updateRegionInOut(id, inP, outP)}
+          onClipOverlayMove={(id, inP, outP, altKey) => dispatch(panClipinBounds({ id, inPoint: inP, outPoint: outP, altKey }))}
           onClipOverlayZoom={id => {
             const region = regions.find(r => r.id === id)
             if (!region) return

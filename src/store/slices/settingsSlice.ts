@@ -34,6 +34,8 @@ interface SettingsState {
   /** Gemini model id. Default is the fastest video-capable variant; the
    *  pro variant is more accurate but slower. */
   geminiModel: string
+  /** Lerp-animate the timeline view window when scrolling/panning. */
+  smoothPan: boolean
 }
 
 const DEFAULTS: SettingsState = {
@@ -44,6 +46,7 @@ const DEFAULTS: SettingsState = {
   assistantModel: 'claude-opus-4-7',
   geminiApiKey: '',
   geminiModel: 'gemini-2.5-flash',
+  smoothPan: true,
 }
 
 const STORAGE_KEY = 'lockstep.settings.v1'
@@ -69,6 +72,7 @@ function loadFromStorage(): SettingsState {
       geminiModel: typeof parsed.geminiModel === 'string' && parsed.geminiModel.length > 0
         ? parsed.geminiModel
         : DEFAULTS.geminiModel,
+      smoothPan: typeof parsed.smoothPan === 'boolean' ? parsed.smoothPan : DEFAULTS.smoothPan,
     }
   } catch {
     return DEFAULTS
@@ -113,6 +117,10 @@ const settingsSlice = createSlice({
       state.geminiModel = action.payload
       saveToStorage(state)
     },
+    setSmoothPan(state, action: PayloadAction<boolean>) {
+      state.smoothPan = action.payload
+      saveToStorage(state)
+    },
     resetSettings(state) {
       state.thumbWidth = DEFAULTS.thumbWidth
       state.maxCachedFrames = DEFAULTS.maxCachedFrames
@@ -133,6 +141,7 @@ export const {
   setAssistantModel,
   setGeminiApiKey,
   setGeminiModel,
+  setSmoothPan,
   resetSettings,
 } = settingsSlice.actions
 export default settingsSlice.reducer
