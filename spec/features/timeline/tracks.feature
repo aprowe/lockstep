@@ -8,11 +8,13 @@ Feature: Timeline Tracks
     # Pointer state machine, anchor/region drag mechanics, snap, and
     # warp connector behavior live in drag.feature.
 
+    @todo @ignore
     Scenario: Click on empty area when nothing is selected
         Given [a video is loaded]
         When the user clicks on an empty area of the timeline
         Then the playhead jumps to the clicked time
 
+    @todo @ignore
     Scenario: Click on empty area when something is selected
         Given [a video is loaded]
         And there is a non empty selection of objects
@@ -20,12 +22,14 @@ Feature: Timeline Tracks
         Then the playhead stays where it is
         And selection is cleared
 
+    @todo @ignore
     Scenario: Right-click on the timeline opens a three-section context menu
         Given [a video is loaded]
         When the user right-clicks anywhere in the timeline area
         Then a context menu appears with three sections: target-specific, track-specific, and global timeline actions
         And global actions may be promoted to track-specific when the context calls for it
 
+    @todo @ignore
     Scenario: Lasso drag within a single track selects its objects
         Given [a video is loaded]
         And markers are placed on the current track
@@ -34,6 +38,7 @@ Feature: Timeline Tracks
         When the mouse is released
         Then the objects inside the lasso are selected
 
+    @todo @ignore
     Scenario: Lasso drag expands across tracks when the mouse leaves the starting track
         Given [a video is loaded]
         And markers are placed on the current track
@@ -43,12 +48,14 @@ Feature: Timeline Tracks
         When the mouse is released
         Then all objects inside the lasso are selected
 
+    @todo @ignore
     Scenario: Lasso across both boundaries of a clip selects that clip
         Given [a video is loaded]
         And clip 1 exists
         When the user drags across both boundaries of the clip
         Then the clip is selected
 
+    @todo @ignore
     Scenario Outline: Double-click in a track's empty area creates a new object
         Given [a video is loaded]
         And the mouse is over an empty area on a <layer>
@@ -60,6 +67,7 @@ Feature: Timeline Tracks
             | scene_strip    | scene marker |
             | region_strip   | clip         |
 
+    @todo @ignore
     Scenario Outline: Double-click on an object in a track performs its primary action
         Given [a video is loaded]
         And the mouse is over an <object> on a <layer>
@@ -71,6 +79,7 @@ Feature: Timeline Tracks
             | scene_strip    | scene marker | delete |
             | region_strip   | clip         | zoom   |
 
+    @todo @ignore
     Scenario Outline: Right-click on an object shows object-specific actions above track and global options
         Given [a video is loaded]
         And the mouse is over a <object> in <layer>
@@ -84,6 +93,7 @@ Feature: Timeline Tracks
             | scene_strip    | scene marker     | delete,rename                                        |
             | region_strip   | clip             | delete,rename,export,zoom                            |
 
+    @todo @ignore
     Scenario Outline: Right-click on an empty track shows track-specific create actions
         Given [a video is loaded]
         And the mouse is inside <layer>

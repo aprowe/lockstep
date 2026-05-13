@@ -34,9 +34,9 @@ test('Viewport is set to the video duration on load', async ({ page }) => {
   const initialView = await getState(page, (s) => s.ui.view)
   expect(initialView.end).not.toBe(VIDEO_DURATION)
 
-  // Open the File menu and click "Open File".
+  // Open the File menu and click "Open Video".
   await page.locator('.menubar__trigger', { hasText: 'File' }).first().click()
-  await page.locator('.menubar__item', { hasText: 'Open File' }).first().click()
+  await page.locator('.menubar__item', { hasText: 'Open Video' }).first().click()
 
   // Wait for the thunk to apply the new view.
   await expect.poll(() => getState(page, (s) => s.ui.view), {

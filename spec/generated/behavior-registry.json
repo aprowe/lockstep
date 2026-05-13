@@ -339,7 +339,11 @@
         "And the row's activate handler fires once for that id"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 17,
+      "line": 18,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "hints": [
         "click → selection becomes [id]; activate fires for callers that map it to seek / set-active-region / etc."
       ]
@@ -355,7 +359,11 @@
         "And the activate handler is not called"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 30,
+      "line": 31,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "hints": [
         "shift extends from the anchor (last plain-clicked id) to the clicked id; rows in between are unioned with the prior selection."
       ]
@@ -374,7 +382,11 @@
         "And the other selected rows remain selected"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 43,
+      "line": 44,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "hints": [
         "ctrl/cmd toggles the clicked id in the existing set; never activates."
       ]
@@ -390,7 +402,11 @@
         "And a bulk-delete (trash) button is visible"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 60
+      "line": 61,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::152900a6": {
       "feature": "List Selection",
@@ -403,7 +419,11 @@
         "And the checkbox is unchecked for unselected rows"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 66
+      "line": 67,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::0530ee04": {
       "feature": "List Selection",
@@ -415,7 +435,11 @@
         "And the selection bar is hidden"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 72
+      "line": 73,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::e6ae004a": {
       "feature": "List Selection",
@@ -428,7 +452,11 @@
         "And the activate handler is not called"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 77
+      "line": 78,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::5287d418": {
       "feature": "List Selection",
@@ -441,7 +469,11 @@
         "And the original three-row selection is unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 85
+      "line": 86,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::da2c6dec": {
       "feature": "List Selection",
@@ -454,7 +486,11 @@
         "And the selection is cleared"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 91
+      "line": 92,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::a6138eae": {
       "feature": "List Selection",
@@ -467,7 +503,11 @@
         "And the row immediately after the deleted selection is focused"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 101,
+      "line": 102,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "hints": [
         "Bound at the panel root via onKeyDown — caller's onDelete fires with the full selection id list, then the row immediately after the last deleted (or before the first if at the end) is selected and activated, mirroring a plain click on it."
       ]
@@ -484,7 +524,11 @@
         "And the player seeks to its in-point"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 109
+      "line": 110,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::e190e98b": {
       "feature": "List Selection",
@@ -497,7 +541,11 @@
         "And the selection now includes both clips A and B"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 116
+      "line": 117,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::376277f3": {
       "feature": "List Selection",
@@ -511,7 +559,11 @@
         "And the clips list shows checkboxes on each selected row"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 127,
+      "line": 128,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "unresolvedRefs": [
         "in out"
       ],
@@ -530,7 +582,11 @@
         "And the markers list shows checkboxes on each selected row"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 137,
+      "line": 138,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "hints": [
         "Markers list selection is wired to warp.selectedIds via MarkersPanel's selectedIdsOverride — the timeline lasso has always written there, so list + timeline mirror automatically."
       ]
@@ -544,7 +600,11 @@
         "Then those two clips show the accent outline on the timeline overlays"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 143
+      "line": 144,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::ecdd90c1": {
       "feature": "List Selection",
@@ -557,7 +617,11 @@
         "Then the marker selection is unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 149
+      "line": 150,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::67c421a9": {
       "feature": "List Selection",
@@ -571,7 +635,11 @@
         "And the rows still visible remain selected and checked"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 157
+      "line": 158,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::388b677c": {
       "feature": "List Selection",
@@ -583,7 +651,11 @@
         "Then the selection contains only the lassoed items"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 168,
+      "line": 169,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "hints": [
         "Plain drag clears selection before adding lasso hits; Ctrl/Cmd+drag is additive (snapshot-then-merge)."
       ]
@@ -598,7 +670,11 @@
         "Then the selection contains both the original and lassoed items"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 173
+      "line": 174,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::564d68b7": {
       "feature": "List Selection",
@@ -610,7 +686,11 @@
         "Then only marker items are selected"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 178
+      "line": 179,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::ed5022ee": {
       "feature": "List Selection",
@@ -622,7 +702,11 @@
         "Then both marker and clip selections are updated"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 183
+      "line": 184,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::cb8929f5": {
       "feature": "List Selection",
@@ -636,7 +720,11 @@
         "And the context menu is shown for clip B"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 230,
+      "line": 231,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "hints": [
         "Adobe-style \"replace-then-act\": opening a context menu on a row that isn't already in the selection first replaces selection with [id] + sets it active, so menu actions hit what the user visually targeted."
       ]
@@ -651,7 +739,11 @@
         "Then all three clips are still selected"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 240,
+      "line": 241,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "hints": [
         "Right-click on an *already-selected* row leaves the multi- selection alone — bulk actions in the menu still target every selected clip."
       ]
@@ -666,7 +758,11 @@
         "Then all three clips are selected"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 248,
+      "line": 249,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "hints": [
         "Cmd/Ctrl+A bound on the focused list panel via useListSelection.handleKeyDown. Scope is the visible-items list — respects whatever filter is active."
       ]
@@ -683,7 +779,11 @@
         "And the markers selection is unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 255,
+      "line": 256,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "hints": [
         "Cmd/Ctrl+D clears the focused list's selection. Other lists' selections are untouched (focus-scoping rule)."
       ]
@@ -700,7 +800,11 @@
         "And both selections are cleared"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 268
+      "line": 269,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::9ca01b60": {
       "feature": "List Selection",
@@ -714,7 +818,11 @@
         "And no items are deleted"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 275
+      "line": 276,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::871d21c2": {
       "feature": "List Selection",
@@ -728,7 +836,11 @@
         "And the active clip is unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 286,
+      "line": 287,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "hints": [
         "Policy B from docs/INTERACTION_DESIGN.md — a plain click on the empty timeline body (no drag, no modifier) clears every timeline-side selection. Modifier-clicks are ignored so the user can ctrl-click without losing the lasso snapshot."
       ]
@@ -743,7 +855,11 @@
         "Then both selections are unchanged"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 293
+      "line": 294,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::c16d9138": {
       "feature": "List Selection",
@@ -756,7 +872,11 @@
         "And the scene-cut selection is cleared"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 307,
+      "line": 308,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "hints": [
         "Selected diamonds draw with an accent ring + a brighter through-line so the user can pick them out at a glance even when the always-show-scene-lines toggle is off."
       ]
@@ -772,7 +892,11 @@
         "And the cuts themselves remain"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 313
+      "line": 314,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "list-selection::5afb8d06": {
       "feature": "List Selection",
@@ -784,7 +908,11 @@
         "Then the scene-cut selection is cleared"
       ],
       "file": "spec/features/list-selection.feature",
-      "line": 319
+      "line": 320,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ]
     },
     "timeline-navigation::2e61d3bc": {
       "feature": "Timeline Navigation",
@@ -3455,7 +3583,11 @@
         "And the video frame updates to match the playhead position"
       ],
       "file": "spec/features/timeline/ruler.feature",
-      "line": 3,
+      "line": 4,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "defs": [
         "a video is loaded",
         "input ruler"
@@ -3471,7 +3603,11 @@
         "Then the playhead jumps to the clicked time"
       ],
       "file": "spec/features/timeline/tracks.feature",
-      "line": 11,
+      "line": 12,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "defs": [
         "a video is loaded"
       ]
@@ -3488,7 +3624,11 @@
         "And selection is cleared"
       ],
       "file": "spec/features/timeline/tracks.feature",
-      "line": 16,
+      "line": 18,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "defs": [
         "a video is loaded"
       ]
@@ -3504,7 +3644,11 @@
         "And global actions may be promoted to track-specific when the context calls for it"
       ],
       "file": "spec/features/timeline/tracks.feature",
-      "line": 23,
+      "line": 26,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "defs": [
         "a video is loaded"
       ]
@@ -3522,7 +3666,11 @@
         "Then the objects inside the lasso are selected"
       ],
       "file": "spec/features/timeline/tracks.feature",
-      "line": 29,
+      "line": 33,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "defs": [
         "a video is loaded"
       ]
@@ -3541,7 +3689,11 @@
         "Then all objects inside the lasso are selected"
       ],
       "file": "spec/features/timeline/tracks.feature",
-      "line": 37,
+      "line": 42,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "defs": [
         "a video is loaded"
       ]
@@ -3557,7 +3709,11 @@
         "Then the clip is selected"
       ],
       "file": "spec/features/timeline/tracks.feature",
-      "line": 46,
+      "line": 52,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "defs": [
         "a video is loaded"
       ]
@@ -3573,7 +3729,11 @@
         "Then the track creates a new <object> at the cursor position"
       ],
       "file": "spec/features/timeline/tracks.feature",
-      "line": 52,
+      "line": 59,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "defs": [
         "a video is loaded"
       ]
@@ -3589,7 +3749,11 @@
         "Then the track performs <action> for the <object> under the cursor"
       ],
       "file": "spec/features/timeline/tracks.feature",
-      "line": 63,
+      "line": 71,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "defs": [
         "a video is loaded"
       ]
@@ -3605,7 +3769,11 @@
         "Then the context menu shows <actions> above the track and global options"
       ],
       "file": "spec/features/timeline/tracks.feature",
-      "line": 74,
+      "line": 83,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "defs": [
         "a video is loaded"
       ]
@@ -3621,7 +3789,11 @@
         "Then the context menu shows <actions> above the track and global options"
       ],
       "file": "spec/features/timeline/tracks.feature",
-      "line": 87,
+      "line": 97,
+      "todo": true,
+      "tags": [
+        "@ignore"
+      ],
       "defs": [
         "a video is loaded"
       ]

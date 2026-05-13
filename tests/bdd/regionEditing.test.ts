@@ -20,7 +20,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
   // observable side effects) at render time and assert on them in later
   // steps; DOM queries must stay in the same step that does the rendering.
 
-  // @behavior region-editing::4dd632ec
+  // @behavior region-editing::2e73871c
   ScenarioOutline('Clicking a region moves the playhead to its start', ({ Given, And, When, Then }, variables) => {
     const region = makeSidebarRegion('r-clip', 'Clip', 30, 45)
     const observed: { selected: string | null } = { selected: null }

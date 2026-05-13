@@ -1,10 +1,11 @@
+@todo @ignore
 Feature: List Selection
 
-    # Spec-only for now — every concrete scenario below carries
-    # `@todo @ignore` so coverage doesn't gate on tests we haven't
-    # written yet. The behaviour is still being ironed out (per the
-    # Open Questions block at the bottom); once it solidifies, drop
-    # the @ignore tag and bind a test.
+    # Spec-only for now — Feature-level `@todo @ignore` cascades to every
+    # scenario so coverage doesn't gate on tests we haven't written yet.
+    # The behaviour is still being ironed out (per the Open Questions block
+    # at the bottom); once it solidifies, drop the @ignore tag per scenario
+    # and bind a test.
 
     # Click + keyboard semantics shared by every list panel (clips, markers,
     # scenes). The "active item" concept is currently distinct from
