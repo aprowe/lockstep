@@ -90,12 +90,15 @@ export default function ClipsPanel() {
     return id
   }, [dispatch, regions, video])
 
-  // Active = the single clip a plain click landed on; also seeks the player.
+  // Active = the single clip a plain click landed on. Seek the player only
+  // when the activated clip is changing — re-clicking the already-active
+  // clip leaves the playhead alone.
   const onActivate = useCallback((id: string) => {
+    if (id === activeRegionId) return
     dispatch(setActiveRegionIdAction(id))
     const r = regions.find(x => x.id === id)
     if (r) seek(r.inPoint)
-  }, [dispatch, regions, seek])
+  }, [dispatch, regions, seek, activeRegionId])
 
   const onDelete = useCallback((ids: string[]) => {
     for (const id of ids) dispatch(deleteRegionAction(id))

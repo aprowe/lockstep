@@ -349,11 +349,18 @@ export default function CenterColumn() {
           const next = sorted.find(a => a.time > playhead + 0.05)
           if (next) playerRef.current?.seek(next.time)
         }}
-        onJumpRegionStart={activeRegion ? () => {
-          playerRef.current?.seek(activeRegion.inPoint)
+        onJumpRegionStart={regions.length > 0 ? () => {
+          // Navigate BACKWARD through all region endpoints (both inPoints and
+          // outPoints), interleaved by time: s1 e1 s2 e2 ...
+          const endpoints = regions.flatMap(r => [r.inPoint, r.outPoint])
+          const prev = findPreviousTarget(endpoints, playhead, playing)
+          if (prev !== undefined) playerRef.current?.seek(prev)
         } : undefined}
-        onJumpRegionEnd={activeRegion ? () => {
-          playerRef.current?.seek(activeRegion.outPoint)
+        onJumpRegionEnd={regions.length > 0 ? () => {
+          // Navigate FORWARD through all region endpoints.
+          const endpoints = regions.flatMap(r => [r.inPoint, r.outPoint]).sort((a, b) => a - b)
+          const next = endpoints.find(t => t > playhead + 0.05)
+          if (next !== undefined) playerRef.current?.seek(next)
         } : undefined}
         onSetIn={() => dispatch(setInPointToPlayhead({ playhead, viewSpan: view.end - view.start, duration: video.duration }))}
         onSetOut={() => dispatch(setOutPointToPlayhead({ playhead, viewSpan: view.end - view.start, duration: video.duration }))}
@@ -377,7 +384,10 @@ export default function CenterColumn() {
           const sorted = [...regions].sort((a, b) => a.inPoint - b.inPoint)
           const idx = sorted.findIndex(r => r.id === activeRegionId)
           const next = idx < sorted.length - 1 ? sorted[idx + 1] : null
-          if (next) setActiveRegionId(next.id)
+          if (next) {
+            setActiveRegionId(next.id)
+            playerRef.current?.seek(next.inPoint)
+          }
         } : undefined}
         onDeleteRegion={activeRegion ? () => deleteRegion(activeRegion.id) : undefined}
         onNewScene={videoPath ? () => dispatch(addSceneCutAction({ path: videoPath, cut: playhead })) : undefined}

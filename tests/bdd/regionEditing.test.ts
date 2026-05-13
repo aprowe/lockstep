@@ -52,24 +52,6 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     })
   })
 
-  // @behavior region-editing::8ab0257a
-  Scenario('Clicking the already-active region still seeks to its start', ({ Given, And, When, Then }) => {
-    const region = makeSidebarRegion('r-active', 'Verse', 30, 45)
-    const seen: string[] = []
-
-    Given('a region spans from 30 to 45 seconds and is the active region', () => {})
-    And('the playhead is at 40 seconds', () => {})
-    When('the user clicks the same region again', () => {
-      const harness = renderClipsPanel({ regions: [region], activeRegionId: region.id })
-      harness.seek.mockImplementation(() => seen.push(region.id))
-      const row = harness.container.querySelector('.clip-row.clip-row--active') as HTMLElement
-      fireEvent.click(row)
-    })
-    Then('the playhead moves to 30 seconds', () => {
-      expect(seen).toContain(region.id)
-    })
-  })
-
   // @behavior region-editing::9481d829
   Scenario('Right-clicking a clip in the sidebar opens a menu with Rename', ({ Given, When, Then, And }) => {
     const region = makeSidebarRegion('r-rename', 'Verse', 30, 45)

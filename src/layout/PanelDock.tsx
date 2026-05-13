@@ -22,6 +22,10 @@ import TasksPanel from './panels/TasksPanel'
 import CenterColumn from './CenterColumn'
 import DevRecorderPanel from '../components/DevRecorderPanel'
 
+// Show the thumbnail recorder panel in dev OR when VITE_THUMB_RECORDER=1 is
+// set at build time (for opt-in instrumented release builds).
+const SHOW_THUMB_RECORDER = import.meta.env.DEV || import.meta.env.VITE_THUMB_RECORDER === '1'
+
 // ── Component registry ─────────────────────────────────────────────────────
 //
 // Keys are the `component` strings round-tripped through serialized layouts.
@@ -37,7 +41,7 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps>> =
   assistant: () => <AssistantPanelDock />,
   tasks: () => <TasksPanel />,
   center: () => <CenterColumn />,
-  ...(import.meta.env.DEV ? { 'thumb-recorder': () => <DevRecorderPanel /> } : {}),
+  ...(SHOW_THUMB_RECORDER ? { 'thumb-recorder': () => <DevRecorderPanel /> } : {}),
 }
 
 const PANEL_TITLES: Record<string, string> = {
@@ -50,7 +54,7 @@ const PANEL_TITLES: Record<string, string> = {
   assistant: 'Assistant',
   tasks: 'Tasks',
   center: 'Player',
-  ...(import.meta.env.DEV ? { 'thumb-recorder': 'Thumb Recorder' } : {}),
+  ...(SHOW_THUMB_RECORDER ? { 'thumb-recorder': 'Thumb Recorder' } : {}),
 }
 
 const SIDE_PANEL_IDS = ['files', 'clips', 'clip-info', 'scenes', 'markers', 'video-info', 'assistant', 'tasks'] as const
@@ -112,7 +116,7 @@ function buildDefaultLayout(api: DockviewApi) {
     position: { referencePanel: 'scenes' },
     inactive: true,
   })
-  if (import.meta.env.DEV) {
+  if (SHOW_THUMB_RECORDER) {
     api.addPanel({
       id: 'thumb-recorder', component: 'thumb-recorder', title: PANEL_TITLES['thumb-recorder'],
       position: { referencePanel: 'scenes' },
@@ -260,7 +264,7 @@ export default PanelDock
 
 export const PANEL_LIST: Array<{ id: string; title: string }> = [
   ...SIDE_PANEL_IDS.map(id => ({ id, title: PANEL_TITLES[id] })),
-  ...(import.meta.env.DEV ? [{ id: 'thumb-recorder', title: PANEL_TITLES['thumb-recorder'] }] : []),
+  ...(SHOW_THUMB_RECORDER ? [{ id: 'thumb-recorder', title: PANEL_TITLES['thumb-recorder'] }] : []),
 ]
 
 function loadLayout(): SerializedDockview | null {

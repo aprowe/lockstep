@@ -309,14 +309,6 @@ export default function App() {
 
   useEffect(() => { dispatch(ensureWarpListener()) }, [dispatch])
 
-  // ── Seek to region start when active region changes ──────────────────────
-
-  useEffect(() => {
-    if (activeRegion) {
-      playerRef.current?.seek(activeRegion.inPoint)
-    }
-  }, [activeRegionId]) // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── BPM handlers ──────────────────────────────────────────────────────────
 
   const playhead = useAppSelector(s => s.warp.playhead)

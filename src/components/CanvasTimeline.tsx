@@ -4,7 +4,7 @@ import type { RegionBlock } from '../timeline/types'
 import type { Anchor, Region, WarpSegment, View } from '../types'
 import { projectClipoutRegions } from '../timeline/model/clipoutProjection'
 import { liveRegionOverrides, liveOutputRegionOverrides, liveAnchorOverrides, liveBeatAnchorOverrides } from '../timeline/model/liveOverrides'
-import { buildAnchorPairs, origToBeat, anchorBeatAt } from '../timeline/model/beatMap'
+import { buildAnchorPairs, origToBeat } from '../timeline/model/beatMap'
 import { clipHsl } from '../timeline/palette'
 import { gesture, useGesture } from '../store/gesture'
 import { dragStart, dragEnd } from '../store/slices/dragSlice'
@@ -374,12 +374,6 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
     const clipInAnchor = p.clipIn !== undefined
       ? p.anchors.find(a => Math.abs(a.time - p.clipIn!) < 1e-4)
       : undefined
-    // Determine if the active region has an explicit, diverged inBeatTime.
-    // When diverged, the beat grid origin is the committed inBeatTime (p.beatOffset
-    // from WarpView), not the live input position. This prevents the beat grid
-    // from shifting during a clipin resize when the clipout is diverged.
-    const hasExplicitBeatOffset = p.clipIn !== undefined && p.beatOffset !== undefined
-      && Math.abs(p.beatOffset - p.clipIn) > 1e-4
     // For output-space (clipout) drags, use the live output-region inPoint so the
     // beat grid follows the drag in real time. liveOutputRegionMap already reflects
     // the current drag position; p.beatOffset is one React render cycle behind.
@@ -387,15 +381,17 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
       && dragState.isOutput && dragState.liveRegion
       ? liveOutputRegionMap.get(dragState.id)?.inPoint
       : undefined
+    // Beat grid origin during a clipin drag stays at the committed inBeatTime
+    // (p.beatOffset) regardless of diverged-vs-default-linked. The clipout is
+    // frozen at its committed beat position during a clipin drag (see
+    // projectClipoutRegions's r.inPoint fallback), so the grid must stay at
+    // the same place to keep the clipout aligned with the beat ticks.
+    // Routing the offset through origToBeat made the grid drift as the
+    // dragged clipin passed anchors, breaking that alignment.
     const beatOffset = liveClipoutIn !== undefined
       ? liveClipoutIn
       : lr
-        ? (hasExplicitBeatOffset
-            // Diverged region: beat grid stays at the committed inBeatTime.
-            ? (p.beatOffset ?? 0)
-            // Default-linked region: beat grid follows the live warp mapping.
-            : (anchorBeatAt(lr.inPoint, anchors, beatAnchors) ?? liveOrigToBeat(lr.inPoint))
-          )
+        ? (p.beatOffset ?? 0)
         : (anchorsDragging && clipInAnchor)
           ? liveOrigToBeat(p.clipIn!)
           : (p.beatOffset ?? 0)

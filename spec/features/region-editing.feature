@@ -15,14 +15,6 @@ Feature: Region Editing
             | surface           |
             | clip sidebar      |
 
-    # @test tests/bdd/regionClickSeek.test.tsx
-    # @hint Clicking an already-active region still re-seeks to inPoint.
-    Scenario: Clicking the already-active region still seeks to its start
-        Given a region spans from 30 to 45 seconds and is the active region
-        And the playhead is at 40 seconds
-        When the user clicks the same region again
-        Then the playhead moves to 30 seconds
-
     # @test tests/bdd/clipSidebarRename.test.tsx
     # @hint ClipSidebar row needs an onContextMenu handler that opens the
     #       existing ContextMenu with a "Rename" item. Selecting it calls the
