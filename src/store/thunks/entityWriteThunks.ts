@@ -111,22 +111,38 @@ export const applyAnchorEntityMove =
     // entityId is either `a{n}-in` (orig) or `a{n}-out` (beat).
     const state = getState()
     let currentTime: number | undefined
+    let pairId: number | undefined
     const origMatch = entityId.match(/^a(\d+)-in$/)
     const beatMatch  = entityId.match(/^a(\d+)-out$/)
     if (origMatch) {
-      const id = parseInt(origMatch[1], 10)
-      currentTime = state.warp.origAnchors.find(a => a.id === id)?.time
+      pairId = parseInt(origMatch[1], 10)
+      currentTime = state.warp.origAnchors.find(a => a.id === pairId)?.time
     } else if (beatMatch) {
-      const id = parseInt(beatMatch[1], 10)
-      currentTime = state.warp.beatAnchors.find(a => a.id === id)?.time
+      pairId = parseInt(beatMatch[1], 10)
+      currentTime = state.warp.beatAnchors.find(a => a.id === pairId)?.time
     }
-    if (currentTime === undefined) return
+    if (currentTime === undefined || pairId === undefined) return
     // `time` is the absolute target. Residual = target - current; emitting this on every
     // pointerMove+pointerUp converges instead of compounding.
     const delta = time - currentTime
     if (Math.abs(delta) < 1e-12) return
 
     dispatchPipelined(dispatch, getState, { kind: OpKind.Move, id: entityId, delta })
+
+    // Re-link check: when a BEAT anchor (anchor-out) is moved to exactly its
+    // orig partner's time AND the pair is currently diverged, re-link it.
+    // The reverse (orig dragged onto beat) is impossible while linked because
+    // the pairlink propagation keeps them coupled; for a diverged pair, orig
+    // moves don't touch the beat side, so this check is one-directional.
+    if (beatMatch) {
+      const post = getState()
+      const beat = post.warp.beatAnchors.find(a => a.id === pairId)
+      const orig = post.warp.origAnchors.find(a => a.id === pairId)
+      if (beat && orig && beat.linked === false &&
+          Math.abs(beat.time - orig.time) < 1e-6) {
+        dispatch(setAnchorLinked({ id: pairId, linked: true }))
+      }
+    }
   }
 
 /**
@@ -565,11 +581,19 @@ export const applyConformedClipout =
     const postR = postState.region.regions.find(rr => rr.id === payload.id)
     const syncedIn  = postR?.inBeatTime  ?? payload.inBeatTime
     const syncedOut = postR?.outBeatTime ?? payload.outBeatTime
+    // Re-link check: if the post-commit clipout matches the clipin exactly
+    // (in input space ↔ beat space alignment), the region is effectively
+    // default-linked again. This is the "snap clipout onto its twin re-links"
+    // gesture. Otherwise mark diverged.
+    const matchesClipin =
+      postR !== undefined &&
+      Math.abs(syncedIn  - postR.inPoint)  < 1e-6 &&
+      Math.abs(syncedOut - postR.outPoint) < 1e-6
     dispatch(_syncRegionPositions({
       [payload.id]: {
         inBeatTime:    syncedIn,
         outBeatTime:   syncedOut,
-        defaultLinked: false,
+        defaultLinked: matchesClipin,
       },
     }))
   }
