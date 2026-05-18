@@ -5,13 +5,13 @@ Automated screenshots of the Lockstep UI, served via Playwright pointed at the V
 ## One-time setup
 
 ```bash
-npm run playwright:install   # downloads chromium (~150 MB) — shared with test:integration
+npm run playwright:install   # downloads chromium (~150 MB)
 ```
 
 ## Take screenshots
 
 ```bash
-npm run test:screenshots
+npm run screenshots
 ```
 
 Output goes to `docs/screenshots/`.
