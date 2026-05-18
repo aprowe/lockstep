@@ -221,6 +221,29 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     }
   }
 
+  // 3b. Snap SnapTarget — installed EARLY so it restricts writes BEFORE
+  //    ConformVisual / MirrorPair propagate them. The pipeline iterates
+  //    constraints in install order; without this ordering, MirrorPair sees
+  //    the pre-snap clipout write and propagates it to the anchor, then
+  //    SnapTarget restricts the clipout — leaving the anchor at the pre-snap
+  //    value (the "anchors get lost during snap" bug).
+  if (dragCtx.snapInstall) {
+    const { entityId, field, threshold, grid, mode, targets } = dragCtx.snapInstall
+    state = reduce(state, {
+      kind: OpKind.AddConstraint,
+      constraint: {
+        kind:      ConstraintKind.SnapTarget,
+        id:        entityId,
+        field,
+        targets:   targets ?? [],
+        threshold,
+        grid,
+        mode,
+        tag:       `snap:${entityId}:${field}`,
+      },
+    })
+  }
+
   // 4a. ConformVisual — auto-installed for every (region × anchor × edge)
   //    combination. The handler checks coincidence DYNAMICALLY each pipeline
   //    pass using txn-aware values: if `clipin.{edge}` (post-write) coincides
@@ -371,23 +394,8 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     state = reduce(state, lasso('main', dragCtx.lassoIds))
   }
 
-  // 9. Snap SnapTarget — installed at drag start.
-  if (dragCtx.snapInstall) {
-    const { entityId, field, threshold, grid, mode, targets } = dragCtx.snapInstall
-    state = reduce(state, {
-      kind: OpKind.AddConstraint,
-      constraint: {
-        kind:      ConstraintKind.SnapTarget,
-        id:        entityId,
-        field,
-        targets:   targets ?? [],
-        threshold,
-        grid,
-        mode,
-        tag:       `snap:${entityId}:${field}`,
-      },
-    })
-  }
+  // 9. (SnapTarget moved to step 3b above — must install before MirrorPair
+  //    so snap restricts writes before MirrorPair propagates them.)
 
   // 10. Anchor-lock constraints — from dragCtx.anchorLock (written by anchorLockMirrorMiddleware).
   if (dragCtx.anchorLock) {
