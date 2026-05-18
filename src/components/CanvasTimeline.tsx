@@ -3,7 +3,7 @@ import { useAppDispatch, useAppSelector } from '../store/hooks'
 import type { RegionBlock } from '../timeline/types'
 import type { Anchor, Region, WarpSegment, View } from '../types'
 import type { State as ConstraintState } from '../constraints/types'
-import { buildAnchorPairs, origToBeat } from '../timeline/model/beatMap'
+import { buildAnchorPairs } from '../timeline/model/beatMap'
 import { clipHsl } from '../timeline/palette'
 import { gesture, useGesture } from '../store/gesture'
 import { dragStart, dragEnd } from '../store/slices/dragSlice'
@@ -357,32 +357,16 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
     // True when an anchor (input or beat) is currently being dragged.
     const anchorsDragging = dragState?.kind === 'anchor'
 
-    // Piecewise-linear input→beat mapping using live anchor pairs (mirrors WarpView's origToBeat)
-    function liveOrigToBeat(t: number): number {
-      return origToBeat(t, anchorPairs)
-    }
-
-    // Beat offset: use anchor's live beat time when clip inPoint is pinned to one.
-    // For output-space (clipout) drags, read the live inPoint from p.regionsOutput
-    // (the slice is updated on every pointerMove via applyConformedClipout).
-    const clipInAnchor = p.clipIn !== undefined
-      ? p.anchors.find(a => Math.abs(a.time - p.clipIn!) < 1e-4)
-      : undefined
-    const liveClipoutIn = (dragState?.kind === 'region-edge' || dragState?.kind === 'region-move')
-      && dragState.isOutput
-      ? p.regionsOutput?.find(r => r.id === dragState.id)?.inPoint
-      : undefined
-    // Beat grid origin during a clipin drag stays at the committed inBeatTime
-    // (p.beatOffset). During a clipout drag, use the live inPoint from the slice.
-    const clipinDragging = (dragState?.kind === 'region-edge' || dragState?.kind === 'region-move')
-      && !dragState.isOutput
-    const beatOffset = liveClipoutIn !== undefined
-      ? liveClipoutIn
-      : clipinDragging
-        ? (p.beatOffset ?? 0)
-        : (anchorsDragging && clipInAnchor)
-          ? liveOrigToBeat(p.clipIn!)
-          : (p.beatOffset ?? 0)
+    // Beat grid origin: read from slice (p.beatOffset = effectiveBounds.inBeatTime).
+    // Previously this had an `anchorsDragging && clipInAnchor` branch that
+    // computed offset via the live anchor pair mapping, which made the grid
+    // visually jump to the "conformed" position during an anchor drag — even
+    // when MirrorPair didn't propagate the anchor delta into the clipout
+    // (input-anchor drags, where the guard suppresses propagation). The grid
+    // would snap back at pointerUp once the live-mapping branch fell away,
+    // revealing that the slice never actually moved. Removed: grid and region
+    // overlay now both read the slice, so they always agree.
+    const beatOffset = p.beatOffset ?? 0
 
     // Clipout regions render from the slice directly. Conform-driven position
     // overrides used to live here; they were removed because they duplicated
