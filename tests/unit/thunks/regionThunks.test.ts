@@ -288,8 +288,10 @@ describe('moveAnchors', () => {
     expect(anchors.find(a => a.id === 1)?.time).toBe(10)
   })
 
-  it('does NOT fire linking event even when anchor coincides with inPoint', () => {
-    // New design: anchor dragged onto boundary → visual conform only, no commit.
+  it('anchor dragged onto inPoint engages conform (transient via ConformVisual)', () => {
+    // Under the new model: anchor drag onto a region's edge engages ConformVisual,
+    // which writes clipout.in = paired beat anchor's time. No applyLinkingEvent
+    // is dispatched (the conform is transient — re-evaluated each pipeline pass).
     const store = makeStore()
     store.dispatch(addRegion(makeFullRegion({ inPoint: 10, outPoint: 20, bpm: 120, inBeatTime: 10, outBeatTime: 20 })))
     store.dispatch(addAnchor({ id: 1, time: 5 }))
@@ -298,12 +300,11 @@ describe('moveAnchors', () => {
     store.dispatch(moveAnchors([{ id: 1, time: 10 }]))
 
     const r = store.getState().region.regions[0]
-    // inBeatTime stays at original value — no commit from moveAnchors
-    expect(r.inBeatTime).toBe(10) // unchanged from initial value
-    expect(r.lockedBeats).toBeUndefined() // no linking event fired
+    // ConformVisual fires: clipin.in=10 ≈ orig=10 → writes clipout.in = beat=6.
+    expect(r.inBeatTime).toBeCloseTo(6, 6)
   })
 
-  it('does NOT fire linking event when anchor coincides with outPoint', () => {
+  it('anchor dragged onto outPoint engages conform on the out-edge', () => {
     const store = makeStore()
     store.dispatch(addRegion(makeFullRegion({ inPoint: 10, outPoint: 20, bpm: 120, inBeatTime: 10, outBeatTime: 20 })))
     store.dispatch(addAnchor({ id: 2, time: 5 }))
@@ -312,23 +313,22 @@ describe('moveAnchors', () => {
     store.dispatch(moveAnchors([{ id: 2, time: 20 }]))
 
     const r = store.getState().region.regions[0]
-    // outBeatTime stays at original value — no commit
-    expect(r.outBeatTime).toBe(20) // unchanged
-    expect(r.lockedBeats).toBeUndefined()
+    // ConformVisual fires for the out-edge: writes clipout.out = beat=18.
+    expect(r.outBeatTime).toBeCloseTo(18, 6)
   })
 
-  it('does not change inBeatTime/outBeatTime regardless of anchor position', () => {
+  it('anchor not on any edge: inBeatTime/outBeatTime unchanged (conform not engaged)', () => {
     const store = makeStore()
     store.dispatch(addRegion(makeFullRegion({ inPoint: 10, outPoint: 20, bpm: 120 })))
     store.dispatch(addAnchor({ id: 1, time: 5 }))
     store.dispatch(moveBeatAnchor({ id: 1, time: 5 }))
 
-    store.dispatch(moveAnchors([{ id: 1, time: 10 }]))
+    store.dispatch(moveAnchors([{ id: 1, time: 7 }]))   // not on either edge
 
     const r = store.getState().region.regions[0]
-    // moveAnchors does not touch inBeatTime/outBeatTime; they remain at their creation values
-    expect(r.inBeatTime).toBe(10)  // inPoint from makeFullRegion
-    expect(r.outBeatTime).toBe(20) // outPoint from makeFullRegion
+    // No conform — clipout bounds unchanged.
+    expect(r.inBeatTime).toBe(10)
+    expect(r.outBeatTime).toBe(20)
   })
 })
 

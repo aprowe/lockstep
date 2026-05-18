@@ -365,17 +365,22 @@ const HANDLERS: HandlerEntry[] = [
 
       const clipInEdgeField = cv.edge === 'in' ? Field.In : Field.Out
       const clipInWrite     = txn.find(w => w.entityId === cv.clipId && w.field === clipInEdgeField)
-      // Gate firing on "clipin is being written this pass": otherwise a
-      // standalone clipout drag (no clipin write) where clipin happens to
-      // sit on an anchor would have its user-intended clipout write
-      // overridden by the conform write. The conform binding is meant to
-      // engage when the user moves clipin INTO coincidence, not to
-      // perpetually pull clipout toward the anchor when clipin is parked
-      // on it.
-      if (!clipInWrite) return txn
-      const anchorInTime = txn.find(w => w.entityId === cv.anchorInId && w.field === Field.Time)?.to
-                           ?? anchorIn.time
-      const clipInEdge   = clipInWrite.to
+      const anchorInWrite   = txn.find(w => w.entityId === cv.anchorInId && w.field === Field.Time)
+      // Gate firing on "one of the input-space endpoints is being written":
+      //   - clipin write → user is dragging clipin (visual conform engages
+      //     when clipin lands on the anchor).
+      //   - anchor-in write → user is dragging the orig anchor onto a
+      //     clipin edge (the symmetric gesture).
+      // Without this gate, a standalone clipout drag (neither input-side
+      // endpoint writes) where clipin happens to sit on an anchor would have
+      // its user-intended clipout write overridden by the conform write.
+      if (!clipInWrite && !anchorInWrite) return txn
+
+      const anchorInTime = anchorInWrite?.to ?? anchorIn.time
+      const clipInEdge   = clipInWrite?.to   ?? (cv.edge === 'in'
+                            ? (state.entities[cv.clipId] as { in: number } | undefined)?.in
+                            : (state.entities[cv.clipId] as { out: number } | undefined)?.out)
+      if (clipInEdge === undefined) return txn
 
       // Coincidence check (input space).
       if (Math.abs(clipInEdge - anchorInTime) > CONFORM_EPSILON) return txn
