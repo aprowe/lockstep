@@ -20,6 +20,14 @@ function selectorState(store: ReturnType<typeof makeStore>): RootState {
   return store.getState() as RootState
 }
 
+const REGION_DEFAULTS = {
+  bpm: 120,
+  minStretch: 0.5,
+  maxStretch: 2.0,
+  addToEnd: false as const,
+  defaultLinked: true,
+}
+
 describe('selectQuantAnchors', () => {
   it('returns beat anchors as { id, time }[], sorted by orig time', () => {
     const store = makeStore()
@@ -69,7 +77,7 @@ describe('selectSnapTargetsOutput', () => {
     const store = makeStore()
     store.dispatch(addAnchor({ id: 1, time: 5 }))
     store.dispatch(addRegion({
-      id: 'r', name: 'r', inPoint: 2, outPoint: 12, inBeatTime: 7, outBeatTime: 17, colorIndex: 0,
+      id: 'r', name: 'r', inPoint: 2, outPoint: 12, inBeatTime: 7, outBeatTime: 17, colorIndex: 0, ...REGION_DEFAULTS,
     }))
     store.dispatch(setActiveRegionId('r'))
     const targets = selectSnapTargetsOutput(selectorState(store))
@@ -91,7 +99,7 @@ describe('selectSegmentAnchors', () => {
     const store = makeStore()
     store.dispatch(addAnchor({ id: 1, time: 5 }))
     store.dispatch(addRegion({
-      id: 'r', name: 'r', inPoint: 1, outPoint: 8, inBeatTime: 1, outBeatTime: 8, colorIndex: 0,
+      id: 'r', name: 'r', inPoint: 1, outPoint: 8, inBeatTime: 1, outBeatTime: 8, colorIndex: 0, ...REGION_DEFAULTS,
     }))
     store.dispatch(setActiveRegionId('r'))
     const result = selectSegmentAnchors(selectorState(store))
@@ -105,7 +113,7 @@ describe('selectLinkedBoundaries', () => {
     const store = makeStore()
     store.dispatch(addAnchor({ id: 1, time: 5 }))
     store.dispatch(addRegion({
-      id: 'r', name: 'r', inPoint: 1, outPoint: 8, inBeatTime: 1, outBeatTime: 8, colorIndex: 0,
+      id: 'r', name: 'r', inPoint: 1, outPoint: 8, inBeatTime: 1, outBeatTime: 8, colorIndex: 0, ...REGION_DEFAULTS,
     }))
     store.dispatch(setActiveRegionId('r'))
     const flags = selectLinkedBoundaries(selectorState(store))
@@ -138,7 +146,7 @@ describe('selectBeatOffset', () => {
     const store = makeStore()
     store.dispatch(addAnchor({ id: 1, time: 5 }))
     store.dispatch(addRegion({
-      id: 'r', name: 'r', inPoint: 0, outPoint: 10, inBeatTime: 0, outBeatTime: 10, colorIndex: 0,
+      id: 'r', name: 'r', inPoint: 0, outPoint: 10, inBeatTime: 0, outBeatTime: 10, colorIndex: 0, ...REGION_DEFAULTS,
     }))
     store.dispatch(setActiveRegionId('r'))
     store.dispatch(setBeatZeroId(1))
@@ -148,7 +156,7 @@ describe('selectBeatOffset', () => {
   it('returns active region inBeatTime when beatZero is null and clip is active', () => {
     const store = makeStore()
     store.dispatch(addRegion({
-      id: 'r', name: 'r', inPoint: 2, outPoint: 12, inBeatTime: 3, outBeatTime: 13, colorIndex: 0,
+      id: 'r', name: 'r', inPoint: 2, outPoint: 12, inBeatTime: 3, outBeatTime: 13, colorIndex: 0, ...REGION_DEFAULTS,
     }))
     store.dispatch(setActiveRegionId('r'))
     expect(selectBeatOffset(selectorState(store))).toBe(3)

@@ -118,7 +118,7 @@ describe('Clipin drag onto diverged anchor: clipout conforms to beat anchor', ()
     // (the replay-frame boundary that applyIntents/CanvasTimeline does in
     // production), then dispatch the frame's thunks.
     const frame = (cumulativeDelta: number) => {
-      store.dispatch((d: never, g: never) => beginReplayFrame(d, g) as never)
+      store.dispatch(beginReplayFrame)
       store.dispatch(applyRegionEntityMove({ id: 'r', delta: cumulativeDelta }))
     }
 

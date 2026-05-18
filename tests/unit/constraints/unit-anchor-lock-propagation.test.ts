@@ -20,13 +20,14 @@ import listsReducer from '../../../src/store/slices/listsSlice'
 import { applyUpdateRegionBeatTimes } from '../../../src/store/thunks/entityWriteThunks'
 import { commitClipoutPan, commitClipoutResize } from '../../../src/store/thunks/clipoutThunks'
 import { configureStore, type EnhancedStore } from '@reduxjs/toolkit'
+import type { AppDispatch } from '../../../src/store/store'
 import { anchorLockMirrorMiddleware } from '../../../src/store/middleware/anchorLockMirrorMiddleware'
 import { selectionGraphMirrorMiddleware } from '../../../src/store/middleware/selectionGraphMirrorMiddleware'
 import type { Region } from '../../../src/types'
 
 // Store with all middleware needed for anchor-lock tests
-function makeTestStore(): EnhancedStore {
-  return configureStore({
+function makeTestStore() {
+  const s = configureStore({
     reducer: {
       warp: warpReducer,
       ui: uiReducer,
@@ -40,6 +41,7 @@ function makeTestStore(): EnhancedStore {
         .concat(selectionGraphMirrorMiddleware)
         .concat(anchorLockMirrorMiddleware),
   })
+  return s as typeof s & { dispatch: AppDispatch }
 }
 
 function getBeatAnchorTime(store: EnhancedStore, anchorId: number): number {

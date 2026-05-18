@@ -6,6 +6,7 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit'
+import type { AppDispatch } from '../../src/store/store'
 import videoReducer from '../../src/store/slices/videoSlice'
 import uiReducer from '../../src/store/slices/uiSlice'
 import warpReducer from '../../src/store/slices/warpSlice'
@@ -24,7 +25,7 @@ import { anchorLockMirrorMiddleware } from '../../src/store/middleware/anchorLoc
 import type { VideoInfo, SavedVideoState } from '../../src/types'
 
 export function makeStore() {
-  return configureStore({
+  const store = configureStore({
     reducer: {
       video: videoReducer,
       ui: uiReducer,
@@ -49,6 +50,11 @@ export function makeStore() {
         .concat(selectionGraphMirrorMiddleware)
         .concat(anchorLockMirrorMiddleware),
   })
+  // Widen dispatch to accept production thunks. The middleware stack
+  // supports them at runtime (RTK includes thunk by default), but the
+  // inferred dispatch type drops the ThunkDispatch overload after extra
+  // middleware concats.
+  return store as typeof store & { dispatch: AppDispatch }
 }
 
 export function makeVideoInfo(overrides: Partial<VideoInfo> = {}): VideoInfo {

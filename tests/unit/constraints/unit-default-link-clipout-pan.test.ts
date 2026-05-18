@@ -18,10 +18,10 @@ import { selectionGraphMirrorMiddleware } from '../../../src/store/middleware/se
 import { anchorLockMirrorMiddleware } from '../../../src/store/middleware/anchorLockMirrorMiddleware'
 import { applyRegionEntityMove } from '../../../src/store/thunks/entityWriteThunks'
 import { selectConstraintGraph } from '../../../src/store/selectors/constraintGraph'
-import type { RootState } from '../../../src/store/store'
+import type { RootState, AppDispatch } from '../../../src/store/store'
 
 function makeStore() {
-  return configureStore({
+  const s = configureStore({
     reducer: {
       warp: warpReducer,
       lists: listsReducer,
@@ -34,6 +34,7 @@ function makeStore() {
         .concat(selectionGraphMirrorMiddleware)
         .concat(anchorLockMirrorMiddleware),
   })
+  return s as typeof s & { dispatch: AppDispatch }
 }
 
 function clipBounds(store: EnhancedStore, entityId: string): { in: number; out: number } {

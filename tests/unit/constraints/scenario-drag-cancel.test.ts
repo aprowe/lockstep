@@ -24,10 +24,10 @@ import { cancelDrag, snapshotPreDragState } from '../../../src/store/thunks/drag
 import { applyAnchorEntityMove } from '../../../src/store/thunks/entityWriteThunks'
 import { anchorInId } from '../../../src/constraints/ids'
 import { selectConstraintGraph } from '../../../src/store/selectors/constraintGraph'
-import type { RootState } from '../../../src/store/store'
+import type { RootState, AppDispatch } from '../../../src/store/store'
 
 function makeStore() {
-  return configureStore({
+  const s = configureStore({
     reducer: {
       warp:    warpReducer,
       region:  regionReducer,
@@ -37,6 +37,7 @@ function makeStore() {
       dragCtx: dragCtxReducer,
     },
   })
+  return s as typeof s & { dispatch: AppDispatch }
 }
 
 type Store = ReturnType<typeof makeStore>

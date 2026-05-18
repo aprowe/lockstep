@@ -11,6 +11,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { configureStore, type EnhancedStore } from '@reduxjs/toolkit'
+import type { AppDispatch } from '../../../src/store/store'
 import warpReducer, {
   addAnchor,
   setSelectedOrigIds,
@@ -30,7 +31,7 @@ import { selectConstraintGraph } from '../../../src/store/selectors/constraintGr
 import type { RootState } from '../../../src/store/store'
 
 function makeStore() {
-  return configureStore({
+  const s = configureStore({
     reducer: {
       warp: warpReducer,
       lists: listsReducer,
@@ -42,6 +43,7 @@ function makeStore() {
       getDefault()
         .concat(selectionGraphMirrorMiddleware),
   })
+  return s as typeof s & { dispatch: AppDispatch }
 }
 
 function anchorTime(store: EnhancedStore, entityId: string): number {

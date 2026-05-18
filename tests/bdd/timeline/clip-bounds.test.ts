@@ -1132,7 +1132,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       const r = state.region.regions[0]
       const links = detectOutputLinks(r, state.warp.origAnchors, state.warp.beatAnchors)
       expect(links.outputIn).toBeDefined()
-      expect(links.outputIn?.beat.time).toBeCloseTo(15)
+      expect(links.outputIn!.beat!.time).toBeCloseTo(15)
     })
   })
 
@@ -1174,7 +1174,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       const r = state.region.regions[0]
       const links = detectOutputLinks(r, state.warp.origAnchors, state.warp.beatAnchors)
       expect(links.outputIn).toBeDefined()
-      expect(links.outputIn?.beat.time).toBeCloseTo(9)
+      expect(links.outputIn!.beat!.time).toBeCloseTo(9)
     })
   })
 

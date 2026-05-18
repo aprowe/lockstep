@@ -221,9 +221,12 @@ describe('defaultLinkMirrorMiddleware', () => {
     const clipout = graph.entities[regionOutId('r1')]
     expect(clipin).toBeDefined()
     expect(clipout).toBeDefined()
-    expect(clipin!.in).toBeCloseTo(10)
-    expect(clipin!.out).toBeCloseTo(20)
-    expect(clipout!.in).toBeCloseTo(10)
-    expect(clipout!.out).toBeCloseTo(20)
+    if (clipin!.kind !== 'clip' || clipout!.kind !== 'clip') {
+      throw new Error('expected clip entities')
+    }
+    expect(clipin.in).toBeCloseTo(10)
+    expect(clipin.out).toBeCloseTo(20)
+    expect(clipout.in).toBeCloseTo(10)
+    expect(clipout.out).toBeCloseTo(20)
   })
 })
