@@ -6,7 +6,7 @@ const MIN_VISIBLE = 0.5
 
 /**
  * Compute the span for a newly created region.
- * Spec (BEHAVIORS.md §3): the smaller of 10% of the current viewport or 5 seconds.
+ * Spec: the smaller of 10% of the current viewport or 5 seconds.
  */
 export function calcNewRegionSpan(viewSpan: number): number {
   return Math.max(viewSpan * 0.1, 5)

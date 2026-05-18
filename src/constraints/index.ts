@@ -8,7 +8,7 @@
  *   emptyState()       — fresh empty state.
  *   recipes.*          — high-level gestures (lasso, lockOn, snapToSiblings, ...).
  *
- * See sandbox.ts for a runnable demo.
+ * See sandbox/index.html for a runnable demo.
  */
 
 export * from './types'
