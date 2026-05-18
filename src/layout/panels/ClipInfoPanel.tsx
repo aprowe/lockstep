@@ -32,10 +32,20 @@ export default function ClipInfoPanel() {
     try {
       const { analyzeAnchors } = await import('../../api/warp')
       const data = await analyzeAnchors(origAnchors.map(a => a.time))
-      if (data.bpm && data.bpm > 0) dispatch(setBpmAction(data.bpm))
+      if (data.bpm && data.bpm > 0) {
+        // Route detect through applyBpmEdit so the active region's bpm
+        // (and derived lockedBeats) update — that's what the grid reads.
+        // Legacy global bpm is mirrored by applyBpmEdit for back-compat.
+        // stretch: false → length stays, lockedBeats recomputes.
+        if (activeRegionId) {
+          dispatch(applyBpmEditAction({ id: activeRegionId, newBpm: data.bpm, stretch: false, origAnchors, beatAnchors }))
+        } else {
+          dispatch(setBpmAction(data.bpm))
+        }
+      }
     } catch { /* ignore — best effort */ }
     setDetectingBpm(false)
-  }, [origAnchors, dispatch])
+  }, [origAnchors, beatAnchors, activeRegionId, dispatch])
 
   if (!video) return <div className="vj-empty-panel">No video</div>
 
