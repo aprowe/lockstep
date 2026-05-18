@@ -1,6 +1,6 @@
 /**
  * Dynamic screenshot runner. Reads a JSON description of one or more steps
- * from $INSTRUCTIONS and writes PNGs into ./screenshots-out/.
+ * from $INSTRUCTIONS and writes PNGs into ./tests/screenshots/out/.
  *
  * Step shape:
  *   {
@@ -39,7 +39,7 @@ interface Step {
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..')
-const OUT_DIR = path.join(ROOT, 'screenshots-out')
+const OUT_DIR = path.join(ROOT, 'tests', 'screenshots', 'out')
 
 fs.rmSync(OUT_DIR, { recursive: true, force: true })
 fs.mkdirSync(OUT_DIR, { recursive: true })

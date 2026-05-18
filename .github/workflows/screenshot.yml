@@ -127,7 +127,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: screenshots-pr-${{ steps.parse.outputs.pr_number }}-${{ github.run_id }}
-          path: screenshots-out/
+          path: tests/screenshots/out/
           if-no-files-found: error
           retention-days: 30
 
@@ -160,7 +160,7 @@ jobs:
             fi
 
             mkdir -p "$DEST"
-            cp -r "$GITHUB_WORKSPACE/screenshots-out/." "$DEST/"
+            cp -r "$GITHUB_WORKSPACE/tests/screenshots/out/." "$DEST/"
 
             git add .
             git commit -q -m "Screenshots for PR #${PR_NUMBER} (run ${RUN_ID})"
@@ -184,7 +184,7 @@ jobs:
         with:
           script: |
             const fs = require('fs')
-            const dir = 'screenshots-out'
+            const dir = 'tests/screenshots/out'
             const files = fs.readdirSync(dir).filter(f => f.endsWith('.png')).sort()
             const owner = context.repo.owner
             const repo  = context.repo.repo

@@ -103,10 +103,10 @@ if (captureStatus !== 0) {
   process.exit(captureStatus)
 }
 
-const outDir = path.resolve('screenshots-out')
+const outDir = path.resolve('tests/screenshots/out')
 const files = fs.readdirSync(outDir).filter((f) => f.endsWith('.png')).sort()
 if (files.length === 0) {
-  console.error('no PNGs in screenshots-out/')
+  console.error('no PNGs in tests/screenshots/out/')
   process.exit(1)
 }
 console.log(`→ ${files.length} screenshot(s) generated`)

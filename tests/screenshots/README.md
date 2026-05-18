@@ -158,7 +158,7 @@ npx tsx scripts/screenshot-local.ts --pr 45 --instructions @./shots.json
 npx tsx scripts/screenshot-local.ts --pr 45 --instructions @./shots.json --dry-run
 ```
 
-Requires `gh` signed in (`gh auth login`). PNGs land in `screenshots-out/`,
+Requires `gh` signed in (`gh auth login`). PNGs land in `tests/screenshots/out/`,
 get pushed to `screenshots:pr-<N>/local-<timestamp>/`, and the PR gets a
 comment with raw URL image refs.
 
