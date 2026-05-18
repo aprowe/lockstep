@@ -1134,12 +1134,13 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     })
   })
 
-  // @behavior clip-bounds::5884f009
-  // Scenario 3: body drag breaks any prior output-side link on either edge.
+  // @behavior clip-bounds::0f219604
   // Set up: region with inBeatTime=10 paired with a beat anchor at beat time 10.
-  // After translate by +5 (inBeatTime→15), neither edge coincides with the
-  // anchor at beat 10 → detectOutputLinks().outputIn = undefined.
-  Scenario('Clipout body drag breaks any prior link on either edge', ({ Given, When, Then }) => {
+  // Under the inseparable-while-conformed model: translating the clipout body
+  // by +5 carries the linked anchor with it via MirrorPair. The anchor's beat
+  // time moves from 10 → 15, inBeatTime is also 15, link is preserved at the
+  // new position.
+  Scenario('Clipout body drag carries any linked anchors on either edge', ({ Given, When, Then, And }) => {
     const store = makeStore()
     const ANCHOR_ID = 77
 
@@ -1159,25 +1160,29 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       expect(links.outputIn).toBeDefined()
     })
     When('the user drags the clipout body by any nonzero amount', () => {
-      // Translate both edges by +5; anchor stays at beat 10
+      // Translate both edges by +5; MirrorPair carries the anchor along.
       store.dispatch(applyConformedClipout({ id: 'r', inBeatTime: 15, outBeatTime: 35 }))
     })
-    Then('any linked-to-anchor state on either edge is cleared', () => {
+    Then('each linked anchor\'s beat time follows the matching edge by the same delta', () => {
+      const state = store.getState()
+      const beat = state.warp.beatAnchors.find(a => a.id === ANCHOR_ID)
+      expect(beat?.time).toBeCloseTo(15)
+    })
+    And('the links are preserved at the new positions', () => {
       const state = store.getState()
       const r = state.region.regions[0]
-      // inBeatTime=15 no longer coincides with beat anchor at 10 → outputIn cleared
       const links = detectOutputLinks(r, state.warp.origAnchors, state.warp.beatAnchors)
-      expect(links.outputIn).toBeUndefined()
+      expect(links.outputIn).toBeDefined()
+      expect(links.outputIn?.beat.time).toBeCloseTo(15)
     })
   })
 
-  // @behavior clip-bounds::3f7f7100
-  // Scenario 4: edge drag breaks the output-side link on that edge.
-  // Set up: region with inBeatTime=10 paired with a beat anchor at beat time 10
-  // (addAnchor creates both an orig anchor and a beat anchor at the same id/time).
-  // After dispatch(applyConformedClipout({ inBeatTime: 9 })), inBeatTime=9
-  // no longer matches the beat anchor at 10 → detectOutputLinks().outputIn = undefined.
-  Scenario('Clipout edge drag breaks any prior link on that edge', ({ Given, When, Then }) => {
+  // @behavior clip-bounds::5c6f942f
+  // Under the inseparable-while-conformed model: dragging the clipout's in-edge
+  // to 9 carries the linked anchor with it via MirrorPair. The anchor's beat
+  // time moves from 10 → 9, inBeatTime is also 9, link is preserved at the
+  // new position.
+  Scenario('Clipout edge drag carries the linked anchor (inseparable while conformed)', ({ Given, When, Then, And }) => {
     const store = makeStore()
     const ANCHOR_ID = 99
 
@@ -1197,15 +1202,20 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       expect(links.outputIn).toBeDefined()
     })
     When("the user drags the clipout's in-edge by any nonzero amount", () => {
-      // Drag in-edge to 9 — nonzero delta, so inBeatTime diverges from the beat anchor at 10
+      // Drag in-edge to 9; MirrorPair carries the anchor along.
       store.dispatch(applyConformedClipout({ id: 'r', inBeatTime: 9, outBeatTime: 20 }))
     })
-    Then('the in-edge is no longer linked (inBeatTime ≠ the anchor\'s beat time)', () => {
+    Then("the linked anchor's beat time follows the new edge position", () => {
+      const state = store.getState()
+      const beat = state.warp.beatAnchors.find(a => a.id === ANCHOR_ID)
+      expect(beat?.time).toBeCloseTo(9)
+    })
+    And('the link is preserved at the new position (inBeatTime = the anchor\'s beat time)', () => {
       const state = store.getState()
       const r = state.region.regions[0]
-      // inBeatTime is now 9; beat anchor stays at 10 → no coincidence → outputIn is undefined
       const links = detectOutputLinks(r, state.warp.origAnchors, state.warp.beatAnchors)
-      expect(links.outputIn).toBeUndefined()
+      expect(links.outputIn).toBeDefined()
+      expect(links.outputIn?.beat.time).toBeCloseTo(9)
     })
   })
 

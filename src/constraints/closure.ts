@@ -12,6 +12,7 @@ import { ConstraintKind } from './types'
  *   - TranslateGroup (directed, has driver):      driver → followers only.
  *   - ScaleGroup (always has a driver):           driver → followers only.
  *   - DirectedPair (any mode):                    from → to only.
+ *   - MirrorPair (symmetric):                     a ↔ b reciprocally.
  *
  * Non-write constraints (Clamp, PreserveLength, SnapTarget, ConformVisual,
  * Derived, SingleOfKind, DeleteGroup, HighlightGroup) are ignored — they
@@ -43,6 +44,12 @@ export function movementClosure(state: State, seed: EntityId): Set<EntityId> {
           // mode (Translate / MirrorEdge) doesn't matter for reachability —
           // both propagate writes from `from` to `to`.
           if (c.from === id) followers = [c.to]
+          break
+
+        case ConstraintKind.MirrorPair:
+          // Symmetric — writes flow in both directions between a and b.
+          if      (c.a.id === id) followers = [c.b.id]
+          else if (c.b.id === id) followers = [c.a.id]
           break
       }
 

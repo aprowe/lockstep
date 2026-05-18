@@ -9,7 +9,7 @@
 
 import { reduce, emptyState, bpmDerivedConstraint } from './resolver'
 import type { State, Op, EntityId } from './types'
-import { ConstraintKind, OpKind, PairMode } from './types'
+import { ConstraintKind, Field, OpKind, PairMode } from './types'
 import {
   anchorInId,
   anchorOutId,
@@ -271,6 +271,41 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
               },
             })
           }
+        }
+      }
+    }
+  }
+
+  // 4b. MirrorPair (conform binding) — auto-installed wherever clipin.edge ≈ orig
+  //     anchor.time. Symmetric 1-1 between anchor-out.time ↔ clipout.{edge}.
+  //
+  //     Same trigger as the ConformVisual auto-detect above: conformance is a
+  //     by-product of positional coincidence, not an explicit linking gesture.
+  //     Replaces the ephemeral `carry:*` DirectedPair installed by
+  //     `carryStart` for clipout-edge drags AND the unconditional write
+  //     ConformVisual performs every pipeline pass — MirrorPair fires only on
+  //     deltas, so installing it does NOT rewrite stored bounds at coincidence
+  //     time. (Phase A: coexists with ConformVisual; Phase B removes ConformVisual.)
+  {
+    const LINK_EPSILON = 1e-4
+    for (const r of slice.region.regions) {
+      const clipinEntity = state.entities[regionInId(r.id)]
+      if (!clipinEntity || clipinEntity.kind !== 'clip') continue
+      for (const orig of slice.warp.origAnchors) {
+        const beat = beatById.get(orig.id)
+        if (!beat) continue
+        for (const edge of ['in', 'out'] as const) {
+          const clipEdgeValue = edge === 'in' ? clipinEntity.in : clipinEntity.out
+          if (Math.abs(clipEdgeValue - orig.time) > LINK_EPSILON) continue
+          state = reduce(state, {
+            kind: OpKind.AddConstraint,
+            constraint: {
+              kind: ConstraintKind.MirrorPair,
+              a:    { id: anchorOutId(orig.id), field: Field.Time },
+              b:    { id: regionOutId(r.id),    field: edge },
+              tag:  `conform:${orig.id}:${r.id}:${edge}`,
+            },
+          })
         }
       }
     }

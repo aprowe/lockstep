@@ -71,6 +71,7 @@ export const ConstraintKind = {
   DeleteGroup:    'delete_group',
   HighlightGroup: 'highlight_group',
   ConformVisual:  'conform_visual',
+  MirrorPair:     'mirror_pair',
   SnapCohort:     'snap_cohort',
   SnapRule:       'snap_rule',
 } as const
@@ -374,6 +375,24 @@ export interface ConformVisual {
   edge:        'in' | 'out'
 }
 
+/** Symmetric 1-1 binding between two specific (entity, field) endpoints.
+ *  When either endpoint's field is written in the txn, write the same value
+ *  to the partner endpoint. No driver — symmetric. No re-sync on install:
+ *  the binding only fires on writes that are already in flight (delta-based
+ *  by way of mergeWrites short-circuiting), so adding a MirrorPair to a
+ *  graph where the two endpoints differ is a no-op until something moves.
+ *
+ *  Use case: a conformed marker. While the input-space coincidence
+ *  `clipin.edge ≈ anchor-in.time` holds, anchor-out.time and
+ *  clipout.{edge} represent the same point in beat space — moving either
+ *  one moves the other. */
+export interface MirrorPair {
+  kind: typeof ConstraintKind.MirrorPair
+  a:    { id: EntityId; field: Field }
+  b:    { id: EntityId; field: Field }
+  tag?: string
+}
+
 export type Constraint =
   | TranslateGroup
   | ScaleGroup
@@ -386,6 +405,7 @@ export type Constraint =
   | DeleteGroup
   | HighlightGroup
   | ConformVisual
+  | MirrorPair
   | SnapCohort
   | SnapRule
 

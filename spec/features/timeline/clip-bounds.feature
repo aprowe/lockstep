@@ -415,10 +415,11 @@ Feature: Clip Bounds
         And outBeatTime updates (inBeatTime unchanged)
         And inPoint and outPoint are unchanged
 
-    Scenario: Clipout edge drag breaks any prior link on that edge
+    Scenario: Clipout edge drag carries the linked anchor (inseparable while conformed)
         Given a region's in-edge is linked to an input anchor
         When the user drags the clipout's in-edge by any nonzero amount
-        Then the in-edge is no longer linked (inBeatTime ≠ the anchor's beat time)
+        Then the linked anchor's beat time follows the new edge position
+        And the link is preserved at the new position (inBeatTime = the anchor's beat time)
 
     @todo @ignore
     Scenario: Clipout edge drag snaps in output space only
@@ -459,10 +460,11 @@ Feature: Clip Bounds
         And lockedBeats stays at 40
         And inPoint and outPoint are unchanged
 
-    Scenario: Clipout body drag breaks any prior link on either edge
+    Scenario: Clipout body drag carries any linked anchors on either edge
         Given a region's in-edge or out-edge is linked to an input anchor
         When the user drags the clipout body by any nonzero amount
-        Then any linked-to-anchor state on either edge is cleared
+        Then each linked anchor's beat time follows the matching edge by the same delta
+        And the links are preserved at the new positions
 
     @todo @ignore
     Scenario: Clipout body drag snaps symmetrically

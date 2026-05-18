@@ -18,6 +18,7 @@ import type {
   Derived,
   Entity,
   EntityId,
+  MirrorPair,
   Op,
   PreserveLength,
   ScaleGroup,
@@ -339,6 +340,40 @@ const HANDLERS: HandlerEntry[] = [
           to:       driver.to,
         },
       ])
+    },
+  },
+
+  /** mirror_pair: symmetric 1-1 binding between (a.id, a.field) and
+   *  (b.id, b.field). If exactly one endpoint has a write in the txn,
+   *  mirror its target value into the other endpoint. If both already
+   *  have writes (including equal values), do nothing — the explicit
+   *  writes win. If neither has a write, the constraint is inert
+   *  (no install-time sync — adding the constraint to a state where the
+   *  two endpoints differ does NOT rewrite either). */
+  {
+    kind:  ConstraintKind.MirrorPair,
+    phase: Phase.Propose,
+    apply: (state, c: never, txn) => {
+      const mp = c as MirrorPair
+      const wA = txn.find(w => w.entityId === mp.a.id && w.field === mp.a.field)
+      const wB = txn.find(w => w.entityId === mp.b.id && w.field === mp.b.field)
+
+      if (wA && wB) return txn
+      if (!wA && !wB) return txn
+
+      const src    = (wA ?? wB)!
+      const dstEnd = wA ? mp.b : mp.a
+      const dstEnt = state.entities[dstEnd.id]
+      if (!dstEnt) return txn
+      const from = readField(dstEnt, dstEnd.field) ?? 0
+      if (Math.abs(from - src.to) < EPSILON) return txn
+
+      return mergeWrites(txn, [{
+        entityId: dstEnd.id,
+        field:    dstEnd.field,
+        from,
+        to:       src.to,
+      }])
     },
   },
 
@@ -855,6 +890,9 @@ function constraintEntities(constraint: Constraint): EntityId[] {
         constraint.clipId,
         constraint.clipOutId,
       ]
+
+    case ConstraintKind.MirrorPair:
+      return [constraint.a.id, constraint.b.id]
 
     // SnapCohort and SnapRule are metadata constraints — they don't bind to
     // specific entities for dependency-tracking purposes; the dependency tracker
