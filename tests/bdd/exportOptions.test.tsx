@@ -25,6 +25,7 @@ const warpData: WarpData = {
 
 const makeRegion = (id: string, inP: number, outP: number, bpm = 120): Region => ({
   id, name: id, inPoint: inP, outPoint: outP, bpm,
+  inBeatTime: inP, outBeatTime: outP, defaultLinked: true,
   minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
 })
 

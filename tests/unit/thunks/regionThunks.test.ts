@@ -6,7 +6,9 @@ import { makeStore } from '../../helpers/setup'
 import type { Region } from '../../../src/types'
 
 const makeRegion = (id: string, inPoint: number, outPoint: number) => ({
-  id, name: id, inPoint, outPoint, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false as const,
+  id, name: id, inPoint, outPoint,
+  inBeatTime: inPoint, outBeatTime: outPoint, defaultLinked: true,
+  bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false as const,
 })
 
 // ── setInPointToPlayhead ──────────────────────────────────────────────────────
@@ -199,8 +201,9 @@ describe('moveRegionBounds', () => {
     const r = store.getState().region.regions[0]
     expect(r.inPoint).toBe(5)
     expect(r.outPoint).toBe(25)
-    expect(r.inBeatTime).toBeUndefined()
-    expect(r.outBeatTime).toBeUndefined()
+    // Default-linked: beat-space follows input bounds
+    expect(r.inBeatTime).toBe(5)
+    expect(r.outBeatTime).toBe(25)
   })
 
   it('unknown id → no-op', () => {
@@ -216,7 +219,7 @@ describe('moveRegionBounds', () => {
 
   it('region moved so in-edge lands on an input anchor → NO linking event (conform is visual-only)', () => {
     // New design: moveRegionBounds never fires applyLinkingEvent.
-    // inBeatTime/outBeatTime remain undefined until the user interacts with clipout.
+    // inBeatTime/outBeatTime stay default-linked (follow inPoint/outPoint).
     const store = makeStore()
     store.dispatch(addRegion(makeRegion('r', 10, 20)))
     store.dispatch(addAnchor({ id: 1, time: 8 }))
@@ -226,8 +229,9 @@ describe('moveRegionBounds', () => {
 
     const r = store.getState().region.regions[0]
     expect(r.inPoint).toBe(8)
-    expect(r.inBeatTime).toBeUndefined()  // NOT committed by linking event
-    expect(r.outBeatTime).toBeUndefined() // NOT committed by linking event
+    // Default-linked: beat-space follows input bounds (no linking event commit)
+    expect(r.inBeatTime).toBe(8)   // follows inPoint
+    expect(r.outBeatTime).toBe(20) // follows outPoint
   })
 
   it('region moved so both edges land on input anchors → still NO linking event', () => {
@@ -243,8 +247,9 @@ describe('moveRegionBounds', () => {
     const r = store.getState().region.regions[0]
     expect(r.inPoint).toBe(8)
     expect(r.outPoint).toBe(18)
-    expect(r.inBeatTime).toBeUndefined()  // visual conform only
-    expect(r.outBeatTime).toBeUndefined() // visual conform only
+    // Default-linked: beat-space follows input bounds (visual conform only, no linking event)
+    expect(r.inBeatTime).toBe(8)   // follows inPoint
+    expect(r.outBeatTime).toBe(18) // follows outPoint
   })
 })
 
@@ -252,17 +257,25 @@ describe('moveRegionBounds', () => {
 // New design: moveAnchors only commits anchor positions. Conform is visual-only.
 // inBeatTime/outBeatTime are NOT written until the user interacts with clipout.
 
-const makeFullRegion = (overrides: Partial<Region> = {}): Region => ({
-  id: 'r1',
-  name: 'Region 1',
-  inPoint: 0,
-  outPoint: 30,
-  bpm: 120,
-  minStretch: 0.5,
-  maxStretch: 2.0,
-  addToEnd: false,
-  ...overrides,
-})
+const makeFullRegion = (overrides: Partial<Region> = {}): Region => {
+  const base = {
+    id: 'r1',
+    name: 'Region 1',
+    inPoint: 0,
+    outPoint: 30,
+    bpm: 120,
+    minStretch: 0.5,
+    maxStretch: 2.0,
+    addToEnd: false as const,
+    defaultLinked: true,
+    ...overrides,
+  }
+  return {
+    ...base,
+    inBeatTime:  overrides.inBeatTime  ?? base.inPoint,
+    outBeatTime: overrides.outBeatTime ?? base.outPoint,
+  }
+}
 
 describe('moveAnchors', () => {
   it('updates orig anchors in state', () => {
@@ -278,7 +291,7 @@ describe('moveAnchors', () => {
   it('does NOT fire linking event even when anchor coincides with inPoint', () => {
     // New design: anchor dragged onto boundary → visual conform only, no commit.
     const store = makeStore()
-    store.dispatch(addRegion(makeFullRegion({ inPoint: 10, outPoint: 20, bpm: 120, lock: 'bpm', inBeatTime: 10, outBeatTime: 20 })))
+    store.dispatch(addRegion(makeFullRegion({ inPoint: 10, outPoint: 20, bpm: 120, inBeatTime: 10, outBeatTime: 20 })))
     store.dispatch(addAnchor({ id: 1, time: 5 }))
     store.dispatch(moveBeatAnchor({ id: 1, time: 6 }))
 
@@ -292,7 +305,7 @@ describe('moveAnchors', () => {
 
   it('does NOT fire linking event when anchor coincides with outPoint', () => {
     const store = makeStore()
-    store.dispatch(addRegion(makeFullRegion({ inPoint: 10, outPoint: 20, bpm: 120, lock: 'bpm', inBeatTime: 10, outBeatTime: 20 })))
+    store.dispatch(addRegion(makeFullRegion({ inPoint: 10, outPoint: 20, bpm: 120, inBeatTime: 10, outBeatTime: 20 })))
     store.dispatch(addAnchor({ id: 2, time: 5 }))
     store.dispatch(moveBeatAnchor({ id: 2, time: 18 }))
 
@@ -313,8 +326,9 @@ describe('moveAnchors', () => {
     store.dispatch(moveAnchors([{ id: 1, time: 10 }]))
 
     const r = store.getState().region.regions[0]
-    expect(r.inBeatTime).toBeUndefined()
-    expect(r.outBeatTime).toBeUndefined()
+    // moveAnchors does not touch inBeatTime/outBeatTime; they remain at their creation values
+    expect(r.inBeatTime).toBe(10)  // inPoint from makeFullRegion
+    expect(r.outBeatTime).toBe(20) // outPoint from makeFullRegion
   })
 })
 
@@ -335,7 +349,7 @@ describe('moveBeatAnchors', () => {
 
   it('does NOT fire linking event even when beat anchor coincides with inBeatTime', () => {
     const store = makeStore()
-    store.dispatch(addRegion(makeFullRegion({ inPoint: 5, outPoint: 10, bpm: 120, lock: 'bpm', inBeatTime: 5, outBeatTime: 10 })))
+    store.dispatch(addRegion(makeFullRegion({ inPoint: 5, outPoint: 10, bpm: 120, inBeatTime: 5, outBeatTime: 10 })))
     store.dispatch(addAnchor({ id: 1, time: 5 }))
     store.dispatch(moveBeatAnchor({ id: 1, time: 3 }))
 
@@ -349,7 +363,7 @@ describe('moveBeatAnchors', () => {
 
   it('does NOT fire linking event even when beat anchor coincides with outBeatTime', () => {
     const store = makeStore()
-    store.dispatch(addRegion(makeFullRegion({ inPoint: 5, outPoint: 10, bpm: 120, lock: 'bpm', inBeatTime: 5, outBeatTime: 12 })))
+    store.dispatch(addRegion(makeFullRegion({ inPoint: 5, outPoint: 10, bpm: 120, inBeatTime: 5, outBeatTime: 12 })))
     store.dispatch(addAnchor({ id: 2, time: 10 }))
     store.dispatch(moveBeatAnchor({ id: 2, time: 8 }))
 

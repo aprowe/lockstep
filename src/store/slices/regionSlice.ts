@@ -1,10 +1,17 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { Region } from '../../types'
-import { clampRegionInOut } from '../../timeline/model/clampRegion'
-import { conformedRegionUpdate } from '../../timeline/model/conformedRegionUpdate'
-import { commitLinkingEvent } from '../../timeline/model/linkingEvent'
-import { effectiveBeatBounds } from '../../timeline/model/effectiveBounds'
 
+/**
+ * Phase 1 — region positions (inPoint / outPoint / inBeatTime / outBeatTime)
+ * live in the constraint graph (`state.constraint.graph.entities[{id}-in / {id}-out]`).
+ * The region slice keeps the metadata and ID list. Position fields on
+ * `state.region.regions[i]` are retained for load-bootstrap purposes (the
+ * loader writes the saved positions onto the slice, then seeds the graph via
+ * `setGraph(buildSeedGraph(…))`). After bootstrap the slice no longer MUTATES
+ * positions — every position write routes through `constraintSlice.applyOp`
+ * (see `entityWriteThunks`). Selectors prefer graph entities over slice
+ * positions on read.
+ */
 interface RegionState {
   regions: Region[]
   activeRegionId: string | null
@@ -14,6 +21,26 @@ const initialState: RegionState = {
   regions: [],
   activeRegionId: null,
 }
+
+/**
+ * Payload type for `_syncRegionPositions`. A partial field bag per region ID —
+ * only keys that are present in the bag are written to the slice. Use a named
+ * alias so nested-generic `>>` doesn't trip the oxc parser used by vite/vitest.
+ */
+type RegionPosDiff = Record<string, Partial<{
+  inPoint: number
+  outPoint: number
+  inBeatTime: number
+  outBeatTime: number
+  defaultLinked: boolean
+}>>
+
+/** Payload type for `_syncRegionMeta`. A partial meta bag per region ID —
+ *  only keys that are present in the bag are written. */
+type RegionMetaDiff = Record<string, Partial<{
+  bpm: number
+  lockedBeats: number
+}>>
 
 /** Next colorIndex above any existing one — monotonic so deleting a region
  *  doesn't free up a slot another region could collide with on next add.
@@ -34,24 +61,41 @@ const regionSlice = createSlice({
       // Backfill colorIndex for any region loaded from a save predating
       // the field. Using array position keeps existing palette assignments
       // stable for a single load; persistence will write them back.
+      // Also backfill defaultLinked / inBeatTime / outBeatTime for saves
+      // predating this migration (pre-release: inBeatTime/outBeatTime may be
+      // absent or undefined in old JSON).
       const seen = new Set<number>()
       for (const r of action.payload) {
         if (typeof r.colorIndex === 'number') seen.add(r.colorIndex)
       }
       let next = 0
       const filled = action.payload.map(r => {
-        if (typeof r.colorIndex === 'number') return r
-        while (seen.has(next)) next++
-        seen.add(next)
-        return { ...r, colorIndex: next++ }
+        let colorIndex = r.colorIndex
+        if (typeof colorIndex !== 'number') {
+          while (seen.has(next)) next++
+          colorIndex = next
+          seen.add(next++)
+        }
+        // Cast to `unknown` first so we can safely coerce missing fields from
+        // JSON that predates this migration (pre-release; no shim needed).
+        const raw = r as unknown as {
+          defaultLinked?: boolean; inBeatTime?: number; outBeatTime?: number
+        }
+        const out: Region = {
+          ...r,
+          colorIndex,
+          defaultLinked: raw.defaultLinked ?? true,
+          inBeatTime:    raw.inBeatTime  ?? r.inPoint,
+          outBeatTime:   raw.outBeatTime ?? r.outPoint,
+        }
+        return out
       })
       state.regions = filled
     },
     addRegion(state, action: PayloadAction<Region>) {
       const r = action.payload
-      const withColor = typeof r.colorIndex === 'number'
-        ? r
-        : { ...r, colorIndex: nextColorIndex(state.regions) }
+      const colorIndex = typeof r.colorIndex === 'number' ? r.colorIndex : nextColorIndex(state.regions)
+      const withColor: Region = { ...r, colorIndex }
       state.regions.push(withColor)
       state.activeRegionId = withColor.id
     },
@@ -64,35 +108,6 @@ const regionSlice = createSlice({
     setActiveRegionId(state, action: PayloadAction<string | null>) {
       state.activeRegionId = action.payload
     },
-    updateRegionInOut(state, action: PayloadAction<{ id: string; inPoint: number; outPoint: number }>) {
-      const r = state.regions.find(r => r.id === action.payload.id)
-      if (!r) return
-      const next = clampRegionInOut(
-        { inPoint: r.inPoint, outPoint: r.outPoint },
-        { inPoint: action.payload.inPoint, outPoint: action.payload.outPoint },
-      )
-      r.inPoint = next.inPoint
-      r.outPoint = next.outPoint
-      // Preserve diverged beat-space bounds (inBeatTime/outBeatTime). When the
-      // region was in its default-linked state (both undefined), they stay
-      // undefined (clipout renders linked to the new input bounds). When the
-      // user had already diverged them, they stay where they were — dragging
-      // clipin only moves the input bounds.
-    },
-    updateRegionBeatTimes(state, action: PayloadAction<{ id: string; inBeatTime?: number; outBeatTime?: number }>) {
-      const r = state.regions.find(r => r.id === action.payload.id)
-      if (r) {
-        r.inBeatTime = action.payload.inBeatTime
-        r.outBeatTime = action.payload.outBeatTime
-      }
-    },
-    updateRegionLock(state, action: PayloadAction<{ id: string; lock: 'bpm' | 'beats'; lockedBeats?: number }>) {
-      const r = state.regions.find(r => r.id === action.payload.id)
-      if (r) {
-        r.lock = action.payload.lock
-        if (action.payload.lockedBeats !== undefined) r.lockedBeats = action.payload.lockedBeats
-      }
-    },
     renameRegion(state, action: PayloadAction<{ id: string; name: string }>) {
       const r = state.regions.find(r => r.id === action.payload.id)
       if (r) r.name = action.payload.name
@@ -100,6 +115,13 @@ const regionSlice = createSlice({
     updateRegionBpm(state, action: PayloadAction<{ id: string; bpm: number }>) {
       const r = state.regions.find(r => r.id === action.payload.id)
       if (r) r.bpm = action.payload.bpm
+    },
+    /** Update lockedBeats only. Used by linking-event / conformed-clipout
+     *  commits — the graph holds the beat-space positions; this carries the
+     *  derived beat count for lock='beats' regions. */
+    updateRegionLockedBeats(state, action: PayloadAction<{ id: string; lockedBeats: number }>) {
+      const r = state.regions.find(r => r.id === action.payload.id)
+      if (r) r.lockedBeats = action.payload.lockedBeats
     },
     updateRegionStretch(state, action: PayloadAction<{ id: string; minStretch?: number; maxStretch?: number }>) {
       const r = state.regions.find(r => r.id === action.payload.id)
@@ -112,167 +134,39 @@ const regionSlice = createSlice({
       const r = state.regions.find(r => r.id === action.payload.id)
       if (r) r.triggerMode = action.payload.triggerMode
     },
-    /** Commit a boundary-coincidence linking event (design §3.2, §5a/§5b).
-     *  The edge that was linked snaps its beat-space bound to beatAnchorTime;
-     *  the other edge is preserved. lockedBeats is recomputed from the new
-     *  clipout length × bpm / 60 — always lock='bpm' semantics (lock-bypass
-     *  design §3.2: bpm stays, lockedBeats absorbs the change regardless of
-     *  region.lock setting). r.bpm and r.lock are NOT overwritten — they are
-     *  echoed unchanged by commitLinkingEvent. */
-    applyLinkingEvent(state, action: PayloadAction<{
-      id: string
-      edge: 'in' | 'out'
-      side: 'input' | 'output'
-      /** Beat-space time of the paired BEAT anchor at the moment of pointerUp.
-       *  (Caller resolves the AnchorPair via linkState; only the beatAnchor
-       *  is needed downstream.) */
-      beatAnchorTime: number
-      /** Current input (orig) anchors — forwarded to commitLinkingEvent so the
-       *  effective bound for the NON-linked edge accounts for input-anchor
-       *  conform. Pass empty arrays when anchor conform is not relevant. */
-      origAnchors?: readonly { id: number; time: number }[]
-      /** Current beat anchors — paired with origAnchors above. */
-      beatAnchors?: readonly { id: number; time: number }[]
-    }>) {
-      const r = state.regions.find(r => r.id === action.payload.id)
-      if (!r) return
-      // Build a synthetic Anchor for the committer (id is informational here —
-      // commitLinkingEvent only reads `time`).
-      const beatAnchor = { id: -1, time: action.payload.beatAnchorTime }
-      const result = commitLinkingEvent({
-        region: r,
-        edge: action.payload.edge,
-        side: action.payload.side,
-        beatAnchor,
-        origAnchors: action.payload.origAnchors ?? [],
-        beatAnchors: action.payload.beatAnchors ?? [],
-      })
-      r.inBeatTime = result.inBeatTime
-      r.outBeatTime = result.outBeatTime
-      r.lockedBeats = result.lockedBeats
-      // r.bpm and r.lock are explicitly NOT overwritten — commitLinkingEvent
-      // echoes them unchanged (lock-bypass design §3.2: bpm stays, lockedBeats
-      // absorbs the change, regardless of region.lock setting).
-    },
-    /** Direct BPM edit with grid-vs-stretch branching (design §6.4 / §11).
-     *  stretch=false (grid model): clipout length stays, lockedBeats recomputes.
-     *  stretch=true  (stretch model): length rescales to keep lockedBeats fixed;
-     *    anchor rescale is OUT OF SCOPE — the caller is responsible for
-     *    dispatching warp-slice anchor updates via stretchRescale.
+
+    // ── Internal: graph → slice projection ─────────────────────────────────
+    /** Internal — sync position fields from a graph snapshot.
+     *  Dispatched by graphMirrorMiddleware after every `applyOp` / `setGraph`.
+     *  Consumers should NEVER dispatch this directly. Position ownership lives
+     *  in the constraint graph; the slice is a downstream view.
      *
-     *  `origAnchors` / `beatAnchors` are used to compute the effective beat
-     *  bounds so that input-anchor conform is reflected in the current length. */
-    applyBpmEdit(state, action: PayloadAction<{
-      id: string
-      newBpm: number
-      /** true = stretch model (length rescales, lockedBeats preserved).
-       *  false = grid model (length stays, lockedBeats recomputes). */
-      stretch: boolean
-      origAnchors?: readonly { id: number; time: number }[]
-      beatAnchors?: readonly { id: number; time: number }[]
-    }>) {
-      const r = state.regions.find(r => r.id === action.payload.id)
-      if (!r) return
-      const { newBpm, stretch } = action.payload
-      const { inBeatTime, outBeatTime } = effectiveBeatBounds(
-        r,
-        action.payload.origAnchors ?? [],
-        action.payload.beatAnchors ?? [],
-      )
-      if (stretch) {
-        const oldLength = outBeatTime - inBeatTime
-        const lockedBeats = r.lockedBeats ?? (oldLength * r.bpm) / 60
-        // Stretch: length = 60 × lockedBeats / bpm; lockedBeats unchanged.
-        const newLength = (60 * lockedBeats) / newBpm
-        r.bpm = newBpm
-        r.lockedBeats = lockedBeats
-        r.inBeatTime = inBeatTime
-        r.outBeatTime = inBeatTime + newLength
-      } else {
-        // Grid: length stays, lockedBeats recomputes from new bpm.
-        const length = outBeatTime - inBeatTime
-        r.bpm = newBpm
-        r.lockedBeats = (length * newBpm) / 60
+     *  Each entry in the payload map is a `Partial` field bag — only the keys
+     *  that are PRESENT in the bag are written. */
+    _syncRegionPositions(state, action: PayloadAction<RegionPosDiff>) {
+      for (const r of state.regions) {
+        const fields = action.payload[r.id]
+        if (!fields) continue
+        if ('inPoint'       in fields && fields.inPoint       !== undefined) r.inPoint       = fields.inPoint
+        if ('outPoint'      in fields && fields.outPoint      !== undefined) r.outPoint      = fields.outPoint
+        if ('inBeatTime'    in fields && fields.inBeatTime    !== undefined) r.inBeatTime    = fields.inBeatTime
+        if ('outBeatTime'   in fields && fields.outBeatTime   !== undefined) r.outBeatTime   = fields.outBeatTime
+        if ('defaultLinked' in fields && fields.defaultLinked !== undefined) r.defaultLinked = fields.defaultLinked
       }
     },
 
-    /** Direct beats edit with grid-vs-stretch branching (design §6.4 / §11).
-     *  stretch=false (grid model): clipout length stays, bpm recomputes.
-     *  stretch=true  (stretch model): length rescales to keep bpm fixed.
-     *
-     *  `origAnchors` / `beatAnchors` are used to compute the effective beat
-     *  bounds so that input-anchor conform is reflected in the current length. */
-    applyBeatsEdit(state, action: PayloadAction<{
-      id: string
-      newLockedBeats: number
-      stretch: boolean
-      origAnchors?: readonly { id: number; time: number }[]
-      beatAnchors?: readonly { id: number; time: number }[]
-    }>) {
-      const r = state.regions.find(r => r.id === action.payload.id)
-      if (!r) return
-      const { newLockedBeats, stretch } = action.payload
-      const { inBeatTime, outBeatTime } = effectiveBeatBounds(
-        r,
-        action.payload.origAnchors ?? [],
-        action.payload.beatAnchors ?? [],
-      )
-      if (stretch) {
-        // Stretch: length rescales to keep bpm constant.
-        const newLength = (60 * newLockedBeats) / r.bpm
-        r.lockedBeats = newLockedBeats
-        r.inBeatTime = inBeatTime
-        r.outBeatTime = inBeatTime + newLength
-      } else {
-        // Grid: length stays, bpm recomputes.
-        const length = outBeatTime - inBeatTime
-        r.lockedBeats = newLockedBeats
-        r.bpm = (60 * newLockedBeats) / length
+    // ── Internal: graph meta → slice projection ────────────────────────────
+    /** Internal — sync bpm / lockedBeats from the constraint graph's per-entity
+     *  meta back onto the region slice. Dispatched by graphMirrorMiddleware after
+     *  every `applyOp` / `setGraph` when the bpmDerivedConstraint updates meta.
+     *  Consumers should NEVER dispatch this directly. */
+    _syncRegionMeta(state, action: PayloadAction<RegionMetaDiff>) {
+      for (const r of state.regions) {
+        const fields = action.payload[r.id]
+        if (!fields) continue
+        if ('bpm'         in fields && fields.bpm         !== undefined) r.bpm         = fields.bpm
+        if ('lockedBeats' in fields && fields.lockedBeats !== undefined) r.lockedBeats = fields.lockedBeats
       }
-    },
-
-    /** Commit a conform event: the clipout's beat-space bounds change because
-     *  an anchor was moved onto / off / across the clip boundary, or the user
-     *  dragged the clipout edge directly. Diverges beat-space from input-space
-     *  and updates whichever of {bpm, lockedBeats} the region's lock says
-     *  should derive from the new clipout length. The clipin input bounds
-     *  (inPoint/outPoint) are NOT touched — clipin stays where the user put it.
-     *
-     *  `origAnchors` / `beatAnchors` are forwarded to `conformedRegionUpdate`
-     *  so the effective pre-conform length accounts for input-anchor conform
-     *  (used only for the `lock='beats'` / no-snapshot fallback path). */
-    /** Reset a region's beat-space boundaries back to the default-linked state
-     *  (inBeatTime = undefined, outBeatTime = undefined). lockedBeats is
-     *  intentionally left unchanged — it represents the user's beat-count
-     *  setting and should not be discarded by a boundary reset. */
-    resetRegionBoundary(state, action: PayloadAction<{ id: string }>) {
-      const r = state.regions.find(r => r.id === action.payload.id)
-      if (!r) return
-      r.inBeatTime = undefined
-      r.outBeatTime = undefined
-    },
-    applyConformedClipout(state, action: PayloadAction<{
-      id: string
-      inBeatTime: number
-      outBeatTime: number
-      origAnchors?: readonly { id: number; time: number }[]
-      beatAnchors?: readonly { id: number; time: number }[]
-    }>) {
-      const r = state.regions.find(r => r.id === action.payload.id)
-      if (!r) return
-      const newLength = action.payload.outBeatTime - action.payload.inBeatTime
-      if (newLength <= 0) return
-      const update = conformedRegionUpdate(
-        r,
-        action.payload.inBeatTime,
-        action.payload.outBeatTime,
-        action.payload.origAnchors ?? [],
-        action.payload.beatAnchors ?? [],
-      )
-      r.inBeatTime = action.payload.inBeatTime
-      r.outBeatTime = action.payload.outBeatTime
-      if (update.bpm !== undefined) r.bpm = update.bpm
-      if (update.lockedBeats !== undefined) r.lockedBeats = update.lockedBeats
     },
   },
 })
@@ -282,18 +176,30 @@ export const {
   addRegion,
   deleteRegion,
   setActiveRegionId,
-  updateRegionInOut,
-  updateRegionBeatTimes,
-  updateRegionLock,
+  updateRegionLockedBeats,
   renameRegion,
   updateRegionBpm,
   updateRegionStretch,
   updateRegionTriggerMode,
+  _syncRegionPositions,
+  _syncRegionMeta,
+} = regionSlice.actions
+
+// ── Back-compat re-exports for the position-writing thunks ───────────────
+// These used to be slice reducers; Phase 1 moved them into entity-write
+// thunks so the constraint graph is the source of truth for position writes.
+// Re-exported under their original names so existing call sites only need
+// to swap `dispatch(updateRegionInOut(...))` for `dispatch(updateRegionInOut(...))`
+// with no other change — the dispatch target is now a thunk, but call shape
+// is identical.
+export {
+  applyUpdateRegionInOut       as updateRegionInOut,
+  applyUpdateRegionBeatTimes   as updateRegionBeatTimes,
+  applyResetRegionBoundary     as resetRegionBoundary,
   applyLinkingEvent,
-  resetRegionBoundary,
   applyConformedClipout,
   applyBpmEdit,
   applyBeatsEdit,
-} = regionSlice.actions
+} from '../thunks/entityWriteThunks'
 
 export default regionSlice.reducer

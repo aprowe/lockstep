@@ -93,6 +93,11 @@ interface UiState {
    *  beat-space; body-pan carries them with the clip. Alt inverts this for a
    *  single gesture. */
   anchorLock: boolean
+  /** Transient gesture-scoped override for anchorLock. null = no override (use
+   *  anchorLock directly). A boolean value overrides anchorLock for the duration
+   *  of the active clipout resize/body-pan gesture — Alt XOR anchorLock.
+   *  Cleared to null on pointerUp/cancel. Never persisted. */
+  anchorLockGestureOverride: boolean | null
   playing: boolean
   /** What playback does at the end of the active clip / video. */
   playbackLoopMode: PlaybackLoopMode
@@ -105,6 +110,9 @@ interface UiState {
   view: View
   /** Last-used export folder (persists across dialog open/close) */
   lastExportFolder: string | null
+  /** Global lock mode: whether resizing a clip holds BPM constant ('bpm') or
+   *  holds the beat count constant ('beats'). Replaces per-region Region.lock. */
+  lockMode: 'bpm' | 'beats'
 }
 
 const _prefs = loadTimelinePrefs()
@@ -124,12 +132,14 @@ const initialState: UiState = {
   timelineAlwaysRegions: _prefs.alwaysRegions,
   timelineAlwaysScenes: _prefs.alwaysScenes,
   anchorLock: false,
+  anchorLockGestureOverride: null,
   playing: false,
   playbackLoopMode: 'continue',
   playbackMode: 'orig',
   exportOpen: false,
   view: { start: 0, end: 60 },
   lastExportFolder: null,
+  lockMode: 'bpm',
 }
 
 const uiSlice = createSlice({
@@ -185,6 +195,9 @@ const uiSlice = createSlice({
     setAnchorLock(state, action: PayloadAction<boolean>) {
       state.anchorLock = action.payload
     },
+    setAnchorLockGestureOverride(state, action: PayloadAction<boolean | null>) {
+      state.anchorLockGestureOverride = action.payload
+    },
     setPlaying(state, action: PayloadAction<boolean>) {
       state.playing = action.payload
     },
@@ -202,6 +215,9 @@ const uiSlice = createSlice({
     },
     setLastExportFolder(state, action: PayloadAction<string | null>) {
       state.lastExportFolder = action.payload
+    },
+    setLockMode(state, action: PayloadAction<'bpm' | 'beats'>) {
+      state.lockMode = action.payload
     },
   },
 })
@@ -221,12 +237,14 @@ export const {
   setTimelineAlwaysRegions,
   setTimelineAlwaysScenes,
   setAnchorLock,
+  setAnchorLockGestureOverride,
   setPlaying,
   setPlaybackLoopMode,
   setPlaybackMode,
   setExportOpen,
   setView,
   setLastExportFolder,
+  setLockMode,
 } = uiSlice.actions
 
 export default uiSlice.reducer

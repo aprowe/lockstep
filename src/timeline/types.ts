@@ -1,4 +1,5 @@
 import type { Anchor, Region, View, WarpSegment } from '../types'
+import type { State as ConstraintState } from '../constraints/types'
 
 export type Space = 'input' | 'output'
 
@@ -89,6 +90,10 @@ export interface Snapshot {
   tracks: LayoutTrack[]
   hits: HitEntry[]
   playhead?: number
+  /** Phase 7: constraint graph at snapshot time — used by the controller to call
+   *  findSnapCandidates for render hints. Optional so existing Snapshot builds
+   *  without graph access are unaffected. */
+  constraintGraph?: ConstraintState
 }
 
 export interface PointerEventLike {
@@ -223,9 +228,8 @@ export type DragState =
       groupIds?: ReadonlySet<string>
       /** Snapshot of original (inPoint, outPoint) per region id at drag start. */
       origBounds?: Map<string, { inPoint: number; outPoint: number }>
-      /** Live per-region bounds during the drag (parallel to liveRegion but
-       *  for every group member). */
-      liveBoundsList?: { id: string; inPoint: number; outPoint: number }[]
+      // liveBoundsList removed — canvas reads live bounds from p.regions (slice
+      // is current on every pointerMove via single-entity dispatch).
       /** Combined-selection drag: anchors captured at pointerDown when the
        *  dragged region was already selected. Same time delta applies to
        *  every anchor in both spaces. */
@@ -267,6 +271,18 @@ export type Intent =
   | { kind: 'viewChange'; view: View }
   | { kind: 'anchorsChanged'; next: Anchor[] }
   | { kind: 'beatAnchorsChanged'; next: Anchor[] }
+  /** Phase 2.5: single-entity anchor move. Carries the graph entity ID of
+   *  the PRIMARY grabbed anchor and its new absolute time. The resolver's
+   *  lasso:main TranslateGroup propagates the implied delta to all other
+   *  selected entities. Replaces whole-array anchorsChanged/beatAnchorsChanged
+   *  for drag commits. */
+  | { kind: 'anchorEntityMove'; entityId: string; time: number }
+  /** Phase 2.5: single-entity region body move. Carries the region's slice
+   *  id, the signed translate delta for the PRIMARY grabbed region, and the
+   *  space/modifier context for caller routing. The resolver's lasso:main
+   *  TranslateGroup propagates to other selected regions.
+   *  isOutput distinguishes clipin (input-space) vs clipout (output-space) drags. */
+  | { kind: 'regionEntityMove'; id: string; delta: number; isOutput: boolean; altKey: boolean }
   | { kind: 'regionResize'; id: string; inPoint: number; outPoint: number; isOutput: boolean; altKey: boolean }
   | { kind: 'regionMove'; id: string; inPoint: number; outPoint: number; isOutput: boolean; altKey: boolean }
   | { kind: 'anchorAdd'; time: number }
@@ -312,6 +328,20 @@ export type Intent =
   | { kind: 'pubHoveredScene'; time: number | null }
   | { kind: 'pubHoveredWarpLine'; id: number | null }
   | { kind: 'thumbnailHover'; payload: { time: number; x: number; y: number } | null }
+  /** Phase 5: ephemeral carry pair — install a DirectedPair(MirrorEdge) from
+   *  the clipout entity edge to a conformed beat anchor at pointerDown.
+   *  Removed on pointerUp / cancel via carryEnd. */
+  | { kind: 'carryStart'; regionId: string; edge: 'in' | 'out'; anchorId: number }
+  /** Phase 5: remove all carry:* DirectedPair constraints for a clipout. */
+  | { kind: 'carryEnd'; regionId: string }
+  /** Phase 7: install a SnapTarget constraint at drag start so the resolver's
+   *  Propose phase snaps the entity on every pointerMove. `pxPerUnit` lets the
+   *  WarpView handler convert the pixel threshold to entity-space units.
+   *  When `grid` is provided, the resolver will also snap to beat-grid marks
+   *  at `grid.offset + N * grid.interval` alongside entity targets. */
+  | { kind: 'snapStart'; entityId: string; field: 'time' | 'in' | 'out'; pxPerUnit: number; grid?: { interval: number; offset: number }; gestureRole?: 'edge' | 'body' | 'anchor' }
+  /** Phase 7: remove the SnapTarget constraint installed by snapStart. */
+  | { kind: 'snapEnd'; entityId: string; field: 'time' | 'in' | 'out' }
   // drag lifecycle — routes to dragSlice actions in applyIntents
   | { kind: 'dragStart' }
   | { kind: 'dragEnd' }

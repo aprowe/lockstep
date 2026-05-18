@@ -16,8 +16,10 @@ interface RegionInfoPanelProps {
   effectiveBounds?: EffectiveBeatBounds | null
   onBpmChange: (bpm: number) => void
   onUpdateRegionInOut?: (id: string, inPoint: number, outPoint: number) => void
-  onUpdateRegionBeatTimes?: (id: string, inBeatTime?: number, outBeatTime?: number) => void
-  /** Called when lock state changes */
+  onUpdateRegionBeatTimes?: (id: string, inBeatTime: number, outBeatTime: number) => void
+  /** Global lock mode (Phase 6 — replaces per-region Region.lock). */
+  lockMode?: 'bpm' | 'beats'
+  /** Called when lock mode toggle is clicked */
   onLockChange?: (lock: 'bpm' | 'beats', lockedBeats?: number) => void
   onRename?: (id: string, name: string) => void
   /** Called when user clicks Detect BPM */
@@ -54,6 +56,7 @@ export default function RegionInfoPanel({
   onBpmChange,
   onUpdateRegionInOut,
   onUpdateRegionBeatTimes,
+  lockMode: lockModeProp,
   onLockChange,
   onRename,
   onBpmDetect,
@@ -69,11 +72,9 @@ export default function RegionInfoPanel({
   // available so input-anchor conform is reflected in derived values.
   const effectiveInBeat = effectiveBounds?.inBeatTime
     ?? activeRegion?.inBeatTime
-    ?? activeRegion?.inPoint
     ?? 0
   const effectiveOutBeat = effectiveBounds?.outBeatTime
     ?? activeRegion?.outBeatTime
-    ?? activeRegion?.outPoint
     ?? duration
   const beatSpan = activeRegion
     ? effectiveOutBeat - effectiveInBeat
@@ -81,8 +82,8 @@ export default function RegionInfoPanel({
   const regionSpan = beatSpan  // use beat-space span for all calculations
   const totalBeats = beat > 0 ? beatSpan / beat : 0
 
-  // Lock: use region's persisted lock state, default to 'bpm'
-  const lock = activeRegion?.lock ?? 'bpm'
+  // Lock: use global lockMode prop (Phase 6), default to 'bpm'.
+  const lock = lockModeProp ?? 'bpm'
   const lockedBeats = activeRegion?.lockedBeats ?? totalBeats
 
   // Track previous span to detect external resizes (drag, etc.)
@@ -161,11 +162,9 @@ export default function RegionInfoPanel({
     }
   }
 
-  // The out boundary is "linked" when its effective beat-space time matches the
-  // orig-space time — i.e., 1.0x playback at that boundary. Uses effective
-  // bounds so input-anchor conform counts as diverged for this check.
-  const outLinked = !activeRegion
-    || Math.abs(effectiveOutBeat - activeRegion.outPoint) < 0.001
+  // The out boundary is "linked" when the region is default-linked (clipout
+  // follows clipin). Uses the defaultLinked flag directly.
+  const outLinked = !activeRegion || activeRegion.defaultLinked
 
   const applyBeatCount = (n: number) => {
     if (!activeRegion || beat <= 0) return
@@ -368,9 +367,9 @@ export default function RegionInfoPanel({
               <button
                 className="rip__adj rip__adj--reset"
                 onClick={onResetBoundary}
-                disabled={activeRegion.inBeatTime === undefined && activeRegion.outBeatTime === undefined}
+                disabled={activeRegion.defaultLinked}
                 title={
-                  activeRegion.inBeatTime === undefined && activeRegion.outBeatTime === undefined
+                  activeRegion.defaultLinked
                     ? 'Beat-space boundaries are already at default (linked to clip in/out)'
                     : 'Reset the beat-space boundary back to default (linked to clip in/out)'
                 }

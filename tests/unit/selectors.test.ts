@@ -6,7 +6,6 @@ import {
   selectSelectedOrigIdsSet,
   selectSelectedBeatIdsSet,
   selectSelectedIdsUnion,
-  selectLinkedBeatSet,
   selectDimmedAnchorIds,
   selectWarpData,
   selectActiveRegion,
@@ -19,7 +18,6 @@ import type { Anchor, Region } from '../../src/types'
 function makeState(overrides: {
   origAnchors?: Anchor[]
   beatAnchors?: Anchor[]
-  linkedBeatIds?: number[]
   selectedOrigIds?: number[]
   selectedBeatIds?: number[]
   beatZeroId?: number | null
@@ -41,7 +39,6 @@ function makeState(overrides: {
     warp: {
       origAnchors: overrides.origAnchors ?? [],
       beatAnchors: overrides.beatAnchors ?? [],
-      linkedBeatIds: overrides.linkedBeatIds ?? [],
       selectedOrigIds: overrides.selectedOrigIds ?? [],
       selectedBeatIds: overrides.selectedBeatIds ?? [],
       bpm: 120,
@@ -59,9 +56,10 @@ function makeState(overrides: {
       activeRegionId: overrides.activeRegionId ?? null,
     },
     history: {
-      stack: [{ origAnchors: [], beatAnchors: [], linkedBeatIds: [], beatZeroId: null }],
+      stack: [{ origAnchors: [], beatAnchors: [], beatZeroId: null }],
       index: 0,
     },
+    constraint: { graph: { entities: {}, constraints: [], meta: {}, globals: { lockMode: 'bpm' } } },
   } as unknown as RootState
 }
 
@@ -143,16 +141,6 @@ describe('selectSelectedIdsUnion', () => {
   })
 })
 
-describe('selectLinkedBeatSet', () => {
-  it('returns a Set of linkedBeatIds', () => {
-    const state = makeState({ linkedBeatIds: [2, 4] })
-    const set = selectLinkedBeatSet(state)
-    expect(set.has(2)).toBe(true)
-    expect(set.has(4)).toBe(true)
-    expect(set.has(1)).toBe(false)
-  })
-})
-
 describe('selectDimmedAnchorIds', () => {
   it('returns undefined when no active region', () => {
     const state = makeState({ origAnchors: [{ id: 1, time: 5 }] })
@@ -162,6 +150,7 @@ describe('selectDimmedAnchorIds', () => {
   it('dims anchors outside the active region in/out range', () => {
     const region: Region = {
       id: 'r1', name: 'R', inPoint: 10, outPoint: 20,
+      inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
       bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
     }
     const state = makeState({
@@ -183,6 +172,7 @@ describe('selectDimmedAnchorIds', () => {
   it('returns undefined when all anchors are inside the region', () => {
     const region: Region = {
       id: 'r1', name: 'R', inPoint: 0, outPoint: 60,
+      inBeatTime: 0, outBeatTime: 60, defaultLinked: true,
       bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
     }
     const state = makeState({
@@ -202,6 +192,7 @@ describe('selectActiveRegion', () => {
   it('returns the active region', () => {
     const region: Region = {
       id: 'r1', name: 'Test', inPoint: 5, outPoint: 25,
+      inBeatTime: 5, outBeatTime: 25, defaultLinked: true,
       bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
     }
     const state = makeState({ regions: [region], activeRegionId: 'r1' })
@@ -218,6 +209,7 @@ describe('selectClipIn / selectClipOut', () => {
   it('returns the region in/out points', () => {
     const region: Region = {
       id: 'r1', name: 'Test', inPoint: 8, outPoint: 22,
+      inBeatTime: 8, outBeatTime: 22, defaultLinked: true,
       bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
     }
     const state = makeState({ regions: [region], activeRegionId: 'r1' })
@@ -246,6 +238,7 @@ describe('selectWarpData', () => {
   it('uses the clipIn as beatZeroTime when a region is active but no beatZeroId', () => {
     const region: Region = {
       id: 'r1', name: 'R', inPoint: 10, outPoint: 40,
+      inBeatTime: 10, outBeatTime: 40, defaultLinked: true,
       bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
     }
     const state = makeState({
@@ -260,6 +253,7 @@ describe('selectWarpData', () => {
   it('uses the designated beatZeroId anchor time when set', () => {
     const region: Region = {
       id: 'r1', name: 'R', inPoint: 10, outPoint: 40,
+      inBeatTime: 10, outBeatTime: 40, defaultLinked: true,
       bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
     }
     const state = makeState({

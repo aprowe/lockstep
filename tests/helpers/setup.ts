@@ -17,8 +17,11 @@ import settingsReducer from '../../src/store/slices/settingsSlice'
 import listsReducer from '../../src/store/slices/listsSlice'
 import jobsReducer from '../../src/store/slices/jobsSlice'
 import dragReducer from '../../src/store/slices/dragSlice'
+import dragCtxReducer from '../../src/store/slices/dragCtxSlice'
 import { persistenceMiddleware } from '../../src/store/middleware/persistenceMiddleware'
 import { historyMiddleware } from '../../src/store/middleware/historyMiddleware'
+import { selectionGraphMirrorMiddleware } from '../../src/store/middleware/selectionGraphMirrorMiddleware'
+import { anchorLockMirrorMiddleware } from '../../src/store/middleware/anchorLockMirrorMiddleware'
 import type { VideoInfo, SavedVideoState } from '../../src/types'
 
 export function makeStore() {
@@ -35,11 +38,18 @@ export function makeStore() {
       lists: listsReducer,
       jobs: jobsReducer,
       drag: dragReducer,
+      dragCtx: dragCtxReducer,
     },
     middleware: (getDefault) =>
-      getDefault()
+      getDefault({
+        serializableCheck: {
+          ignoredActionPaths: ['payload.constraint', 'payload.apply', 'payload.predicate'],
+        },
+      })
         .prepend(persistenceMiddleware.middleware)
-        .prepend(historyMiddleware.middleware),
+        .prepend(historyMiddleware.middleware)
+        .concat(selectionGraphMirrorMiddleware)
+        .concat(anchorLockMirrorMiddleware),
   })
 }
 

@@ -23,6 +23,7 @@ import {
   selectClipIn,
   selectClipOut,
   selectEffectiveBeatBoundsForActive,
+  selectConstraintGraph,
 } from '../store/selectors'
 import {
   setOrigAnchorsFromTimeline,
@@ -40,6 +41,15 @@ import {
 import { setView as setReduxView, setWarpCollapsed, setGridDiv } from '../store/slices/uiSlice'
 import { commitClipoutResize, commitClipoutPan } from '../store/thunks/clipoutThunks'
 import { moveAnchors, moveBeatAnchors } from '../store/thunks/regionThunks'
+import { applyAnchorEntityMove, applyRegionEntityMove } from '../store/thunks/entityWriteThunks'
+import { regionOutId, anchorOutId } from '../constraints/ids'
+import { snapToSiblings } from '../constraints/recipes'
+import {
+  setSnapInstall,
+  clearSnapInstall,
+  addCarryPair,
+  clearAllCarry,
+} from '../store/slices/dragCtxSlice'
 import {
   origToBeat as beatMapOrigToBeat,
   beatToOrig as beatMapBeatToOrig,
@@ -115,7 +125,11 @@ export default function WarpView({
   // ── Redux state ─────────────────────────────────────────────────────────────
   const origAnchors = useAppSelector(s => s.warp.origAnchors)
   const beatAnchors = useAppSelector(s => s.warp.beatAnchors)
-  const bpm = useAppSelector(s => s.warp.bpm)
+  // BPM is per-region after Phase 6 — the grid follows the active region's
+  // clipout. Fall back to the legacy global only when no region is active.
+  const globalBpm = useAppSelector(s => s.warp.bpm)
+  const activeRegionBpm = useAppSelector(s => selectActiveRegion(s)?.bpm)
+  const bpm = activeRegionBpm ?? globalBpm
   const beatZeroId = useAppSelector(s => s.warp.beatZeroId)
   const playhead = useAppSelector(s => s.warp.playhead)
   const gridDiv = useAppSelector(s => s.ui.gridDiv)
@@ -142,6 +156,9 @@ export default function WarpView({
   const selectedIds = useAppSelector(selectSelectedIdsUnion)
   const allRegions = useAppSelector(s => s.region.regions)
   const anchorLock = useAppSelector(s => s.ui.anchorLock)
+  const lockMode = useAppSelector(s => s.ui.lockMode)
+  const constraintGraph = useAppSelector(selectConstraintGraph)
+  const constraintEntities = constraintGraph.entities
 
   // ── Local state (gestures, view, menus) ─────────────────────────────────────
   const reduxView = useAppSelector(s => s.ui.view)
@@ -174,14 +191,14 @@ const importRef = useRef<HTMLInputElement>(null)
   const beat = 60 / bpm
 
   const clipLockedBeats = useMemo(() => {
-    if (!activeRegion || activeRegion.lock !== 'beats') return undefined
+    if (!activeRegion || lockMode !== 'beats') return undefined
     if (activeRegion.lockedBeats && activeRegion.lockedBeats > 0) return activeRegion.lockedBeats
     // Use effective bounds so input-anchor conform is reflected in the span.
-    const effIn = effectiveBounds?.inBeatTime ?? activeRegion.inBeatTime ?? activeRegion.inPoint
-    const effOut = effectiveBounds?.outBeatTime ?? activeRegion.outBeatTime ?? activeRegion.outPoint
+    const effIn = effectiveBounds?.inBeatTime ?? activeRegion.inBeatTime
+    const effOut = effectiveBounds?.outBeatTime ?? activeRegion.outBeatTime
     const beatSpan = effOut - effIn
     return beat > 0 ? beatSpan / beat : undefined
-  }, [activeRegion, beat, effectiveBounds])
+  }, [activeRegion, lockMode, beat, effectiveBounds])
 
   const beatOffset = useMemo(() => {
     if (clipIn === undefined) return sortedBeat[0]?.time ?? 0
@@ -353,6 +370,35 @@ const importRef = useRef<HTMLInputElement>(null)
     [dispatch],
   )
 
+  /** Phase 2.5: single-entity anchor entity move — dispatches one SetValue op
+   *  so the resolver can propagate via lasso:main TranslateGroup. */
+  const handleAnchorEntityMove = useCallback(
+    (entityId: string, time: number) => dispatch(applyAnchorEntityMove({ entityId, time })),
+    [dispatch],
+  )
+
+  /** Phase 2.5: single-entity region body move — dispatches Move ops on the
+   *  primary clipin entity; resolver propagates to followers via lasso:main.
+   *  delta is the signed translate from the entity's position at drag start.
+   *  Output-space drags are routed to commitClipoutPan (absolute beat times
+   *  are recovered from the current clipout entity in the constraint graph). */
+  const handleRegionEntityMove = useCallback(
+    (id: string, delta: number, isOutput: boolean, altKey: boolean) => {
+      if (isOutput) {
+        // Output-space body pan: delegate to commitClipoutPan with a delta.
+        // commitClipoutPan resolves the absolute target from state.drag.preDrag
+        // so repeated emissions during a drag (live pointerMove + pointerUp
+        // commit) converge instead of compounding.
+        if (clipOverlays?.find(c => c.id === id)) {
+          dispatch(commitClipoutPan({ id, delta, altKey }))
+        }
+      } else {
+        dispatch(applyRegionEntityMove({ id, delta }))
+      }
+    },
+    [dispatch, clipOverlays],
+  )
+
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
   useTimelineKeyboardShortcuts(selectedIds)
 
@@ -378,7 +424,7 @@ const importRef = useRef<HTMLInputElement>(null)
           id: idMap.get(a.id) ?? newAnchorId(),
           time: a.time,
         }))
-        dispatch(loadAnchors({ origAnchors: newOrig, beatAnchors: newBeat, linkedBeatIds: [] }))
+        dispatch(loadAnchors({ origAnchors: newOrig, beatAnchors: newBeat }))
         if (data.bpm > 0) dispatch(setBpm(data.bpm))
         if (data.beatZeroAnchorTime != null) {
           const match = newBeat.find(a => Math.abs(a.time - data.beatZeroAnchorTime) < 0.001)
@@ -582,6 +628,7 @@ const importRef = useRef<HTMLInputElement>(null)
         onAnchorSelect={handleThinAnchorSelect}
         onAnchorContextMenu={handleAnchorContextMenu}
         onAnchorsChange={handleOrigChange}
+        onAnchorEntityMove={handleAnchorEntityMove}
         beatAnchors={quantAnchors}
         linkedBeatIds={linkedAnchorIds}
         onBeatAnchorDelete={handleThinBeatAnchorDelete}
@@ -595,7 +642,7 @@ const importRef = useRef<HTMLInputElement>(null)
         snapTargetsOutput={snapTargetsOutput}
         bpm={bpm}
         beatOffset={beatOffset}
-        clipLock={activeRegion?.lock}
+        clipLock={activeRegion ? lockMode : undefined}
         clipLockedBeats={clipLockedBeats}
         clipAnchorLock={anchorLock}
         smoothPan={smoothPan}
@@ -613,6 +660,7 @@ const importRef = useRef<HTMLInputElement>(null)
         onRegionContextMenu={onClipOverlayContextMenu}
         onRegionResize={onClipOverlayResize}
         onRegionMove={onClipOverlayMove}
+        onRegionEntityMove={handleRegionEntityMove}
         onRegionMoveOutput={(id, inP, outP, altKey) => {
           if (clipOverlays?.find(c => c.id === id)) {
             dispatch(commitClipoutPan({ id, inBeatTime: inP, outBeatTime: outP, altKey }))
@@ -623,6 +671,34 @@ const importRef = useRef<HTMLInputElement>(null)
             dispatch(commitClipoutResize({ id, inBeatTime: inP, outBeatTime: outP, altKey }))
           }
         }}
+        onCarryStart={(regionId, edge, anchorId) => {
+          dispatch(addCarryPair({ clipOutId: regionOutId(regionId), edge, anchorOutId: anchorOutId(anchorId) }))
+        }}
+        onCarryEnd={(_regionId) => {
+          dispatch(clearAllCarry())
+        }}
+        onSnapStart={(entityId, field, pxPerUnit, grid, gestureRole) => {
+          const op = snapToSiblings(entityId, field, constraintGraph, pxPerUnit, 8, grid, gestureRole)
+          if (op.kind === 'add_constraint' && op.constraint.kind === 'snap_target') {
+            const snap = op.constraint as {
+              id: string; field: 'time' | 'in' | 'out'; threshold: number
+              grid?: { interval: number; offset: number }; mode?: 'edge' | 'body'
+              targets: Array<{ entityId: string; field: 'time' | 'in' | 'out' }>
+            }
+            dispatch(setSnapInstall({
+              entityId:  snap.id,
+              field:     snap.field,
+              threshold: snap.threshold,
+              grid:      snap.grid,
+              mode:      snap.mode,
+              targets:   snap.targets,
+            }))
+          }
+        }}
+        onSnapEnd={(_entityId, _field) => {
+          dispatch(clearSnapInstall())
+        }}
+        constraintGraph={constraintGraph}
         onRegionZoom={onClipOverlayZoom}
         segments={segments}
         clipIn={clipIn}

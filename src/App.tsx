@@ -33,7 +33,6 @@ import {
   setActiveRegionId as setActiveRegionIdAction,
   updateRegionInOut as updateRegionInOutAction,
   updateRegionBeatTimes as updateRegionBeatTimesAction,
-  updateRegionLock as updateRegionLockAction,
   updateRegionTriggerMode as updateRegionTriggerModeAction,
   renameRegion as renameRegionAction,
 } from './store/slices/regionSlice'
@@ -130,6 +129,7 @@ export default function App() {
     const name = `Clip ${regions.length + 1}`
     dispatch(addRegionAction({
       id, name, inPoint, outPoint,
+      inBeatTime: inPoint, outBeatTime: outPoint, defaultLinked: true,
       bpm: warpBpm, minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
     }))
     return id
@@ -144,7 +144,7 @@ export default function App() {
     const id = `region_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
     dispatch(addRegionAction({
       ...src, id, name: `Clip ${regions.length + 1}`, inPoint, outPoint,
-      inBeatTime: undefined, outBeatTime: undefined,
+      inBeatTime: inPoint, outBeatTime: outPoint, defaultLinked: true,
     }))
     return id
   }
@@ -152,12 +152,10 @@ export default function App() {
   const setActiveRegionId = (id: string | null) => dispatch(setActiveRegionIdAction(id))
   const updateRegionInOut = (id: string, inP: number, outP: number) =>
     dispatch(updateRegionInOutAction({ id, inPoint: inP, outPoint: outP }))
-  const updateRegionBeatTimes = (id: string, inBT?: number, outBT?: number) =>
+  const updateRegionBeatTimes = (id: string, inBT: number, outBT: number) =>
     dispatch(updateRegionBeatTimesAction({ id, inBeatTime: inBT, outBeatTime: outBT }))
   const renameRegion = (id: string, name: string) =>
     dispatch(renameRegionAction({ id, name }))
-  const updateRegionLock = (id: string, lock: 'bpm' | 'beats', lockedBeats?: number) =>
-    dispatch(updateRegionLockAction({ id, lock, lockedBeats }))
   const exportOpen = useAppSelector(s => s.ui.exportOpen)
   const setExportOpen = (v: boolean) => dispatch(setExportOpenAction(v))
   const [exportOpenOnLog, setExportOpenOnLog] = useState(false)

@@ -16,7 +16,7 @@ import RegionInfoPanel from '../../../src/components/RegionInfoPanel'
 import type { Region, WarpData } from '../../../src/types'
 
 function makeRegion(overrides: Partial<Region> = {}): Region {
-  return {
+  const base = {
     id: 'r1',
     name: 'Clip A',
     inPoint: 0,
@@ -24,10 +24,15 @@ function makeRegion(overrides: Partial<Region> = {}): Region {
     bpm: 120,
     minStretch: 0.5,
     maxStretch: 2.0,
-    addToEnd: false,
-    lock: 'bpm',
+    addToEnd: false as const,
     lockedBeats: 20,
+    defaultLinked: true,
     ...overrides,
+  }
+  return {
+    ...base,
+    inBeatTime:  overrides.inBeatTime  ?? base.inPoint,
+    outBeatTime: overrides.outBeatTime ?? base.outPoint,
   }
 }
 

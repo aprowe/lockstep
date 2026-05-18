@@ -168,6 +168,7 @@ const addRegionTool: ToolHandler = async (args: any, { store, log }) => {
   const id = `region_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
   store.dispatch(addRegionAction({
     id, name, inPoint, outPoint, bpm,
+    inBeatTime: inPoint, outBeatTime: outPoint, defaultLinked: true,
     minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
   }))
   log(`added region "${name}"`)

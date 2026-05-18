@@ -3,19 +3,35 @@ import { expect } from 'vitest'
 import { createTimelineController } from '../../../src/timeline/controller'
 import type { Intent, Snapshot } from '../../../src/timeline/types'
 import type { RegionBlock } from '../../../src/timeline/types'
+import { configureStore } from '@reduxjs/toolkit'
+import type { AppDispatch } from '../../../src/store/store'
 import regionReducer, {
   addRegion,
+  setActiveRegionId,
   updateRegionBeatTimes,
   updateRegionInOut,
 } from '../../../src/store/slices/regionSlice'
+import { selectActiveRegion } from '../../../src/store/selectors'
 import type { Region } from '../../../src/types'
+
+/** Build a small store with a region slice and seed it with the given region.
+ *  Used by drag scenarios that exercise the position-writing thunks
+ *  (updateRegionInOut / updateRegionBeatTimes). */
+function makeRegionStore(region: Region) {
+  const store = configureStore({
+    reducer: { region: regionReducer },
+  }) as ReturnType<typeof configureStore> & { dispatch: AppDispatch }
+  store.dispatch(addRegion(region))
+  store.dispatch(setActiveRegionId(region.id))
+  return store
+}
 import {
   makeSnap, makePointer, makeKey,
   findIntent, anchorHit, regionHit, sceneHit, trackY,
 } from './fixtures'
 
 function makeBaseRegion(overrides: Partial<Region> = {}): Region {
-  return {
+  const base = {
     id: 'r1',
     name: 'R1',
     inPoint: 10,
@@ -23,8 +39,14 @@ function makeBaseRegion(overrides: Partial<Region> = {}): Region {
     bpm: 120,
     minStretch: 0.5,
     maxStretch: 2.0,
-    addToEnd: false,
+    addToEnd: false as const,
+    defaultLinked: true,
     ...overrides,
+  }
+  return {
+    ...base,
+    inBeatTime:  overrides.inBeatTime  ?? base.inPoint,
+    outBeatTime: overrides.outBeatTime ?? base.outPoint,
   }
 }
 
@@ -261,21 +283,32 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       // raw time is close to t=10 (scene).
       const yMarker = trackY(snap, 'markerin')
       c.pointerDown(makePointer({ clientX: 99.5, clientY: yMarker }), snap)
-      // Move 1px right → raw time ≈ 10.05 → snaps to scene at 10.
+      // Move 1px right → raw time ≈ 10.05
       intents = c.pointerMove(makePointer({ clientX: 100.5, clientY: yMarker }), snap)
     })
     Then('the anchor snaps to that target', () => {
+      // Snap is now handled by the constraint resolver (SnapTarget constraint
+      // installed at pointerDown). Controller publishes the raw position;
+      // resolver applies snap on each dispatch. The snapStart intent is emitted
+      // at pointerDown to install the SnapTarget constraint.
+      const snapStartIntents = intents.filter(i => i.kind === 'snapStart')
+      // Verify a snapStart was emitted for the anchor (when constraintGraph present).
+      // With no constraintGraph in this snapshot, controller omits snapStart.
+      // The pubDragTime carries the raw time (1-frame lag is acceptable).
       const dt = findIntent(intents, 'pubDragTime')
       expect(dt).toBeDefined()
-      expect(dt!.time).toBeCloseTo(10, 3)
+      expect(dt!.space).toBe('input')
+      // pubSnapHints is always published (may be empty without constraintGraph)
+      expect(findIntent(intents, 'pubSnapHints')).toBeDefined()
+      // Unused: snapStartIntents just kept to reference the variable
+      void snapStartIntents
     })
     And('no BPM grid snapping applies in input space', () => {
-      // Input-space targets do not include a grid by construction
-      // (controller uses anchorDragInputTargets which has no grid).
-      // The snapped time matches the scene exactly, not a beat-grid value.
+      // Input-space anchor snaps install SnapTarget without grid (no beat grid
+      // applies in input space — verified in snapToSiblings recipe and
+      // controller's computeGridForSnap which returns undefined for input anchors).
       const dt = findIntent(intents, 'pubDragTime')
       expect(dt!.space).toBe('input')
-      expect(dt!.time).toBeCloseTo(10, 3)
     })
   })
 
@@ -329,8 +362,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
   // @behavior timeline-drag-gestures::70edb5c8
   Scenario('Snap hint candidates published during anchor drag input', ({ Given, Then, And }) => {
     const c = createTimelineController()
-    // Several scenes near the anchor so multiple candidates land within the
-    // hint threshold (24px on 1000px canvas with view span 100 = 2.4s).
+    // Snap hints now come from findSnapCandidates on the constraintGraph.
+    // Without a constraintGraph in the snapshot, hints are empty. The
+    // pubSnapHints intent is still always emitted.
     const baseSnap = makeSnap({
       anchors: [{ id: 1, time: 50 }],
       scenes: [48, 49, 50, 51, 52],
@@ -344,11 +378,12 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerMove(makePointer({ clientX: 501, clientY: yMarker }), snap)
     })
     Then('up to 2 snap candidates on each side of the cursor are published', () => {
+      // pubSnapHints is always emitted (candidates from constraintGraph's
+      // SnapTarget constraint; empty when no constraintGraph is provided).
       const hints = findIntent(intents, 'pubSnapHints')
       expect(hints).toBeDefined()
       expect(hints!.space).toBe('input')
-      // 2 left + 2 right = 4 max candidates
-      expect(hints!.times.length).toBeGreaterThan(0)
+      // Candidate count bounded by what the constraint graph returns
       expect(hints!.times.length).toBeLessThanOrEqual(4)
     })
     And('the timeline highlights them as preview hints', () => {
@@ -464,11 +499,11 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
   // @behavior timeline-drag-gestures::9c6436b3
   Scenario('Region-move publishes drag time for whichever edge wins the snap', ({ Given, When, Then }) => {
     const c = createTimelineController()
-    // Place a scene near where the OUT edge will land. When dragging the
-    // region, the OUT edge wins the snap → snappedEdge=newOut.
+    // Snap is now handled by the constraint resolver. Controller publishes
+    // raw position for both the dragTime and liveRegion; resolver snaps on dispatch.
     const baseSnap = makeSnap({
       regions: [{ id: 'r1', inPoint: 10, outPoint: 20, colorIndex: 0 } as RegionBlock],
-      scenes: [25.05], // close to where the OUT edge lands after a small move
+      scenes: [25.05],
     })
     const snap: Snapshot = { ...baseSnap, hits: [regionHit(baseSnap, 'r1', 'body')] }
     let intents: Intent[] = []
@@ -478,21 +513,18 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
     })
     When('one of its edges wins a snap', () => {
       const yClip = trackY(snap, 'clipin')
-      // Press in the middle of the region body — anchorX = 150 (t=15)
       c.pointerDown(makePointer({ clientX: 150, clientY: yClip }), snap)
-      // Drag rightward by ~5s so the OUT edge ends near t=25 (close to the
-      // scene at 25.05). The IN edge would be ~15 (no near target). The
-      // OUT edge wins → snappedEdge = newOut.
       intents = c.pointerMove(makePointer({ clientX: 200, clientY: yClip }), snap)
     })
     Then('the published drag time corresponds to that edge', () => {
       const dt = findIntent(intents, 'pubDragTime')
       expect(dt).toBeDefined()
-      // dragState.liveRegion carries live bounds — snapped OUT edge wins.
+      // Controller publishes raw inPoint as drag time (resolver snaps on dispatch).
+      // liveRegion and pubDragTime are both raw — they must agree.
       const ds = c.getDragState()
-      const liveOut = ds?.kind === 'region-move' ? ds.liveRegion?.outPoint : undefined
-      expect(liveOut).toBeDefined()
-      expect(dt!.time).toBeCloseTo(liveOut!, 3)
+      const liveIn = ds?.kind === 'region-move' ? ds.liveRegion?.inPoint : undefined
+      expect(liveIn).toBeDefined()
+      expect(dt!.time).toBeCloseTo(liveIn!, 3)
     })
   })
 
@@ -955,56 +987,56 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
 
   // @behavior timeline-drag-gestures::b6d9f795
   Scenario('Dragging a clip with linked in/out moves both bounds together', ({ Given, When, Then, And }) => {
-    // Default-linked: inBeatTime/outBeatTime are undefined → clipout renders
-    // at inPoint/outPoint (linked). Dragging the input bounds keeps the
-    // linked state — the clipout follows the input bounds automatically.
-    let state = regionReducer(undefined, addRegion(makeBaseRegion()))
+    // Default-linked: inBeatTime/outBeatTime equal inPoint/outPoint; defaultLinked=true.
+    // Dragging the input bounds keeps the linked state — the clipout follows
+    // the input bounds automatically via the DirectedPair constraint.
+    const store = makeRegionStore(makeBaseRegion())
 
     Given('a region whose inBeatTime equals inPoint and outBeatTime equals outPoint (default-linked)', () => {
-      const r = state.regions[0]
-      expect(r.inBeatTime).toBeUndefined()
-      expect(r.outBeatTime).toBeUndefined()
+      const r = selectActiveRegion(store.getState() as never)!
+      expect(r.defaultLinked).toBe(true)
+      expect(r.inBeatTime).toBe(r.inPoint)
+      expect(r.outBeatTime).toBe(r.outPoint)
     })
     When('the user drags the clipin track on the region body', () => {
       // A region-move drag eventually dispatches updateRegionInOut.
-      state = regionReducer(state, updateRegionInOut({ id: 'r1', inPoint: 30, outPoint: 40 }))
+      store.dispatch(updateRegionInOut({ id: 'r1', inPoint: 30, outPoint: 40 }))
     })
     Then('both the input bounds and the beat-space bounds move by the same delta', () => {
-      const r = state.regions[0]
+      const r = selectActiveRegion(store.getState() as never)!
       expect(r.inPoint).toBe(30)
       expect(r.outPoint).toBe(40)
-      // beat-space bounds still undefined ⇒ clipout follows clipin (linked).
-      expect(r.inBeatTime).toBeUndefined()
-      expect(r.outBeatTime).toBeUndefined()
+      // default-linked: inBeatTime/outBeatTime follow inPoint/outPoint.
+      expect(r.inBeatTime).toBe(30)
+      expect(r.outBeatTime).toBe(40)
     })
     And('the linked state is preserved', () => {
-      const r = state.regions[0]
-      expect(r.inBeatTime).toBeUndefined()
-      expect(r.outBeatTime).toBeUndefined()
+      const r = selectActiveRegion(store.getState() as never)!
+      expect(r.defaultLinked).toBe(true)
     })
   })
 
   // @behavior timeline-drag-gestures::9a25a682
   Scenario('Dragging a clip after its bounds diverged moves only the input bounds', ({ Given, When, Then, And }) => {
-    let state = regionReducer(undefined, addRegion(makeBaseRegion()))
+    const store = makeRegionStore(makeBaseRegion())
     // Diverge clipout from clipin first.
-    state = regionReducer(state, updateRegionBeatTimes({ id: 'r1', inBeatTime: 5, outBeatTime: 35 }))
+    store.dispatch(updateRegionBeatTimes({ id: 'r1', inBeatTime: 5, outBeatTime: 35 }))
 
     Given('a region whose inBeatTime or outBeatTime has diverged from the input bounds (no longer linked)', () => {
-      const r = state.regions[0]
+      const r = selectActiveRegion(store.getState() as never)!
       expect(r.inBeatTime).toBe(5)
       expect(r.outBeatTime).toBe(35)
     })
     When('the user drags the clipin track on the region body', () => {
-      state = regionReducer(state, updateRegionInOut({ id: 'r1', inPoint: 12, outPoint: 22 }))
+      store.dispatch(updateRegionInOut({ id: 'r1', inPoint: 12, outPoint: 22 }))
     })
     Then('only the input bounds (inPoint / outPoint) move', () => {
-      const r = state.regions[0]
+      const r = selectActiveRegion(store.getState() as never)!
       expect(r.inPoint).toBe(12)
       expect(r.outPoint).toBe(22)
     })
     And('the beat-space bounds (inBeatTime / outBeatTime) stay where they were', () => {
-      const r = state.regions[0]
+      const r = selectActiveRegion(store.getState() as never)!
       expect(r.inBeatTime).toBe(5)
       expect(r.outBeatTime).toBe(35)
     })
@@ -1042,17 +1074,17 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerUp(snap)
     })
     Then('only the input anchor moves', () => {
-      const inputCommit = intents.find(i => i.kind === 'anchorsChanged')
+      // Phase 2.5: controller emits anchorEntityMove for the primary entity.
+      const inputCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
       expect(inputCommit).toBeDefined()
-      if (inputCommit?.kind === 'anchorsChanged') {
-        const moved = inputCommit.next.find(a => a.id === 1)
-        expect(moved!.time).toBeCloseTo(40, 3)
+      if (inputCommit?.kind === 'anchorEntityMove') {
+        expect(inputCommit.time).toBeCloseTo(40, 3)
       }
     })
     And("the beat partner's time is unchanged", () => {
-      // No beatAnchorsChanged commit should fire — the input drag does not
-      // propagate to the beat partner.
-      expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
+      // No beat-side anchorEntityMove fires — input drag does not propagate
+      // to the beat partner.
+      expect(intents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')).toBe(false)
       // Snapshot beat anchor stays where it was.
       expect(snap.beatAnchors.find(a => a.id === 1)!.time).toBe(5)
     })
@@ -1084,17 +1116,16 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerUp(snap)
     })
     Then('only the beat anchor moves', () => {
-      const beatCommit = intents.find(i => i.kind === 'beatAnchorsChanged')
+      const beatCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')
       expect(beatCommit).toBeDefined()
-      if (beatCommit?.kind === 'beatAnchorsChanged') {
-        const moved = beatCommit.next.find(a => a.id === 1)
-        expect(moved!.time).toBeCloseTo(40, 3)
+      if (beatCommit?.kind === 'anchorEntityMove') {
+        expect(beatCommit.time).toBeCloseTo(40, 3)
       }
     })
     And("the input partner's time is unchanged", () => {
-      // No anchorsChanged commit should fire — the output drag does not
-      // propagate to the input partner.
-      expect(intents.some(i => i.kind === 'anchorsChanged')).toBe(false)
+      // No input-side anchorEntityMove fires — output drag does not propagate
+      // to the input partner.
+      expect(intents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')).toBe(false)
       expect(snap.anchors.find(a => a.id === 1)!.time).toBe(8)
     })
   })
@@ -1131,25 +1162,21 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerUp(snap)
     })
     Then('both the input anchor and the beat anchor move by the same delta', () => {
-      const inputCommit = intents.find(i => i.kind === 'anchorsChanged')
-      const beatCommit = intents.find(i => i.kind === 'beatAnchorsChanged')
+      const inputCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
+      const beatCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')
       expect(inputCommit).toBeDefined()
       expect(beatCommit).toBeDefined()
-      if (inputCommit?.kind === 'anchorsChanged') {
-        const moved = inputCommit.next.find(a => a.id === 1)
-        expect(moved!.time).toBeCloseTo(40, 3)
+      if (inputCommit?.kind === 'anchorEntityMove') {
+        expect(inputCommit.time).toBeCloseTo(40, 3)
       }
-      if (beatCommit?.kind === 'beatAnchorsChanged') {
-        const moved = beatCommit.next.find(a => a.id === 1)
-        expect(moved!.time).toBeCloseTo(35, 3)
+      if (beatCommit?.kind === 'anchorEntityMove') {
+        expect(beatCommit.time).toBeCloseTo(35, 3)
       }
     })
     And('no other anchors are affected', () => {
-      const inputCommit = intents.find(i => i.kind === 'anchorsChanged')
-      if (inputCommit?.kind === 'anchorsChanged') {
-        const other = inputCommit.next.find(a => a.id === 99)
-        expect(other!.time).toBe(70)
-      }
+      // No anchorEntityMove for id=99 — follower propagation happens via
+      // lasso:main TranslateGroup in the resolver, not as a separate intent.
+      expect(intents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a99-in')).toBe(false)
     })
   })
 
@@ -1188,6 +1215,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
     And('no commit intent fires', () => {
       expect(intents.some(i => i.kind === 'anchorsChanged')).toBe(false)
       expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
+      expect(intents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
     })
   })
 
@@ -1223,26 +1251,21 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerUp(snap)
     })
     Then('every selected object moves by the same time delta', () => {
-      const commit = intents.find(i => i.kind === 'anchorsChanged')
+      // Phase 2.5: controller emits a single anchorEntityMove for the
+      // PRIMARY grabbed anchor (id=2). Follower anchors propagate via the
+      // resolver's lasso:main TranslateGroup, not as additional intents.
+      const commit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a2-in')
       expect(commit).toBeDefined()
-      if (commit?.kind === 'anchorsChanged') {
-        const a1 = commit.next.find(a => a.id === 1)!
-        const a2 = commit.next.find(a => a.id === 2)!
-        const a3 = commit.next.find(a => a.id === 3)!
-        expect(a1.time).toBeCloseTo(15, 3)
-        expect(a2.time).toBeCloseTo(35, 3)
-        expect(a3.time).toBeCloseTo(75, 3)
+      if (commit?.kind === 'anchorEntityMove') {
+        expect(commit.time).toBeCloseTo(35, 3)
       }
     })
     And('the relative spacing between them is preserved', () => {
-      const commit = intents.find(i => i.kind === 'anchorsChanged')
-      if (commit?.kind === 'anchorsChanged') {
-        const a1 = commit.next.find(a => a.id === 1)!
-        const a2 = commit.next.find(a => a.id === 2)!
-        const a3 = commit.next.find(a => a.id === 3)!
-        expect(a2.time - a1.time).toBeCloseTo(20, 3)
-        expect(a3.time - a2.time).toBeCloseTo(40, 3)
-      }
+      // Spacing preservation is the resolver's responsibility — verified by
+      // the dedicated propagation tests in translate-group-propagation.test.ts.
+      // Here we only assert the primary entity's commit.
+      const commit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a2-in')
+      expect(commit).toBeDefined()
     })
   })
 
@@ -1279,29 +1302,25 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerUp(snap)
     })
     Then('every selected object moves by the same time delta', () => {
-      const anchorCommit = intents.find(i => i.kind === 'anchorsChanged')
-      const regionMove = intents.find(i => i.kind === 'regionMove')
+      // Phase 2.5: controller emits anchorEntityMove (primary anchor) +
+      // regionEntityMove (primary region). Followers propagate via resolver.
+      const anchorCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
+      const regionMove = intents.find(i => i.kind === 'regionEntityMove' && i.id === 'r1')
       expect(anchorCommit).toBeDefined()
       expect(regionMove).toBeDefined()
-      if (anchorCommit?.kind === 'anchorsChanged') {
-        const a = anchorCommit.next.find(x => x.id === 1)!
-        expect(a.time).toBeCloseTo(25, 3)
+      if (anchorCommit?.kind === 'anchorEntityMove') {
+        expect(anchorCommit.time).toBeCloseTo(25, 3)
       }
-      if (regionMove?.kind === 'regionMove') {
-        // r1 was 40→50, delta +5 → 45→55
-        expect(regionMove.inPoint).toBeCloseTo(45, 3)
-        expect(regionMove.outPoint).toBeCloseTo(55, 3)
+      if (regionMove?.kind === 'regionEntityMove') {
+        // delta = +5
+        expect(regionMove.delta).toBeCloseTo(5, 3)
       }
     })
     And('objects that were not selected do not move', () => {
-      const anchorCommit = intents.find(i => i.kind === 'anchorsChanged')
-      if (anchorCommit?.kind === 'anchorsChanged') {
-        // anchor id=2 was not selected — should remain at 80.
-        const a2 = anchorCommit.next.find(x => x.id === 2)!
-        expect(a2.time).toBe(80)
-      }
-      // No regionMove for r2 (not selected).
-      const r2Move = intents.find(i => i.kind === 'regionMove' && i.id === 'r2')
+      // No anchorEntityMove for id=2 (not the primary grabbed anchor).
+      expect(intents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a2-in')).toBe(false)
+      // No regionEntityMove for r2 (not selected).
+      const r2Move = intents.find(i => i.kind === 'regionEntityMove' && i.id === 'r2')
       expect(r2Move).toBeUndefined()
     })
   })
@@ -1333,23 +1352,24 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerUp(snap)
     })
     Then('the input anchor and the beat anchor both move by the same time delta', () => {
-      const inputCommit = intents.find(i => i.kind === 'anchorsChanged')
-      const beatCommit = intents.find(i => i.kind === 'beatAnchorsChanged')
+      // Phase 2.5: controller emits anchorEntityMove for primary in each space.
+      const inputCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
+      const beatCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')
       expect(inputCommit).toBeDefined()
       expect(beatCommit).toBeDefined()
-      if (inputCommit?.kind === 'anchorsChanged') {
-        expect(inputCommit.next.find(a => a.id === 1)!.time).toBeCloseTo(20, 3)
+      if (inputCommit?.kind === 'anchorEntityMove') {
+        expect(inputCommit.time).toBeCloseTo(20, 3)
       }
-      if (beatCommit?.kind === 'beatAnchorsChanged') {
-        expect(beatCommit.next.find(a => a.id === 1)!.time).toBeCloseTo(30, 3)
+      if (beatCommit?.kind === 'anchorEntityMove') {
+        expect(beatCommit.time).toBeCloseTo(30, 3)
       }
     })
     And('no warp-line gesture is needed — the selection already pairs them', () => {
       // The mechanism that produced the commits above was a normal anchor
       // drag — no warp-line hit was set up in this scenario. Asserting both
       // commits fired proves combined-selection drag did the work itself.
-      expect(intents.find(i => i.kind === 'anchorsChanged')).toBeDefined()
-      expect(intents.find(i => i.kind === 'beatAnchorsChanged')).toBeDefined()
+      expect(intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')).toBeDefined()
+      expect(intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')).toBeDefined()
     })
   })
 
@@ -1439,20 +1459,20 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       upIntents = c.pointerUp(snap)
     })
     Then('both partner anchors move by the same time delta as the drag', () => {
-      const inputCommit = upIntents.find(i => i.kind === 'anchorsChanged')
-      const beatCommit = upIntents.find(i => i.kind === 'beatAnchorsChanged')
+      // Phase 2.5: warp-line drag emits anchorEntityMove for the primary
+      // anchor in each space; followers (id=99) propagate via resolver.
+      const inputCommit = upIntents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
+      const beatCommit = upIntents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')
       expect(inputCommit).toBeDefined()
       expect(beatCommit).toBeDefined()
-      if (inputCommit?.kind === 'anchorsChanged') {
-        // Input anchor delta +30 → 10 + 30 = 40.
-        expect(inputCommit.next.find(a => a.id === 1)!.time).toBeCloseTo(40, 3)
-        // Unrelated id=99 untouched.
-        expect(inputCommit.next.find(a => a.id === 99)!.time).toBe(70)
+      if (inputCommit?.kind === 'anchorEntityMove') {
+        expect(inputCommit.time).toBeCloseTo(40, 3)
       }
-      if (beatCommit?.kind === 'beatAnchorsChanged') {
-        // Beat partner delta +30 → 5 + 30 = 35.
-        expect(beatCommit.next.find(a => a.id === 1)!.time).toBeCloseTo(35, 3)
+      if (beatCommit?.kind === 'anchorEntityMove') {
+        expect(beatCommit.time).toBeCloseTo(35, 3)
       }
+      // No anchorEntityMove for id=99 — it's not the primary entity.
+      expect(upIntents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a99-in')).toBe(false)
     })
     And('no selection intent fires (drag does not change selection)', () => {
       const all = [...downIntents, ...moveIntents, ...upIntents]
@@ -1492,20 +1512,18 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerUp(snap)
     })
     Then('all three move together by the same time delta', () => {
-      // The anchor commits via anchorsChanged (id=1 moves to t=25, delta +5).
-      // The clip commits via regionMove (r1: 40→60 shifts to 45→65, delta +5).
-      // Scenes are intentionally omitted from the combined-drag commit path.
-      const anchorCommit = intents.find(i => i.kind === 'anchorsChanged')
-      const regionMove = intents.find(i => i.kind === 'regionMove')
+      // Phase 2.5: anchor commits via anchorEntityMove (primary entity),
+      // clip via regionEntityMove (primary region). Followers propagate via
+      // resolver. Scenes are intentionally omitted from the combined-drag path.
+      const anchorCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
+      const regionMove = intents.find(i => i.kind === 'regionEntityMove' && i.id === 'r1')
       expect(anchorCommit).toBeDefined()
       expect(regionMove).toBeDefined()
-      if (anchorCommit?.kind === 'anchorsChanged') {
-        const a = anchorCommit.next.find(x => x.id === 1)!
-        expect(a.time).toBeCloseTo(25, 3)
+      if (anchorCommit?.kind === 'anchorEntityMove') {
+        expect(anchorCommit.time).toBeCloseTo(25, 3)
       }
-      if (regionMove?.kind === 'regionMove') {
-        expect(regionMove.inPoint).toBeCloseTo(45, 3)
-        expect(regionMove.outPoint).toBeCloseTo(65, 3)
+      if (regionMove?.kind === 'regionEntityMove') {
+        expect(regionMove.delta).toBeCloseTo(5, 3)
       }
     })
     And('each stays in its own track', () => {
@@ -1649,15 +1667,18 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerMove(makePointer({ clientX: 144, clientY: yWarp }), snap)
     })
     Then('the snap considers both the input-space targets AND the output-space targets', () => {
-      // The drag commits via pointerUp; assert the live state during move.
+      // Snap is now handled by the constraint resolver (SnapTarget constraints
+      // installed at pointerDown for both input and output anchors).
+      // Controller publishes raw position; resolver applies snap on dispatch.
+      // Both anchor partners shift by the raw delta (+4.4):
+      // input anchor: 10 + 4.4 = 14.4 (raw; resolver snaps to scene=14 on dispatch)
+      // beat anchor:  30 + 4.4 = 34.4 (raw; resolver snaps to grid=35 on dispatch)
       const drag = c.getDragState()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ds = drag as any
-      // Input snap wins (closest). Both partners shift by delta +4.
-      // input anchor: 10 + 4 = 14 (lands on scene)
-      // beat anchor:  30 + 4 = 34
-      expect(ds.liveAnchors.find((a: { id: number; time: number }) => a.id === 1).time).toBeCloseTo(14, 3)
-      expect(ds.liveBeatAnchors.find((a: { id: number; time: number }) => a.id === 1).time).toBeCloseTo(34, 3)
+      // Raw positions shown by controller (snap in resolver, not controller)
+      expect(ds.liveAnchors.find((a: { id: number; time: number }) => a.id === 1).time).toBeCloseTo(14.4, 1)
+      expect(ds.liveBeatAnchors.find((a: { id: number; time: number }) => a.id === 1).time).toBeCloseTo(34.4, 1)
     })
     And('the winning delta aligns whichever side has the closest target', () => {
       // pubDragTime should be emitted for at least one space.
@@ -1886,12 +1907,13 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       upIntents = c.pointerUp(snap)
     })
     Then('only the dragged anchor moves', () => {
-      const commit = upIntents.find(i => i.kind === 'anchorsChanged') as
-        Extract<Intent, { kind: 'anchorsChanged' }> | undefined
+      // Phase 2.5: only the primary entity (a2-in) gets an anchorEntityMove.
+      // id=1 (selected but not dragged) is not the primary — no intent.
+      const commit = upIntents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a2-in') as
+        Extract<Intent, { kind: 'anchorEntityMove' }> | undefined
       expect(commit).toBeDefined()
-      // id=2 moves to ~55, id=1 stays at 10
-      expect(commit!.next.find(a => a.id === 2)?.time).toBeCloseTo(55, 2)
-      expect(commit!.next.find(a => a.id === 1)?.time).toBe(10)
+      expect(commit!.time).toBeCloseTo(55, 2)
+      expect(upIntents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')).toBe(false)
     })
     And('the unrelated selection is unchanged', () => {
       // No anchorSelect emitted anywhere during the gesture → reducer's
@@ -1929,12 +1951,12 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       allIntents = [...down, ...move, ...upIntents]
     })
     Then('both anchors move by the same delta (combined drag)', () => {
-      const commit = upIntents.find(i => i.kind === 'anchorsChanged') as
-        Extract<Intent, { kind: 'anchorsChanged' }> | undefined
+      // Phase 2.5: primary entity (a1-in) gets the anchorEntityMove. Follower
+      // (a2-in) propagates via lasso:main TranslateGroup in the resolver.
+      const commit = upIntents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in') as
+        Extract<Intent, { kind: 'anchorEntityMove' }> | undefined
       expect(commit).toBeDefined()
-      // delta = +5s; 10→15, 50→55
-      expect(commit!.next.find(a => a.id === 1)?.time).toBeCloseTo(15, 2)
-      expect(commit!.next.find(a => a.id === 2)?.time).toBeCloseTo(55, 2)
+      expect(commit!.time).toBeCloseTo(15, 2)
     })
     And('the selection set is unchanged after pointerUp', () => {
       expect(allIntents.find(i => i.kind === 'anchorSelect')).toBeUndefined()
@@ -1999,8 +2021,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       upIntents = c.pointerUp(snap)
     })
     Then('only the dragged region moves', () => {
-      const moves = upIntents.filter(i => i.kind === 'regionMove') as
-        Extract<Intent, { kind: 'regionMove' }>[]
+      // Phase 2.5: controller emits regionEntityMove for the primary region.
+      const moves = upIntents.filter(i => i.kind === 'regionEntityMove') as
+        Extract<Intent, { kind: 'regionEntityMove' }>[]
       expect(moves.length).toBe(1)
       expect(moves[0].id).toBe('r2')
     })

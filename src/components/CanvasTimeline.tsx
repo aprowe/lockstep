@@ -2,8 +2,8 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
 import type { RegionBlock } from '../timeline/types'
 import type { Anchor, Region, WarpSegment, View } from '../types'
+import type { State as ConstraintState } from '../constraints/types'
 import { projectClipoutRegions } from '../timeline/model/clipoutProjection'
-import { liveRegionOverrides, liveOutputRegionOverrides, liveAnchorOverrides, liveBeatAnchorOverrides } from '../timeline/model/liveOverrides'
 import { buildAnchorPairs, origToBeat } from '../timeline/model/beatMap'
 import { clipHsl } from '../timeline/palette'
 import { gesture, useGesture } from '../store/gesture'
@@ -85,6 +85,9 @@ export interface CanvasTimelineProps {
   onAnchorSelect?: (id: number, additive: boolean) => void
   onAnchorContextMenu?: (id: number, x: number, y: number) => void
   onAnchorsChange?: (next: Anchor[]) => void
+  /** Phase 2.5: single-entity anchor move (primary grabbed entity only).
+   *  The resolver propagates to other selected entities via lasso:main. */
+  onAnchorEntityMove?: (entityId: string, time: number) => void
   beatAnchors: Anchor[]
   linkedBeatIds?: ReadonlySet<number>
   onBeatAnchorDelete?: (id: number) => void
@@ -118,8 +121,23 @@ export interface CanvasTimelineProps {
   onRegionContextMenu?: (id: string, x: number, y: number) => void
   onRegionResize?: (id: string, inPoint: number, outPoint: number) => void
   onRegionMove?: (id: string, inPoint: number, outPoint: number, altKey: boolean) => void
+  /** Phase 2.5: single-entity region body move (primary grabbed region only).
+   *  delta is the signed translate from the entity's position at drag start.
+   *  The resolver propagates to other selected regions via lasso:main. */
+  onRegionEntityMove?: (id: string, delta: number, isOutput: boolean, altKey: boolean) => void
   onRegionResizeOutput?: (id: string, inBeatTime: number, outBeatTime: number, altKey: boolean) => void
   onRegionMoveOutput?: (id: string, inBeatTime: number, outBeatTime: number, altKey: boolean) => void
+  /** Phase 5: install an ephemeral carry pair at clipout drag start. */
+  onCarryStart?: (regionId: string, edge: 'in' | 'out', anchorId: number) => void
+  /** Phase 5: remove all carry pairs for a clipout on drag end / cancel. */
+  onCarryEnd?: (regionId: string) => void
+  /** Phase 7: install a SnapTarget constraint at drag start for the given entity + field. */
+  onSnapStart?: (entityId: string, field: 'time' | 'in' | 'out', pxPerUnit: number, grid?: { interval: number; offset: number }, gestureRole?: 'edge' | 'body' | 'anchor') => void
+  /** Phase 7: remove the SnapTarget constraint for the given entity + field. */
+  onSnapEnd?: (entityId: string, field: 'time' | 'in' | 'out') => void
+  /** Phase 7: constraint graph passed to the Snapshot so the controller can call
+   *  findSnapCandidates for render hints. */
+  constraintGraph?: ConstraintState
   onRegionZoom?: (id: string) => void
   onZoomToRegion?: () => void
   onGridDivChange?: (div: number) => void
@@ -318,107 +336,72 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
     const tX   = (t: number) => ((t - view.start) / (view.end - view.start)) * W
     const xToT = (x: number) => view.start + (x / W) * (view.end - view.start)
 
-    // Pull live drag state from the controller. Different drag kinds expose
-    // different live arrays — pattern-match by kind.
+    // Pull live drag state from the controller for lasso + gesture helpers.
+    // The slice (p.anchors / p.regions / p.beatAnchors / p.regionsOutput) is
+    // updated on every pointerMove via dispatched ops so it IS the live state —
+    // no separate live-override map is needed.
     const dragState = controllerRef.current.getDragState()
-    const liveRegionMap = liveRegionOverrides(dragState)
-    const liveOutputRegionMap = liveOutputRegionOverrides(dragState)
-    // Primary live region for INPUT-SPACE drags — used by region-edge AND
-    // region-move drags. The region-move list also includes the primary; we
-    // keep `lr` for code paths that key off the single dragged id (e.g.
-    // clipout conform and beatOffset calculation). Excluded for output-space
-    // drags so clipin rendering stays at slice state during a clipout drag.
-    const lr = (dragState?.kind === 'region-edge' || dragState?.kind === 'region-move')
-      && !dragState.isOutput
-      ? dragState.liveRegion : null
     const lassoOrigAnchorIds  = (dragState?.kind === 'lasso' && dragState.active) ? dragState.lassoOrigAnchorIds  : null
     const lassoBeatAnchorIds  = (dragState?.kind === 'lasso' && dragState.active) ? dragState.lassoBeatAnchorIds  : null
     const lassoClipinIds      = (dragState?.kind === 'lasso' && dragState.active) ? dragState.lassoClipinIds      : null
     const lassoClipoutIds     = (dragState?.kind === 'lasso' && dragState.active) ? dragState.lassoClipoutIds     : null
     const lassoSceneTimes     = (dragState?.kind === 'lasso' && dragState.active) ? dragState.lassoSceneTimes     : null
 
-    const liveAnchorsArr = liveAnchorOverrides(dragState)
-    const liveBeatAnchorsArr = liveBeatAnchorOverrides(dragState)
-    const anchors     = liveAnchorsArr.length     > 0 ? liveAnchorsArr     : p.anchors
-    const beatAnchors = liveBeatAnchorsArr.length > 0 ? liveBeatAnchorsArr : p.beatAnchors
+    // Read anchors and regions directly from the slice — the constraint mirror
+    // middleware keeps them current within the same React tick.
+    const anchors     = p.anchors
+    const beatAnchors = p.beatAnchors
+    const regions     = p.regions
 
-    const bpm = (() => {
-      if (lr && p.clipLock === 'beats' && p.clipLockedBeats && p.clipLockedBeats > 0) {
-        const dur = lr.outPoint - lr.inPoint
-        return dur > 0.001 ? p.clipLockedBeats * 60 / dur : p.bpm
-      }
-      return p.bpm
-    })()
+    const bpm = p.bpm
     const beatSec = 60 / bpm
-    // Apply live bounds for EVERY captured region (multi-select / combined
-    // drag), not just the primary `lr` — otherwise the canvas only shows one
-    // of N regions moving during a combined drag.
-    const regions = liveRegionMap.size > 0
-      ? p.regions.map(r => {
-          const live = liveRegionMap.get(r.id)
-          return live ? { ...r, inPoint: live.inPoint, outPoint: live.outPoint } : r
-        })
-      : p.regions
     // Anchors paired by id and sorted by input time; everything that
     // connects input ↔ output anchors must iterate these pairs.
     const anchorPairs = buildAnchorPairs(anchors, beatAnchors)
 
-    const anchorsDragging = liveAnchorsArr.length > 0 || liveBeatAnchorsArr.length > 0
+    // True when an anchor (input or beat) is currently being dragged.
+    const anchorsDragging = dragState?.kind === 'anchor'
 
     // Piecewise-linear input→beat mapping using live anchor pairs (mirrors WarpView's origToBeat)
     function liveOrigToBeat(t: number): number {
       return origToBeat(t, anchorPairs)
     }
 
-    // Beat offset: use anchor's live beat time when clip inPoint is pinned to one
+    // Beat offset: use anchor's live beat time when clip inPoint is pinned to one.
+    // For output-space (clipout) drags, read the live inPoint from p.regionsOutput
+    // (the slice is updated on every pointerMove via applyConformedClipout).
     const clipInAnchor = p.clipIn !== undefined
       ? p.anchors.find(a => Math.abs(a.time - p.clipIn!) < 1e-4)
       : undefined
-    // For output-space (clipout) drags, use the live output-region inPoint so the
-    // beat grid follows the drag in real time. liveOutputRegionMap already reflects
-    // the current drag position; p.beatOffset is one React render cycle behind.
     const liveClipoutIn = (dragState?.kind === 'region-edge' || dragState?.kind === 'region-move')
-      && dragState.isOutput && dragState.liveRegion
-      ? liveOutputRegionMap.get(dragState.id)?.inPoint
+      && dragState.isOutput
+      ? p.regionsOutput?.find(r => r.id === dragState.id)?.inPoint
       : undefined
     // Beat grid origin during a clipin drag stays at the committed inBeatTime
-    // (p.beatOffset) regardless of diverged-vs-default-linked. The clipout is
-    // frozen at its committed beat position during a clipin drag (see
-    // projectClipoutRegions's r.inPoint fallback), so the grid must stay at
-    // the same place to keep the clipout aligned with the beat ticks.
-    // Routing the offset through origToBeat made the grid drift as the
-    // dragged clipin passed anchors, breaking that alignment.
+    // (p.beatOffset). During a clipout drag, use the live inPoint from the slice.
+    const clipinDragging = (dragState?.kind === 'region-edge' || dragState?.kind === 'region-move')
+      && !dragState.isOutput
     const beatOffset = liveClipoutIn !== undefined
       ? liveClipoutIn
-      : lr
+      : clipinDragging
         ? (p.beatOffset ?? 0)
         : (anchorsDragging && clipInAnchor)
           ? liveOrigToBeat(p.clipIn!)
           : (p.beatOffset ?? 0)
 
-    // Clipout only diverges from vertical when the clip's IN edge sits EXACTLY on a marker.
-    // In that case clipout.in = anchor beat time; clipout.out = anchor beat time if OUT
-    // also has an anchor, otherwise same as clipin.out (vertical). All other cases: vertical.
-    //
-    // When an output-space drag is active, apply live output bounds directly
-    // (bypassing the conform path — the user is explicitly setting the beat
-    // position). The clipin track stays at slice state (liveRegionMap is empty
-    // for output-space drags, enforced by liveRegionOverrides).
+    // Project clipout regions using the slice data directly (no live-override map
+    // needed — the slice is updated on every pointerMove).
+    const emptyRegionMap: ReadonlyMap<string, { inPoint: number; outPoint: number }> = new Map()
     const projectedRegionsOutput = projectClipoutRegions({
       regions: p.regions,
       regionsOutput: p.regionsOutput,
       origAnchors: p.anchors,
       beatAnchors,
       liveInputAnchors: anchors,
-      liveRegionMap,
+      liveRegionMap: emptyRegionMap,
       anchorsDragging,
     })
-    const regionsOutput = liveOutputRegionMap.size > 0 && projectedRegionsOutput
-      ? projectedRegionsOutput.map(r => {
-          const live = liveOutputRegionMap.get(r.id)
-          return live ? { ...r, inPoint: live.inPoint, outPoint: live.outPoint } : r
-        })
-      : projectedRegionsOutput
+    const regionsOutput = projectedRegionsOutput
 
     function spaceRange(space: 'input' | 'warp' | 'output') {
       const ts = tracks.filter(t => t.space === space)
@@ -1264,6 +1247,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
       tracks: tracksRef.current,
       hits: hitsBuilderRef.current.result(),
       playhead: p.playhead,
+      constraintGraph: p.constraintGraph,
     }
   }
 
@@ -1309,6 +1293,11 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
         case 'viewChange': p.onViewChange(i.view); break
         case 'anchorsChanged': p.onAnchorsChange?.(i.next); break
         case 'beatAnchorsChanged': p.onBeatAnchorsChange?.(i.next); break
+        // Phase 2.5: single-entity intents — route to constraint-graph dispatch.
+        case 'anchorEntityMove': p.onAnchorEntityMove?.(i.entityId, i.time); break
+        case 'regionEntityMove':
+          p.onRegionEntityMove?.(i.id, i.delta, i.isOutput, i.altKey)
+          break
         case 'regionResize':
           if (i.isOutput) p.onRegionResizeOutput?.(i.id, i.inPoint, i.outPoint, i.altKey)
           else p.onRegionResize?.(i.id, i.inPoint, i.outPoint)
@@ -1317,6 +1306,12 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
           if (i.isOutput) p.onRegionMoveOutput?.(i.id, i.inPoint, i.outPoint, i.altKey)
           else p.onRegionMove?.(i.id, i.inPoint, i.outPoint, i.altKey)
           break
+        // Phase 5: carry pair lifecycle.
+        case 'carryStart': p.onCarryStart?.(i.regionId, i.edge, i.anchorId); break
+        case 'carryEnd': p.onCarryEnd?.(i.regionId); break
+        // Phase 7: snap constraint lifecycle.
+        case 'snapStart': p.onSnapStart?.(i.entityId, i.field, i.pxPerUnit, i.grid, i.gestureRole); break
+        case 'snapEnd': p.onSnapEnd?.(i.entityId, i.field); break
         case 'anchorAdd': p.onAnchorAdd?.(i.time); break
         case 'anchorDelete': p.onAnchorDelete?.(i.id); break
         case 'beatAnchorDelete': p.onBeatAnchorDelete?.(i.id); break
@@ -1342,8 +1337,8 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
         case 'pubScrubTime': gesture.setScrubTime(i.time); break
         case 'pubLasso': gesture.setLassoSelection(i.clipinIds, i.clipoutIds, i.origAnchorIds, i.beatAnchorIds, i.sceneTimes); break
         case 'pubClearGesture': gesture.clearAll(); break
-        // pubLiveBeatAnchors: canvas draws from dragState directly (liveBeatAnchorOverrides);
-        // intent retained only to trigger a redraw (handled by the controller's final redraw intent).
+        // pubLiveBeatAnchors: slice is updated on every pointerMove so the slice
+        // beat anchor state is already current; intent retained only to trigger a redraw.
         case 'pubLiveBeatAnchors': break
         case 'dragStart': {
           dispatch(dragStart(snapshotPreDragState(store.getState())))

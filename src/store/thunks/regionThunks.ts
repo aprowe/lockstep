@@ -19,8 +19,6 @@ import {
 } from '../slices/sceneSlice'
 import { setListSelection } from '../slices/listsSlice'
 import { calcNewRegionBoundsUpToNext } from '../../timeline/model/newRegionBounds'
-import { effectiveBeatBounds } from '../../timeline/model/effectiveBounds'
-import { LINK_EPSILON } from '../../timeline/model/linkState'
 import type { Anchor, Region } from '../../types'
 
 // ── moveAnchors ───────────────────────────────────────────────────────────────
@@ -53,7 +51,7 @@ interface MoveRegionBoundsPayload {
   id: string
   inPoint: number
   outPoint: number
-  /** Optional — only used by panClipinBounds for anchor-lock computation. */
+  /** Optional — retained for call-site compatibility. */
   altKey?: boolean
 }
 
@@ -76,29 +74,6 @@ export const moveRegionBounds =
   }
 
 /**
- * Compute the set of beat-anchor ids STRICTLY INSIDE the pre-drag region's
- * beat-space window. Boundary anchors (within LINK_EPSILON of the effective
- * inBeatTime or outBeatTime) are excluded — they are already handled by
- * detectConformedMoves / conformed-marker carry on clipout drag.
- */
-function computeInnerAnchorIds(
-  preDragRegion: Region,
-  preDragOrigAnchors: readonly Anchor[],
-  preDragBeatAnchors: readonly Anchor[],
-): Set<number> {
-  const { inBeatTime, outBeatTime } = effectiveBeatBounds(
-    preDragRegion, preDragOrigAnchors, preDragBeatAnchors,
-  )
-  const out = new Set<number>()
-  for (const a of preDragBeatAnchors) {
-    if (a.time > inBeatTime + LINK_EPSILON && a.time < outBeatTime - LINK_EPSILON) {
-      out.add(a.id)
-    }
-  }
-  return out
-}
-
-/**
  * Pan a region's input-space bounds (body drag — length preserved).
  *
  * Unlike `moveRegionBounds` (used for edge resize), this also translates
@@ -107,12 +82,9 @@ function computeInnerAnchorIds(
  * default-linked (no explicit beat bounds), they stay undefined — the
  * clipout renders linked to the new input bounds automatically.
  *
- * When effectiveAnchorLock is true (ui.anchorLock XOR payload.altKey),
- * beat anchors that were STRICTLY INSIDE the region's beat-space window at
- * drag start (captured via preDrag snapshot) are also translated by the
- * same delta. Boundary-conformed anchors (within LINK_EPSILON of the
- * pre-drag effective inBeatTime/outBeatTime) are excluded. Input anchors
- * (origAnchors) are never touched.
+ * Inner-anchor translation (when anchor-lock is on) is now handled by the
+ * TranslateGroup constraint emitted by anchorLockMirrorMiddleware — the resolver
+ * propagates it automatically when the clipout entity moves.
  */
 export const panClipinBounds =
   (payload: MoveRegionBoundsPayload) =>
@@ -121,48 +93,20 @@ export const panClipinBounds =
     const region = state.region.regions.find(r => r.id === payload.id)
     if (!region) return
 
-    // Use the pre-drag snapshot when available so the inner-anchor set is
-    // always computed from drag-start positions (not mid-drag drift).
-    const preDragRegion = state.drag.preDrag?.regions.find(r => r.id === payload.id) ?? region
-    const preDragOrigAnchors = state.drag.preDrag?.origAnchors ?? state.warp.origAnchors
-    const preDragBeatAnchors = state.drag.preDrag?.beatAnchors ?? state.warp.beatAnchors
-
     // Frame-to-frame delta for the region + beat-time updates (incremental).
     const frameDelta = payload.inPoint - region.inPoint
 
     dispatch(updateRegionInOutAction(payload))
 
     // Only translate explicit beat-space bounds (diverged state).
-    // Default-linked regions (inBeatTime === undefined) stay linked
-    // and automatically track the new input position.
-    if (region.inBeatTime !== undefined || region.outBeatTime !== undefined) {
-      const oldIn  = region.inBeatTime  ?? region.inPoint
-      const oldOut = region.outBeatTime ?? region.outPoint
+    // Default-linked regions stay linked and automatically track the new
+    // input position via the DirectedPair constraint.
+    if (!region.defaultLinked) {
       dispatch(updateRegionBeatTimesAction({
         id: payload.id,
-        inBeatTime:  oldIn  + frameDelta,
-        outBeatTime: oldOut + frameDelta,
+        inBeatTime:  region.inBeatTime  + frameDelta,
+        outBeatTime: region.outBeatTime + frameDelta,
       }))
-    }
-
-    // Anchor-lock: translate beat anchors STRICTLY INSIDE the pre-drag
-    // beat-space window. effectiveAnchorLock = ui.anchorLock XOR altKey.
-    // Uses the total delta from drag start (payload.inPoint - preDragRegion.inPoint)
-    // applied to pre-drag anchor positions to avoid floating-point drift across
-    // many pointerMove frames. Input anchors (origAnchors) are never touched.
-    const effectiveAnchorLock = state.ui.anchorLock !== (payload.altKey ?? false)
-    if (effectiveAnchorLock && Math.abs(frameDelta) > 1e-9) {
-      const innerIds = computeInnerAnchorIds(preDragRegion, preDragOrigAnchors, preDragBeatAnchors)
-      if (innerIds.size > 0) {
-        const totalDelta = payload.inPoint - preDragRegion.inPoint
-        const nextBeatAnchors = state.warp.beatAnchors.map(a => {
-          if (!innerIds.has(a.id)) return a
-          // Apply total delta to the pre-drag position (drift-free).
-          const preDragTime = preDragBeatAnchors.find(p => p.id === a.id)?.time ?? a.time
-          return { ...a, time: preDragTime + totalDelta }
-        })
-        dispatch(setBeatAnchorsFromTimeline(nextBeatAnchors))
-      }
     }
   }
 
@@ -179,6 +123,9 @@ function makeFreshRegion(
     name: `Clip ${regionCount + 1}`,
     inPoint,
     outPoint,
+    inBeatTime:    inPoint,
+    outBeatTime:   outPoint,
+    defaultLinked: true,
     bpm,
     minStretch: 0.5,
     maxStretch: 2.0,

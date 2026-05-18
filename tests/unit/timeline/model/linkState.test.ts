@@ -16,6 +16,9 @@ function makeRegion(overrides: Partial<Region> = {}): Region {
     name: 'Test Region',
     inPoint: 10,
     outPoint: 20,
+    inBeatTime: 10,
+    outBeatTime: 20,
+    defaultLinked: true,
     bpm: 120,
     minStretch: 0.5,
     maxStretch: 2.0,
@@ -32,9 +35,8 @@ describe('isDefaultLinked', () => {
     expect(isDefaultLinked(region)).toBe(true)
   })
 
-  it('returns true when inBeatTime and outBeatTime are absent (defaults to inPoint/outPoint)', () => {
-    const region = makeRegion({ inPoint: 10, outPoint: 20 })
-    // inBeatTime and outBeatTime are undefined → treated as equal to inPoint/outPoint
+  it('returns true when inBeatTime === inPoint and outBeatTime === outPoint (default-linked state)', () => {
+    const region = makeRegion({ inPoint: 10, outPoint: 20, inBeatTime: 10, outBeatTime: 20 })
     expect(isDefaultLinked(region)).toBe(true)
   })
 
@@ -244,13 +246,12 @@ describe('detectOutputLinks', () => {
     expect(result.outputIn!.beat!.id).toBe(1)
   })
 
-  it('falls back to inPoint/outPoint when inBeatTime/outBeatTime are absent', () => {
-    // region without explicit beat times — defaults to inPoint/outPoint
-    const region = makeRegion({ inPoint: 10, outPoint: 20 })
+  it('matches beat anchors at inBeatTime/outBeatTime when equal to inPoint/outPoint', () => {
+    // inBeatTime === inPoint (default-linked state) — beat anchors at those times still match
+    const region = makeRegion({ inPoint: 10, outPoint: 20, inBeatTime: 10, outBeatTime: 20 })
     const anchors: Anchor[] = [{ id: 1, time: 10 }, { id: 2, time: 20 }]
     const beatAnchors: Anchor[] = [{ id: 1, time: 10 }, { id: 2, time: 20 }]
     const result = detectOutputLinks(region, anchors, beatAnchors)
-    // inBeatTime defaults to inPoint (10), outBeatTime defaults to outPoint (20)
     expect(result.outputIn).toBeDefined()
     expect(result.outputOut).toBeDefined()
   })

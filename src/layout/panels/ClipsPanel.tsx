@@ -9,7 +9,7 @@ import {
   addRegion as addRegionAction,
   deleteRegion as deleteRegionAction,
   setActiveRegionId as setActiveRegionIdAction,
-  updateRegionBeatTimes as updateRegionBeatTimesAction,
+  resetRegionBoundary as resetRegionBoundaryAction,
   renameRegion as renameRegionAction,
 } from '../../store/slices/regionSlice'
 import { setExportOpen as setExportOpenAction } from '../../store/slices/uiSlice'
@@ -71,6 +71,7 @@ export default function ClipsPanel() {
     const name = `Clip ${regions.length + 1}`
     dispatch(addRegionAction({
       id, name, inPoint, outPoint,
+      inBeatTime: inPoint, outBeatTime: outPoint, defaultLinked: true,
       bpm: warpBpm, minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
     }))
     return id
@@ -85,7 +86,7 @@ export default function ClipsPanel() {
     const id = `region_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
     dispatch(addRegionAction({
       ...src, id, name: `Clip ${regions.length + 1}`, inPoint, outPoint,
-      inBeatTime: undefined, outBeatTime: undefined,
+      inBeatTime: inPoint, outBeatTime: outPoint, defaultLinked: true,
     }))
     return id
   }, [dispatch, regions, video])
@@ -141,8 +142,8 @@ export default function ClipsPanel() {
         { separator: true as const },
         {
           label: 'Reset boundaries',
-          action: () => dispatch(updateRegionBeatTimesAction({ id, inBeatTime: undefined, outBeatTime: undefined })),
-          disabled: region.inBeatTime === undefined && region.outBeatTime === undefined,
+          action: () => dispatch(resetRegionBoundaryAction({ id })),
+          disabled: region.defaultLinked,
         },
         { label: 'Delete', action: () => dispatch(deleteRegionAction(id)), danger: true },
       ],

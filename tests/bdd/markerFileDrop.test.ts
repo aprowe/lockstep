@@ -79,7 +79,6 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       store.dispatch(pushSnapshot({
         origAnchors: [{ id: 99, time: 30 }],
         beatAnchors: [{ id: 99, time: 30 }],
-        linkedBeatIds: [],
         beatZeroId: null,
         bpm: 120,
         minStretch: 0.5,

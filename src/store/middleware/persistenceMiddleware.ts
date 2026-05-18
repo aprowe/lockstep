@@ -1,6 +1,6 @@
 import { createListenerMiddleware, isAnyOf } from '@reduxjs/toolkit'
 import type { RootState } from '../store'
-import type { SavedVideoState } from '../../types'
+import type { Anchor, SavedVideoState } from '../../types'
 import { saveVideoState } from '../../api/storage'
 import { writeVideoSidecar } from '../../api/warp'
 import { updateMarkerCount, updateClipCount } from '../slices/videoSlice'
@@ -10,10 +10,6 @@ import {
   setBeatAnchors,
   addAnchor,
   removeAnchors,
-  moveOrigAnchor,
-  setOrigAnchorsFromTimeline,
-  moveBeatAnchor,
-  setBeatAnchorsFromTimeline,
   resetBeatLinks,
   clearAnchors,
   loadAnchors,
@@ -24,23 +20,19 @@ import {
   setLoopBeats,
   setTrimToLoop,
   setAddToEnd,
+  _syncAnchorPositions,
 } from '../slices/warpSlice'
 import {
   setRegions,
   addRegion,
   deleteRegion,
-  updateRegionInOut,
-  updateRegionBeatTimes,
-  updateRegionLock,
   renameRegion,
   updateRegionBpm,
+  updateRegionLockedBeats,
   updateRegionStretch,
   updateRegionTriggerMode,
-  applyLinkingEvent,
-  resetRegionBoundary,
-  applyConformedClipout,
-  applyBpmEdit,
-  applyBeatsEdit,
+  _syncRegionPositions,
+  _syncRegionMeta,
 } from '../slices/regionSlice'
 import { setCuts as setScenes, addCut, deleteCut, setMinGap as setSceneMinGap } from '../slices/sceneSlice'
 
@@ -48,21 +40,21 @@ export const persistenceMiddleware = createListenerMiddleware()
 
 // Match any action that should trigger a save
 const shouldSave = isAnyOf(
-  // Warp state changes
+  // Warp state changes (slice ID-list / metadata mutations)
   setOrigAnchors, setBeatAnchors, addAnchor, removeAnchors,
-  moveOrigAnchor, setOrigAnchorsFromTimeline,
-  moveBeatAnchor, setBeatAnchorsFromTimeline,
   resetBeatLinks, clearAnchors, loadAnchors,
   setBpm, setMinStretch, setMaxStretch, setBeatZeroId,
   setLoopBeats, setTrimToLoop, setAddToEnd,
-  // Region state changes
+  // Region state changes (slice metadata mutations)
   setRegions, addRegion, deleteRegion,
-  updateRegionInOut, updateRegionBeatTimes, updateRegionLock,
+  updateRegionLockedBeats,
   renameRegion, updateRegionBpm, updateRegionStretch, updateRegionTriggerMode,
-  applyLinkingEvent, resetRegionBoundary, applyConformedClipout,
-  applyBpmEdit, applyBeatsEdit,
   // Scene detection results + user edits + min-gap setting
   setScenes, addCut, deleteCut, setSceneMinGap,
+  // Pipeline slice writes — position mutations (replaces applyOp trigger)
+  _syncAnchorPositions,
+  _syncRegionPositions,
+  _syncRegionMeta,
   // Drag end — one save after all the pointer-move commits complete
   dragEnd,
 )
@@ -87,14 +79,27 @@ persistenceMiddleware.startListening({
 
     const warp = state.warp
 
+    // Slice is the source of truth for positions (Phase 4c).
+    const matOrigAnchors: Anchor[] = warp.origAnchors.map(a => ({ id: a.id, time: a.time }))
+
+    // Determine which anchors are linked via the slice's beatAnchors[n].linked field.
+    // absent or true = linked; false = diverged.
+    const matBeatAnchors: Anchor[] = warp.beatAnchors.map(a => {
+      const isLinked = a.linked !== false
+      return isLinked ? { id: a.id, time: a.time } : { id: a.id, time: a.time, linked: false }
+    })
+
     // Compute beat-zero anchor time for persistence
-    const sortedOrig = [...warp.origAnchors].sort((a, b) => a.time - b.time)
-    const sortedBeat = sortedOrig.map(oa => warp.beatAnchors.find(ba => ba.id === oa.id)).filter(Boolean)
+    const sortedOrig = [...matOrigAnchors].sort((a, b) => a.time - b.time)
+    const sortedBeat = sortedOrig.map(oa => matBeatAnchors.find(ba => ba.id === oa.id)).filter(Boolean)
     let beatZeroTime = sortedBeat[0]?.time ?? 0
     if (warp.beatZeroId !== null) {
       const z = sortedBeat.find(a => a?.id === warp.beatZeroId)
       if (z) beatZeroTime = z.time
     }
+
+    // Materialise region positions from the slice (source of truth in Phase 4c).
+    const matRegions = state.region.regions.map(r => ({ ...r }))
 
     const cuts = state.scene.cutsByPath[vid.path]
     const userCuts = state.scene.userCutsByPath[vid.path]
@@ -109,8 +114,8 @@ persistenceMiddleware.startListening({
     const savedState: SavedVideoState = {
       version: 2,
       defaultRegion: {
-        origAnchors: warp.origAnchors,
-        beatAnchors: warp.beatAnchors,
+        origAnchors: matOrigAnchors,
+        beatAnchors: matBeatAnchors,
         bpm: warp.bpm,
         minStretch: warp.minStretch,
         maxStretch: warp.maxStretch,
@@ -119,7 +124,7 @@ persistenceMiddleware.startListening({
         trimToLoop: warp.trimToLoop,
         addToEnd: warp.addToEnd,
       },
-      regions: state.region.regions,
+      regions: matRegions,
       ...(hasSceneData
         ? {
             scenes: {

@@ -1,8 +1,8 @@
 import { describeFeature, loadFeature } from '@amiceli/vitest-cucumber'
 import { expect, vi } from 'vitest'
 import { cleanup, fireEvent } from '@testing-library/react/pure'
-import { addRegion, setActiveRegionId, updateRegionInOut, updateRegionBeatTimes, applyConformedClipout, applyLinkingEvent, applyBpmEdit, applyBeatsEdit, updateRegionLock } from '../../../src/store/slices/regionSlice'
-import { setAnchorLock } from '../../../src/store/slices/uiSlice'
+import { addRegion, setActiveRegionId, updateRegionInOut, updateRegionBeatTimes, applyConformedClipout, applyLinkingEvent, applyBpmEdit, applyBeatsEdit, updateRegionLockedBeats as updateRegionLockedBeatsAction } from '../../../src/store/slices/regionSlice'
+import { setAnchorLock, setLockMode } from '../../../src/store/slices/uiSlice'
 import { addAnchor, moveOrigAnchor, removeAnchors, moveBeatAnchor, setBeatAnchorsFromTimeline } from '../../../src/store/slices/warpSlice'
 import { pushSnapshot, undo } from '../../../src/store/slices/historySlice'
 import { gesture, getSnapshot } from '../../../src/store/gesture'
@@ -18,13 +18,15 @@ import type { Anchor, Region } from '../../../src/types'
 const feature = await loadFeature('./spec/features/timeline/clip-bounds.feature')
 
 const makeRegion = (id: string, inPoint: number, outPoint: number) => ({
-  id, name: id, inPoint, outPoint, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
+  id, name: id, inPoint, outPoint,
+  inBeatTime: inPoint, outBeatTime: outPoint, defaultLinked: true,
+  bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
 })
 
 const snap = (store: ReturnType<typeof makeStore>) => {
   const s = store.getState()
   store.dispatch(pushSnapshot({
-    origAnchors: [], beatAnchors: [], linkedBeatIds: [], beatZeroId: null,
+    origAnchors: [], beatAnchors: [], beatZeroId: null,
     bpm: s.warp.bpm,
     minStretch: s.warp.minStretch,
     maxStretch: s.warp.maxStretch,
@@ -51,8 +53,8 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     })
     Then('inBeatTime equals inPoint (10) and outBeatTime equals outPoint (20)', () => {
       const r = store.getState().region.regions[0]
-      expect(r.inBeatTime ?? r.inPoint).toBe(10)
-      expect(r.outBeatTime ?? r.outPoint).toBe(20)
+      expect(r.inBeatTime).toBe(10)
+      expect(r.outBeatTime).toBe(20)
     })
     And('clipin and clipout render at the same horizontal positions', () => {
       const r = store.getState().region.regions[0]
@@ -133,10 +135,10 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     })
     And('clipin and clipout no longer share horizontal positions', () => {
       const r = store.getState().region.regions[0]
-      // clipin lives at inPoint; clipout base lives at inBeatTime ?? inPoint.
+      // clipin lives at inPoint; clipout base lives at inBeatTime.
       // After diverging, these no longer coincide.
       const clipinIn   = r.inPoint
-      const clipoutIn  = r.inBeatTime ?? r.inPoint
+      const clipoutIn  = r.inBeatTime
       expect(clipoutIn).not.toBe(clipinIn)
       expect(clipoutIn).toBe(8)   // the value we explicitly diverged to
     })
@@ -453,7 +455,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     let inputAnchor: Anchor
 
     Given('a region exists with inPoint at 10 seconds', () => {
-      region = { id: 'r', name: 'r', inPoint: 10, outPoint: 20, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false }
+      region = { id: 'r', name: 'r', inPoint: 10, outPoint: 20, inBeatTime: 10, outBeatTime: 20, defaultLinked: true, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false }
     })
     And('an input anchor exists at input time 10 seconds', () => {
       inputAnchor = { id: 1, time: 10 }
@@ -471,7 +473,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     let inputAnchor: Anchor
 
     Given('a region with outPoint at 20 seconds', () => {
-      region = { id: 'r', name: 'r', inPoint: 10, outPoint: 20, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false }
+      region = { id: 'r', name: 'r', inPoint: 10, outPoint: 20, inBeatTime: 10, outBeatTime: 20, defaultLinked: true, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false }
     })
     And('an input anchor at input time 20 seconds', () => {
       inputAnchor = { id: 2, time: 20 }
@@ -488,7 +490,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     // Region with diverged inBeatTime (6), inPoint at 10, anchor initially at 10.
     const region: Region = {
       id: 'r', name: 'r', inPoint: 10, outPoint: 20, bpm: 120,
-      minStretch: 0.5, maxStretch: 2, addToEnd: false, inBeatTime: 6,
+      minStretch: 0.5, maxStretch: 2, addToEnd: false, inBeatTime: 6, outBeatTime: 20, defaultLinked: false,
     }
     let inputAnchor: Anchor
 
@@ -519,7 +521,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     let anchors: Anchor[]
 
     Given('a region exists with inPoint at 10 seconds', () => {
-      region = { id: 'r', name: 'r', inPoint: 10, outPoint: 20, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false }
+      region = { id: 'r', name: 'r', inPoint: 10, outPoint: 20, inBeatTime: 10, outBeatTime: 20, defaultLinked: true, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false }
     })
     And('no input anchor sits at 10 seconds yet', () => {
       anchors = [{ id: 1, time: 5 }]
@@ -545,7 +547,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       anchors = [{ id: 7, time: 10 }, { id: 3, time: 10 }]
     })
     And('a region exists with inPoint at 10 seconds', () => {
-      region = { id: 'r', name: 'r', inPoint: 10, outPoint: 20, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false }
+      region = { id: 'r', name: 'r', inPoint: 10, outPoint: 20, inBeatTime: 10, outBeatTime: 20, defaultLinked: true, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false }
     })
     Then('the in-edge is reported as input-linked to the anchor with pair id 3', () => {
       const result = detectInputLinks(region, anchors, [])
@@ -581,7 +583,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
 
     const c = driveController({
       seedStore: (store) => {
-        store.dispatch(addRegion({ id: 'r', name: 'r', inPoint: 0, outPoint: 10, bpm: 120, lock: 'bpm', minStretch: 0.5, maxStretch: 2, addToEnd: false, inBeatTime: 5, outBeatTime: 15 }))
+        store.dispatch(addRegion({ id: 'r', name: 'r', inPoint: 0, outPoint: 10, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false, inBeatTime: 5, outBeatTime: 15, defaultLinked: false }))
       },
     })
 
@@ -659,7 +661,8 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
 
     const c = driveController({
       seedStore: (store) => {
-        store.dispatch(addRegion({ id: 'r', name: 'r', inPoint: 0, outPoint: 10, bpm: 120, lock: 'beats', lockedBeats: 20, minStretch: 0.5, maxStretch: 2, addToEnd: false, inBeatTime: 5, outBeatTime: 15 }))
+        store.dispatch(setLockMode('beats'))
+        store.dispatch(addRegion({ id: 'r', name: 'r', inPoint: 0, outPoint: 10, bpm: 120, lockedBeats: 20, minStretch: 0.5, maxStretch: 2, addToEnd: false, inBeatTime: 5, outBeatTime: 15, defaultLinked: false }))
       },
     })
 
@@ -735,7 +738,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
 
     const c = driveController({
       seedStore: (store) => {
-        store.dispatch(addRegion({ id: 'r', name: 'r', inPoint: 0, outPoint: 10, bpm: 120, lock: 'bpm', minStretch: 0.5, maxStretch: 2, addToEnd: false, inBeatTime: 5, outBeatTime: 15 }))
+        store.dispatch(addRegion({ id: 'r', name: 'r', inPoint: 0, outPoint: 10, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false, inBeatTime: 5, outBeatTime: 15, defaultLinked: false }))
       },
     })
 
@@ -803,7 +806,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
 
     const c = driveController({
       seedStore: (store) => {
-        store.dispatch(addRegion({ id: 'r', name: 'r', inPoint: 10, outPoint: 20, bpm: 120, lock: 'bpm', minStretch: 0.5, maxStretch: 2, addToEnd: false, inBeatTime: 6, outBeatTime: 16, lockedBeats: 20 }))
+        store.dispatch(addRegion({ id: 'r', name: 'r', inPoint: 10, outPoint: 20, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false, inBeatTime: 6, outBeatTime: 16, lockedBeats: 20, defaultLinked: false }))
         store.dispatch(addAnchor({ id: ANCHOR_ID, time: 10 }))
       },
     })
@@ -896,11 +899,12 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
 
     const c = driveController({
       seedStore: (store) => {
+        store.dispatch(setLockMode(lock))
         store.dispatch(addRegion({
           id: 'r', name: 'r', inPoint: 0, outPoint: 10,
-          bpm: 120, lock, lockedBeats: 20,
+          bpm: 120, lockedBeats: 20,
           minStretch: 0.5, maxStretch: 2, addToEnd: false,
-          inBeatTime: IN_BEAT, outBeatTime: OUT_BEAT,
+          inBeatTime: IN_BEAT, outBeatTime: OUT_BEAT, defaultLinked: false,
         }))
       },
     })
@@ -909,7 +913,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       const r = c.store.getState().region.regions[0]
       expect(r.inBeatTime).toBe(IN_BEAT)
       expect(r.outBeatTime).toBe(OUT_BEAT)
-      expect((r.outBeatTime ?? OUT_BEAT) - (r.inBeatTime ?? IN_BEAT)).toBe(10)
+      expect(r.outBeatTime - r.inBeatTime).toBe(10)
     })
     When('the user drags the clipout in-edge to make clipout length <newLen> and releases', () => {
       // Output-space region: inPoint=inBeatTime, outPoint=outBeatTime
@@ -974,9 +978,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       seedStore: (store) => {
         store.dispatch(addRegion({
           id: 'r', name: 'r', inPoint: 0, outPoint: 10,
-          bpm: 120, lock: 'bpm', lockedBeats: 20,
+          bpm: 120, lockedBeats: 20,
           minStretch: 0.5, maxStretch: 2, addToEnd: false,
-          inBeatTime: 0, outBeatTime: 10,
+          inBeatTime: 0, outBeatTime: 10, defaultLinked: true,
         }))
       },
     })
@@ -1062,9 +1066,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       seedStore: (store) => {
         store.dispatch(addRegion({
           id: 'r', name: 'r', inPoint: 0, outPoint: 20,
-          bpm: 120, lock: 'bpm', lockedBeats: 40,
+          bpm: 120, lockedBeats: 40,
           minStretch: 0.5, maxStretch: 2, addToEnd: false,
-          inBeatTime: 10, outBeatTime: 30,
+          inBeatTime: 10, outBeatTime: 30, defaultLinked: false,
         }))
       },
     })
@@ -1142,9 +1146,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     Given("a region's in-edge or out-edge is linked to an input anchor", () => {
       store.dispatch(addRegion({
         id: 'r', name: 'r', inPoint: 10, outPoint: 30,
-        bpm: 120, lock: 'bpm', lockedBeats: 40,
+        bpm: 120, lockedBeats: 40,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 10, outBeatTime: 30,
+        inBeatTime: 10, outBeatTime: 30, defaultLinked: true,
       }))
       // addAnchor creates a paired orig + beat anchor at time 10 → output-links the in-edge
       store.dispatch(addAnchor({ id: ANCHOR_ID, time: 10 }))
@@ -1180,9 +1184,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     Given("a region's in-edge is linked to an input anchor", () => {
       store.dispatch(addRegion({
         id: 'r', name: 'r', inPoint: 10, outPoint: 20,
-        bpm: 120, lock: 'bpm', lockedBeats: 20,
+        bpm: 120, lockedBeats: 20,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 10, outBeatTime: 20,
+        inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
       }))
       // addAnchor creates an orig anchor + a beat anchor, both at time 10
       store.dispatch(addAnchor({ id: ANCHOR_ID, time: 10 }))
@@ -1213,7 +1217,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     let beatAnchor: Anchor
 
     Given('a region exists with inBeatTime at 5 seconds', () => {
-      region = { id: 'r', name: 'r', inPoint: 0, outPoint: 20, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false, inBeatTime: 5, outBeatTime: 20 }
+      region = { id: 'r', name: 'r', inPoint: 0, outPoint: 20, inBeatTime: 5, outBeatTime: 20, defaultLinked: false, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false }
     })
     And('a beat anchor exists at beat time 5 seconds', () => {
       beatAnchor = { id: 1, time: 5 }
@@ -1236,7 +1240,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     let beatAnchor: Anchor
 
     Given('a region with outBeatTime at 20 seconds', () => {
-      region = { id: 'r', name: 'r', inPoint: 0, outPoint: 20, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false, inBeatTime: 5, outBeatTime: 20 }
+      region = { id: 'r', name: 'r', inPoint: 0, outPoint: 20, inBeatTime: 5, outBeatTime: 20, defaultLinked: false, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false }
     })
     And('a beat anchor at beat time 20 seconds', () => {
       beatAnchor = { id: 2, time: 20 }
@@ -1253,7 +1257,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     const region: Region = {
       id: 'r', name: 'r', inPoint: 0, outPoint: 30, bpm: 120,
       minStretch: 0.5, maxStretch: 2, addToEnd: false,
-      inBeatTime: 5, outBeatTime: 20,
+      inBeatTime: 5, outBeatTime: 20, defaultLinked: false,
     }
     let beatAnchor: Anchor
 
@@ -1283,7 +1287,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     let beatAnchors: Anchor[]
 
     Given('a region exists with outBeatTime at 20 seconds', () => {
-      region = { id: 'r', name: 'r', inPoint: 0, outPoint: 20, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false, inBeatTime: 5, outBeatTime: 20 }
+      region = { id: 'r', name: 'r', inPoint: 0, outPoint: 20, inBeatTime: 5, outBeatTime: 20, defaultLinked: false, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false }
     })
     And('no beat anchor sits at beat time 20 yet', () => {
       beatAnchors = [{ id: 1, time: 10 }]
@@ -1309,7 +1313,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       beatAnchors = [{ id: 7, time: 20 }, { id: 3, time: 20 }]
     })
     And('a region exists with outBeatTime at 20 seconds', () => {
-      region = { id: 'r', name: 'r', inPoint: 0, outPoint: 20, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false, inBeatTime: 5, outBeatTime: 20 }
+      region = { id: 'r', name: 'r', inPoint: 0, outPoint: 20, inBeatTime: 5, outBeatTime: 20, defaultLinked: false, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false }
     })
     Then('the out-edge is reported as output-linked to the anchor with pair id 3', () => {
       const result = detectOutputLinks(region, [], beatAnchors)
@@ -1325,7 +1329,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     let beatAnchor: Anchor
 
     Given('a region with inPoint 10 and inBeatTime 6', () => {
-      region = { id: 'r', name: 'r', inPoint: 10, outPoint: 20, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false, inBeatTime: 6, outBeatTime: 16 }
+      region = { id: 'r', name: 'r', inPoint: 10, outPoint: 20, inBeatTime: 6, outBeatTime: 16, defaultLinked: false, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false }
     })
     And('an input anchor at input time 10 with paired beat anchor at beat time 6', () => {
       inputAnchor = { id: 1, time: 10 }
@@ -1356,9 +1360,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     Given("a region with inPoint 10, outPoint 20, BPM 120, lock='bpm'", () => {
       store.dispatch(addRegion({
         id: 'r', name: 'r', inPoint: 10, outPoint: 20,
-        bpm: 120, lock: 'bpm',
+        bpm: 120,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 10, outBeatTime: 20,
+        inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
       }))
     })
     And('an input anchor pair with input time 10 after the drag, beat time 6', () => {
@@ -1383,8 +1387,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       expect(r.bpm).toBe(120)
     })
     And('lock is unchanged', () => {
-      const r = store.getState().region.regions[0]
-      expect(r.lock).toBe('bpm')
+      expect((store.getState() as {ui:{lockMode:string}}).ui.lockMode).toBe('bpm')
     })
   })
 
@@ -1398,11 +1401,12 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
 
     Given('a region with lock=<lock>, BPM 120, lockedBeats 20', () => {
       // inBeatTime=10, outBeatTime=20 → current clipout length=10.
+      store.dispatch(setLockMode(lock))
       store.dispatch(addRegion({
         id: 'r', name: 'r', inPoint: 10, outPoint: 20,
-        bpm: 120, lock, lockedBeats: 20,
+        bpm: 120, lockedBeats: 20,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 10, outBeatTime: 20,
+        inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
       }))
     })
     When('the user drags an anchor onto the in-edge and releases at coincidence', () => {
@@ -1411,7 +1415,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     })
     And('the resulting clipout length is 8 seconds', () => {
       const r = store.getState().region.regions[0]
-      const len = (r.outBeatTime ?? r.outPoint) - (r.inBeatTime ?? r.inPoint)
+      const len = r.outBeatTime - r.inBeatTime
       expect(len).toBeCloseTo(8, 6)
     })
     Then('BPM stays at 120', () => {
@@ -1424,8 +1428,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       expect(r.lockedBeats).toBeCloseTo(16, 6)
     })
     And('lock stays at <lock>', () => {
-      const r = store.getState().region.regions[0]
-      expect(r.lock).toBe(lock)
+      expect((store.getState() as {ui:{lockMode:string}}).ui.lockMode).toBe(lock)
     })
   })
 
@@ -1438,9 +1441,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     Given("a region with inPoint 10, outPoint 20, BPM 120, lock='bpm'", () => {
       store.dispatch(addRegion({
         id: 'r', name: 'r', inPoint: 10, outPoint: 20,
-        bpm: 120, lock: 'bpm',
+        bpm: 120,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 10, outBeatTime: 20,
+        inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
       }))
     })
     And('an input anchor pair at input time 20, beat time 18', () => {
@@ -1481,7 +1484,8 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     And('a region exists with inPoint 12 (currently unlinked)', () => {
       store.dispatch(addRegion({
         id: 'r', name: 'r', inPoint: 12, outPoint: 22,
-        bpm: 120, lock: 'bpm',
+        inBeatTime: 12, outBeatTime: 22, defaultLinked: true,
+        bpm: 120,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
       }))
     })
@@ -1496,11 +1500,12 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       expect(r.inPoint).toBe(10)
     })
     And('inBeatTime is set to 6', () => {
-      // New design: moveRegionBounds does NOT commit inBeatTime.
-      // inBeatTime stays undefined (default-linked). The coincidence is visual-only;
+      // New design: moveRegionBounds does NOT commit the beat-anchor's beat time.
+      // Default-linked region: inBeatTime follows inPoint = 10 (not 6).
+      // The coincidence between anchor and inPoint is visual-only;
       // commitClipoutResize/Pan will carry the marker when the user moves the clipout.
       const r = store.getState().region.regions[0]
-      expect(r.inBeatTime).toBeUndefined()
+      expect(r.inBeatTime).toBe(10) // follows inPoint (default-linked)
     })
     And('lockedBeats recomputes', () => {
       // New design: no linking event means no lockedBeats recompute here.
@@ -1528,9 +1533,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       seedStore: (store) => {
         store.dispatch(addRegion({
           id: 'r', name: 'r', inPoint: 12, outPoint: 22,
-          bpm: 120, lock: 'beats', lockedBeats: 20,
+          bpm: 120, lockedBeats: 20,
           minStretch: 0.5, maxStretch: 2, addToEnd: false,
-          inBeatTime: 12, outBeatTime: 22,
+          inBeatTime: 12, outBeatTime: 22, defaultLinked: true,
         }))
         // Seed anchor before the drag so it exists at the moment inPoint lands on it
         store.dispatch(addAnchor({ id: 1, time: 10 }))
@@ -1583,16 +1588,19 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       expect(r.outPoint).toBe(20)
     })
     And('inBeatTime is set to 6', () => {
-      // New design: moveRegionBounds does NOT write inBeatTime.
-      // inBeatTime stays at 12 (its explicit prior value) — unchanged.
+      // ConformVisual installed by linkingMirrorMiddleware when clipin.inPoint
+      // coincides with the input anchor at 10 (beat time 6). The resolver's
+      // ConformVisual propose handler writes anchor-out.time (6) to clipout.in.
       const r = c.store.getState().region.regions[0]
-      expect(r.inBeatTime).toBe(12) // explicit prior value, not overwritten
+      expect(r.inBeatTime).toBe(6)
     })
     And("lockedBeats recomputes (BPM stays — even though lock='beats')", () => {
-      // New design: no linking event, so lockedBeats stays at its prior value.
+      // BPM stays at 120. Body drag translates clipout by -2 (Translate DirectedPair):
+      // clipout was [12,22], becomes [10,20]. ConformVisual then sets clipout.in=6.
+      // Final clipout: [6, 20]. Length = 20-6 = 14s → lockedBeats = 14*120/60 = 28.
       const r = c.store.getState().region.regions[0]
       expect(r.bpm).toBe(120)
-      expect(r.lockedBeats).toBe(20) // unchanged — no linking event fired
+      expect(r.lockedBeats).toBe(28)
     })
   })
 
@@ -1611,7 +1619,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
 
   // @behavior clip-bounds::b8e81d29
   Scenario('Output-side linking commits on pointerUp at coincidence', ({ Given, And, When, Then }) => {
-    // Fixture: region { inBeatTime: 5, outBeatTime: 20, bpm: 120, lock: 'bpm', lockedBeats: 30 }
+    // Fixture: region { inBeatTime: 5, outBeatTime: 20, bpm: 120, lockedBeats: 30 }
     // Beat anchor released at beat time 22.
     // applyLinkingEvent({ edge: 'out', side: 'output', beatAnchorTime: 22 })
     // Expected: outBeatTime=22, lockedBeats = (22-5) × 120/60 = 34, bpm=120, lock='bpm'.
@@ -1620,9 +1628,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     Given("a region with inBeatTime 5, outBeatTime 20, BPM 120, lock='bpm', lockedBeats 30", () => {
       store.dispatch(addRegion({
         id: 'r', name: 'r', inPoint: 0, outPoint: 20,
-        bpm: 120, lock: 'bpm', lockedBeats: 30,
+        bpm: 120, lockedBeats: 30,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 5, outBeatTime: 20,
+        inBeatTime: 5, outBeatTime: 20, defaultLinked: false,
       }))
     })
     And("a beat anchor whose beat time, after the drag, is 22", () => {
@@ -1645,8 +1653,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       expect(r.bpm).toBe(120)
     })
     And('lock is unchanged', () => {
-      const r = store.getState().region.regions[0]
-      expect(r.lock).toBe('bpm')
+      expect((store.getState() as {ui:{lockMode:string}}).ui.lockMode).toBe('bpm')
     })
   })
 
@@ -1661,9 +1668,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     Given('a region with outBeatTime at 20', () => {
       store.dispatch(addRegion({
         id: 'r', name: 'r', inPoint: 0, outPoint: 20,
-        bpm: 120, lock: 'bpm', lockedBeats: 30,
+        bpm: 120, lockedBeats: 30,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 5, outBeatTime: 20,
+        inBeatTime: 5, outBeatTime: 20, defaultLinked: false,
       }))
     })
     And('a beat anchor passes through beat time 20 during a drag', () => {
@@ -1693,7 +1700,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
 
   // @behavior clip-bounds::9681d7b6
   // Scenario Outline: Output-side linking event ignores lock — beats always absorbs.
-  // For each row: fixture { inBeatTime: 0, outBeatTime: 10, bpm: 120, lock, lockedBeats: 20 }.
+  // For each row: fixture { inBeatTime: 0, outBeatTime: 10, bpm: 120, lockedBeats: 20 }.
   // Dispatch applyLinkingEvent({ edge: 'out', side: 'output', beatAnchorTime: 8 }).
   // Expected: outBeatTime=8, clipoutLength=8-0=8, lockedBeats=8×120/60=16, bpm=120, lock unchanged.
   ScenarioOutline('Output-side linking event ignores lock — beats always absorbs', ({ Given, When, Then, And }, variables) => {
@@ -1701,11 +1708,12 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     const lock = variables.lock as 'bpm' | 'beats'
 
     Given('a region with lock=<lock>, BPM 120, lockedBeats 20, clipoutLength 10', () => {
+      store.dispatch(setLockMode(lock))
       store.dispatch(addRegion({
         id: 'r', name: 'r', inPoint: 0, outPoint: 10,
-        bpm: 120, lock, lockedBeats: 20,
+        bpm: 120, lockedBeats: 20,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 0, outBeatTime: 10,
+        inBeatTime: 0, outBeatTime: 10, defaultLinked: true,
       }))
     })
     When('the user drags a beat anchor onto the out-edge and releases at coincidence', () => {
@@ -1724,14 +1732,13 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       expect(r.lockedBeats).toBe(16)
     })
     And('lock stays at <lock>', () => {
-      const r = store.getState().region.regions[0]
-      expect(r.lock).toBe(lock)
+      expect((store.getState() as {ui:{lockMode:string}}).ui.lockMode).toBe(lock)
     })
   })
 
   // @behavior clip-bounds::6aca21d6
   Scenario('Symmetric for in-edge output-linking', ({ Given, And, When, Then }) => {
-    // Fixture: { inBeatTime: 5, outBeatTime: 20, bpm: 120, lock: 'bpm' }
+    // Fixture: { inBeatTime: 5, outBeatTime: 20, bpm: 120 }
     // Dispatch applyLinkingEvent({ edge: 'in', side: 'output', beatAnchorTime: 3 })
     // Expected: inBeatTime=3, lockedBeats = (20-3) × 120/60 = 34, bpm=120.
     const store = makeStore()
@@ -1739,9 +1746,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     Given("a region with inBeatTime 5, outBeatTime 20, BPM 120, lock='bpm'", () => {
       store.dispatch(addRegion({
         id: 'r', name: 'r', inPoint: 0, outPoint: 20,
-        bpm: 120, lock: 'bpm',
+        bpm: 120,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 5, outBeatTime: 20,
+        inBeatTime: 5, outBeatTime: 20, defaultLinked: false,
       }))
     })
     And("a beat anchor whose beat time, after the drag, is 3", () => {
@@ -1780,9 +1787,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     Given('a region with outBeatTime 20, BPM 120, lockedBeats 30', () => {
       store.dispatch(addRegion({
         id: 'r', name: 'r', inPoint: 0, outPoint: 20,
-        bpm: 120, lock: 'bpm', lockedBeats: 30,
+        bpm: 120, lockedBeats: 30,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 0, outBeatTime: 20,
+        inBeatTime: 0, outBeatTime: 20, defaultLinked: true,
       }))
     })
     And('a beat anchor exists at beat time 22 (not currently linked to any edge)', () => {
@@ -1828,9 +1835,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
         store.dispatch(addRegion({
           id: REGION_ID, name: REGION_ID,
           inPoint: 0, outPoint: 30,
-          bpm: 120, lock: 'bpm', lockedBeats: 30,
+          bpm: 120, lockedBeats: 30,
           minStretch: 0.5, maxStretch: 2, addToEnd: false,
-          inBeatTime: 5, outBeatTime: 20,
+          inBeatTime: 5, outBeatTime: 20, defaultLinked: false,
         }))
         store.dispatch(addAnchor({ id: ANCHOR_ID, time: 18 }))
         store.dispatch(moveBeatAnchor({ id: ANCHOR_ID, time: 18 }))
@@ -1909,9 +1916,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     Given("a region's in-edge is linked to an input anchor", () => {
       store.dispatch(addRegion({
         id: 'r', name: 'r', inPoint: 10, outPoint: 20,
-        bpm: 120, lock: 'bpm', lockedBeats: 20,
+        bpm: 120, lockedBeats: 20,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 6, outBeatTime: 16,
+        inBeatTime: 6, outBeatTime: 16, defaultLinked: false,
       }))
       // addAnchor places orig + beat anchor both at time 10 → input-link with region.inPoint=10
       store.dispatch(addAnchor({ id: ANCHOR_ID, time: 10 }))
@@ -1952,9 +1959,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     Given("a region's in-edge is linked to an input anchor", () => {
       store.dispatch(addRegion({
         id: 'r', name: 'r', inPoint: 10, outPoint: 20,
-        bpm: 120, lock: 'bpm', lockedBeats: 20,
+        bpm: 120, lockedBeats: 20,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 6, outBeatTime: 16,
+        inBeatTime: 6, outBeatTime: 16, defaultLinked: false,
       }))
       store.dispatch(addAnchor({ id: ANCHOR_ID, time: 10 }))
       // Verify input-link is established before the drag
@@ -1990,9 +1997,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     Given("a region's in-edge is linked to an input anchor", () => {
       store.dispatch(addRegion({
         id: 'r', name: 'r', inPoint: 10, outPoint: 20,
-        bpm: 120, lock: 'bpm', lockedBeats: 20,
+        bpm: 120, lockedBeats: 20,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 6, outBeatTime: 16,
+        inBeatTime: 6, outBeatTime: 16, defaultLinked: false,
       }))
       store.dispatch(addAnchor({ id: ANCHOR_ID, time: 10 }))
       // Verify input-link is established before deletion
@@ -2036,11 +2043,12 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     const ANCHOR_ID = 45
 
     Given("a region whose in-edge was previously linked then unlinked, inBeatTime now diverged", () => {
+      store.dispatch(setLockMode('beats'))
       store.dispatch(addRegion({
         id: 'r', name: 'r', inPoint: 10, outPoint: 20,
-        bpm: 120, lock: 'beats', lockedBeats: 20,
+        bpm: 120, lockedBeats: 20,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 6, outBeatTime: 16,
+        inBeatTime: 6, outBeatTime: 16, defaultLinked: false,
       }))
       // Input anchor at inPoint=10. The beat anchor's position is irrelevant here —
       // applyLinkingEvent takes beatAnchorTime directly (the caller resolves it).
@@ -2068,8 +2076,8 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     And('BPM is unchanged', () => {
       const r = store.getState().region.regions[0]
       expect(r.bpm).toBe(120)
-      // lock is echoed unchanged (lock-bypass does not overwrite r.lock)
-      expect(r.lock).toBe('beats')
+      // lock-bypass: commitLinkingEvent uses lock-bpm math regardless of global lockMode
+      expect((store.getState() as {ui:{lockMode:string}}).ui.lockMode).toBe('beats')
     })
   })
 
@@ -2088,7 +2096,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
         id: 'r', name: 'r', inPoint: 5, outPoint: 15,
         bpm: 120, lockedBeats: 20,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 0, outBeatTime: 10,
+        inBeatTime: 0, outBeatTime: 10, defaultLinked: false,
       }))
     })
     When('applyBpmEdit is dispatched with newBpm 150 and stretch false', () => {
@@ -2099,7 +2107,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     })
     And('clipout length stays at 10', () => {
       const r = store.getState().region.regions[0]
-      const len = (r.outBeatTime ?? r.outPoint) - (r.inBeatTime ?? r.inPoint)
+      const len = r.outBeatTime - r.inBeatTime
       expect(len).toBe(10)
     })
     And('lockedBeats becomes 25', () => {
@@ -2126,7 +2134,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
         id: 'r', name: 'r', inPoint: 10, outPoint: 20,
         bpm: 120, lockedBeats: 20,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 5, outBeatTime: 15,
+        inBeatTime: 5, outBeatTime: 15, defaultLinked: false,
       }))
     })
     When('applyBpmEdit is dispatched with newBpm 150 and stretch true', () => {
@@ -2167,7 +2175,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
         id: 'r', name: 'r', inPoint: 10, outPoint: 20,
         bpm: 120, lockedBeats: 20,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 5, outBeatTime: 15,
+        inBeatTime: 5, outBeatTime: 15, defaultLinked: false,
       }))
     })
     When('applyBeatsEdit is dispatched with newLockedBeats 16 and stretch true', () => {
@@ -2208,7 +2216,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
         id: 'r', name: 'r', inPoint: 5, outPoint: 15,
         bpm: 120, lockedBeats: 20,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
-        inBeatTime: 0, outBeatTime: 10,
+        inBeatTime: 0, outBeatTime: 10, defaultLinked: false,
       }))
     })
     When('applyBeatsEdit is dispatched with newLockedBeats 10 and stretch false', () => {
@@ -2222,7 +2230,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     })
     And('clipout length stays at 10', () => {
       const r = store.getState().region.regions[0]
-      const len = (r.outBeatTime ?? r.outPoint) - (r.inBeatTime ?? r.inPoint)
+      const len = r.outBeatTime - r.inBeatTime
       expect(len).toBe(10)
     })
     And('inPoint and outPoint stay unchanged', () => {
@@ -2245,13 +2253,12 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
   //   → anchor at 16 → 10 + (16-10)×0.8 = 14.8
   //   BPM after conform (lock='beats'): 60 × 20 / 8 = 150
 
-  function makeAnchorLockRegion(lock: 'beats' | 'bpm') {
+  function makeAnchorLockRegion(_lock?: 'beats' | 'bpm') {
     return {
       id: 'r', name: 'r',
       inPoint: 10, outPoint: 20,
-      inBeatTime: 10, outBeatTime: 20,
+      inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
       bpm: 120, lockedBeats: 20,
-      lock,
       minStretch: 0.5, maxStretch: 2, addToEnd: false,
     }
   }
@@ -2270,6 +2277,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     const c = driveController({
       seedStore: (store) => {
         store.dispatch(setAnchorLock(true))
+        store.dispatch(setLockMode('beats'))
         store.dispatch(addRegion(makeAnchorLockRegion('beats')))
         store.dispatch(setBeatAnchorsFromTimeline([
           { id: 1, time: 12 },
@@ -2347,6 +2355,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
 
     const c = driveController({
       seedStore: (store) => {
+        store.dispatch(setLockMode('beats'))
         store.dispatch(addRegion(makeAnchorLockRegion('beats')))
         store.dispatch(setBeatAnchorsFromTimeline([
           { id: 1, time: 12 },
@@ -2503,7 +2512,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
         store.dispatch(addRegion({
           id: 'r', name: 'r', inPoint: 0, outPoint: 20,
           bpm: 120, lockedBeats: 20, minStretch: 0.5, maxStretch: 2, addToEnd: false,
-          inBeatTime: 10, outBeatTime: 30,
+          inBeatTime: 10, outBeatTime: 30, defaultLinked: false,
         }))
         store.dispatch(setBeatAnchorsFromTimeline([
           { id: 1, time: 12 },
@@ -2592,7 +2601,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
         store.dispatch(addRegion({
           id: 'r', name: 'r', inPoint: 0, outPoint: 20,
           bpm: 120, lockedBeats: 20, minStretch: 0.5, maxStretch: 2, addToEnd: false,
-          inBeatTime: 10, outBeatTime: 30,
+          inBeatTime: 10, outBeatTime: 30, defaultLinked: false,
         }))
         store.dispatch(setBeatAnchorsFromTimeline([
           { id: 1, time: 12 },
@@ -2672,7 +2681,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
         store.dispatch(addRegion({
           id: 'r', name: 'r', inPoint: 0, outPoint: 20,
           bpm: 120, lockedBeats: 20, minStretch: 0.5, maxStretch: 2, addToEnd: false,
-          inBeatTime: 10, outBeatTime: 30,
+          inBeatTime: 10, outBeatTime: 30, defaultLinked: false,
         }))
         store.dispatch(setBeatAnchorsFromTimeline([
           { id: 1, time: 15 },
@@ -2747,6 +2756,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     const c = driveController({
       seedStore: (store) => {
         // lock='beats' so WITHOUT Shift the anchors WOULD rescale.
+        store.dispatch(setLockMode('beats'))
         store.dispatch(addRegion(makeAnchorLockRegion('beats')))
         store.dispatch(setBeatAnchorsFromTimeline([
           { id: 1, time: 12 },
@@ -2757,8 +2767,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
 
     Given('state.ui.anchorLock is false', () => {
       expect(c.store.getState().ui.anchorLock).toBe(false)
-      const r = c.store.getState().region.regions[0]
-      expect(r.lock).toBe('beats')
+      expect((c.store.getState() as {ui:{lockMode:string}}).ui.lockMode).toBe('beats')
     })
     And('the user begins a clipout resize gesture', () => {
       // Gesture start — no observable state change at this point.
@@ -2819,8 +2828,8 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       store.dispatch(addRegion({
         id: regionId, name: regionId,
         inPoint: 0, outPoint: 10,
-        inBeatTime: 0, outBeatTime: 10,
-        bpm: 120, lock: 'bpm',
+        inBeatTime: 0, outBeatTime: 10, defaultLinked: true,
+        bpm: 120,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
       }))
     })
@@ -2830,17 +2839,18 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       expect(r.lockedBeats).toBeUndefined()
     })
     When('the user changes lock to \'beats\'', () => {
-      store.dispatch(updateRegionLock({ id: regionId, lock: 'beats', lockedBeats: 20 }))
+      store.dispatch(setLockMode('beats'))
+      store.dispatch(updateRegionLockedBeatsAction({ id: regionId, lockedBeats: 20 }))
     })
     Then('lockedBeats becomes the snapshot of beats at the moment of switch (20)', () => {
       const r = store.getState().region.regions[0]
-      expect(r.lock).toBe('beats')
+      expect((store.getState() as {ui:{lockMode:string}}).ui.lockMode).toBe('beats')
       expect(r.lockedBeats).toBe(20)
     })
     And('BPM, lockedBeats, and clipout length are otherwise unchanged', () => {
       const r = store.getState().region.regions[0]
       expect(r.bpm).toBe(120)
-      const length = (r.outBeatTime ?? r.outPoint) - (r.inBeatTime ?? r.inPoint)
+      const length = r.outBeatTime - r.inBeatTime
       expect(length).toBe(10)
     })
   })
@@ -2855,24 +2865,24 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       store.dispatch(addRegion({
         id: regionId, name: regionId,
         inPoint: 0, outPoint: 10,
-        inBeatTime: 0, outBeatTime: 10,
-        bpm: 120, lock: 'beats', lockedBeats: 20,
+        inBeatTime: 0, outBeatTime: 10, defaultLinked: true,
+        bpm: 120, lockedBeats: 20,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
       }))
     })
     When('the user changes lock to \'bpm\'', () => {
-      store.dispatch(updateRegionLock({ id: regionId, lock: 'bpm' }))
+      store.dispatch(setLockMode('bpm'))
     })
     Then('BPM stays at 120 (now the fixed quantity)', () => {
       const r = store.getState().region.regions[0]
-      expect(r.lock).toBe('bpm')
+      expect((store.getState() as {ui:{lockMode:string}}).ui.lockMode).toBe('bpm')
       expect(r.bpm).toBe(120)
     })
     And('lockedBeats and clipout length are unchanged', () => {
       const r = store.getState().region.regions[0]
-      // updateRegionLock with no lockedBeats leaves lockedBeats unchanged
+      // switching to bpm via setLockMode leaves lockedBeats unchanged
       expect(r.lockedBeats).toBe(20)
-      const length = (r.outBeatTime ?? r.outPoint) - (r.inBeatTime ?? r.inPoint)
+      const length = r.outBeatTime - r.inBeatTime
       expect(length).toBe(10)
     })
   })
@@ -2884,11 +2894,12 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
 
     Given('a region with lock=\'beats\'', () => {
       regionId = 'r'
+      store.dispatch(setLockMode('beats'))
       store.dispatch(addRegion({
         id: regionId, name: regionId,
         inPoint: 0, outPoint: 10,
-        inBeatTime: 0, outBeatTime: 10,
-        bpm: 120, lock: 'beats', lockedBeats: 20,
+        inBeatTime: 0, outBeatTime: 10, defaultLinked: true,
+        bpm: 120, lockedBeats: 20,
         minStretch: 0.5, maxStretch: 2, addToEnd: false,
       }))
     })
@@ -2896,8 +2907,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       store.dispatch(applyConformedClipout({ id: regionId, inBeatTime: 5, outBeatTime: 15 }))
     })
     Then('lock remains \'beats\' afterward', () => {
-      const r = store.getState().region.regions[0]
-      expect(r.lock).toBe('beats')
+      expect((store.getState() as {ui:{lockMode:string}}).ui.lockMode).toBe('beats')
     })
   })
 

@@ -1,338 +1,330 @@
 # Constraint-based architecture migration plan
 
-Migrate the timeline's cross-entity coupling from ad-hoc thunks / controller branches to a declarative `state.constraints: Constraint[]` list with a generic resolver. POC: `src/sandbox.ts`.
+Migrate the timeline's cross-entity coupling from ad-hoc thunks / controller branches to the constraint resolver in `src/constraints/`. The POC is real and covers the model — this plan is about wiring it into the real app.
 
-**Total scope:** ~6 phases, ~5 working days of focused work. Each phase is independently mergeable and produces visible cleanup. Phase 1 alone is worth doing even if you stop there.
+**POC entry points** (already built):
+- `reduce(state, op)` — `src/constraints/resolver.ts`. Phase pipeline: propose (fixed-point) → restrict → finalize → derive.
+- `recipes.*` — `src/constraints/recipes.ts`. `lasso`, `lockOn/lockOff`, `carryStart/End`, `diverge`, `setBpm/setLockedBeats`, `snapToSiblings`, `conform/unconform`, `initClip`, `initAnchorPair`, etc.
+- Constraint kinds: `TranslateGroup`, `ScaleGroup` (both with optional `driver` → one-way), `DirectedPair` (translate, mirror_edge), `Derived` (lambda escape hatch), `Clamp`, `PreserveLength`, `SnapTarget`, `SingleOfKind`, `DeleteGroup`, `HighlightGroup`, `ConformVisual`.
+
+**Scope:** ~7 phases. Phase 1 is the big one (data shape); each later phase is independently mergeable.
 
 ---
 
 ## Goals & non-goals
 
 **Goals**
-- Every cross-entity coupling (selection group, anchor-lock, default-link, conformed-marker carry, etc.) becomes a typed entry in `state.constraints`.
-- The user-visible behavior at any moment is a pure function of `entities × constraints`.
-- A user gesture (lasso, lock toggle, conform-on-pointerUp) becomes a "recipe" that adds/removes constraints — recipes are tiny and explicit.
-- Resolver code is generic (~5 constraint kinds, ~3 propagators). No per-behavior switch arms.
+- Position state (`origAnchors[].origTime`, `beatAnchors[].beatTime`, `regions[].inPoint/outPoint/inBeatTime/outBeatTime`) moves into `constraintSlice.state.entities` and is mutated only through `reduce(state, op)`.
+- Every cross-entity coupling becomes a typed constraint that recipes add/remove.
+- `state.constraintState.entities × state.constraintState.constraints` is the source of truth for the timeline. Slices keep non-position metadata.
+- The recent classes of bugs (anchor-lock direction inversions, frame drift during group drag, scale_group eating anchor writes) become structurally impossible.
 
 **Non-goals**
-- Replacing render-time derivations (`effectiveBeatBounds`, `projectClipoutRegions`). These stay as queries — conform is visual, not a commit.
-- Touching the controller's intent shape, the export pipeline, history snapshots, or persistence file format beyond the constraint list itself.
-- Doing the whole thing in one pass. Each phase ships.
+- Replacing render-time derivations (`effectiveBeatBounds`, `projectClipoutRegions`). They stay as queries over constraint state.
+- Touching export, history, persistence shape beyond what the constraint slice requires.
+- Doing it in one PR. Each phase ships.
+
+## Hard invariants
+
+These do not change across phases:
+
+- **Constraints and ops are NEVER persisted to disk.** `state.constraint.graph.constraints[]`, individual `Op` records, and any function-bearing payloads (lambdas, predicates) are in-memory only. Persistence (`SavedVideoState` / sidecar JSON / app data dir) serializes only pure positional/metadata data so that future constraint refactors never break loading. On load, the graph is reconstructed from the persisted positions via `buildSeedGraph` (or equivalent); recipes re-attach any structural constraints (default-links, initClip outputs) as part of that load.
+- **History (undo/redo) is in-memory only** and may carry the full graph; that's fine — history doesn't survive process restart.
+- **Resolver is dormant when no relevant constraints exist.** `applyOp` with an empty `constraints[]` is just an entity write.
 
 ---
 
-## Phase 0 — Scaffolding (~half day)
+## Phase 0 — Vendor + slice (~half day)
 
-Add the constraint slice with no semantics wired up. Pure storage + actions, ready to use.
+Add a Redux slice that holds the constraint State. No semantics wired yet.
 
 **Files**
-- New: `src/store/slices/constraintSlice.ts`
-- Modified: `src/store/store.ts` (register slice)
+- New: `src/store/slices/constraintSlice.ts`.
+- Modified: `src/store/store.ts` (register).
+- Modified: `src/store/middleware/historyMiddleware.ts`, `persistenceMiddleware.ts` (whitelist the slice).
 
-**Shape**
+**Slice shape**
 ```ts
-type Constraint =
-  | { kind: 'translate_group'; ids: EntityId[] }
-  | { kind: 'scale_group';     ids: EntityId[]; pivot: number }
-  | { kind: 'pair';            aId: EntityId; bId: EntityId }
-  | { kind: 'delete_group';    ids: EntityId[] }
-  | { kind: 'derived_quantity'; clipoutId: EntityId; formula: 'beats = length * bpm / 60'; fixed: 'bpm' | 'beats' }
+import type { State as ConstraintState, Op } from '../../constraints'
+import { reduce, emptyState } from '../../constraints'
 
-interface ConstraintState {
-  constraints: Constraint[]
+interface ConstraintSliceState {
+  // The entire POC State sits here.
+  graph: ConstraintState
 }
+
+// Single reducer: any op dispatched through this slice runs through reduce().
+const slice = createSlice({
+  name: 'constraint',
+  initialState: { graph: emptyState() },
+  reducers: {
+    applyOp(state, action: PayloadAction<Op>) {
+      state.graph = reduce(state.graph, action.payload)
+    },
+    setGraph(state, action: PayloadAction<ConstraintState>) {
+      state.graph = action.payload
+    },
+  },
+})
 ```
 
-Actions: `addConstraint`, `removeConstraint(predicate)`, `clearConstraints`.
-
-History + persistence whitelisting: yes.
-
-**Verify:** tests still pass, no behavior change yet.
+**Verify:** existing tests pass; nothing reads `constraint.graph` yet.
 
 ---
 
-## Phase 1 — Selection as constraint (~1 day)
+## Phase 1 — Move positions into entities (~1.5 days, the big one)
 
-Replace per-space selection sets with `translate_group` constraints.
+Anchors and regions split into the entity model:
 
-### What changes
+| Today | After |
+|---|---|
+| `warpSlice.origAnchors: Anchor[]` (id, origTime, beatTime, …) | Two entities per pair: `anchor:{id}:in` (time = origTime), `anchor:{id}:out` (time = beatTime). Linked by `DeleteGroup` + default-link `DirectedPair` (translate). |
+| `regionSlice.regions[].{inPoint, outPoint, inBeatTime?, outBeatTime?}` | Two clip entities per region: `clip:{id}:in` (in = inPoint, out = outPoint), `clip:{id}:out` (in = inBeatTime ?? inPoint, out = outBeatTime ?? outPoint). Default-link `DirectedPair` clipin → clipout (removed by `recipes.diverge` on first explicit clipout edit). |
+| `region.lock: 'bpm' | 'beats'` | **Leave alone in Phase 1.** Phase 6 deletes it and introduces global `ui.lockMode`. |
+| `region.bpm` | **Leave alone in Phase 1.** Phase 6 moves it to `state.meta[clipoutId].bpm` alongside the Derived constraint. |
+| `region.colorIndex`, `region.name` | Stays on `region` (no coupling — pure metadata). |
 
-**Today's state**
+**Write paths.** Every mutation that touches positions becomes a dispatch of `constraintSlice.applyOp(op)`:
+
+| Old action | New op |
+|---|---|
+| `warpSlice.setOrigAnchorTime` | `Move` (anchor-in) — propagates through default-link to anchor-out. |
+| `warpSlice.setBeatAnchorTime` after `diverge` (existing concept) | `Move` (anchor-out). |
+| `regionSlice.setRegionInPoint` etc. | `SetEdge` on the clipin entity. |
+| `regionSlice.addRegion` | `AddClip` × 2 + `recipes.initClip` (default-link, bpm-derived, preserve-length, clamps). |
+| `regionSlice.removeRegion` | `Delete` (propagates via `DeleteGroup`). |
+| `regionSlice.setRegionLock` | **Leave alone in Phase 1.** Phase 6 removes it. |
+
+**Files affected (heavy)**
+- `src/store/slices/warpSlice.ts` — drop position fields (`origAnchors[].origTime`, `beatAnchors[].beatTime`); keep anchor IDs and roles (`linkedBeatIds`, `beatZeroId`).
+- `src/store/slices/regionSlice.ts` — drop `inPoint/outPoint/inBeatTime/outBeatTime`; keep `id, name, colorIndex, lock`.
+- `src/store/selectors.ts` — rewrite anchor/region readers to derive from `constraint.graph.entities`. Many touch points.
+- `src/store/thunks/regionThunks.ts`, `clipoutThunks.ts` — every mutation becomes an `applyOp` dispatch.
+- `src/timeline/controller.ts` — drag pointerMove dispatches `applyOp(Move | SetEdge)`; no more direct anchor/region writes.
+- `src/components/Timeline.tsx`, `WarpView.tsx`, `RegionSidebar.tsx` — read from new selectors.
+
+**Risks**
+- The map between (anchor pair) → (anchor-in id, anchor-out id) is load-bearing. Adopt a deterministic id scheme: anchor pair id `7` becomes entities `a7-in` / `a7-out`. Region `r3` becomes `r3-in` / `r3-out`. Document it.
+- Persistence file format changes. Pre-release → OK to break, but write a one-shot migration helper for any saved test fixtures.
+- Tests under `tests/` that poke positions directly must move to the new selectors.
+- **`serializableCheck` middleware:** RTK's dev middleware will trip on non-serializable function payloads as soon as ops start flowing. `Derived.apply` and `RemoveConstraintOp.predicate` in `src/constraints/types.ts` both carry lambdas, and recipes like `initClip` (adds a `bpmDerivedConstraint`) and any remover that uses a predicate will dispatch them. Configure `serializableCheck` in `src/store/store.ts` to ignore `payload.constraint.apply`, `payload.predicate`, and the in-state path `constraint.graph.constraints` (via `ignoredActionPaths` / `ignoredPaths`) — keep it scoped, don't blanket-disable.
+
+**Phase 1 is the load-bearing step.** No behavior changes yet — the resolver runs but does nothing (no non-trivial constraints in the list). The win is that all positions flow through one reducer.
+
+---
+
+## Phase 2 — Selection as `TranslateGroup` (~1 day)
+
+Replace the four selection sets with bidirectional `TranslateGroup` constraints tagged `lasso:*`.
+
+**Today**
 ```ts
-selectedOrigAnchorIds: Set<EntityId>
-selectedBeatAnchorIds: Set<EntityId>
-selectedClipinIds: Set<EntityId>
+selectedOrigIds: number[]
+selectedBeatIds: number[]
+selectedClipinIds: Set<EntityId>   // in listsSlice
 selectedClipoutIds: Set<EntityId>
 ```
 
 **After**
-- The four sets become derived: a selector reads constraints + finds entities mentioned in `translate_group` constraints, partitions by entity space.
-- Lasso commit dispatches `addConstraint({ kind: 'translate_group', ids: lassoedIds })` once per space the lasso covered.
-- Click-select replaces the existing-group constraint with a new one-member group.
-- Deselect = `removeConstraint(predicate matching the selection group)`.
+- A lasso commit dispatches one `recipes.lasso('main', [ids…])` op covering every lassoed entity across spaces.
+- Click-select: `clearLasso('main')` + `lasso('main', [id])`.
+- Selectors `selectSelectedOrigIdsSet` etc. read constraint state, filter `TranslateGroup` entries with `tag: 'lasso:*'`, and partition entities by id-prefix (`a*-in` vs `a*-out` vs `r*-in` vs `r*-out`).
 
-### Files affected
+**Files affected**
+- `src/store/slices/warpSlice.ts`, `listsSlice.ts` — delete selection fields.
+- `src/store/selectors.ts` — selection selectors derive from constraints.
+- `src/timeline/controller.ts` — `buildAnchorDrag`/`buildRegionDrag` no longer manually pair across spaces; the resolver does the propagation when one member moves.
+- `src/timeline/types.ts` — `Snapshot.selected*` derived, not stored.
 
-| File | Change |
-|---|---|
-| `src/store/slices/warpSlice.ts` | Delete `selectedOrigIds` / `selectedBeatIds` fields + actions. |
-| `src/store/slices/listsSlice.ts` | Delete `clipin` / `clipout` selection lists (or keep as render-only hover). |
-| `src/store/selectors.ts` | Replace `selectSelectedOrigIdsSet` etc. with constraint-derived selectors. |
-| `src/timeline/types.ts` | `Snapshot.selected*` fields become derived from constraints. Update lasso `DragState` to write a single constraint payload instead of two id sets. |
-| `src/timeline/controller.ts` | Lasso commit writes constraints. `buildAnchorDrag` reads constraint membership instead of `wasSelected` + manual per-space partition (~70 lines simpler). `buildRegionDrag` same. |
-| `src/components/CanvasTimeline.tsx` | Render selection highlight from constraint-derived selectors. |
+**Win**
+- The "drag any selection member to drag the group" behavior is one resolver pass; controller stops cross-space partitioning (~70 lines).
+- Frame-drift bug class (group members reading already-moved siblings) goes away — `applyOp(Move)` is one shot per frame, group propagation happens inside the resolver from the same seed.
 
-### Resolver (Phase 1 subset)
-
-Just `translate_group` propagation: moving any member by delta translates all other members by the same delta. The reducer needs:
-```ts
-function propagateTranslate(state, id, delta, visited): State
-```
-Called from a new `move` action that wraps the existing `moveOrigAnchor` etc.
-
-### Win
-
-- Delete `selectedOrigIds`, `selectedBeatIds`, `selectedClipinIds`, `selectedClipoutIds` — replaced by one list.
-- Delete the per-space pairing logic in `buildAnchorDrag` (lines ~78–155 of controller.ts).
-- Selection persistence: just persist the constraints list, get four sets' equivalent for free.
-
-### Risks
-
-- Selection logic is touched in many places (panel sidebars, context menus, delete handlers). Need a thorough audit.
-- The constraint identity for "this is a lasso group" vs "this is an anchor-lock group" matters for removal. Add a `tag: string` field to constraints if needed (`tag: 'lasso'` / `tag: 'anchorlock'`).
+**Risks**
+- Many sites read the selection sets (sidebars, context menus, delete handlers). Inventory required.
+- "Is this entity selected?" stays cheap because we memoise the partitioned sets.
 
 ---
 
-## Phase 2 — Anchor-lock as constraint (~1 day)
+## Phase 3 — Anchor-lock via `recipes.lockOn` (~1 day)
 
-Replace the global `ui.anchorLock` boolean → drag-time anchor-lock check → thunk-side translate/rescale logic with constraints.
-
-### What changes
+Replace `ui.anchorLock` thunk-side translate/rescale with directed group constraints.
 
 **Today**
-- `ui.anchorLock: boolean` is read by `commitClipoutPan` / `commitClipoutResize` / `panClipinBounds`.
-- Each thunk computes `effectiveAnchorLock = ui.anchorLock !== altKey`, then computes the inner-anchor set from preDrag snapshot, then applies translate or scale.
+- `ui.anchorLock: boolean` checked in `commitClipoutPan` / `commitClipoutResize` / `panClipinBounds`.
+- Each thunk recomputes inner-anchor set from `preDrag` snapshot, applies translate or scale by hand.
+- Live-preview path in `controller.ts` duplicates the logic.
 
 **After**
-- `ui.anchorLock` stays as a UI toggle.
-- When the toggle is ON, a recipe runs that adds two constraints per active region:
-  - `translate_group { ids: [clipout, ...innerAnchorOuts], tag: 'anchorlock' }`
-  - `scale_group     { ids: [clipout, ...innerAnchorOuts], pivot: clipout.in, tag: 'anchorlock' }`
-- When OFF, recipe removes them.
-- Alt-flip during drag: same recipe but ephemeral — added on pointerDown if altKey, removed on pointerUp.
-- The thunks shrink dramatically. `commitClipoutPan` becomes: write the new bounds + let the resolver propagate. `commitClipoutResize` same.
+- `ui.anchorLock` toggle dispatches `recipes.lockOn(clipoutId, innerAnchorOutIds)` (or `lockOff`). Adds:
+  - `TranslateGroup` with `driver: clipoutId`, `tag: 'lock:{clipoutId}'`.
+  - `ScaleGroup` with `driver: clipoutId`, `tag: 'lock:{clipoutId}'`.
+- Alt-flip during drag: same recipe, ephemeral — `lockOn` on pointerDown if `altKey`, `lockOff` on pointerUp.
+- Drag pointerMove dispatches `applyOp(SetEdge clipout)` or `applyOp(Move clipout)`. Resolver propagates.
 
-### Files affected
+**Files affected**
+- `src/store/thunks/clipoutThunks.ts` — delete anchor translation/rescale branches (~80 lines per thunk).
+- `src/store/thunks/regionThunks.ts` — `panClipinBounds` similarly shrinks.
+- `src/timeline/controller.ts` — live-preview rescale path deletes.
+- New: `src/store/recipes/anchorLockRecipe.ts` — listener middleware that watches `ui.anchorLock`, active region, inner anchor set, fires `lockOn`/`lockOff`.
 
-| File | Change |
-|---|---|
-| `src/store/thunks/clipoutThunks.ts` | Delete the anchor translation / rescale branches (~80 lines per thunk). Keep the BPM/lockedBeats tradeoff math (or move to a `derived_quantity` constraint — see Phase 4). |
-| `src/store/thunks/regionThunks.ts` | `panClipinBounds` similarly shrinks. |
-| `src/timeline/controller.ts` | Live-preview rescale path in `pointerMove` (the one we just fixed for the resize/pan inversion) deletes — propagation happens through constraints. |
-| New: `src/store/recipes/anchorLockRecipe.ts` | Computes which constraints to add when lock toggles. Watches `ui.anchorLock` + active region + inner anchors. |
+**Win**
+- The "lock + region.lock=beats + resize" rule lives in `recipes.lockOn` (one place). Today it's split across controller + thunk.
+- The class of bugs we hit during the POC (`translate_group` ate a resize, anchors pulled the clipout) cannot recur — the driver is structural.
 
-### Resolver additions
-
-`scale_group` propagation around a pivot.
-
-### Win
-
-- Delete ~150 lines of duplicated anchor-translation / anchor-rescale logic across thunks and the controller's live-preview branch.
-- The "lock ON + lock=beats + resize" condition lives in ONE place (the recipe), not three (controller pointerMove + thunk + maybe more).
-- The recent controller/thunk inversion bug we just fixed (`shouldRescale = effectiveAnchorLock && region.lock === 'beats'`) is structurally impossible: if the wrong constraint is in state, the recipe is the only place to fix it.
-
-### Risks
-
-- Recipe needs to react to: `ui.anchorLock`, the active region id, inner anchor set, region.lock. That's a multi-dependency effect — needs careful subscription (probably a listener middleware that fires on relevant action types and rebuilds the anchor-lock constraints).
-- Inner-anchor set captured at drag start (today via `state.drag.preDrag`) — needs to map to "the recipe captures the entities at lock-ON moment, not live." Define semantics.
+**Risks**
+- Recipe needs to react to `ui.anchorLock` + active region + region.lock + inner-anchor membership. Use a listener middleware that rebuilds the `lock:*` constraints whenever those inputs change.
+- "Inner anchor set" semantics: captured at lock-ON, or always live? Recommend live — recipe re-runs on relevant action types, keeping the constraint list in sync with the membership.
 
 ---
 
-## Phase 3 — Default-linked clipout as `pair` (~half day)
-
-### What changes
+## Phase 4 — Default-linked clipout (~half day)
 
 **Today**
-- `effectiveBeatBounds(region, anchors, beatAnchors)` derives the clipout bounds: explicit `inBeatTime`/`outBeatTime` if set, else conformed input anchor's paired beat time, else fall back to `inPoint`/`outPoint`.
-- "Default-linked" status is derived by checking if `inBeatTime` is undefined.
+- `effectiveBeatBounds(region, anchors)` returns `inBeatTime ?? inPoint` etc. — "default-linked" is an undefined sentinel.
 
 **After**
-- Newly-added clipouts get a `pair(clipinId, clipoutId)` constraint.
-- When the user pans/resizes the clipout (committing explicit bounds), the recipe removes the `pair`.
-- `effectiveBeatBounds` still exists as a render query — but it can read `constraints` to know if the pair is active, instead of inspecting `inBeatTime` undefinedness.
+- `recipes.initClip` adds a `DirectedPair` (translate) clipin → clipout tagged `defaultlink:{clipinId}`. Already done in the POC.
+- First explicit clipout pan/resize calls `recipes.diverge(clipinId)` to remove the pair.
+- `effectiveBeatBounds` reads constraint state; "default-linked" = "is the pair present?"
 
-### Files affected
+**Files affected**
+- `src/store/thunks/clipoutThunks.ts` — call `diverge` before committing explicit bounds.
+- `src/timeline/model/effectiveBounds.ts` — query constraints.
+- `regionSlice.resetRegionBoundary` — re-add the default-link pair.
 
-| File | Change |
-|---|---|
-| `src/store/thunks/clipoutThunks.ts` | Pan/resize recipes: remove the `pair` before committing explicit bounds. |
-| `src/store/recipes/clipDefaultLink.ts` | New: on `addRegion`, add the `pair`. |
-| `src/timeline/model/effectiveBounds.ts` | Optional: read constraint list to decide default-linked vs explicit. (Pure rewrite if you want; works as today otherwise.) |
-
-### Win
-
-- "Default-linked" becomes a first-class structural state, not a sentinel-value (undefined) check.
-- `resetRegionBoundary` becomes: re-add the `pair`, clear `inBeatTime`/`outBeatTime`. The button's disabled state derives from "is the pair already present."
-
-### Risks
-
-- The `pair` propagates symmetrically (move clipout → clipin moves). For default-linked, we likely want one-way: clipin → clipout but not reverse. Either add a `direction: 'forward' | 'bidirectional'` field to `pair`, or use `translate_group` with the understanding that clipout pan is preceded by removing the pair anyway.
+**Win**
+- Sentinel-as-state goes away. "Reset" becomes "re-add the pair" — uniform with how every other coupling is reset.
 
 ---
 
-## Phase 4 — Conformed-marker carry as ephemeral `pair` (~half day)
-
-### What changes
+## Phase 5 — Conformed-marker carry (~half day)
 
 **Today**
-- `commitClipoutResize` / `commitClipoutPan` call `detectConformedMoves` at every dispatch to find input-anchors-at-boundary, and translate their paired beat anchors with the edge.
+- `commitClipoutResize` / `commitClipoutPan` call `detectConformedMoves` on every dispatch, translating paired anchor-outs with the edge.
 
 **After**
-- On pointerDown of a clipout edge or body drag, a recipe scans for conformed boundaries (using the same `detectConformedMoves` logic but ONCE).
-- For each conformed boundary, recipe adds an ephemeral `pair(clipoutEdge, pairedAnchorOut)` constraint with `tag: 'carry'`.
-- During the drag, every `move` / `set_edge` on the clipout propagates to the paired anchor through the pair.
-- On pointerUp, recipe removes all `tag: 'carry'` constraints.
+- Controller `pointerDown` on a clipout edge / body runs `detectConformedMoves` ONCE.
+- For each conformed boundary, dispatches `recipes.carryStart(clipoutId, edge, pairedAnchorOutId)` — adds a `DirectedPair` (mirror_edge) clipoutEdge → anchorOut tagged `carry:{clipoutId}:{edge}`.
+- Resolver carries the propagation each pointerMove.
+- `pointerUp` dispatches `recipes.carryEnd(clipoutId)`.
 
-### Files affected
+**Files affected**
+- `src/store/thunks/clipoutThunks.ts` — delete the conformed-carry branch (~50 lines).
+- `src/timeline/controller.ts` — `carryStart`/`carryEnd` at drag bounds.
 
-| File | Change |
-|---|---|
-| `src/store/thunks/clipoutThunks.ts` | Delete the conformed-marker carry branch. ~50 lines. |
-| `src/store/recipes/conformCarryRecipe.ts` | New: dispatched at drag start. Detects + adds pairs. Tied to `dragStart` / `dragEnd` actions. |
-
-### Win
-
-- `detectConformedMoves` becomes a one-shot query at drag start instead of running on every pointerMove.
-- The carry behavior is visible in `state.constraints` during the drag — you can dump the list mid-drag and see exactly which markers are tied to which edges.
-
-### Risks
-
-- Need to thread the clip-edge vs clip-body distinction into the constraint (an "edge of clipout = pair only when that specific edge moves"). May need a slightly richer `pair` shape: `{ kind: 'pair_edge', clipId, edge: 'in' | 'out', anchorId }`.
+**Win**
+- `detectConformedMoves` runs once per drag instead of per frame.
+- Dumping `state.constraintState.constraints` mid-drag reveals exactly which markers are tied to which edges.
 
 ---
 
-## Phase 5 — BPM/lockedBeats tradeoff as `derived_quantity` (~half day)
+## Phase 6 — BPM/lockedBeats tradeoff + global lock (~half day)
 
-### What changes
+**Behavioral change.** Per-region `region.lock` goes away; a single `ui.lockMode: 'bpm' | 'beats'` applies to every region. Toggling the global swaps every clipout's tradeoff at once.
 
 **Today**
-- `conformedRegionUpdate(region, conformedIn, conformedOut)` computes BPM or lockedBeats from the new length depending on `region.lock`. Called by `applyConformedClipout`.
+- `region.lock` per region. `conformedRegionUpdate` recomputes bpm or beats from new clip length according to that region's lock.
 
 **After**
-- A `derived_quantity` constraint per clipout: `{ clipoutId, formula: 'beats = length * bpm / 60', fixed: region.lock }`.
-- Resolver propagates: when length changes (clipout in or out edge writes), recompute the non-fixed quantity.
-- `region.lock` becomes the `fixed` field of the constraint.
+- `ui.lockMode` is the only lock setting. UI inspector shows ONE toggle, not one-per-region.
+- The bpm tradeoff lambda must read the current `lockMode` at run time. Add a single global slot to the constraint State — `state.globals: { lockMode: 'bpm' | 'beats' }` — and have a sync middleware mirror `ui.lockMode` into it. (One-line addition to `src/constraints/types.ts`.)
+- `bpmDerivedConstraint(clipoutId)` (no `fixed` arg anymore) reads `state.globals.lockMode` in its lambda.
+- Typing BPM in the inspector → `recipes.setBpm(clipoutId, newBpm, state)`. When `state.globals.lockMode === 'beats'`, dispatches both `SetValue bpm` and `SetEdge clipout.out` at the new length so propagation flows through the pipeline (`scale_group` rescales inner anchors etc.).
+- Typing locked beats → `recipes.setLockedBeats` symmetric.
 
-### Files affected
+**Files affected**
+- `src/constraints/types.ts` — add `globals` to `State`.
+- `src/constraints/resolver.ts` — `emptyState()` initializes `globals`.
+- `src/constraints/recipes.ts` — `bpmDerivedConstraint`, `setBpm`, `setLockedBeats` no longer take `fixed`; read `state.globals.lockMode`.
+- `src/store/slices/regionSlice.ts` — delete `region.lock`.
+- `src/store/slices/uiSlice.ts` — add `lockMode`.
+- `src/timeline/model/conformedRegionUpdate.ts` — delete.
+- `src/store/thunks/clipoutThunks.ts` — `applyConformedClipout` stops calling `conformedRegionUpdate`.
+- `src/components/RegionInfoPanel.tsx` — remove per-region lock dropdown; defer to a global toggle (probably in `MenuBar` or `Toolbar`).
+- New: sync middleware mirroring `ui.lockMode` → `state.globals.lockMode`.
 
-| File | Change |
-|---|---|
-| `src/store/slices/regionSlice.ts` | `region.lock` field deprecated (or stays as a UI shortcut for editing the constraint). |
-| `src/timeline/model/conformedRegionUpdate.ts` | Delete; logic moves into the constraint resolver's `derived_quantity` case. |
-| `src/store/thunks/clipoutThunks.ts` | `applyConformedClipout` no longer needs to call `conformedRegionUpdate` — resolver handles it. |
+**Win**
+- One global tradeoff. UI is simpler (no per-region dropdown). Constraint list per clipout is one Derived constraint (created once, never swapped).
+- The "what does lock mean if I have 5 regions" question disappears.
 
-### Win
-
-- The lock tradeoff lives in ONE place (resolver case for `derived_quantity`). Today it's split between `conformedRegionUpdate` and various inline computations.
-
-### Risks
-
-- Changing `fixed` (e.g., user switches lock from 'bpm' to 'beats') needs to snapshot the current beat count at the moment of switch — today's `updateRegionLock` does this via the `lockedBeats` payload. Same pattern works: the action that flips `fixed` also writes the current value of the now-fixed quantity.
-
----
-
-## Phase 6 — Drag/cancel through constraints (~half day)
-
-### What changes
-
-**Today**
-- `dragSlice.preDrag` snapshots `{ regions, origAnchors, beatAnchors }` at drag start.
-- `dragCancel` thunk restores those slice fields.
-
-**After**
-- `preDrag` snapshots `{ entities, constraints }`.
-- Cancel restores both — any ephemeral constraints added by recipes during the drag are automatically removed because the constraint list reverts.
-
-### Files affected
-
-| File | Change |
-|---|---|
-| `src/store/slices/dragSlice.ts` | Snapshot shape change. |
-| `src/store/thunks/dragThunks.ts` | `cancelDrag` restores entities + constraints. |
-| `src/store/middleware/historyMiddleware.ts` | History entry includes constraints. |
-| `src/store/middleware/persistenceMiddleware.ts` | Persisted file includes constraints. |
-
-### Win
-
-- The "active drag in flight" representation becomes consistent: state lives in `entities + constraints`. Snapshots are uniform.
-- Undo/redo correctly captures multi-region selections, anchor-lock toggles, etc. — anything expressed as constraints is undoable for free.
-
-### Risks
-
-- Persisted file format changes. Pre-release (per CLAUDE.md) so OK to break.
+**Risks**
+- This is the one phase that changes user-visible behavior. Confirm with stakeholders that no workflow depends on per-region lock today before shipping.
 
 ---
 
-## Resolver design notes
+## Phase 7 — Snap + drag/cancel (~half day)
 
-A single function:
-```ts
-function resolveConstraints(state: State, op: Op): State
-```
+**Snap**
+- `pointerDown` on a draggable: dispatch `recipes.snapToSiblings(id, field, state, pxPerUnit, 8)`. Adds a `SnapTarget` constraint.
+- Resolver snaps each pointerMove inside Propose phase (already implemented — rigid for clip body drags).
+- Render hint uses `findSnapCandidates(state, id, field, value)` to highlight nearby targets.
+- `pointerUp`: `recipes.snapEnd(id, field)`.
 
-Three propagators (translate, resize, delete) walk relevant constraints. Cycle detection via `visited: Set<EntityId>`.
+**Drag/cancel**
+- `dragSlice.preDrag` snapshots `constraint.graph` at drag start (the whole `State`).
+- `dragCancel` restores it: `setGraph(snapshot)`. Any ephemeral constraints added by recipes (carry, snap) revert atomically because the constraint list is part of the snapshot.
 
-Order matters: e.g., the lock-tradeoff `derived_quantity` should fire AFTER `scale_group`-driven anchor rescale, because the new length needs to be settled first. Encode order via the constraint list order (constraints fire in array order). Recipes are responsible for inserting constraints in the right slot.
+**Files affected**
+- `src/store/slices/dragSlice.ts` — snapshot shape.
+- `src/store/thunks/dragThunks.ts` — `cancelDrag` restores.
+- `src/timeline/model/snapTarget.ts` — replace with calls into the resolver / `findSnapCandidates`.
 
-**For the conformed-marker carry → length change → BPM recompute chain:**
-1. User drags clipout in-edge.
-2. Primary write: clipout.in changes.
-3. `pair` (carry) propagates: paired anchor-out moves to new edge.
-4. `derived_quantity` propagates: lockedBeats recomputes from new length.
-
-The order is: pairs first, then derived quantities. Constraint list ordering enforces this.
+**Win**
+- No more "did I remember to remove the ephemeral constraint on cancel?" — the snapshot is all of constraint state.
+- Undo/redo: any state expressible as constraints is undoable for free.
 
 ---
 
-## Files to delete after full migration
+## Files that delete after full migration
 
-Rough estimate of code that goes away:
+Rough estimate:
 
-- `src/store/thunks/clipoutThunks.ts` shrinks from ~250 lines to ~80 (primary writes only).
-- `src/store/thunks/regionThunks.ts` shrinks similarly.
-- `src/timeline/controller.ts`'s `buildAnchorDrag` / `buildRegionDrag` shrink by ~100 lines (no manual per-space partitioning).
-- `src/timeline/model/conformedRegionUpdate.ts` deletes.
-- `src/timeline/model/linkState.ts` becomes a one-function query (still used for "find conformed pairs at drag start").
-- `src/timeline/model/linkingEvent.ts` deletes (computeLinkingEvent was already obsolete after conform-is-visual).
-- The 4 selection sets across slices delete.
+- `src/store/thunks/clipoutThunks.ts` — ~250 → ~80 lines (primary writes only).
+- `src/store/thunks/regionThunks.ts` — similar.
+- `src/timeline/controller.ts` — `buildAnchorDrag` / `buildRegionDrag` ~100 lines gone.
+- `src/timeline/model/conformedRegionUpdate.ts` — delete.
+- `src/timeline/model/linkingEvent.ts` — already obsolete; finally gone.
+- `src/timeline/model/snapTarget.ts` — collapses to a thin wrapper over `findSnapCandidates`.
+- Selection sets across slices — gone.
 
-Net: probably -500 to -700 lines, +250 lines (constraint slice + resolver + recipes).
+Net: -500 to -700 lines deleted, +150 lines added across `constraintSlice.ts` + recipe listener middlewares. (The constraint resolver itself — ~900 lines — was already added by the POC.)
+
+---
+
+## Resolver execution order notes
+
+Constraints fire in `state.constraints` array order, within each phase. The recipe layer is responsible for inserting in the right slot when order matters:
+
+- **Carry pair → derived BPM:** carry must fire in Propose (it does — DirectedPair Propose handler) so the length write is settled before Derive runs the bpm lambda. Already structurally correct.
+- **Lasso TranslateGroup → lock DirectedGroup (Phase 3):** if a lassoed clipout is also a lock driver, the lasso fires first (bidirectional, all members get the same delta), then the lock directed group fires (driver has writes, propagates to inner anchors). Both converge on the same delta. The propose fixed-point handles cycles.
+- **Snap → scale_group:** snap is in Propose (rigid-clip-aware), so the snap-adjusted edge feeds back into scale_group on the next iteration of the fixed-point. Already structurally correct.
 
 ---
 
 ## Rollback / risk model
 
-Each phase is independent. If phase 2 (anchor-lock) goes badly, revert it and the prior phases still stand. The constraint slice is additive in Phase 0 — no commits there are destructive.
+Phases 2–7 are independent. Phase 1 is the data foundation — if it goes badly, the migration stops there and the constraint slice is dormant.
 
-The single biggest risk is Phase 1 (selection-as-constraint) because selection is read in MANY places. Mitigation: in Phase 0, write a small derived selector `selectAnchorTranslateGroupIds(state)` and have the new behavior parallel the old behavior; only swap at the end of Phase 1 when all consumers are migrated.
+Mitigation for Phase 1: write the new selectors against constraint state, BUT keep the old slice fields populated by a sync middleware (slice → graph) for one PR. Flip the selector reads from old to new in a follow-up PR once the parallel write paths look stable.
 
 ---
 
 ## When to bail
 
-- If after Phase 1, the per-purpose constraint tagging (`tag: 'lasso'` vs `tag: 'anchorlock'` vs `tag: 'carry'`) starts feeling load-bearing for resolver correctness — stop and reconsider. Tags are fine as metadata, bad as semantics.
-- If `derived_quantity` (Phase 5) needs more than the one formula, that's a hint the constraint model is being asked to express things that should stay as plain helpers.
+- If tag conventions (`lasso:*`, `lock:*`, `carry:*`, `defaultlink:*`) become load-bearing for resolver correctness (rather than just for removal), stop — that's a sign the constraint model is missing a primitive.
+- If the recipe layer accumulates more than ~20 recipes, the catalogue has grown beyond "named gestures" into "scattered business logic." Time to revisit grouping.
+- If `Derived` (lambda) constraints proliferate beyond the bpm tradeoff, the model is being asked to express things that should be plain helpers.
 
 ---
 
-## Open questions to settle before starting
+## Settled decisions
 
-1. **Constraint identity for removal.** When the recipe needs to remove "the anchor-lock constraints," how does it find them? `tag: 'anchorlock'` is the cleanest answer. Need to formalize.
+1. **Entity id scheme:** `a{n}-in` / `a{n}-out` / `r{n}-in` / `r{n}-out`. Deterministic, derivable in both directions.
+2. **Lock mode:** Global — one `ui.lockMode` for the whole app. `region.lock` is deleted in Phase 6. Mirrored into `state.globals.lockMode` for the bpm lambda to read.
+3. **`linkedBeatIds`:** Derived from presence of the `defaultlink:{anchorInId}` DirectedPair. Field deleted from `warpSlice`. `diverge` removes the pair → anchor becomes "unlinked" automatically.
+4. **History:** Whole `constraint.graph` snapshot per entry. Simplest; revisit only if memory becomes a problem.
 
-2. **Constraint ordering.** Does `state.constraints` order matter for correctness, or is the resolver order-independent? My read: order matters for the pair-then-derived chain. Document this.
+## Still open (lower-impact, settle during Phase 0)
 
-3. **Live vs committed.** The live-by-default architecture means `state.entities` updates on every pointerMove. Constraints are part of state, so they're equally live. Confirm this is what we want vs. having a separate "live overlay" of constraints.
-
-4. **What about non-coupling state?** `region.bpm`, `region.lock`, `region.name`, `region.colorIndex` — none of these are constraints. They stay in the slice as plain fields. The constraint model is ONLY for cross-entity propagation.
-
-5. **Recipes location.** Are recipes thunks? React hooks? Top-level functions called from action creators? Probably thunks for parity with today's pattern, but worth deciding upfront.
+5. **Recipe location.** Proposal: `src/store/recipes/*.ts` next to thunks. Each recipe returns `Op[]`; callers dispatch each op via `constraintSlice.applyOp`. Recipes that must react to slice changes (anchor-lock membership, default-link auto-add on region create, global lockMode mirror) become listener middlewares.

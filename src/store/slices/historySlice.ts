@@ -1,4 +1,4 @@
-import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
+import { createSlice, original, type PayloadAction } from '@reduxjs/toolkit'
 import type { Anchor, Region } from '../../types'
 
 /**
@@ -6,12 +6,15 @@ import type { Anchor, Region } from '../../types'
  * undo. Any user-visible mutation worth reversing must be captured here.
  * Excluded on purpose: selection, playhead, active-region-id, view, UI layout,
  * and the internal globalMarkers cache.
+ *
+ * Phase 4c: the constraint graph is no longer snapshotted — it is derived on
+ * demand from the slice via selectConstraintGraph. The slice IS the source of
+ * truth for positions.
  */
 export interface HistoryEntry {
   // Warp anchors
   origAnchors: Anchor[]
   beatAnchors: Anchor[]
-  linkedBeatIds: number[]
   beatZeroId: number | null
   // Warp settings
   bpm: number
@@ -32,7 +35,6 @@ interface HistoryState {
 const emptyEntry: HistoryEntry = {
   origAnchors: [],
   beatAnchors: [],
-  linkedBeatIds: [],
   beatZeroId: null,
   bpm: 120,
   minStretch: 0.5,
@@ -68,7 +70,6 @@ function regionsEqual(a: Region[], b: Region[]): boolean {
     if (ra.bpm !== rb.bpm) return false
     if (ra.minStretch !== rb.minStretch || ra.maxStretch !== rb.maxStretch) return false
     if (ra.addToEnd !== rb.addToEnd) return false
-    if (ra.lock !== rb.lock) return false
     if (ra.lockedBeats !== rb.lockedBeats) return false
     if (ra.triggerMode !== rb.triggerMode) return false
   }
@@ -95,7 +96,10 @@ const historySlice = createSlice({
     pushSnapshot(state, action: PayloadAction<HistoryEntry>) {
       const entry = action.payload
       const cur = state.stack[state.index]
-      if (cur && entriesEqual(cur, entry)) return
+      // Use original() so reference comparisons on nested objects (e.g. graph)
+      // see the underlying value rather than the Immer draft proxy.
+      const curOriginal = (cur && original(cur)) || cur
+      if (curOriginal && entriesEqual(curOriginal as HistoryEntry, entry)) return
       // Truncate future entries
       state.stack = state.stack.slice(0, state.index + 1)
       state.stack.push(entry)

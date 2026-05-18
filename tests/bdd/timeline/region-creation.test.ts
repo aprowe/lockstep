@@ -12,7 +12,9 @@ import { makeStore } from '../../helpers/setup'
 const feature = await loadFeature('./spec/features/timeline/region-creation.feature')
 
 const makeRegion = (id: string, inPoint: number, outPoint: number) => ({
-  id, name: id, inPoint, outPoint, bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
+  id, name: id, inPoint, outPoint,
+  inBeatTime: inPoint, outBeatTime: outPoint, defaultLinked: true,
+  bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
 })
 
 describeFeature(feature, ({ ScenarioOutline, Scenario }) => {

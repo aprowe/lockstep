@@ -14,7 +14,7 @@ import {
   addRegion as addRegionAction,
   deleteRegion as deleteRegionAction,
   setActiveRegionId as setActiveRegionIdAction,
-  updateRegionBeatTimes as updateRegionBeatTimesAction,
+  resetRegionBoundary as resetRegionBoundaryAction,
 } from '../store/slices/regionSlice'
 import {
   setPlaying as setPlayingAction,
@@ -242,6 +242,7 @@ export default function CenterColumn() {
     const name = `Clip ${regions.length + 1}`
     dispatch(addRegionAction({
       id, name, inPoint, outPoint,
+      inBeatTime: inPoint, outBeatTime: outPoint, defaultLinked: true,
       bpm: warpData?.bpm ?? 120, minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
     }))
     return id
@@ -255,16 +256,13 @@ export default function CenterColumn() {
     const id = `region_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
     dispatch(addRegionAction({
       ...src, id, name: `Clip ${regions.length + 1}`, inPoint, outPoint,
-      inBeatTime: undefined, outBeatTime: undefined,
+      inBeatTime: inPoint, outBeatTime: outPoint, defaultLinked: true,
     }))
     return id
   }
   const deleteRegion = (id: string) => dispatch(deleteRegionAction(id))
   const updateRegionInOut = (id: string, inP: number, outP: number) =>
     dispatch(moveRegionBounds({ id, inPoint: inP, outPoint: outP }))
-  const updateRegionBeatTimes = (id: string, inBT?: number, outBT?: number) =>
-    dispatch(updateRegionBeatTimesAction({ id, inBeatTime: inBT, outBeatTime: outBT }))
-
   // Vertical resizer between the player area and the timeline.
   const handleResizerPointerDown = (e: React.PointerEvent) => {
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -509,8 +507,8 @@ export default function CenterColumn() {
                 } },
                 { label: 'Export', action: () => { setActiveRegionId(id); setExportOpen(true) } },
                 { separator: true as const },
-                { label: 'Reset boundaries', action: () => updateRegionBeatTimes(id, undefined, undefined),
-                  disabled: region.inBeatTime === undefined && region.outBeatTime === undefined },
+                { label: 'Reset boundaries', action: () => dispatch(resetRegionBoundaryAction({ id })),
+                  disabled: region.defaultLinked },
                 { label: 'Delete', action: () => deleteRegion(id), danger: true },
               ],
             })

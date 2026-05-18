@@ -9,10 +9,6 @@ import {
   setBeatAnchors,
   addAnchor,
   removeAnchors,
-  moveOrigAnchor,
-  setOrigAnchorsFromTimeline,
-  moveBeatAnchor,
-  setBeatAnchorsFromTimeline,
   resetBeatLinks,
   clearAnchors,
   setBeatZeroId,
@@ -27,19 +23,15 @@ import {
   setRegions,
   addRegion,
   deleteRegion,
-  updateRegionInOut,
-  updateRegionBeatTimes,
-  updateRegionLock,
   renameRegion,
   updateRegionBpm,
+  updateRegionLockedBeats,
   updateRegionStretch,
   updateRegionTriggerMode,
-  applyLinkingEvent,
-  resetRegionBoundary,
-  applyConformedClipout,
-  applyBpmEdit,
-  applyBeatsEdit,
 } from '../slices/regionSlice'
+import { setLockMode } from '../slices/uiSlice'
+import { _syncAnchorPositions } from '../slices/warpSlice'
+import { _syncRegionPositions, _syncRegionMeta } from '../slices/regionSlice'
 
 export const historyMiddleware = createListenerMiddleware()
 
@@ -51,30 +43,37 @@ export const historyMiddleware = createListenerMiddleware()
  * immediate (non-debounced) listener below. Selection, playhead,
  * active-region-id, view and UI layout are excluded because they don't belong
  * in undo history.
+ *
+ * Phase 4c: applyOp is removed — the pipeline now writes slice diffs directly
+ * via _syncAnchorPositions / _syncRegionPositions / _syncRegionMeta. We capture
+ * snapshots on those slice-write actions instead.
  */
 const snapshotTriggers = isAnyOf(
-  // Warp anchors
+  // Warp anchors (slice ID-list / metadata mutations)
   setOrigAnchors, setBeatAnchors, addAnchor, removeAnchors,
-  moveOrigAnchor, setOrigAnchorsFromTimeline,
-  moveBeatAnchor, setBeatAnchorsFromTimeline,
   resetBeatLinks, clearAnchors,
   setBeatZeroId,
   // Warp settings
   setBpm, setMinStretch, setMaxStretch,
   setLoopBeats, setTrimToLoop, setAddToEnd,
-  // Regions
+  // Regions (slice metadata mutations)
   addRegion, deleteRegion,
-  updateRegionInOut, updateRegionBeatTimes, updateRegionLock,
-  renameRegion, updateRegionBpm, updateRegionStretch, updateRegionTriggerMode,
-  applyLinkingEvent, resetRegionBoundary, applyConformedClipout,
-  applyBpmEdit, applyBeatsEdit,
+  updateRegionLockedBeats,
+  renameRegion, updateRegionBpm,
+  updateRegionStretch, updateRegionTriggerMode,
+  // Global lock mode
+  setLockMode,
+  // Pipeline slice writes — position mutations.
+  _syncAnchorPositions,
+  _syncRegionPositions,
+  _syncRegionMeta,
 )
 
 export function snapshotFromState(state: RootState): HistoryEntry {
+  // Slice is now the source of truth for positions (the pipeline keeps it in sync).
   return {
     origAnchors: state.warp.origAnchors,
     beatAnchors: state.warp.beatAnchors,
-    linkedBeatIds: state.warp.linkedBeatIds,
     beatZeroId: state.warp.beatZeroId,
     bpm: state.warp.bpm,
     minStretch: state.warp.minStretch,
@@ -87,10 +86,6 @@ export function snapshotFromState(state: RootState): HistoryEntry {
 }
 
 // ── Snapshot on drag end: fires immediately, no debounce ────────────────────
-// dragEnd sets drag.active=false synchronously before this effect runs.
-// A dedicated immediate listener ensures the post-drag snapshot is in the
-// stack before the user can press Ctrl+Z, preventing the 400ms debounce race
-// where an undo fires before the snapshot is committed.
 
 historyMiddleware.startListening({
   actionCreator: dragEnd,
@@ -101,9 +96,6 @@ historyMiddleware.startListening({
 })
 
 // ── Snapshot recording: debounced 400ms after any undo-worthy mutation ─────
-// Skipped during drag (rapid pointer-move commits must not flood history).
-// dragEnd is handled by the immediate listener above and is excluded from
-// snapshotTriggers to avoid a duplicate debounced snapshot 400ms later.
 
 historyMiddleware.startListening({
   matcher: snapshotTriggers,
@@ -123,7 +115,6 @@ function restoreEntry(entry: HistoryEntry, dispatch: (a: unknown) => void) {
   dispatch(loadAnchors({
     origAnchors: entry.origAnchors,
     beatAnchors: entry.beatAnchors,
-    linkedBeatIds: entry.linkedBeatIds,
     beatZeroId: entry.beatZeroId,
   }))
   dispatch(loadWarpSettings({
@@ -135,6 +126,7 @@ function restoreEntry(entry: HistoryEntry, dispatch: (a: unknown) => void) {
     addToEnd: entry.addToEnd,
   }))
   dispatch(setRegions(entry.regions))
+  // No setGraph needed — the graph is derived from the slice by the pipeline.
 }
 
 historyMiddleware.startListening({

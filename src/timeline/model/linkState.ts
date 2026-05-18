@@ -23,16 +23,11 @@ export interface RegionLinkState {
 /**
  * Whether the region's clipout coincides with its clipin (within tolerance
  * on BOTH edges). When `false`, region is in diverged state per design §1.2.
- *
- * inBeatTime / outBeatTime default to inPoint / outPoint when absent
- * (the region hasn't had explicit beat bounds set, so it is default-linked).
  */
 export function isDefaultLinked(region: Region): boolean {
-  const inBeatTime = region.inBeatTime ?? region.inPoint
-  const outBeatTime = region.outBeatTime ?? region.outPoint
   return (
-    Math.abs(inBeatTime - region.inPoint) <= LINK_EPSILON &&
-    Math.abs(outBeatTime - region.outPoint) <= LINK_EPSILON
+    Math.abs(region.inBeatTime - region.inPoint) <= LINK_EPSILON &&
+    Math.abs(region.outBeatTime - region.outPoint) <= LINK_EPSILON
   )
 }
 
@@ -86,9 +81,6 @@ export function detectInputLinks(
  * For each matching beat anchor, the input partner is looked up by id
  * in anchors (may be undefined if pairing is torn).
  *
- * When inBeatTime / outBeatTime are absent on the region, falls back to
- * inPoint / outPoint (identity / default-linked state).
- *
  * Note: AnchorPair.input may be undefined when pairing is torn (the
  * beat anchor exists but its input partner was removed). The cast to
  * `Anchor` in the return is intentional — callers must guard when
@@ -102,8 +94,8 @@ export function detectOutputLinks(
   const inputById = new Map<number, Anchor>()
   for (const a of anchors) inputById.set(a.id, a)
 
-  const inBeatTime = region.inBeatTime ?? region.inPoint
-  const outBeatTime = region.outBeatTime ?? region.outPoint
+  const inBeatTime  = region.inBeatTime
+  const outBeatTime = region.outBeatTime
 
   function makePair(time: number): AnchorPair | undefined {
     const beat = findAnchorAt(time, beatAnchors)

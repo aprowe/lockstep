@@ -1,18 +1,20 @@
 import { describe, it, expect } from 'vitest'
 import { addRegion } from '../../../src/store/slices/regionSlice'
-import { setAnchorLock } from '../../../src/store/slices/uiSlice'
+import { setAnchorLock, setLockMode } from '../../../src/store/slices/uiSlice'
 import { addAnchor, moveBeatAnchor, setBeatAnchorsFromTimeline } from '../../../src/store/slices/warpSlice'
 import { commitClipoutResize, commitClipoutPan } from '../../../src/store/thunks/clipoutThunks'
+import { addCarryPair } from '../../../src/store/slices/dragCtxSlice'
+import { regionOutId, anchorOutId } from '../../../src/constraints/ids'
 import { makeStore } from '../../helpers/setup'
 
 /** Build a region with clipout from 10..20 (length 10) and a lock mode. */
-function makeRegion(lock: 'beats' | 'bpm') {
+function makeRegion(_lock?: 'beats' | 'bpm') {
   return {
     id: 'r', name: 'r',
     inPoint: 10, outPoint: 20,
     inBeatTime: 10, outBeatTime: 20,
+    defaultLinked: true,
     bpm: 120, lockedBeats: 20,
-    lock,
     minStretch: 0.5, maxStretch: 2, addToEnd: false,
   }
 }
@@ -31,6 +33,7 @@ describe('commitClipoutResize', () => {
   it('anchorLock=true, altKey=false, lock=beats → anchors RESCALE proportionally', () => {
     const store = makeStore()
     store.dispatch(setAnchorLock(true))
+    store.dispatch(setLockMode('beats'))
     store.dispatch(addRegion(makeRegion('beats')))
     seedAnchors(store)
 
@@ -46,6 +49,7 @@ describe('commitClipoutResize', () => {
 
   it('anchorLock=false, altKey=false, lock=beats → anchors STAY (no rescale)', () => {
     const store = makeStore()
+    store.dispatch(setLockMode('beats'))
     store.dispatch(addRegion(makeRegion('beats')))
     seedAnchors(store)
 
@@ -58,6 +62,7 @@ describe('commitClipoutResize', () => {
 
   it('anchorLock=false, altKey=true, lock=beats → Alt flips effectiveAnchorLock to true; anchors RESCALE', () => {
     const store = makeStore()
+    store.dispatch(setLockMode('beats'))
     store.dispatch(addRegion(makeRegion('beats')))
     seedAnchors(store)
 
@@ -83,6 +88,7 @@ describe('commitClipoutResize', () => {
   it('always dispatches applyConformedClipout (region clipout updates)', () => {
     const store = makeStore()
     store.dispatch(setAnchorLock(true))
+    store.dispatch(setLockMode('beats'))
     store.dispatch(addRegion(makeRegion('beats')))
     seedAnchors(store)
 
@@ -95,6 +101,7 @@ describe('commitClipoutResize', () => {
 
   it('unknown id → no dispatch, state unchanged', () => {
     const store = makeStore()
+    store.dispatch(setLockMode('beats'))
     store.dispatch(addRegion(makeRegion('beats')))
     seedAnchors(store)
     const before = store.getState()
@@ -119,6 +126,7 @@ describe('commitClipoutPan', () => {
       id: 'r', name: 'r',
       inPoint: 0, outPoint: 20,
       inBeatTime: 10, outBeatTime: 30,
+      defaultLinked: false,
       bpm: 120, lockedBeats: 20,
       minStretch: 0.5, maxStretch: 2, addToEnd: false,
     }
@@ -208,10 +216,11 @@ describe('commitClipoutPan', () => {
   })
 })
 
-// ── Conformed-marker carry (new design) ────────────────────────────────────
-// When a beat anchor is conformed at a clipout boundary (input-link or
-// output-link coincidence), commitClipoutResize/Pan moves it to the new
-// edge position. This is the replacement for the controller's R4 carry.
+// ── Conformed-marker carry (Phase 5 design) ───────────────────────────────
+// Phase 5: carry is now structural — the controller installs a DirectedPair
+// (MirrorEdge) at pointerDown via recipes.carryStart. commitClipoutResize
+// dispatches SetEdge ops that trigger MirrorEdge propagation automatically.
+// Tests install the carry pair manually to replicate what the controller does.
 
 describe('commitClipoutResize — conformed-marker carry', () => {
   it('input-linked in-edge: paired beat anchor moves to new inBeatTime', () => {
@@ -219,12 +228,12 @@ describe('commitClipoutResize — conformed-marker carry', () => {
     // Input anchor id=5 at time=10 → input-linked to in-edge.
     // Paired beat anchor id=5 at time=6 → conformed display at in-edge.
     // Resize in-edge: inBeatTime 10 → 8.
-    // Expected: beat anchor id=5 moves from 6 → 8.
+    // Expected: beat anchor id=5 moves from 6 → 8 (via MirrorEdge carry).
     const store = makeStore()
     store.dispatch(addRegion({
       id: 'r', name: 'r', inPoint: 10, outPoint: 20,
-      bpm: 120, lock: 'bpm', lockedBeats: 20,
-      inBeatTime: 10, outBeatTime: 20,
+      bpm: 120, lockedBeats: 20,
+      inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
       minStretch: 0.5, maxStretch: 2, addToEnd: false,
     }))
     store.dispatch(addAnchor({ id: 5, time: 10 }))
@@ -235,10 +244,13 @@ describe('commitClipoutResize — conformed-marker carry', () => {
       { id: 9, time: 15 },
     ]))
 
+    // Phase 4c: install carry pair via dragCtx (simulating what the controller does at pointerDown)
+    store.dispatch(addCarryPair({ clipOutId: regionOutId('r'), edge: 'in', anchorOutId: anchorOutId(5) }))
+
     store.dispatch(commitClipoutResize({ id: 'r', inBeatTime: 8, outBeatTime: 20, altKey: false }))
 
     const anchors = store.getState().warp.beatAnchors
-    // Conformed in-edge anchor carries to new inBeatTime=8
+    // Conformed in-edge anchor carries to new inBeatTime=8 via MirrorEdge
     expect(anchors.find(a => a.id === 5)!.time).toBeCloseTo(8, 9)
     // Other anchor unaffected (no rescale because lock='bpm')
     expect(anchors.find(a => a.id === 9)!.time).toBeCloseTo(15, 9)
@@ -248,12 +260,12 @@ describe('commitClipoutResize — conformed-marker carry', () => {
     // Region: inPoint=10, outPoint=20. Input anchor id=7 at 20 → linked to out-edge.
     // Beat anchor id=7 at 18 → conformed at out-edge.
     // Resize out-edge: outBeatTime 20 → 22.
-    // Expected: beat anchor id=7 moves from 18 → 22.
+    // Expected: beat anchor id=7 moves from 18 → 22 (via MirrorEdge carry).
     const store = makeStore()
     store.dispatch(addRegion({
       id: 'r', name: 'r', inPoint: 10, outPoint: 20,
-      bpm: 120, lock: 'bpm',
-      inBeatTime: 10, outBeatTime: 20,
+      bpm: 120,
+      inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
       minStretch: 0.5, maxStretch: 2, addToEnd: false,
     }))
     store.dispatch(addAnchor({ id: 7, time: 20 }))
@@ -262,6 +274,9 @@ describe('commitClipoutResize — conformed-marker carry', () => {
       { id: 7, time: 18 },
       { id: 3, time: 14 },
     ]))
+
+    // Phase 4c: install carry pair via dragCtx (simulating what the controller does at pointerDown)
+    store.dispatch(addCarryPair({ clipOutId: regionOutId('r'), edge: 'out', anchorOutId: anchorOutId(7) }))
 
     store.dispatch(commitClipoutResize({ id: 'r', inBeatTime: 10, outBeatTime: 22, altKey: false }))
 
@@ -274,10 +289,11 @@ describe('commitClipoutResize — conformed-marker carry', () => {
     // No anchors at boundaries → no carry; Slice B rescale still applies normally.
     const store = makeStore()
     store.dispatch(setAnchorLock(true))
+    store.dispatch(setLockMode('beats'))
     store.dispatch(addRegion({
       id: 'r', name: 'r', inPoint: 10, outPoint: 20,
-      bpm: 120, lock: 'beats', lockedBeats: 20,
-      inBeatTime: 10, outBeatTime: 20,
+      bpm: 120, lockedBeats: 20,
+      inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
       minStretch: 0.5, maxStretch: 2, addToEnd: false,
     }))
     // Anchors inside but not at boundaries
@@ -303,7 +319,7 @@ describe('commitClipoutPan — conformed-marker carry', () => {
     store.dispatch(addRegion({
       id: 'r', name: 'r', inPoint: 0, outPoint: 20,
       bpm: 120, lockedBeats: 40,
-      inBeatTime: 10, outBeatTime: 30,
+      inBeatTime: 10, outBeatTime: 30, defaultLinked: false,
       minStretch: 0.5, maxStretch: 2, addToEnd: false,
     }))
     store.dispatch(setBeatAnchorsFromTimeline([

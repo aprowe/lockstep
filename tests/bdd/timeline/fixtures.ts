@@ -7,9 +7,11 @@ import { buildLayout, MINIMAP_H } from '../../../src/timeline/layout'
 import { createTimelineController } from '../../../src/timeline/controller'
 import { makeStore } from '../../helpers/setup'
 import { gesture } from '../../../src/store/gesture'
+import { selectLinkedAnchorIds } from '../../../src/store/selectors'
 import { setView } from '../../../src/store/slices/uiSlice'
 import { moveAnchors, moveBeatAnchors, moveRegionBounds } from '../../../src/store/thunks/regionThunks'
 import { commitClipoutResize, commitClipoutPan } from '../../../src/store/thunks/clipoutThunks'
+import { applyRegionEntityMove, applyAnchorEntityMove } from '../../../src/store/thunks/entityWriteThunks'
 import { dragStart, dragEnd } from '../../../src/store/slices/dragSlice'
 import { cancelDrag, snapshotPreDragState } from '../../../src/store/thunks/dragThunks'
 
@@ -256,11 +258,24 @@ export function driveController(opts: DriverOptions): DriverHandle {
             store.dispatch(moveRegionBounds({ id: i.id, inPoint: i.inPoint, outPoint: i.outPoint }))
           }
           break
+        case 'regionEntityMove':
+          if (i.isOutput) {
+            // Output-space body pan: pass cumulative delta — commitClipoutPan
+            // resolves the absolute target from state.drag.preDrag so repeated
+            // emissions during a drag converge rather than compounding.
+            store.dispatch(commitClipoutPan({ id: i.id, delta: i.delta, altKey: i.altKey }))
+          } else {
+            store.dispatch(applyRegionEntityMove({ id: i.id, delta: i.delta }))
+          }
+          break
         case 'beatAnchorsChanged':
           store.dispatch(moveBeatAnchors(i.next))
           break
         case 'anchorsChanged':
           store.dispatch(moveAnchors(i.next))
+          break
+        case 'anchorEntityMove':
+          store.dispatch(applyAnchorEntityMove({ entityId: i.entityId, time: i.time }))
           break
         case 'viewChange':
           store.dispatch(setView(i.view))
@@ -366,14 +381,14 @@ function makeSnapFromState(
     maxDuration: overrides.maxDuration ?? 100,
     anchors: overrides.anchors ?? state.warp.origAnchors,
     beatAnchors: overrides.beatAnchors ?? state.warp.beatAnchors,
-    linkedBeatIds: overrides.linkedBeatIds ?? new Set(state.warp.linkedBeatIds),
+    linkedBeatIds: overrides.linkedBeatIds ?? selectLinkedAnchorIds(state as never),
     selectedOrigAnchorIds: overrides.selectedOrigAnchorIds ?? new Set(state.warp.selectedOrigIds),
     selectedBeatAnchorIds: overrides.selectedBeatAnchorIds ?? new Set(state.warp.selectedBeatIds),
     regions: overrides.regions ?? state.region.regions.map(r => ({
       id: r.id, inPoint: r.inPoint, outPoint: r.outPoint,
     })),
     regionsOutput: overrides.regionsOutput ?? state.region.regions.map(r => ({
-      id: r.id, inPoint: r.inBeatTime ?? r.inPoint, outPoint: r.outBeatTime ?? r.outPoint,
+      id: r.id, inPoint: r.inBeatTime, outPoint: r.outBeatTime,
     })),
     regionDetails: overrides.regionDetails ?? state.region.regions,
     selectedClipinIds: overrides.selectedClipinIds ?? new Set(),

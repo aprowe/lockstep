@@ -5,7 +5,7 @@ import type { Anchor, Region } from '../../../../src/types'
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
 function makeRegion(overrides: Partial<Region> = {}): Region {
-  return {
+  const base = {
     id: 'r1',
     name: 'Test Region',
     inPoint: 5,
@@ -13,8 +13,14 @@ function makeRegion(overrides: Partial<Region> = {}): Region {
     bpm: 120,
     minStretch: 0.5,
     maxStretch: 2.0,
-    addToEnd: false,
+    addToEnd: false as const,
+    defaultLinked: true,
     ...overrides,
+  }
+  return {
+    ...base,
+    inBeatTime:  overrides.inBeatTime  ?? base.inPoint,
+    outBeatTime: overrides.outBeatTime ?? base.outPoint,
   }
 }
 
@@ -25,11 +31,11 @@ function makeAnchor(time: number, id = 1): Anchor {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('commitLinkingEvent', () => {
-  it('in-edge linking on a default-linked region (no inBeatTime/outBeatTime)', () => {
-    // region defaults: inBeatTime → inPoint=5, outBeatTime → outPoint=10
+  it('in-edge linking on a default-linked region (inBeatTime=inPoint, outBeatTime=outPoint)', () => {
+    // Default-linked region: inBeatTime=inPoint=5, outBeatTime=outPoint=10
     // beatAnchor at 4 (shifted beat-space in-edge)
-    // Expected: inBeatTime=4, outBeatTime=10 (from outPoint), lockedBeats=(10-4)*120/60=12
-    const region = makeRegion({ inPoint: 5, outPoint: 10, bpm: 120, lock: 'bpm' })
+    // Expected: inBeatTime=4, outBeatTime=10, lockedBeats=(10-4)*120/60=12
+    const region = makeRegion({ inPoint: 5, outPoint: 10, bpm: 120 })
     const result = commitLinkingEvent({
       region,
       edge: 'in',
@@ -40,18 +46,16 @@ describe('commitLinkingEvent', () => {
     expect(result.outBeatTime).toBeCloseTo(10, 6)
     expect(result.lockedBeats).toBeCloseTo(12, 6)
     expect(result.bpm).toBe(120)
-    expect(result.lock).toBe('bpm')
   })
 
-  it('out-edge linking: lock is preserved as-is but lockedBeats is overwritten', () => {
-    // region lock='beats', lockedBeats=10 — linking event bypasses lock
+  it('out-edge linking: lockedBeats is derived from new length (lock-bypass always)', () => {
+    // Linking event always uses lock='bpm' math — lockedBeats is derived from new length
     // beatAnchor at 11; outBeatTime becomes 11
-    // Expected: inBeatTime=5 (defaulted), outBeatTime=11, lockedBeats=(11-5)*120/60=12
+    // Expected: inBeatTime=5 (from inPoint), outBeatTime=11, lockedBeats=(11-5)*120/60=12
     const region = makeRegion({
       inPoint: 5,
       outPoint: 10,
       bpm: 120,
-      lock: 'beats',
       lockedBeats: 10,
     })
     const result = commitLinkingEvent({
@@ -64,8 +68,6 @@ describe('commitLinkingEvent', () => {
     expect(result.outBeatTime).toBeCloseTo(11, 6)
     expect(result.lockedBeats).toBeCloseTo(12, 6)
     expect(result.bpm).toBe(120)
-    // lock is echoed unchanged from region
-    expect(result.lock).toBe('beats')
   })
 
   it('diverged region, in-edge linking: preserves existing outBeatTime', () => {
@@ -78,7 +80,6 @@ describe('commitLinkingEvent', () => {
       inBeatTime: 3,
       outBeatTime: 8,
       bpm: 120,
-      lock: 'bpm',
     })
     const result = commitLinkingEvent({
       region,
@@ -93,13 +94,11 @@ describe('commitLinkingEvent', () => {
   })
 
   it('lock-bypass: lockedBeats is derived from new length, NOT preserved from region', () => {
-    // Demonstrates the lock-bypass: region.lock='beats', region.lockedBeats=7
     // Linking event always uses lock='bpm' math — lockedBeats is overwritten
     const region = makeRegion({
       inPoint: 5,
       outPoint: 10,
       bpm: 120,
-      lock: 'beats',
       lockedBeats: 7,
     })
     const result = commitLinkingEvent({
@@ -115,7 +114,7 @@ describe('commitLinkingEvent', () => {
 
   it('output-side behaves identically to input-side — side is informational only', () => {
     // Same inputs, same math — only the `side` field differs
-    const region = makeRegion({ inPoint: 5, outPoint: 10, bpm: 120, lock: 'bpm' })
+    const region = makeRegion({ inPoint: 5, outPoint: 10, bpm: 120 })
     const beatAnchor = makeAnchor(4)
 
     const inputSide = commitLinkingEvent({ region, edge: 'in', side: 'input', beatAnchor })
@@ -124,19 +123,11 @@ describe('commitLinkingEvent', () => {
     expect(inputSide).toEqual(outputSide)
   })
 
-  it('default lock when region.lock is undefined → result.lock === "bpm"', () => {
-    // region has no lock field (undefined) — result should default to 'bpm'
+  it('result always includes bpm and lockedBeats (lock-bypass: always lock-bpm semantics)', () => {
+    // lock is global (ui.lockMode) — linkingEvent doesn't echo it
     const region = makeRegion({ bpm: 120 })
-    // lock field is not in overrides, so it's absent from the base fixture too
-    const { lock: _base, ...withoutLock } = region
-    const regionNoLock = { ...withoutLock } as Region
-
-    const result = commitLinkingEvent({
-      region: regionNoLock,
-      edge: 'in',
-      side: 'input',
-      beatAnchor: makeAnchor(4),
-    })
-    expect(result.lock).toBe('bpm')
+    const result = commitLinkingEvent({ region, edge: 'in', side: 'input', beatAnchor: makeAnchor(4) })
+    expect(result.bpm).toBe(120)
+    expect(typeof result.lockedBeats).toBe('number')
   })
 })

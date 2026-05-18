@@ -2,11 +2,25 @@ import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { Anchor } from '../../types'
 import type { SavedVideoState } from '../../types'
 
+/**
+ * Phase 1 — anchor positions live in the constraint graph
+ * (`state.constraint.graph.entities[a{id}-in / a{id}-out]`). The warp slice
+ * keeps the ID lists + non-position metadata. The `Anchor[]` arrays here are
+ * retained for load-bootstrap purposes (the slice receives saved positions on
+ * `loadAnchors`, then the loader seeds the graph via `setGraph(buildSeedGraph(…))`).
+ *
+ * After bootstrap the slice no longer MUTATES positions — every position write
+ * routes through `constraintSlice.applyOp` (see entityWriteThunks). The
+ * remaining anchor reducers below operate on the ID lists / linkage / selection
+ * only.
+ *
+ * Selectors prefer graph entities over slice positions on read, so the slice
+ * `time` fields are dead data after bootstrap and act only as a fallback for
+ * test fixtures or partially-seeded states.
+ */
 interface WarpState {
   origAnchors: Anchor[]
   beatAnchors: Anchor[]
-  /** IDs of anchors whose beat position tracks their orig position (not manually adjusted) */
-  linkedBeatIds: number[]
   bpm: number
   minStretch: number
   maxStretch: number
@@ -27,7 +41,6 @@ interface WarpState {
 const initialState: WarpState = {
   origAnchors: [],
   beatAnchors: [],
-  linkedBeatIds: [],
   bpm: 120,
   minStretch: 0.5,
   maxStretch: 2.0,
@@ -53,125 +66,75 @@ const warpSlice = createSlice({
   name: 'warp',
   initialState,
   reducers: {
-    // ── Anchor mutations ──────────────────────────────────────────────────
+    // ── Anchor ID-list / bootstrap mutations ──────────────────────────────
+    // The reducers below accept legacy `Anchor` payloads (with `time`) so test
+    // fixtures and load paths can seed positions in the same call. They do NOT
+    // make position changes coherent across the system — every real position
+    // write must go through `constraintSlice.applyOp` to update the graph.
+
     setOrigAnchors(state, action: PayloadAction<Anchor[]>) {
       state.origAnchors = action.payload
     },
     setBeatAnchors(state, action: PayloadAction<Anchor[]>) {
       state.beatAnchors = action.payload
     },
-    /** Add a new anchor at the given time. Creates a linked beat anchor at the same position. */
+    /** Add a new anchor ID. Beat side is auto-linked (pair marker DeleteGroup
+     *  installed by graphMirrorMiddleware). The position arrives via the
+     *  matching `applyOp(AddAnchor)` dispatched by the entity-write thunk;
+     *  this reducer only manages the slice ID list. */
     addAnchor(state, action: PayloadAction<{ id: number; time: number }>) {
       const { id, time } = action.payload
       state.origAnchors.push({ id, time })
       state.beatAnchors.push({ id, time })
-      state.linkedBeatIds.push(id)
     },
-    /** Remove anchors by ID */
+    /** Remove anchor pair(s) by ID. */
     removeAnchors(state, action: PayloadAction<number[]>) {
       const ids = new Set(action.payload)
       state.origAnchors = state.origAnchors.filter(a => !ids.has(a.id))
       state.beatAnchors = state.beatAnchors.filter(a => !ids.has(a.id))
-      state.linkedBeatIds = state.linkedBeatIds.filter(id => !ids.has(id))
       state.selectedOrigIds = state.selectedOrigIds.filter(id => !ids.has(id))
       state.selectedBeatIds = state.selectedBeatIds.filter(id => !ids.has(id))
       if (state.beatZeroId !== null && ids.has(state.beatZeroId)) {
         state.beatZeroId = null
       }
     },
-    /** Move an orig anchor. If linked, moves the corresponding beat anchor too. */
-    moveOrigAnchor(state, action: PayloadAction<{ id: number; time: number }>) {
-      const { id, time } = action.payload
-      const oa = state.origAnchors.find(a => a.id === id)
-      if (oa) oa.time = time
-      if (state.linkedBeatIds.includes(id)) {
-        const ba = state.beatAnchors.find(a => a.id === id)
-        if (ba) ba.time = time
-      }
-    },
-    /** Update multiple orig anchors at once (used by Timeline drag) */
-    setOrigAnchorsFromTimeline(state, action: PayloadAction<Anchor[]>) {
-      const next = action.payload
-      const prevIds = new Set(state.origAnchors.map(a => a.id))
-      const nextIds = new Set(next.map(a => a.id))
-
-      // Find added, removed, moved
-      const added = next.filter(a => !prevIds.has(a.id))
-      const removedIds = [...prevIds].filter(id => !nextIds.has(id))
-      const moved = next.filter(a => {
-        const prev = state.origAnchors.find(p => p.id === a.id)
-        return prev && prev.time !== a.time
-      })
-
-      // Add new anchors as linked
-      for (const a of added) {
-        state.beatAnchors.push({ id: a.id, time: a.time })
-        state.linkedBeatIds.push(a.id)
-      }
-
-      // Remove deleted anchors
-      for (const id of removedIds) {
-        state.beatAnchors = state.beatAnchors.filter(a => a.id !== id)
-        state.linkedBeatIds = state.linkedBeatIds.filter(i => i !== id)
-        if (state.beatZeroId === id) state.beatZeroId = null
-      }
-
-      // Move linked beat anchors to match
-      for (const m of moved) {
-        if (state.linkedBeatIds.includes(m.id)) {
-          const ba = state.beatAnchors.find(a => a.id === m.id)
-          if (ba) ba.time = m.time
-        }
-      }
-
-      state.origAnchors = next
-    },
-    /** Move a beat anchor (unlinking it from orig) */
-    moveBeatAnchor(state, action: PayloadAction<{ id: number; time: number }>) {
-      const { id, time } = action.payload
-      const ba = state.beatAnchors.find(a => a.id === id)
-      if (ba) ba.time = time
-      state.linkedBeatIds = state.linkedBeatIds.filter(i => i !== id)
-    },
-    /** Update all beat anchors from the beat timeline */
-    setBeatAnchorsFromTimeline(state, action: PayloadAction<Anchor[]>) {
-      for (const a of action.payload) {
-        const prev = state.beatAnchors.find(b => b.id === a.id)
-        if (prev && prev.time !== a.time) {
-          state.linkedBeatIds = state.linkedBeatIds.filter(i => i !== a.id)
-        }
-      }
-      state.beatAnchors = action.payload
-    },
-    /** Reset beat anchor(s) to their orig position (re-link) */
+    /** Reset beat anchor(s) to "linked" (matching orig). The slice's beat
+     *  `time` is updated to mirror orig so test fixtures stay coherent;
+     *  the live position is updated in the graph and the pair marker
+     *  (DeleteGroup) is re-installed by `applyResetBeatLinks`. */
     resetBeatLinks(state, action: PayloadAction<number[]>) {
       for (const id of action.payload) {
         const orig = state.origAnchors.find(a => a.id === id)
         const beat = state.beatAnchors.find(a => a.id === id)
         if (orig && beat) {
           beat.time = orig.time
-          if (!state.linkedBeatIds.includes(id)) state.linkedBeatIds.push(id)
+          // Re-link: clear the diverged marker so linked !== false.
+          delete beat.linked
         }
       }
     },
     clearAnchors(state) {
       state.origAnchors = []
       state.beatAnchors = []
-      state.linkedBeatIds = []
       state.selectedOrigIds = []
       state.selectedBeatIds = []
       state.beatZeroId = null
     },
-    /** Bulk-set both anchor arrays + linked IDs (used for import, undo/redo) */
+    /** Bulk-set both anchor arrays (used for import, undo/redo).
+     *  Positions are accepted here so load paths can hand the slice the
+     *  saved values verbatim; the graph is re-seeded separately by the loader
+     *  via `setGraph(buildSeedGraph(…))`.
+     *
+     *  The `linked` boolean on each Anchor in `beatAnchors` is the persistence
+     *  flag used by graphMirrorMiddleware to decide which pairs get
+     *  `initAnchorPair` constraints installed (true/absent = linked, false = diverged). */
     loadAnchors(state, action: PayloadAction<{
       origAnchors: Anchor[]
       beatAnchors: Anchor[]
-      linkedBeatIds?: number[]
       beatZeroId?: number | null
     }>) {
       state.origAnchors = action.payload.origAnchors
       state.beatAnchors = action.payload.beatAnchors
-      state.linkedBeatIds = action.payload.linkedBeatIds ?? []
       if (action.payload.beatZeroId !== undefined) {
         state.beatZeroId = action.payload.beatZeroId
       }
@@ -254,6 +217,35 @@ const warpSlice = createSlice({
     setPlayhead(state, action: PayloadAction<number>) {
       state.playhead = action.payload
     },
+
+    // ── Internal: pipeline → slice projection ────────────────────────────────
+    /** Internal — sync the slice's `time` fields from a pipeline diff.
+     *  Dispatched by dispatchPipelined after every pipelined op.
+     *  Consumers should NEVER dispatch this directly. */
+    _syncAnchorPositions(state, action: PayloadAction<{ orig: Record<number, number>; beat: Record<number, number> }>) {
+      for (const a of state.origAnchors) {
+        const t = action.payload.orig[a.id]
+        if (t !== undefined) a.time = t
+      }
+      for (const a of state.beatAnchors) {
+        const t = action.payload.beat[a.id]
+        if (t !== undefined) a.time = t
+      }
+    },
+    /** Set the linked flag for a beat anchor. true = linked (beat tracks orig),
+     *  false = diverged (beat is independently positioned). The absence of the
+     *  flag is treated as true. Dispatched by thunks when an anchor is
+     *  explicitly unlinked (diverged) or re-linked (reset). */
+    setAnchorLinked(state, action: PayloadAction<{ id: number; linked: boolean }>) {
+      const a = state.beatAnchors.find(a => a.id === action.payload.id)
+      if (a) {
+        if (action.payload.linked) {
+          delete a.linked
+        } else {
+          a.linked = false
+        }
+      }
+    },
   },
 })
 
@@ -262,10 +254,6 @@ export const {
   setBeatAnchors,
   addAnchor,
   removeAnchors,
-  moveOrigAnchor,
-  setOrigAnchorsFromTimeline,
-  moveBeatAnchor,
-  setBeatAnchorsFromTimeline,
   resetBeatLinks,
   clearAnchors,
   loadAnchors,
@@ -284,6 +272,18 @@ export const {
   selectAll,
   deselectAll,
   setPlayhead,
+  _syncAnchorPositions,
+  setAnchorLinked,
 } = warpSlice.actions
+
+// ── Back-compat re-exports for the position-writing thunks ───────────────
+// These used to be slice reducers; Phase 1 moved them into entity-write
+// thunks so the constraint graph is the source of truth for position writes.
+export {
+  applyMoveOrigAnchor             as moveOrigAnchor,
+  applyMoveBeatAnchor             as moveBeatAnchor,
+  applyOrigAnchorsFromTimeline    as setOrigAnchorsFromTimeline,
+  applyBeatAnchorsFromTimeline    as setBeatAnchorsFromTimeline,
+} from '../thunks/entityWriteThunks'
 
 export default warpSlice.reducer

@@ -578,7 +578,9 @@ describe('controller.cancel', () => {
 // ───────────────────────────────────────────────────────────────────────────
 
 describe('controller.pointerUp', () => {
-  it('anchor (input) drag: emits anchorsChanged with liveAnchors then clears state', () => {
+  it('anchor (input) drag: emits anchorEntityMove for the primary entity then clears state', () => {
+    // Phase 2.5: pointerUp emits single-entity anchorEntityMove instead of
+    // whole-array anchorsChanged. The resolver propagates to lasso followers.
     const c = createTimelineController()
     const snap = makeSnapshot({
       anchors: [{ id: 1, time: 0 }],
@@ -587,12 +589,13 @@ describe('controller.pointerUp', () => {
     c.pointerDown(makePointerEvent({ clientX: 0, clientY: 200 }), snap)
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const intents = c.pointerUp(snap)
-    const commit = intents.find(i => i.kind === 'anchorsChanged')!
+    const commit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
     expect(commit).toBeDefined()
-    if (commit.kind === 'anchorsChanged') {
-      expect(commit.next.length).toBe(1)
-      expect(commit.next[0].time).toBeCloseTo(50)
+    if (commit?.kind === 'anchorEntityMove') {
+      expect(commit.time).toBeCloseTo(50)
     }
+    // Whole-array intent must NOT be emitted on the new path.
+    expect(intents.some(i => i.kind === 'anchorsChanged')).toBe(false)
     expect(intents.some(i => i.kind === 'pubClearGesture')).toBe(true)
     expect(intents.some(i => i.kind === 'cursor')).toBe(true)
     expect(intents.some(i => i.kind === 'redraw')).toBe(true)
@@ -600,8 +603,8 @@ describe('controller.pointerUp', () => {
   })
 
   it('anchor (input) drag never moves the same-id beat partner, even when linkedBeatIds includes the id', () => {
-    // The new model: anchor drags are space-local. The legacy linkedBeatIds
-    // set is ignored by the controller for drag propagation.
+    // Phase 2.5: pointerUp emits anchorEntityMove for the input-space entity only.
+    // The beat-space partner is NOT included unless it was explicitly selected.
     const c = createTimelineController()
     const snap = makeSnapshot({
       anchors: [{ id: 1, time: 10 }],
@@ -612,15 +615,20 @@ describe('controller.pointerUp', () => {
     c.pointerDown(makePointerEvent({ clientX: 80, clientY: 200 }), snap)
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const intents = c.pointerUp(snap)
-    const inputCommit = intents.find(i => i.kind === 'anchorsChanged')
+    // Input-space entity move emitted.
+    const inputCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
     expect(inputCommit).toBeDefined()
-    if (inputCommit?.kind === 'anchorsChanged') {
-      expect(inputCommit.next[0].time).toBeCloseTo(50)
+    if (inputCommit?.kind === 'anchorEntityMove') {
+      expect(inputCommit.time).toBeCloseTo(50)
     }
+    // Beat-space partner must NOT have been pulled in.
+    expect(intents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')).toBe(false)
+    expect(intents.some(i => i.kind === 'anchorsChanged')).toBe(false)
     expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
   })
 
   it('anchor (output) drag never moves the same-id input partner, even when linkedBeatIds includes the id', () => {
+    // Phase 2.5: pointerUp emits anchorEntityMove for the output-space entity only.
     const c = createTimelineController()
     const snap = makeSnapshot({
       anchors: [{ id: 7, time: 8 }],
@@ -631,15 +639,21 @@ describe('controller.pointerUp', () => {
     c.pointerDown(makePointerEvent({ clientX: 96, clientY: 200 }), snap)
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const intents = c.pointerUp(snap)
-    const beatCommit = intents.find(i => i.kind === 'beatAnchorsChanged')
+    // Output-space entity move emitted.
+    const beatCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a7-out')
     expect(beatCommit).toBeDefined()
-    if (beatCommit?.kind === 'beatAnchorsChanged') {
-      expect(beatCommit.next[0].time).toBeCloseTo(50)
+    if (beatCommit?.kind === 'anchorEntityMove') {
+      expect(beatCommit.time).toBeCloseTo(50)
     }
+    // Input-space partner must NOT have been pulled in.
+    expect(intents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a7-in')).toBe(false)
     expect(intents.some(i => i.kind === 'anchorsChanged')).toBe(false)
+    expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
   })
 
   it('warp-line drag moves both paired anchors by the same delta and emits both commits', () => {
+    // Phase 2.5: pointerUp emits anchorEntityMove for both the input-space (a1-in)
+    // and output-space (a1-out) entities. Whole-array intents are no longer emitted.
     const c = createTimelineController()
     // Pair id 1: input @ t=10 (x=80), beat @ t=5. The warp track sits between
     // markerin and markerout — pick its mid-y via buildLayout.
@@ -656,16 +670,18 @@ describe('controller.pointerUp', () => {
     // Move to clientX=400 → +40 view-time delta on BOTH partners.
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: warpY }), snap)
     const intents = c.pointerUp(snap)
-    const inputCommit = intents.find(i => i.kind === 'anchorsChanged')
-    const beatCommit = intents.find(i => i.kind === 'beatAnchorsChanged')
+    const inputCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
+    const beatCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')
     expect(inputCommit).toBeDefined()
     expect(beatCommit).toBeDefined()
-    if (inputCommit?.kind === 'anchorsChanged') {
-      expect(inputCommit.next[0].time).toBeCloseTo(50)
+    if (inputCommit?.kind === 'anchorEntityMove') {
+      expect(inputCommit.time).toBeCloseTo(50)
     }
-    if (beatCommit?.kind === 'beatAnchorsChanged') {
-      expect(beatCommit.next[0].time).toBeCloseTo(45)
+    if (beatCommit?.kind === 'anchorEntityMove') {
+      expect(beatCommit.time).toBeCloseTo(45)
     }
+    expect(intents.some(i => i.kind === 'anchorsChanged')).toBe(false)
+    expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
   })
 
   it('warp-line drag is inert when the id has no partner in one of the spaces', () => {
@@ -686,9 +702,9 @@ describe('controller.pointerUp', () => {
     expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
   })
 
-  it('unpaired input anchor drag emits only anchorsChanged (no partner to commit)', () => {
-    // Anchor id 1 has no beat-space partner with the same id → only input
-    // anchors change list is committed.
+  it('unpaired input anchor drag emits only anchorEntityMove for the input entity (no beat partner)', () => {
+    // Phase 2.5: anchor id 1 has no beat-space partner with the same id →
+    // only an input-space anchorEntityMove (a1-in) is emitted on pointerUp.
     const c = createTimelineController()
     const snap = makeSnapshot({
       anchors: [{ id: 1, time: 0 }],
@@ -699,11 +715,15 @@ describe('controller.pointerUp', () => {
     c.pointerDown(makePointerEvent({ clientX: 0, clientY: 200 }), snap)
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const intents = c.pointerUp(snap)
-    expect(intents.some(i => i.kind === 'anchorsChanged')).toBe(true)
+    expect(intents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')).toBe(true)
+    expect(intents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')).toBe(false)
+    expect(intents.some(i => i.kind === 'anchorsChanged')).toBe(false)
     expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
   })
 
-  it('anchor (output) drag: emits beatAnchorsChanged with liveBeatAnchors', () => {
+  it('anchor (output) drag: emits anchorEntityMove for the primary beat-space entity', () => {
+    // Phase 2.5: pointerUp emits single-entity anchorEntityMove (a9-out) instead
+    // of whole-array beatAnchorsChanged.
     const c = createTimelineController()
     const snap = makeSnapshot({
       beatAnchors: [{ id: 9, time: 0 }],
@@ -712,12 +732,12 @@ describe('controller.pointerUp', () => {
     c.pointerDown(makePointerEvent({ clientX: 0, clientY: 200 }), snap)
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const intents = c.pointerUp(snap)
-    const commit = intents.find(i => i.kind === 'beatAnchorsChanged')!
+    const commit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a9-out')
     expect(commit).toBeDefined()
-    if (commit.kind === 'beatAnchorsChanged') {
-      expect(commit.next.length).toBe(1)
-      expect(commit.next[0].time).toBeCloseTo(50)
+    if (commit?.kind === 'anchorEntityMove') {
+      expect(commit.time).toBeCloseTo(50)
     }
+    expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
     expect(c.getDragState()).toBeNull()
   })
 
@@ -741,23 +761,26 @@ describe('controller.pointerUp', () => {
     expect(c.getDragState()).toBeNull()
   })
 
-  it('region-move drag: emits regionMove with liveRegion', () => {
+  it('region-move drag: emits regionEntityMove with delta on pointerUp', () => {
+    // Phase 2.5: pointerUp emits single-entity regionEntityMove (with delta)
+    // instead of the whole-array regionMove for every captured region.
     const c = createTimelineController()
     const snap = makeSnapshot({
       regions: [{ id: 'r1', inPoint: 10, outPoint: 30 }],
       hits: [pointHit(160, 200, { kind: 'region', id: 'r1', isOutput: false })],
     })
     c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
+    // clientX 160→400 = +240px in 800px canvas over 100s view = +30s delta.
+    // newIn = Math.max(0, Math.min(100-20=80, 10+30)) = 40; newOut = 60.
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const intents = c.pointerUp(snap)
-    const commit = intents.find(i => i.kind === 'regionMove')!
+    const commit = intents.find(i => i.kind === 'regionEntityMove' && i.id === 'r1')
     expect(commit).toBeDefined()
-    if (commit.kind === 'regionMove') {
-      expect(commit.id).toBe('r1')
-      expect(commit.inPoint).toBeCloseTo(40)
-      expect(commit.outPoint).toBeCloseTo(60)
+    if (commit?.kind === 'regionEntityMove') {
+      expect(commit.delta).toBeCloseTo(30)
       expect(commit.isOutput).toBe(false)
     }
+    expect(intents.some(i => i.kind === 'regionMove')).toBe(false)
   })
 
   it('lasso (active) drag: emits clip/scene/connector selection changes', () => {
@@ -1243,21 +1266,22 @@ describe('controller.pointerMove — anchor drag', () => {
     }
   })
 
-  it('snaps to a nearby scene (input space)', () => {
+  it('publishes raw drag time (snap is handled by resolver, not controller)', () => {
     const c = createTimelineController()
     const snap = makeSnapshot({
-      // view 0..100, W=800 → 1 px = 0.125 s; threshold = 8*0.125 = 1.0 s
+      // view 0..100, W=800 → 1 px = 0.125 s
       anchors: [{ id: 1, time: 0 }],
       scenes: [50.5],
       hits: [pointHit(0, 200, { kind: 'anchor', id: 1, space: 'input' })],
     })
     c.pointerDown(makePointerEvent({ clientX: 0, clientY: 200 }), snap)
-    // Move to x=400 → raw=50, scene at 50.5 → within threshold → snap
+    // Move to x=400 → raw=50; controller shows raw (resolver snaps on dispatch)
     const intents = c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const t = intents.find(i => i.kind === 'pubDragTime')!
-    if (t.kind === 'pubDragTime') expect(t.time).toBeCloseTo(50.5)
+    if (t.kind === 'pubDragTime') expect(t.time).toBeCloseTo(50)
+    // pubSnapHints is published (empty without constraintGraph in snapshot)
     const hints = intents.find(i => i.kind === 'pubSnapHints')!
-    if (hints.kind === 'pubSnapHints') expect(hints.times).toContain(50.5)
+    expect(hints).toBeDefined()
   })
 
   it('output-space drag emits seekBeat when followDrag is on', () => {
@@ -1297,7 +1321,7 @@ describe('controller.pointerMove — region-edge drag', () => {
     }
   })
 
-  it('snaps the edge to a nearby anchor', () => {
+  it('publishes raw drag time for edge (snap is handled by resolver)', () => {
     const c = createTimelineController()
     const snap = makeSnapshot({
       regions: [{ id: 'r1', inPoint: 0, outPoint: 30 }],
@@ -1305,11 +1329,12 @@ describe('controller.pointerMove — region-edge drag', () => {
       hits: [pointHit(240, 200, { kind: 'region-edge', id: 'r1', edge: 'out', isOutput: false })],
     })
     c.pointerDown(makePointerEvent({ clientX: 240, clientY: 200 }), snap)
-    // Move to x=400 → raw=50; anchor at 49.6 within threshold (1 s)
+    // Move to x=400 → raw=50; controller shows raw position (resolver snaps on dispatch)
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const ds = c.getDragState()
     if (ds?.kind === 'region-edge') {
-      expect(ds.liveRegion?.outPoint).toBeCloseTo(49.6)
+      // Raw position shown in liveRegion (1-frame lag for snap is acceptable)
+      expect(ds.liveRegion?.outPoint).toBeCloseTo(50)
     }
   })
 
@@ -1354,7 +1379,7 @@ describe('controller.pointerMove — region-move drag', () => {
     }
   })
 
-  it('snaps the whole region to align an edge with a scene', () => {
+  it('publishes raw drag position (snap is handled by resolver)', () => {
     const c = createTimelineController()
     const snap = makeSnapshot({
       regions: [{ id: 'r1', inPoint: 10, outPoint: 30 }],
@@ -1362,12 +1387,12 @@ describe('controller.pointerMove — region-move drag', () => {
       hits: [pointHit(160, 200, { kind: 'region', id: 'r1', isOutput: false })],
     })
     c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
-    // Move so rawIn=40, scene at 40.4 within 1s threshold → snap inPoint to 40.4
+    // Move so rawIn=40; controller shows raw (resolver snaps on dispatch)
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const ds = c.getDragState()
     if (ds?.kind === 'region-move') {
-      expect(ds.liveRegion?.inPoint).toBeCloseTo(40.4)
-      expect(ds.liveRegion?.outPoint).toBeCloseTo(60.4)
+      expect(ds.liveRegion?.inPoint).toBeCloseTo(40)
+      expect(ds.liveRegion?.outPoint).toBeCloseTo(60)
     }
   })
 })
@@ -1524,7 +1549,9 @@ describe('controller — clipout (isOutput=true) region drag', () => {
     }
   })
 
-  it('clipout body drag: pointerMove + pointerUp commits a regionMove with isOutput=true', () => {
+  it('clipout body drag: pointerMove + pointerUp commits a regionEntityMove with isOutput=true and correct delta', () => {
+    // Phase 2.5: pointerUp emits single-entity regionEntityMove (with delta)
+    // instead of the whole-per-region regionMove. isOutput=true marks output-space.
     const c = createTimelineController()
     const snap = makeSnapshot({
       view: { start: 0, end: 10 },
@@ -1539,14 +1566,14 @@ describe('controller — clipout (isOutput=true) region drag', () => {
     // newIn = Math.max(0, Math.min(10-2=8, 0+5)) = 5; newOut = 7
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const intents = c.pointerUp(snap)
-    const commit = intents.find(i => i.kind === 'regionMove')
+    const commit = intents.find(i => i.kind === 'regionEntityMove' && i.id === 'ro')
     expect(commit).toBeDefined()
-    if (commit?.kind === 'regionMove') {
+    if (commit?.kind === 'regionEntityMove') {
       expect(commit.id).toBe('ro')
       expect(commit.isOutput).toBe(true)
-      expect(commit.inPoint).toBeCloseTo(5)
-      expect(commit.outPoint).toBeCloseTo(7)
+      expect(commit.delta).toBeCloseTo(5)
     }
+    expect(intents.some(i => i.kind === 'regionMove')).toBe(false)
   })
 
   it('clicking a clipout region EDGE (isOutput=true) arms a region-edge drag', () => {
@@ -2051,7 +2078,8 @@ describe('controller — Slice C: anchorsChanged emitted live during anchor drag
         {
           id: 'sc', name: 'sc',
           inPoint: 10, outPoint: 20,
-          bpm: 120, lock: 'bpm',
+          inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
+          bpm: 120,
           minStretch: 0.5, maxStretch: 2, addToEnd: false,
         },
       ],
@@ -2059,38 +2087,38 @@ describe('controller — Slice C: anchorsChanged emitted live during anchor drag
     })
   }
 
-  it('input anchor dragged to coincide with region inPoint emits anchorsChanged with live position', () => {
-    // Drag input anchor from t=5 to t=10 (coincides with inPoint=10).
-    // Controller emits anchorsChanged; moveAnchors thunk will detect the linking
-    // event and update the slice's lockedBeats.
+  it('input anchor dragged to coincide with region inPoint emits anchorEntityMove with live position', () => {
+    // Phase 2.5: controller emits anchorEntityMove (single-entity op) instead
+    // of anchorsChanged (whole array). The resolver's lasso:main TranslateGroup
+    // propagates the delta to other selected entities.
     const c = createTimelineController()
     const snap = makeSliceCInputSnap()
     c.pointerDown(makePointerEvent({ clientX: 40, clientY: 200 }), snap)
     // Move to x=80 → t = 80/800*100 = 10 (= inPoint of the active region)
     const intents = c.pointerMove(makePointerEvent({ clientX: 80, clientY: 200 }), snap)
-    const changed = intents.find(i => i.kind === 'anchorsChanged')
-    expect(changed).toBeDefined()
-    if (changed?.kind === 'anchorsChanged') {
-      const a = changed.next.find(a => a.id === 1)
-      expect(a?.time).toBeCloseTo(10) // anchor dragged to inPoint
+    const moved = intents.find(i => i.kind === 'anchorEntityMove')
+    expect(moved).toBeDefined()
+    if (moved?.kind === 'anchorEntityMove') {
+      expect(moved.entityId).toBe('a1-in')
+      expect(moved.time).toBeCloseTo(10) // anchor dragged to inPoint
     }
   })
 
-  it('input anchor NOT coincident with region boundary → anchorsChanged still emitted with live position', () => {
+  it('input anchor NOT coincident with region boundary → anchorEntityMove still emitted with live position', () => {
     const c = createTimelineController()
     const snap = makeSliceCInputSnap()
     c.pointerDown(makePointerEvent({ clientX: 40, clientY: 200 }), snap)
     // Move to x=200 → t=25 (NOT near inPoint=10 or outPoint=20)
     const intents = c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
-    const changed = intents.find(i => i.kind === 'anchorsChanged')
-    expect(changed).toBeDefined()
-    if (changed?.kind === 'anchorsChanged') {
-      const a = changed.next.find(a => a.id === 1)
-      expect(a?.time).toBeCloseTo(25) // anchor at new position
+    const moved = intents.find(i => i.kind === 'anchorEntityMove')
+    expect(moved).toBeDefined()
+    if (moved?.kind === 'anchorEntityMove') {
+      expect(moved.entityId).toBe('a1-in')
+      expect(moved.time).toBeCloseTo(25) // anchor at new position
     }
   })
 
-  it('input anchor dragged to coincide with region outPoint emits anchorsChanged with live position', () => {
+  it('input anchor dragged to coincide with region outPoint emits anchorEntityMove with live position', () => {
     const c = createTimelineController()
     const snap = makeSnapshot({
       view: { start: 0, end: 100 },
@@ -2101,7 +2129,8 @@ describe('controller — Slice C: anchorsChanged emitted live during anchor drag
         {
           id: 'sc2', name: 'sc2',
           inPoint: 10, outPoint: 20,
-          bpm: 120, lock: 'bpm',
+          inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
+          bpm: 120,
           minStretch: 0.5, maxStretch: 2, addToEnd: false,
         },
       ],
@@ -2110,16 +2139,16 @@ describe('controller — Slice C: anchorsChanged emitted live during anchor drag
     c.pointerDown(makePointerEvent({ clientX: 40, clientY: 200 }), snap)
     // Move to x=160 → t = 160/800*100 = 20 (= outPoint of active region)
     const intents = c.pointerMove(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
-    const changed = intents.find(i => i.kind === 'anchorsChanged')
-    expect(changed).toBeDefined()
-    if (changed?.kind === 'anchorsChanged') {
-      const a = changed.next.find(a => a.id === 2)
-      expect(a?.time).toBeCloseTo(20) // anchor dragged to outPoint
+    const moved = intents.find(i => i.kind === 'anchorEntityMove')
+    expect(moved).toBeDefined()
+    if (moved?.kind === 'anchorEntityMove') {
+      expect(moved.entityId).toBe('a2-in')
+      expect(moved.time).toBeCloseTo(20) // anchor dragged to outPoint
     }
   })
 
-  it('output anchor dragged to coincide with inBeatTime emits beatAnchorsChanged with live position', () => {
-    // Beat anchor drag: emits beatAnchorsChanged; moveBeatAnchors thunk detects output linking.
+  it('output anchor dragged to coincide with inBeatTime emits anchorEntityMove with live position', () => {
+    // Phase 2.5: controller emits anchorEntityMove for beat anchors too.
     const c = createTimelineController()
     const snap = makeSnapshot({
       view: { start: 0, end: 20 },
@@ -2130,8 +2159,8 @@ describe('controller — Slice C: anchorsChanged emitted live during anchor drag
         {
           id: 'sc3', name: 'sc3',
           inPoint: 0, outPoint: 10,
-          inBeatTime: 5, outBeatTime: 15,
-          bpm: 120, lock: 'bpm',
+          inBeatTime: 5, outBeatTime: 15, defaultLinked: false,
+          bpm: 120,
           minStretch: 0.5, maxStretch: 2, addToEnd: false,
         },
       ],
@@ -2141,11 +2170,11 @@ describe('controller — Slice C: anchorsChanged emitted live during anchor drag
     c.pointerDown(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     // Move to beat=5 → pixel = (5/20)*800 = 200
     const intents = c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
-    const changed = intents.find(i => i.kind === 'beatAnchorsChanged')
-    expect(changed).toBeDefined()
-    if (changed?.kind === 'beatAnchorsChanged') {
-      const a = changed.next.find(a => a.id === 3)
-      expect(a?.time).toBeCloseTo(5) // beat anchor dragged to inBeatTime
+    const moved = intents.find(i => i.kind === 'anchorEntityMove')
+    expect(moved).toBeDefined()
+    if (moved?.kind === 'anchorEntityMove') {
+      expect(moved.entityId).toBe('a3-out')
+      expect(moved.time).toBeCloseTo(5) // beat anchor dragged to inBeatTime
     }
   })
 })

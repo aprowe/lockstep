@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Constraint sandbox</title>
+<style>
+  body { font-family: ui-monospace, monospace; background: #111; color: #eee; margin: 0; padding: 16px; user-select: none; }
+  h2 { margin: 0 0 6px 0; font-size: 12px; color: #8af; text-transform: uppercase; letter-spacing: 1px; }
+  .toolbar { display: flex; gap: 6px; padding: 8px; background: #1a1a1a; margin-bottom: 12px; border-radius: 4px; }
+  .toolbar button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 12px; font: inherit; font-size: 12px; cursor: pointer; border-radius: 3px; }
+  .toolbar button:hover { background: #444; }
+  .toolbar button.active { background: #fc0; color: #000; border-color: #fc0; }
+  .layout { display: grid; grid-template-columns: 1fr 320px; gap: 16px; }
+  .stage { position: relative; }
+  .stage-overlay { position: absolute; inset: 0; pointer-events: none; }
+  .track { position: relative; height: 60px; margin: 8px 0; background: #1a1a1a; border: 1px solid #333; border-radius: 3px; overflow: hidden; }
+  .track-label { position: absolute; top: 4px; left: 6px; font-size: 10px; color: #666; pointer-events: none; }
+  .anchor { position: absolute; top: 8px; width: 14px; height: 44px; background: #5af; border-radius: 2px; cursor: grab; }
+  .anchor.selected { outline: 2px solid #fc0; }
+  .anchor.input { background: #5af; }
+  .anchor.output { background: #f80; }
+  .anchor.near-snap, .clip.near-snap { box-shadow: 0 0 0 3px #ff0; }
+  .anchor.snap-best,  .clip.snap-best  { box-shadow: 0 0 0 3px #ff0, 0 0 14px 2px #ff0; }
+  .clip { position: absolute; top: 8px; height: 44px; background: rgba(120, 160, 200, 0.25); border: 1px solid #5a9; cursor: grab; box-sizing: border-box; }
+  .clip.output { background: rgba(255, 136, 0, 0.18); border-color: #f80; }
+  .clip.selected { outline: 2px solid #fc0; outline-offset: 1px; }
+  .clip.active { box-shadow: 0 0 0 2px #fc0 inset; }
+  .clip .handle { position: absolute; top: 0; width: 6px; height: 100%; background: #5a9; cursor: ew-resize; }
+  .clip.output .handle { background: #f80; }
+  .clip .handle.in  { left: -1px; }
+  .clip .handle.out { right: -1px; }
+  .lasso-box { position: absolute; border: 1px dashed #fc0; background: rgba(255, 204, 0, 0.05); pointer-events: none; z-index: 100; }
+  .panel { background: #1a1a1a; padding: 10px; border-radius: 4px; border: 1px solid #333; max-height: 80vh; overflow-y: auto; }
+  .panel pre { margin: 0; font-size: 10px; line-height: 1.4; white-space: pre-wrap; word-break: break-all; }
+  .constraint-row { padding: 2px 4px; margin: 1px 0; border-radius: 2px; }
+  .constraint-row.translate_group { background: rgba(255, 204, 0, 0.1); }
+  .constraint-row.scale_group     { background: rgba(168, 85, 247, 0.1); }
+  .constraint-row.directed_pair   { background: rgba(34, 197, 94, 0.1); }
+  .constraint-row.derived         { background: rgba(239, 68, 68, 0.1); }
+  .constraint-row.clamp           { background: rgba(56, 189, 248, 0.08); }
+  .constraint-row.preserve_length { background: rgba(56, 189, 248, 0.08); }
+  .help { font-size: 11px; color: #888; line-height: 1.5; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button id="add-clip">+ Clip</button>
+  <button id="add-anchor">+ Anchor Pair</button>
+  <button id="toggle-lock">Lock: OFF</button>
+  <button id="toggle-mode">Lock mode: bpm</button>
+  <label style="margin-left: 6px; font-size: 11px; color: #aaa;">BPM
+    <input id="bpm-input" type="number" min="1" max="999" step="1"
+           style="width: 60px; background: #2a2a2a; color: #eee; border: 1px solid #555;
+                  padding: 4px 6px; font: inherit; font-size: 12px; margin-left: 4px;" />
+  </label>
+  <label style="margin-left: 6px; font-size: 11px; color: #aaa;">Beats
+    <input id="beats-input" type="number" min="0.1" step="0.5"
+           style="width: 60px; background: #2a2a2a; color: #eee; border: 1px solid #555;
+                  padding: 4px 6px; font: inherit; font-size: 12px; margin-left: 4px;" />
+  </label>
+  <button id="reset">Reset</button>
+  <span class="help" style="margin-left: 12px;">drag handle = resize | drag body = move | empty drag = lasso | snap to nearby (highlighted yellow)</span>
+</div>
+
+<div class="layout">
+  <div class="stage" id="stage">
+    <h2>Input track (clipin / anchor-in)</h2>
+    <div class="track" id="track-input"><div class="track-label">INPUT</div></div>
+    <h2>Output track (clipout / anchor-out)</h2>
+    <div class="track" id="track-output"><div class="track-label">OUTPUT</div></div>
+    <div class="stage-overlay" id="stage-overlay"></div>
+  </div>
+  <div class="panel">
+    <h2>Constraints</h2>
+    <div id="constraints"></div>
+    <h2 style="margin-top: 12px;">Entities</h2>
+    <pre id="entities"></pre>
+  </div>
+</div>
+
+<script type="module">
+import { reduce, emptyState, recipes, findSnapCandidates } from './src/constraints/index.ts'
+
+// ─── Render config ────────────────────────────────────────────────────────
+const PX_PER_UNIT = 30  // 1 time-unit = 30 pixels
+const tx = (t) => t * PX_PER_UNIT
+const xt = (x) => x / PX_PER_UNIT
+
+// ─── State ────────────────────────────────────────────────────────────────
+let state = emptyState()
+let counter = 0
+let lockOn = false
+let lockMode = 'bpm'
+
+// Selection is derived from constraints — the (single) translate_group
+// whose tag is exactly 'lasso'.
+const selectedIds = () => {
+  const s = new Set()
+  for (const c of state.constraints) {
+    if (c.kind === 'translate_group' && c.tag === 'lasso:all') {
+      for (const id of c.ids) s.add(id)
+    }
+  }
+  return s
+}
+const activeClipPairId = () => {
+  for (const c of state.constraints) {
+    if (c.kind === 'single_of_kind' && c.role === 'active' && c.filterKind === 'clip') {
+      return c.activeId
+    }
+  }
+  return null
+}
+
+// ─── Layout helpers ───────────────────────────────────────────────────────
+// Convention: clipin-<n> on input track; clipout-<n> on output track.
+//             anchorin-<n> on input track; anchorout-<n> on output track.
+const trackFor = (id) => {
+  if (id.startsWith('clipin-')   || id.startsWith('anchorin-'))  return 'input'
+  if (id.startsWith('clipout-')  || id.startsWith('anchorout-')) return 'output'
+  return 'input'
+}
+
+// ─── Init / reset ─────────────────────────────────────────────────────────
+function initSeed() {
+  state = emptyState()
+  counter = 0
+  addClip(0, 6)
+  addAnchorPair(1, 1)
+  addAnchorPair(3, 4)
+  addAnchorPair(5, 5)
+  render()
+}
+
+function addClip(inP, outP) {
+  const n = ++counter
+  const cinId  = `clipin-${n}`
+  const coutId = `clipout-${n}`
+  state = reduce(state, { kind: 'add_clip', id: cinId,  in: inP, out: outP })
+  state = reduce(state, { kind: 'add_clip', id: coutId, in: inP, out: outP })
+  state.meta[coutId] = { bpm: 120, lockedBeats: (outP - inP) * 120 / 60 }
+  for (const op of recipes.initClip(cinId, coutId)) state = reduce(state, op)
+  for (const op of recipes.setActiveClip(cinId)) state = reduce(state, op)
+}
+
+function addAnchorPair(inTime, outTime) {
+  const n = ++counter
+  const ainId  = `anchorin-${n}`
+  const aoutId = `anchorout-${n}`
+  state = reduce(state, { kind: 'add_anchor', id: ainId,  time: inTime  })
+  state = reduce(state, { kind: 'add_anchor', id: aoutId, time: outTime })
+
+  for (let a of recipes.initAnchorPair(ainId, aoutId)) {
+    state = reduce(state, a);
+  }
+}
+
+// ─── Rendering ────────────────────────────────────────────────────────────
+function dragFieldFor(id) {
+  if (id.startsWith('anchor')) return 'time'
+  return 'in'  // clip body: snap on the in-edge; out follows via translate
+}
+
+function snapHighlights() {
+  // Returns { near: Set<id>, best: id | null } based on current drag state.
+  if (!dragData || !dragData.id) return { near: new Set(), best: null }
+  const entity = state.entities[dragData.id]
+  if (!entity) return { near: new Set(), best: null }
+  const field = dragData.snapField ?? dragFieldFor(dragData.id)
+  const current = entity.kind === 'anchor'
+    ? entity.time
+    : (field === 'in' ? entity.in : entity.out)
+  const candidates = findSnapCandidates(state, dragData.id, field, current)
+  const near = new Set(candidates.map(c => c.entityId))
+  const best = candidates[0]?.entityId ?? null
+  return { near, best }
+}
+
+function render() {
+  const trackIn  = document.getElementById('track-input')
+  const trackOut = document.getElementById('track-output')
+  // Wipe non-label children.
+  for (const el of trackIn.querySelectorAll(  '.anchor, .clip')) el.remove()
+  for (const el of trackOut.querySelectorAll('.anchor, .clip')) el.remove()
+
+  const sel = selectedIds()
+  const active = activeClipPairId()
+  const snap = snapHighlights()
+
+  for (const e of Object.values(state.entities)) {
+    const space = trackFor(e.id)
+    const track = space === 'input' ? trackIn : trackOut
+    const snapClass = snap.best === e.id ? ' snap-best'
+                    : snap.near.has(e.id) ? ' near-snap'
+                    : ''
+    if (e.kind === 'anchor') {
+      const el = document.createElement('div')
+      el.className = `anchor ${space}` + (sel.has(e.id) ? ' selected' : '') + snapClass
+      el.style.left = (tx(e.time) - 7) + 'px'
+      el.dataset.id = e.id
+      track.appendChild(el)
+    } else {
+      const el = document.createElement('div')
+      const activeFlag = active && e.id === active
+      el.className = `clip ${space}` + (sel.has(e.id) ? ' selected' : '') + (activeFlag ? ' active' : '') + snapClass
+      el.style.left  = tx(e.in) + 'px'
+      el.style.width = Math.max(2, tx(e.out - e.in)) + 'px'
+      el.dataset.id = e.id
+      const hin  = document.createElement('div'); hin.className  = 'handle in';  hin.dataset.handle  = 'in';  el.appendChild(hin)
+      const hout = document.createElement('div'); hout.className = 'handle out'; hout.dataset.handle = 'out'; el.appendChild(hout)
+      track.appendChild(el)
+    }
+  }
+
+  // Constraint panel
+  const cdiv = document.getElementById('constraints')
+  cdiv.innerHTML = state.constraints.map(c => {
+    const tag = c.tag ? ` <span style="color:#888">#${c.tag}</span>` : ''
+    const body = formatConstraint(c)
+    return `<div class="constraint-row ${c.kind}">${body}${tag}</div>`
+  }).join('')
+
+  // Entities panel
+  document.getElementById('entities').textContent =
+    Object.values(state.entities).map(e => {
+      if (e.kind === 'anchor') return `${e.id}: t=${e.time.toFixed(2)}`
+      const m = state.meta[e.id]
+      const extras = m ? ` bpm=${m.bpm?.toFixed(1)} beats=${m.lockedBeats?.toFixed(1)}` : ''
+      return `${e.id}: [${e.in.toFixed(2)}, ${e.out.toFixed(2)}]${extras}`
+    }).join('\n')
+
+  document.getElementById('toggle-lock').textContent = `Lock: ${lockOn ? 'ON' : 'OFF'}`
+  document.getElementById('toggle-lock').classList.toggle('active', lockOn)
+  document.getElementById('toggle-mode').textContent = `Lock mode: ${lockMode}`
+
+  // Reflect the active clip's bpm/beats in the inputs (when not focused).
+  const activeId = activeClipPairId()
+  if (activeId) {
+    const n = activeId.replace('clipin-', '')
+    const coutId = `clipout-${n}`
+    const m = state.meta[coutId]
+    const bpmInput = document.getElementById('bpm-input')
+    const beatsInput = document.getElementById('beats-input')
+    if (m && document.activeElement !== bpmInput && m.bpm !== undefined) {
+      bpmInput.value = Math.round(m.bpm * 10) / 10
+    }
+    if (m && document.activeElement !== beatsInput && m.lockedBeats !== undefined) {
+      beatsInput.value = Math.round(m.lockedBeats * 10) / 10
+    }
+  }
+}
+
+function formatConstraint(c) {
+  switch (c.kind) {
+    case 'translate_group':   return `translate_group { ${c.ids.join(', ')} }`
+    case 'scale_group':       return `scale_group { ${c.ids.join(', ')} } (pivot=untouched edge)`
+    case 'directed_pair':     return `directed_pair ${c.from} → ${c.to} (${c.mode})`
+    case 'derived':           return `derived watches=[${c.watches.join(', ')}]`
+    case 'clamp':             return `clamp ${c.entityId}.${c.field} ∈ [${c.min ?? '−∞'}, ${c.max ?? '+∞'}]`
+    case 'preserve_length':   return `preserve_length ${c.clipId} min=${c.min} ${c.mode}`
+    case 'snap_target':       return `snap_target ${c.id}.${c.field} ← ${c.targets.length} targets`
+    case 'single_of_kind':    return `single_of_kind ${c.filterKind}/${c.role} = ${c.activeId ?? 'null'}`
+    case 'delete_group':      return `delete_group { ${c.ids.join(', ')} }`
+    case 'highlight_group':   return `highlight_group { ${c.ids.join(', ')} }`
+    case 'conform_visual':    return `conform_visual ${c.anchorInId} ↔ ${c.clipId}.${c.edge}`
+  }
+}
+
+// ─── Interactions ─────────────────────────────────────────────────────────
+
+let dragMode = null  // 'move' | 'resize' | 'lasso' | null
+let dragData = null
+
+function entityAtEvent(e) {
+  const el = e.target.closest('.anchor, .clip')
+  return el?.dataset.id ?? null
+}
+
+document.addEventListener('pointerdown', (e) => {
+  const handleEl = e.target.closest('.handle')
+  if (handleEl) {
+    const clipEl = handleEl.parentElement
+    const cid = clipEl.dataset.id
+    const edge = handleEl.dataset.handle
+    // Snap on the moving edge.
+    state = reduce(state, recipes.snapToSiblings(cid, edge, state, PX_PER_UNIT, 8))
+    dragMode = 'resize'
+    dragData = {
+      id: cid,
+      edge,
+      snapField: edge,
+      startX: e.clientX,
+      startEntity: { ...state.entities[cid] },
+      startState: state,  // snapshot
+    }
+    e.preventDefault()
+    return
+  }
+
+  const id = entityAtEvent(e)
+  if (id) {
+    // If user grabs anchor-out directly, break the default-link to its
+    // anchor-in. Idempotent — predicate matches nothing if already gone.
+    if (id.startsWith('anchorout-')) {
+      const anchorInId = `anchorin-${id.replace('anchorout-', '')}`
+      state = reduce(state, recipes.diverge(anchorInId))
+    }
+
+    // If user clicks a non-selected entity, replace the lasso group with this single id.
+    const sel = selectedIds()
+    if (!sel.has(id)) {
+      state = reduce(state, recipes.clearLasso('all'))
+      state = reduce(state, recipes.lasso('all', [id]))
+      if (id.startsWith('clipin-')) {
+        for (const op of recipes.setActiveClip(id)) state = reduce(state, op)
+      }
+      render()
+    }
+    // Snap on whatever primary field this entity has.
+    const snapField = dragFieldFor(id)
+    state = reduce(state, recipes.snapToSiblings(id, snapField, state, PX_PER_UNIT, 8))
+
+    dragMode = 'move'
+    dragData = {
+      id,
+      snapField,
+      startX: e.clientX,
+      startState: state,  // snapshot — reduce will clone internally
+    }
+    e.preventDefault()
+    return
+  }
+
+  // Empty area anywhere in the stage → unified lasso across both tracks.
+  const stage = document.getElementById('stage')
+  if (e.target.closest('.stage')) {
+    const rect = stage.getBoundingClientRect()
+    dragMode = 'lasso'
+    dragData = {
+      stage, rect,
+      startX: e.clientX - rect.left,
+      startY: e.clientY - rect.top,
+      box: null,
+    }
+    state = reduce(state, recipes.clearLasso('all'))
+    render()
+    e.preventDefault()
+  }
+})
+
+document.addEventListener('pointermove', (e) => {
+  if (!dragMode) return
+
+  if (dragMode === 'move') {
+    const dx = e.clientX - dragData.startX
+    const dt = xt(dx)
+    // Re-dispatch from the drag-start snapshot every frame so group members
+    // don't accumulate stale deltas. `reduce` clones internally.
+    state = reduce(dragData.startState, { kind: 'move', id: dragData.id, delta: dt })
+    render()
+  }
+
+  if (dragMode === 'resize') {
+    const dx = e.clientX - dragData.startX
+    const dt = xt(dx)
+    const start = dragData.startEntity
+    const newValue = (dragData.edge === 'in' ? start.in : start.out) + dt
+    // Re-dispatch from the drag-start snapshot every frame.
+    state = reduce(dragData.startState, { kind: 'set_edge', id: dragData.id, edge: dragData.edge, value: newValue })
+    render()
+  }
+
+  if (dragMode === 'lasso') {
+    const x = e.clientX - dragData.rect.left
+    const y = e.clientY - dragData.rect.top
+    if (!dragData.box) {
+      dragData.box = document.createElement('div')
+      dragData.box.className = 'lasso-box'
+      document.getElementById('stage-overlay').appendChild(dragData.box)
+    }
+    const left = Math.min(dragData.startX, x)
+    const top  = Math.min(dragData.startY, y)
+    const w = Math.abs(x - dragData.startX)
+    const h = Math.abs(y - dragData.startY)
+    dragData.box.style.left   = left + 'px'
+    dragData.box.style.top    = top  + 'px'
+    dragData.box.style.width  = w + 'px'
+    dragData.box.style.height = h + 'px'
+  }
+})
+
+document.addEventListener('pointerup', (e) => {
+  if (dragMode === 'lasso') {
+    const x = e.clientX - dragData.rect.left
+    const y = e.clientY - dragData.rect.top
+    const x0 = Math.min(dragData.startX, x), x1 = Math.max(dragData.startX, x)
+    const y0 = Math.min(dragData.startY, y), y1 = Math.max(dragData.startY, y)
+    const stageRect = dragData.rect
+    const ids = []
+    for (const ent of Object.values(state.entities)) {
+      const el = document.querySelector(`[data-id="${ent.id}"]`)
+      if (!el) continue
+      const r = el.getBoundingClientRect()
+      const ex0 = r.left  - stageRect.left
+      const ex1 = r.right - stageRect.left
+      const ey0 = r.top    - stageRect.top
+      const ey1 = r.bottom - stageRect.top
+      const overlap = ex1 >= x0 && ex0 <= x1 && ey1 >= y0 && ey0 <= y1
+      if (overlap) ids.push(ent.id)
+    }
+    if (ids.length > 0) state = reduce(state, recipes.lasso('all', ids))
+    dragData.box?.remove()
+    render()
+  }
+
+  // Remove snap_target whenever a drag ends.
+  if ((dragMode === 'move' || dragMode === 'resize') && dragData?.snapField) {
+    state = reduce(state, recipes.snapEnd(dragData.id, dragData.snapField))
+  }
+
+  dragMode = null
+  dragData = null
+  render()
+})
+
+// ─── Buttons ──────────────────────────────────────────────────────────────
+document.getElementById('add-clip').addEventListener('click', () => {
+  addClip(2, 8)
+  render()
+})
+document.getElementById('add-anchor').addEventListener('click', () => {
+  addAnchorPair(2, 2)
+  render()
+})
+document.getElementById('reset').addEventListener('click', () => {
+  initSeed()
+})
+document.getElementById('toggle-lock').addEventListener('click', () => {
+  const active = activeClipPairId()
+  if (!active) return
+  // For lockOn we need the matching clipout and the inner anchor-outs.
+  const n = active.replace('clipin-', '')
+  const coutId = `clipout-${n}`
+  const cout = state.entities[coutId]
+  if (!cout) return
+  if (lockOn) {
+    state = reduce(state, recipes.lockOff(coutId))
+    lockOn = false
+  } else {
+    const inner = Object.values(state.entities)
+      .filter(e => e.kind === 'anchor' && e.id.startsWith('anchorout-') && e.time > cout.in && e.time < cout.out)
+      .map(e => e.id)
+    for (const op of recipes.lockOn(coutId, inner)) state = reduce(state, op)
+    lockOn = true
+  }
+  render()
+})
+document.getElementById('toggle-mode').addEventListener('click', () => {
+  const active = activeClipPairId()
+  if (!active) return
+  const coutId = `clipout-${active.replace('clipin-', '')}`
+  lockMode = lockMode === 'bpm' ? 'beats' : 'bpm'
+  for (const op of recipes.setLockMode(coutId, lockMode)) state = reduce(state, op)
+  render()
+})
+
+// BPM / beats inputs. Commits on blur AND on Enter to avoid spamming ops
+// on every keystroke.
+function commitBpm() {
+  const active = activeClipPairId()
+  if (!active) return
+  const coutId = `clipout-${active.replace('clipin-', '')}`
+  const newBpm = parseFloat(document.getElementById('bpm-input').value)
+  if (!Number.isFinite(newBpm) || newBpm <= 0) return
+  for (const op of recipes.setBpm(coutId, newBpm, state)) state = reduce(state, op)
+  render()
+}
+function commitBeats() {
+  const active = activeClipPairId()
+  if (!active) return
+  const coutId = `clipout-${active.replace('clipin-', '')}`
+  const newBeats = parseFloat(document.getElementById('beats-input').value)
+  if (!Number.isFinite(newBeats) || newBeats <= 0) return
+  for (const op of recipes.setLockedBeats(coutId, newBeats, state)) state = reduce(state, op)
+  render()
+}
+const bpmInput = document.getElementById('bpm-input')
+const beatsInput = document.getElementById('beats-input')
+bpmInput.addEventListener('change', commitBpm)
+bpmInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { commitBpm(); bpmInput.blur() } })
+beatsInput.addEventListener('change', commitBeats)
+beatsInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { commitBeats(); beatsInput.blur() } })
+
+// Boot.
+initSeed()
+</script>
+</body>
+</html>

@@ -232,6 +232,9 @@ export const openLlcProjectThunk = createAsyncThunk(
         name: s.name || `Clip ${i + 1}`,
         inPoint: s.start,
         outPoint: s.end,
+        inBeatTime: s.start,
+        outBeatTime: s.end,
+        defaultLinked: true,
         bpm,
         minStretch: 0.5,
         maxStretch: 2.0,
@@ -264,12 +267,15 @@ function applyLoadedState(dispatch: any, getState: () => unknown, state: SavedVi
     dispatch(setAddToEnd(dr.addToEnd ?? false))
   }
 
-  // Migrate regions
+  // Migrate regions — setRegions backfills missing defaultLinked/inBeatTime/outBeatTime
   const loadedRegions: Region[] = (state?.regions ?? []).map((r: any) => ({
     id: r.id,
     name: r.name,
     inPoint: r.inPoint,
     outPoint: r.outPoint,
+    inBeatTime:    r.inBeatTime  ?? r.inPoint,
+    outBeatTime:   r.outBeatTime ?? r.outPoint,
+    defaultLinked: r.defaultLinked ?? true,
     bpm: r.bpm ?? 120,
     minStretch: r.minStretch ?? 0.5,
     maxStretch: r.maxStretch ?? 2.0,

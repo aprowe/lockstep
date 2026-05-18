@@ -25,7 +25,6 @@ export interface LinkingEventResult {
   lockedBeats: number
   /** Echoed unchanged — included so callers can pass result straight to a region update. */
   bpm: number
-  lock: 'bpm' | 'beats'
 }
 
 /**
@@ -61,6 +60,5 @@ export function commitLinkingEvent(input: LinkingEventInput): LinkingEventResult
     outBeatTime: newOutBeatTime,
     lockedBeats,
     bpm: region.bpm,
-    lock: region.lock ?? 'bpm',
   }
 }

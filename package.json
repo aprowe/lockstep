@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 5175",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b tsconfig.build.json && vite build",
     "setup": "node scripts/setup-binaries.mjs",
     "tauri": "tauri",
     "test": "npm run test:unit && npm run test:rs",

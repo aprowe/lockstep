@@ -4,13 +4,14 @@ import { useAppDispatch, useAppSelector } from '../../store/hooks'
 import {
   updateRegionInOut as updateRegionInOutAction,
   updateRegionBeatTimes as updateRegionBeatTimesAction,
-  updateRegionLock as updateRegionLockAction,
+  updateRegionLockedBeats as updateRegionLockedBeatsAction,
   renameRegion as renameRegionAction,
   resetRegionBoundary as resetRegionBoundaryAction,
   applyBpmEdit as applyBpmEditAction,
   applyBeatsEdit as applyBeatsEditAction,
 } from '../../store/slices/regionSlice'
 import { setBpm as setBpmAction } from '../../store/slices/warpSlice'
+import { setLockMode as setLockModeAction } from '../../store/slices/uiSlice'
 import { selectActiveRegion, selectWarpData, selectEffectiveBeatBoundsForActive } from '../../store/selectors'
 
 export default function ClipInfoPanel() {
@@ -22,6 +23,7 @@ export default function ClipInfoPanel() {
   const origAnchors = useAppSelector(s => s.warp.origAnchors)
   const beatAnchors = useAppSelector(s => s.warp.beatAnchors)
   const effectiveBounds = useAppSelector(selectEffectiveBeatBoundsForActive)
+  const lockMode = useAppSelector(s => s.ui.lockMode)
   const [detectingBpm, setDetectingBpm] = useState(false)
 
   const handleBpmDetect = useCallback(async () => {
@@ -51,8 +53,12 @@ export default function ClipInfoPanel() {
         dispatch(updateRegionBeatTimesAction({ id, inBeatTime: inBT, outBeatTime: outBT }))
       }
       onRename={(id, name) => dispatch(renameRegionAction({ id, name }))}
+      lockMode={lockMode}
       onLockChange={(lock, lockedBeats) => {
-        if (activeRegionId) dispatch(updateRegionLockAction({ id: activeRegionId, lock, lockedBeats }))
+        dispatch(setLockModeAction(lock))
+        if (activeRegionId && lockedBeats !== undefined) {
+          dispatch(updateRegionLockedBeatsAction({ id: activeRegionId, lockedBeats }))
+        }
       }}
       onBpmDetect={handleBpmDetect}
       detectingBpm={detectingBpm}

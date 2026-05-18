@@ -41,10 +41,10 @@ export type Op =
  *  anchor-lock translate behavior. */
 export interface TranslateGroup { kind: 'translate_group'; ids: EntityId[]; tag?: string }
 
-/** Resize coupling: resizing any clip member (`set_edge`) rescales every
- *  other member's positions proportionally around `pivot`. Used for:
- *  anchor-lock resize behavior (lock=beats). */
-export interface ScaleGroup { kind: 'scale_group'; ids: EntityId[]; pivot: number; tag?: string }
+/** Resize coupling: rescales around the driver's UNTOUCHED edge. Drag
+ *  in-edge → out-edge is pivot; drag out-edge → in-edge is pivot. The
+ *  pivot is derived from the txn at resolve time, not stored. */
+export interface ScaleGroup { kind: 'scale_group'; ids: EntityId[]; tag?: string }
 
 /** One-way coupling: writes to `from` propagate to `to`, never the reverse.
  *  Used for: default-linked clipin → clipout (clipin moves drag clipout
@@ -150,6 +150,7 @@ export interface ConformVisual {
   anchorInId: EntityId
   anchorOutId: EntityId
   clipId: EntityId
+  clipOutId: EntityId
   edge: 'in' | 'out'
 }
 
@@ -179,7 +180,31 @@ export interface State {
 
 const emptyState = (): State => ({ entities: {}, constraints: [], meta: {} })
 
-// ─── Resolver ─────────────────────────────────────────────────────────────
+// ─── Resolver — phase pipeline ────────────────────────────────────────────
+//
+// An op produces a Txn (list of proposed field writes). The Txn flows through
+// four phases of handlers, one phase per constraint role:
+//   1. propose   — add writes (translate_group, directed_pair, scale_group)
+//   2. restrict  — clip writes (clamp, preserve_length, snap_target)
+//   3. finalize  — enforce group invariants (translate_group rigidity)
+//   4. derive    — recompute non-position quantities (derived)
+// Apply the Txn to state.
+//
+// Each handler knows ONLY about its own constraint kind. The translate
+// handler doesn't know clamps exist; the clamp handler doesn't know about
+// translate. They communicate exclusively through the Txn.
+
+interface Write { entityId: EntityId; field: 'time' | 'in' | 'out'; from: number; to: number }
+type Txn = Write[]
+
+type Phase = 'propose' | 'restrict' | 'finalize' | 'derive'
+
+/** Per-constraint-kind handler. Pure: takes (state, constraint, txn), returns
+ *  a new txn. Multiple phases per kind allowed (e.g., translate_group runs in
+ *  both 'propose' and 'finalize'). */
+type Handler<C extends Constraint = Constraint> = (state: State, c: C, txn: Txn) => Txn
+
+interface HandlerEntry { kind: Constraint['kind']; phase: Phase; apply: Handler }
 
 export function reduce(state: State, op: Op): State {
   const s = clone(state)
@@ -189,85 +214,262 @@ export function reduce(state: State, op: Op): State {
     case 'add_constraint':    s.constraints = [...s.constraints, op.c]; afterConstraintAdded(s, op.c); return s
     case 'remove_constraint': s.constraints = s.constraints.filter((c, i) => !op.predicate(c, i)); return s
     case 'delete':            return propagateDelete(s, op.id)
-    case 'move':              return propagateTranslate(s, op.id, op.delta, new Set([op.id]))
-    case 'set_edge':          return propagateResize(s, op.id, op.edge, op.value, new Set([op.id]))
-    case 'set_value':         return propagateSetValue(s, op.id, op.field, op.value)
+    case 'move':
+    case 'set_edge':
+    case 'set_value':         return runPipeline(s, op)
   }
 }
 
-function propagateTranslate(s: State, id: EntityId, delta: number, visited: Set<EntityId>): State {
-  translateEntity(s, id, delta)
-  for (const c of s.constraints) {
-    const neighbors = getTranslateNeighbors(c, id)
-    for (const other of neighbors) {
-      if (visited.has(other)) continue
-      visited.add(other)
-      propagateTranslate(s, other, delta, visited)
-    }
-  }
-  applyClamps(s, id)
-  return s
-}
-
-function propagateResize(s: State, id: EntityId, edge: 'in' | 'out', value: number, visited: Set<EntityId>): State {
-  const clip = s.entities[id]
-  if (!clip || clip.kind !== 'clip') return s
-  const oldIn = clip.in, oldOut = clip.out
-
-  // Apply snap-on-drag for the moving edge.
-  value = applySnap(s, id, edge, value)
-
-  // Apply preserve_length (clamp or shift) before scaling.
-  let newIn  = edge === 'in'  ? value : oldIn
-  let newOut = edge === 'out' ? value : oldOut
-  for (const c of s.constraints) {
-    if (c.kind !== 'preserve_length' || c.clipId !== id) continue
-    const len = newOut - newIn
-    if (len < c.min) {
-      if (c.mode === 'shift') {
-        const oldLen = oldOut - oldIn
-        if (edge === 'in')  { newIn = value;             newOut = value + oldLen }
-        else                { newOut = value;            newIn  = value - oldLen }
-      } else {
-        if (edge === 'in')  newIn  = newOut - c.min
-        else                newOut = newIn  + c.min
+function runPipeline(s: State, op: Op): State {
+  let txn = primaryTxn(s, op)
+  for (const phase of ['propose', 'restrict', 'finalize', 'derive'] as const) {
+    for (const c of s.constraints) {
+      for (const h of HANDLERS) {
+        if (h.kind === c.kind && h.phase === phase) {
+          txn = h.apply(s, c as never, txn)
+        }
       }
     }
   }
-  ;(s.entities[id] as Clip).in  = newIn
-  ;(s.entities[id] as Clip).out = newOut
+  return commitTxn(s, txn)
+}
 
-  // Propagate scale_group constraints (this clip is the driver).
-  for (const c of s.constraints) {
-    if (c.kind !== 'scale_group' || !c.ids.includes(id)) continue
-    const oldLen = oldOut - oldIn
-    const newLen = newOut - newIn
-    if (Math.abs(oldLen) < 1e-9 || Math.abs(newLen) < 1e-9) continue
-    const scale = newLen / oldLen
-    for (const otherId of c.ids) {
-      if (otherId === id || visited.has(otherId)) continue
-      visited.add(otherId)
-      scaleEntityAround(s, otherId, c.pivot, scale)
-    }
+/** Initial txn: the op's direct effect, before any propagation. */
+function primaryTxn(s: State, op: Op): Txn {
+  if (op.kind === 'move') {
+    const e = s.entities[op.id]
+    if (!e) return []
+    if (e.kind === 'anchor') return [{ entityId: e.id, field: 'time', from: e.time, to: e.time + op.delta }]
+    return [
+      { entityId: e.id, field: 'in',  from: e.in,  to: e.in  + op.delta },
+      { entityId: e.id, field: 'out', from: e.out, to: e.out + op.delta },
+    ]
   }
+  if (op.kind === 'set_edge') {
+    const e = s.entities[op.id]
+    if (!e || e.kind !== 'clip') return []
+    const from = op.edge === 'in' ? e.in : e.out
+    return [{ entityId: e.id, field: op.edge, from, to: op.value }]
+  }
+  // set_value — fold into the txn for position fields; non-position writes
+  // (bpm, lockedBeats) commit directly here for simplicity.
+  if (op.kind === 'set_value') {
+    if (op.field === 'bpm' || op.field === 'lockedBeats') {
+      s.meta[op.id] = { ...(s.meta[op.id] ?? {}), [op.field]: op.value }
+      return []
+    }
+    const e = s.entities[op.id]
+    if (!e) return []
+    const from = readField(e, op.field) ?? 0
+    return [{ entityId: op.id, field: op.field, from, to: op.value }]
+  }
+  return []
+}
 
-  // Propagate directed_pair (mirror_edge mode): the to-entity's matching
-  // field tracks the from-entity's edge.
-  for (const c of s.constraints) {
-    if (c.kind !== 'directed_pair' || c.mode !== 'mirror_edge' || c.from !== id) continue
-    const e = s.entities[c.to]
+function commitTxn(s: State, txn: Txn): State {
+  for (const w of txn) {
+    const e = s.entities[w.entityId]
     if (!e) continue
-    if (e.kind === 'anchor') e.time = edge === 'in' ? newIn : newOut
-    else if (e.kind === 'clip') {
-      if (edge === 'in')  e.in  = newIn
-      else                e.out = newOut
+    writeField(e, w.field, w.to)
+  }
+  return s
+}
+
+// ─── Handlers (each touches its own kind only) ────────────────────────────
+
+const HANDLERS: HandlerEntry[] = [
+
+  // PROPOSE: translate_group — any seeded write on a member translates all members.
+  { kind: 'translate_group', phase: 'propose', apply: (state, c, txn) => {
+    const tg = c as TranslateGroup
+    const delta = inferGroupDelta(state, tg.ids, txn)
+    if (delta === null) return txn
+    return mergeWrites(txn, generateTranslateWrites(state, tg.ids, delta))
+  }},
+
+  // PROPOSE: directed_pair (translate) — write on `from` translates `to`.
+  { kind: 'directed_pair', phase: 'propose', apply: (state, c, txn) => {
+    const dp = c as DirectedPair
+    if (dp.mode !== 'translate') return txn
+    const delta = inferGroupDelta(state, [dp.from], txn)
+    if (delta === null) return txn
+    return mergeWrites(txn, generateTranslateWrites(state, [dp.to], delta))
+  }},
+
+  // PROPOSE: directed_pair (mirror_edge) — a clip-edge write copies to `to`.
+  { kind: 'directed_pair', phase: 'propose', apply: (state, c, txn) => {
+    const dp = c as DirectedPair
+    if (dp.mode !== 'mirror_edge') return txn
+    const driver = txn.find(w => w.entityId === dp.from && (w.field === 'in' || w.field === 'out'))
+    if (!driver) return txn
+    const target = state.entities[dp.to]
+    if (!target) return txn
+    const targetField: 'time' | 'in' | 'out' = target.kind === 'anchor' ? 'time' : driver.field
+    const from = readField(target, targetField) ?? 0
+    return mergeWrites(txn, [{ entityId: dp.to, field: targetField, from, to: driver.to }])
+  }},
+
+  // PROPOSE: scale_group — resize on any clip member rescales every other
+  // member around the DRIVER's untouched edge (drag in-edge → out is pivot;
+  // drag out-edge → in is pivot). Both edges in txn = pan, not scale → skip.
+  { kind: 'scale_group', phase: 'propose', apply: (state, c, txn) => {
+    const sg = c as ScaleGroup
+    const driverId = sg.ids.find(id => txn.some(w => w.entityId === id))
+    if (!driverId) return txn
+    const driver = state.entities[driverId]
+    if (!driver || driver.kind !== 'clip') return txn
+    const inW  = txn.find(w => w.entityId === driverId && w.field === 'in')
+    const outW = txn.find(w => w.entityId === driverId && w.field === 'out')
+    if (inW && outW) return txn
+    if (!inW && !outW) return txn
+    const movingField: 'in' | 'out' = inW ? 'in' : 'out'
+    const pivot   = movingField === 'in' ? driver.out : driver.in
+    const newEdge = (inW ?? outW)!.to
+    const oldLen = driver.out - driver.in
+    const newLen = movingField === 'in' ? (driver.out - newEdge) : (newEdge - driver.in)
+    if (Math.abs(oldLen) < 1e-9 || Math.abs(newLen) < 1e-9) return txn
+    const scale = newLen / oldLen
+    const extra: Write[] = []
+    for (const otherId of sg.ids) {
+      if (otherId === driverId) continue
+      const o = state.entities[otherId]
+      if (!o) continue
+      if (o.kind === 'anchor') {
+        extra.push({ entityId: o.id, field: 'time', from: o.time, to: pivot + (o.time - pivot) * scale })
+      } else {
+        extra.push({ entityId: o.id, field: 'in',  from: o.in,  to: pivot + (o.in  - pivot) * scale })
+        extra.push({ entityId: o.id, field: 'out', from: o.out, to: pivot + (o.out - pivot) * scale })
+      }
+    }
+    return mergeWrites(txn, extra)
+  }},
+
+  // RESTRICT: clamp — clip writes to [min, max].
+  { kind: 'clamp', phase: 'restrict', apply: (_state, c, txn) => {
+    const cl = c as Clamp
+    return txn.map(w =>
+      w.entityId === cl.entityId && w.field === cl.field
+        ? { ...w, to: clampValue(w.to, cl.min, cl.max) }
+        : w,
+    )
+  }},
+
+  // RESTRICT: preserve_length — re-shape clip edge writes that would shrink
+  // the clip below its minimum length. 'shift' mode translates instead.
+  { kind: 'preserve_length', phase: 'restrict', apply: (state, c, txn) => {
+    const pl = c as PreserveLength
+    const inW  = txn.find(w => w.entityId === pl.clipId && w.field === 'in')
+    const outW = txn.find(w => w.entityId === pl.clipId && w.field === 'out')
+    if (!inW && !outW) return txn
+    const clip = state.entities[pl.clipId]
+    if (!clip || clip.kind !== 'clip') return txn
+    const newIn  = inW?.to  ?? clip.in
+    const newOut = outW?.to ?? clip.out
+    if (newOut - newIn >= pl.min) return txn
+    const movingEdge: 'in' | 'out' = inW && (!outW || Math.abs(inW.to - inW.from) >= Math.abs(outW.to - outW.from)) ? 'in' : 'out'
+    if (pl.mode === 'clamp') {
+      if (movingEdge === 'in')  return upsertWrite(txn, pl.clipId, 'in',  newOut - pl.min)
+      else                       return upsertWrite(txn, pl.clipId, 'out', newIn  + pl.min)
+    } else { // 'shift'
+      const oldLen = clip.out - clip.in
+      let next = txn
+      if (movingEdge === 'in')  next = upsertWrite(next, pl.clipId, 'out', newIn + oldLen)
+      else                      next = upsertWrite(next, pl.clipId, 'in',  newOut - oldLen)
+      return next
+    }
+  }},
+
+  // RESTRICT: snap_target — snap a write to a nearby target.
+  { kind: 'snap_target', phase: 'restrict', apply: (state, c, txn) => {
+    const sn = c as SnapTarget
+    return txn.map(w => {
+      if (w.entityId !== sn.id || w.field !== sn.field) return w
+      let best: { d: number; v: number } | null = null
+      for (const t of sn.targets) {
+        const e = state.entities[t.entityId]
+        if (!e) continue
+        const tv = readField(e, t.field)
+        if (tv === undefined) continue
+        const d = Math.abs(tv - w.to)
+        if (d <= sn.threshold && (!best || d < best.d)) best = { d, v: tv }
+      }
+      return best ? { ...w, to: best.v } : w
+    })
+  }},
+
+  // FINALIZE: translate_group — after restrictions, the group's members may
+  // have unequal deltas. Reduce all members to the smallest delta in the
+  // original sign. Refuses any sign flip (returns 0).
+  { kind: 'translate_group', phase: 'finalize', apply: (state, c, txn) => {
+    const tg = c as TranslateGroup
+    const deltas: number[] = []
+    for (const id of tg.ids) for (const w of txn) if (w.entityId === id) deltas.push(w.to - w.from)
+    if (deltas.length === 0) return txn
+    const signs = new Set(deltas.map(d => d === 0 ? 0 : Math.sign(d)))
+    if (signs.has(1) && signs.has(-1)) {
+      // Restrictions pushed members in opposite directions — refuse the move.
+      return txn.filter(w => !tg.ids.includes(w.entityId))
+    }
+    const targetDelta = deltas.reduce((acc, d) => Math.abs(d) < Math.abs(acc) ? d : acc, deltas[0])
+    // Re-write every member to use targetDelta.
+    return mergeWrites(txn.filter(w => !tg.ids.includes(w.entityId)),
+                       generateTranslateWrites(state, tg.ids, targetDelta))
+  }},
+
+  // DERIVE: derived constraint — call its apply lambda after a watched
+  // entity has been written. The lambda mutates state directly (bpm/beats
+  // tradeoff style).
+  { kind: 'derived', phase: 'derive', apply: (state, c, txn) => {
+    const d = c as Derived
+    const touched = txn.some(w => d.watches.includes(w.entityId))
+    if (touched) d.apply(state)
+    return txn
+  }},
+]
+
+// ─── Txn helpers ──────────────────────────────────────────────────────────
+
+function inferGroupDelta(state: State, ids: EntityId[], txn: Txn): number | null {
+  for (const id of ids) {
+    for (const w of txn) {
+      if (w.entityId !== id) continue
+      const e = state.entities[id]
+      if (!e) continue
+      // The delta is `to - from` (computed at write time).
+      return w.to - w.from
     }
   }
+  return null
+}
 
-  // Recompute derived quantities.
-  applyDerivedQuantities(s, id)
-  applyClamps(s, id)
-  return s
+function generateTranslateWrites(state: State, ids: EntityId[], delta: number): Write[] {
+  const out: Write[] = []
+  for (const id of ids) {
+    const e = state.entities[id]
+    if (!e) continue
+    if (e.kind === 'anchor') out.push({ entityId: id, field: 'time', from: e.time, to: e.time + delta })
+    else {
+      out.push({ entityId: id, field: 'in',  from: e.in,  to: e.in  + delta })
+      out.push({ entityId: id, field: 'out', from: e.out, to: e.out + delta })
+    }
+  }
+  return out
+}
+
+function mergeWrites(txn: Txn, additions: Write[]): Txn {
+  const out = [...txn]
+  for (const a of additions) {
+    const i = out.findIndex(w => w.entityId === a.entityId && w.field === a.field)
+    if (i >= 0) out[i] = a
+    else        out.push(a)
+  }
+  return out
+}
+
+function upsertWrite(txn: Txn, entityId: EntityId, field: 'time' | 'in' | 'out', to: number): Txn {
+  const i = txn.findIndex(w => w.entityId === entityId && w.field === field)
+  if (i >= 0) return txn.map((w, j) => j === i ? { ...w, to } : w)
+  return txn  // no driver write to update — caller should have created one
 }
 
 function propagateSetValue(s: State, id: EntityId, field: 'time' | 'in' | 'out' | 'bpm' | 'lockedBeats', value: number): State {
@@ -306,12 +508,6 @@ function propagateDelete(s: State, id: EntityId): State {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
-function getTranslateNeighbors(c: Constraint, id: EntityId): EntityId[] {
-  if (c.kind === 'translate_group' && c.ids.includes(id)) return c.ids.filter(x => x !== id)
-  if (c.kind === 'directed_pair' && c.mode === 'translate' && c.from === id) return [c.to]
-  return []
-}
-
 function constraintEntities(c: Constraint): EntityId[] {
   switch (c.kind) {
     case 'translate_group':
@@ -332,7 +528,7 @@ function constraintEntities(c: Constraint): EntityId[] {
     case 'single_of_kind':
       return c.activeId ? [c.activeId] : []
     case 'conform_visual':
-      return [c.anchorInId, c.anchorOutId, c.clipId]
+      return [c.anchorInId, c.anchorOutId, c.clipId, c.clipOutId]
   }
 }
 
@@ -483,11 +679,11 @@ export const recipes = {
   /** Lock ON for a clipout + its inner anchor set: translate_group makes
    *  pan move them together; scale_group makes resize-with-lock=beats
    *  rescale anchors around the clipout's in-edge. */
-  lockOn(clipOutId: EntityId, innerAnchorOutIds: EntityId[], pivot: number): Op[] {
+  lockOn(clipOutId: EntityId, innerAnchorOutIds: EntityId[]): Op[] {
     const ids = [clipOutId, ...innerAnchorOutIds]
     return [
       { kind: 'add_constraint', c: { kind: 'translate_group', ids, tag: `lock:${clipOutId}` } },
-      { kind: 'add_constraint', c: { kind: 'scale_group',     ids, pivot, tag: `lock:${clipOutId}` } },
+      { kind: 'add_constraint', c: { kind: 'scale_group',     ids, tag: `lock:${clipOutId}` } },
     ]
   },
   lockOff(clipOutId: EntityId): Op {
@@ -561,11 +757,11 @@ export const recipes = {
     return { kind: 'remove_constraint', predicate: c => c.kind === 'snap_target' && c.tag === `snap:${id}:${field}` }
   },
 
-  /** Conform: while an input anchor sits on a clip boundary, record the
-   *  visual link (renderer reads this; no write propagation). The carry
-   *  behavior is a SEPARATE recipe (carryStart) added only at drag time. */
-  conform(anchorInId: EntityId, anchorOutId: EntityId, clipId: EntityId, edge: 'in' | 'out'): Op {
-    return { kind: 'add_constraint', c: { kind: 'conform_visual', anchorInId, anchorOutId, clipId, edge } }
+  /** Conform: when an input anchor sits on a clip boundary, write the paired
+   *  beat anchor's time to the clipout edge. `clipId` is the clipin being
+   *  compared; `clipOutId` is the beat-space clip that receives the write. */
+  conform(anchorInId: EntityId, anchorOutId: EntityId, clipId: EntityId, clipOutId: EntityId, edge: 'in' | 'out'): Op {
+    return { kind: 'add_constraint', c: { kind: 'conform_visual', anchorInId, anchorOutId, clipId, clipOutId, edge } }
   },
   unconform(anchorInId: EntityId, clipId: EntityId, edge: 'in' | 'out'): Op {
     return { kind: 'remove_constraint', predicate: c =>
@@ -596,7 +792,7 @@ function formatConstraint(c: Constraint): string {
   const tag = 'tag' in c && c.tag ? ` #${c.tag}` : ''
   switch (c.kind) {
     case 'translate_group':   return `translate_group { ${c.ids.join(', ')} }${tag}`
-    case 'scale_group':       return `scale_group { ${c.ids.join(', ')} } pivot=${c.pivot}${tag}`
+    case 'scale_group':       return `scale_group { ${c.ids.join(', ')} } (pivot=untouched edge)${tag}`
     case 'directed_pair':     return `directed_pair ${c.from} → ${c.to} (${c.mode})${tag}`
     case 'derived':           return `derived watches=[${c.watches.join(', ')}] apply=<fn>${tag}`
     case 'clamp':             return `clamp ${c.entityId}.${c.field} ∈ [${c.min ?? '−∞'}, ${c.max ?? '+∞'}]${tag}`
@@ -605,7 +801,7 @@ function formatConstraint(c: Constraint): string {
     case 'single_of_kind':    return `single_of_kind ${c.filterKind} role=${c.role} active=${c.activeId ?? 'null'}`
     case 'delete_group':      return `delete_group { ${c.ids.join(', ')} }${tag}`
     case 'highlight_group':   return `highlight_group { ${c.ids.join(', ')} }${tag}`
-    case 'conform_visual':    return `conform_visual ${c.anchorInId}/${c.anchorOutId} ↔ ${c.clipId}.${c.edge}`
+    case 'conform_visual':    return `conform_visual ${c.anchorInId}/${c.anchorOutId} ↔ ${c.clipId}->${c.clipOutId}.${c.edge}`
   }
 }
 
@@ -621,7 +817,7 @@ function demo() {
   s = reduce(s, { kind: 'add_anchor', id: 'a1in',  time: 0 })
   s = reduce(s, { kind: 'add_anchor', id: 'a1out', time: 0 })
   for (const op of recipes.initAnchorPair('a1in', 'a1out')) s = reduce(s, op)
-  s = reduce(s, recipes.conform('a1in', 'a1out', 'clipinA', 'in'))
+  s = reduce(s, recipes.conform('a1in', 'a1out', 'clipinA', 'clipoutA', 'in'))
 
   s = reduce(s, { kind: 'add_anchor', id: 'a2in',  time: 5 })
   s = reduce(s, { kind: 'add_anchor', id: 'a2out', time: 5 })
@@ -646,7 +842,7 @@ function demo() {
 
   // 4. Anchor lock ON for clipoutA + a2out (inner).
   s = reduce(s, recipes.clearLasso('beat'))
-  for (const op of recipes.lockOn('clipoutA', ['a2out'], 2)) s = reduce(s, op)
+  for (const op of recipes.lockOn('clipoutA', ['a2out'])) s = reduce(s, op)
   s = reduce(s, { kind: 'move', id: 'clipoutA', delta: 3 })
   show('lock ON; pan clipoutA +3 → a2out follows (translate_group)', s)
 

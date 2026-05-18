@@ -23,6 +23,10 @@ export interface VideoInfo {
 export interface Anchor {
   id: number
   time: number // seconds
+  /** Persisted link flag. `true` (default when absent) = beat-side tracks
+   *  orig-side (the `pair:a{id}-in` DeleteGroup is present in the constraint
+   *  graph). `false` = pair was diverged by the user (DeleteGroup removed). */
+  linked?: boolean
 }
 
 export interface QuantizedAnchor {
@@ -74,12 +78,13 @@ export interface Region {
   minStretch: number
   maxStretch: number
   addToEnd: boolean
-  /** Beat-space time for the in boundary (defaults to inPoint = linked/identity) */
-  inBeatTime?: number
-  /** Beat-space time for the out boundary (defaults to outPoint = linked/identity) */
-  outBeatTime?: number
-  /** Which value stays fixed when region is resized: 'bpm' (default) or 'beats' */
-  lock?: 'bpm' | 'beats'
+  /** Beat-space time for the in boundary. Always a concrete number. */
+  inBeatTime: number
+  /** Beat-space time for the out boundary. Always a concrete number. */
+  outBeatTime: number
+  /** When true, clipout follows clipin (structural DirectedPair is installed).
+   *  When false, user owns the clipout's beat-space anchoring (diverged). */
+  defaultLinked: boolean
   /** Snapshot of beat count when lock='beats' (used to derive BPM on resize) */
   lockedBeats?: number
   /** When true, export plays each anchor interval at 1.0x (truncating source or
@@ -105,9 +110,9 @@ export interface ClipOverlay {
   selected?: boolean
   /** 0-based index for color cycling (optional, defaults to 0) */
   colorIndex?: number
-  /** Explicit beat-space in boundary (undefined = default-linked: use origToBeat(inPoint)) */
+  /** Beat-space in boundary (matches region.inBeatTime; always set when cloned from a Region) */
   inBeatTime?: number
-  /** Explicit beat-space out boundary (undefined = default-linked: use origToBeat(outPoint)) */
+  /** Beat-space out boundary (matches region.outBeatTime; always set when cloned from a Region) */
   outBeatTime?: number
 }
 

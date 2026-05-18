@@ -65,6 +65,13 @@ const listsSlice = createSlice({
     setPendingEdit(state, action: PayloadAction<{ list: ListId; id: string } | null>) {
       state.pendingEdit = action.payload
     },
+    /** Remove a specific id from clipin and clipout selections.
+     *  Used after region deletion to prune stale IDs. */
+    removeFromSelection(state, action: PayloadAction<string>) {
+      const id = action.payload
+      state.selection.clipin  = state.selection.clipin.filter(x => x !== id)
+      state.selection.clipout = state.selection.clipout.filter(x => x !== id)
+    },
   },
 })
 
@@ -74,6 +81,7 @@ export const {
   setListThumbnailMode,
   setListFilterMode,
   setPendingEdit,
+  removeFromSelection,
 } = listsSlice.actions
 
 export default listsSlice.reducer
