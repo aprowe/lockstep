@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Constraint system benchmarks</title>
+<style>
+  body { font-family: ui-monospace, monospace; background: #111; color: #eee; padding: 16px; line-height: 1.5; }
+  h1 { font-size: 14px; color: #8af; margin: 0 0 12px 0; }
+  h2 { font-size: 12px; color: #fc0; margin: 16px 0 4px 0; text-transform: uppercase; }
+  table { border-collapse: collapse; font-size: 12px; }
+  th, td { border: 1px solid #333; padding: 4px 10px; text-align: left; }
+  th { background: #1a1a1a; color: #8af; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .ok  { color: #5f5; }
+  .warn { color: #fc0; }
+  .bad { color: #f55; }
+  button { background: #333; color: #eee; border: 1px solid #555; padding: 6px 12px; font: inherit; cursor: pointer; border-radius: 3px; margin-right: 8px; }
+  button:hover { background: #444; }
+  #status { margin: 12px 0; color: #888; }
+  #done-marker { color: #5f5; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>Constraint system benchmarks</h1>
+
+<div>
+  <button id="run-all">Run all benchmarks</button>
+  <span id="status">Ready.</span>
+</div>
+
+<h2>Layer 1 — Microbenchmarks</h2>
+<table id="micro-table">
+  <thead><tr><th>Scenario</th><th>Iter</th><th>Mean (ms)</th><th>p95 (ms)</th><th>p99 (ms)</th><th>Min (ms)</th><th>Max (ms)</th></tr></thead>
+  <tbody></tbody>
+</table>
+
+<h2>Layer 2 — Synthetic drag harness (per-frame cost)</h2>
+<table id="drag-table">
+  <thead><tr><th>Scenario</th><th>Frames</th><th>Mean (ms/frame)</th><th>p95</th><th>p99</th><th>Max</th><th>FPS budget</th></tr></thead>
+  <tbody></tbody>
+</table>
+
+<h2>Summary</h2>
+<pre id="summary"></pre>
+<div id="done-marker" style="display:none">BENCHMARKS COMPLETE</div>
+
+<script type="module">
+import { reduce, emptyState, recipes, OpKind } from '../src/constraints/index.ts'
+import { movementClosure } from '../src/constraints/closure.ts'
+
+// ── helpers ─────────────────────────────────────────────────────────────────
+
+function pct(arr, p) {
+  const sorted = [...arr].sort((a, b) => a - b)
+  const i = Math.floor(sorted.length * p)
+  return sorted[Math.min(i, sorted.length - 1)]
+}
+function stats(samples) {
+  const min = Math.min(...samples)
+  const max = Math.max(...samples)
+  const mean = samples.reduce((a, b) => a + b, 0) / samples.length
+  return { mean, p95: pct(samples, 0.95), p99: pct(samples, 0.99), min, max }
+}
+function fmt(n, places = 3) { return n.toFixed(places) }
+function classify(ms, budgetMs) {
+  if (ms <= budgetMs) return 'ok'
+  if (ms <= budgetMs * 2) return 'warn'
+  return 'bad'
+}
+
+function runBench(label, fn, iter) {
+  const samples = []
+  // warmup
+  for (let i = 0; i < Math.min(50, iter / 10); i++) fn()
+  for (let i = 0; i < iter; i++) {
+    const t0 = performance.now()
+    fn()
+    samples.push(performance.now() - t0)
+  }
+  return { label, iter, ...stats(samples) }
+}
+
+// ── seed builders ────────────────────────────────────────────────────────────
+
+function seedAnchors(state, n) {
+  let s = state
+  for (let i = 1; i <= n; i++) {
+    s = reduce(s, { kind: OpKind.AddAnchor, id: `a${i}-in`, time: i * 0.1 })
+    s = reduce(s, { kind: OpKind.AddAnchor, id: `a${i}-out`, time: i * 0.1 })
+    for (const op of recipes.initAnchorPair(`a${i}-in`, `a${i}-out`)) s = reduce(s, op)
+  }
+  return s
+}
+
+function seedClips(state, n) {
+  let s = state
+  for (let i = 1; i <= n; i++) {
+    const inT = i * 5
+    const outT = i * 5 + 3
+    s = reduce(s, { kind: OpKind.AddClip, id: `r${i}-in`, in: inT, out: outT })
+    s = reduce(s, { kind: OpKind.AddClip, id: `r${i}-out`, in: inT, out: outT })
+    for (const op of recipes.initClip(`r${i}-in`, `r${i}-out`)) s = reduce(s, op)
+  }
+  return s
+}
+
+function installLasso(state, ids) {
+  return reduce(state, recipes.lasso('main', ids))
+}
+
+// ── Layer 1: microbench scenarios ─────────────────────────────────────────
+
+const microScenarios = [
+  {
+    label: 'reduce: Move on 10 anchors, no constraints',
+    budget: 0.05,
+    setup: () => seedAnchors(emptyState(), 10),
+    op:    () => ({ kind: OpKind.Move, id: 'a1-in', delta: 0.01 }),
+    iter:  1000,
+  },
+  {
+    label: 'reduce: Move on 100 anchors, 100 default-link pairs',
+    budget: 0.2,
+    setup: () => seedAnchors(emptyState(), 100),
+    op:    () => ({ kind: OpKind.Move, id: 'a1-in', delta: 0.01 }),
+    iter:  1000,
+  },
+  {
+    label: 'reduce: Move on 1000 anchors, 1000 default-link pairs',
+    budget: 1.0,
+    setup: () => seedAnchors(emptyState(), 1000),
+    op:    () => ({ kind: OpKind.Move, id: 'a1-in', delta: 0.01 }),
+    iter:  500,
+  },
+  {
+    label: 'reduce: clipin Move propagates to clipout (1 region, no lasso)',
+    budget: 0.05,
+    setup: () => seedClips(emptyState(), 1),
+    op:    () => ({ kind: OpKind.Move, id: 'r1-in', delta: 0.5 }),
+    iter:  1000,
+  },
+  {
+    label: 'reduce: Move with 50-member lasso TranslateGroup',
+    budget: 0.3,
+    setup: () => {
+      let s = seedAnchors(emptyState(), 100)
+      const ids = []
+      for (let i = 1; i <= 50; i++) ids.push(`a${i}-in`)
+      return installLasso(s, ids)
+    },
+    op:    () => ({ kind: OpKind.Move, id: 'a1-in', delta: 0.01 }),
+    iter:  1000,
+  },
+  {
+    label: 'reduce: Move with 200-member lasso TranslateGroup',
+    budget: 1.0,
+    setup: () => {
+      let s = seedAnchors(emptyState(), 500)
+      const ids = []
+      for (let i = 1; i <= 200; i++) ids.push(`a${i}-in`)
+      return installLasso(s, ids)
+    },
+    op:    () => ({ kind: OpKind.Move, id: 'a1-in', delta: 0.01 }),
+    iter:  500,
+  },
+  {
+    label: 'movementClosure: 100 anchors, no lasso',
+    budget: 0.05,
+    setup: () => seedAnchors(emptyState(), 100),
+    op:    null,
+    fn:    (s) => () => movementClosure(s, 'a1-in'),
+    iter:  10000,
+  },
+  {
+    label: 'movementClosure: 100 anchors with 50-member lasso',
+    budget: 0.1,
+    setup: () => {
+      let s = seedAnchors(emptyState(), 100)
+      const ids = []
+      for (let i = 1; i <= 50; i++) ids.push(`a${i}-in`)
+      return installLasso(s, ids)
+    },
+    op:    null,
+    fn:    (s) => () => movementClosure(s, 'a1-in'),
+    iter:  10000,
+  },
+]
+
+// ── Layer 2: synthetic drag scenarios (200 frames per drag) ────────────────
+
+const dragScenarios = [
+  {
+    label: 'Anchor drag, no selection, 100 anchors',
+    budget: 0.5,
+    setup: () => seedAnchors(emptyState(), 100),
+    run: (state, frame) => reduce(state, { kind: OpKind.Move, id: 'a1-in', delta: 0.01 }),
+    frames: 200,
+  },
+  {
+    label: 'Anchor drag, 50-anchor lasso, 100 anchors',
+    budget: 1.0,
+    setup: () => {
+      let s = seedAnchors(emptyState(), 100)
+      const ids = []
+      for (let i = 1; i <= 50; i++) ids.push(`a${i}-in`)
+      return installLasso(s, ids)
+    },
+    run: (state) => reduce(state, { kind: OpKind.Move, id: 'a1-in', delta: 0.01 }),
+    frames: 200,
+  },
+  {
+    label: 'Anchor drag, 200-anchor lasso, 500 anchors',
+    budget: 2.0,
+    setup: () => {
+      let s = seedAnchors(emptyState(), 500)
+      const ids = []
+      for (let i = 1; i <= 200; i++) ids.push(`a${i}-in`)
+      return installLasso(s, ids)
+    },
+    run: (state) => reduce(state, { kind: OpKind.Move, id: 'a1-in', delta: 0.01 }),
+    frames: 200,
+  },
+  {
+    label: 'Region body drag, 1 region with 100 anchors',
+    budget: 0.5,
+    setup: () => {
+      let s = seedAnchors(emptyState(), 100)
+      s = seedClips(s, 1)
+      return s
+    },
+    run: (state) => reduce(state, { kind: OpKind.Move, id: 'r1-in', delta: 0.1 }),
+    frames: 200,
+  },
+  {
+    label: 'Region body drag, 10 regions with 100 anchors',
+    budget: 1.0,
+    setup: () => {
+      let s = seedAnchors(emptyState(), 100)
+      s = seedClips(s, 10)
+      return s
+    },
+    run: (state) => reduce(state, { kind: OpKind.Move, id: 'r1-in', delta: 0.1 }),
+    frames: 200,
+  },
+]
+
+// ── runners ────────────────────────────────────────────────────────────────
+
+function setStatus(msg) { document.getElementById('status').textContent = msg }
+
+async function runMicroAll() {
+  const tbody = document.querySelector('#micro-table tbody')
+  tbody.innerHTML = ''
+  for (const sc of microScenarios) {
+    setStatus(`Running ${sc.label} ...`)
+    await new Promise(r => requestAnimationFrame(r))
+    const state = sc.setup()
+    const fn = sc.fn ? sc.fn(state) : () => reduce(state, sc.op())
+    const r = runBench(sc.label, fn, sc.iter)
+    const cls = classify(r.mean, sc.budget)
+    tbody.innerHTML += `<tr>
+      <td>${sc.label}</td>
+      <td class="num">${r.iter}</td>
+      <td class="num ${cls}">${fmt(r.mean)}</td>
+      <td class="num">${fmt(r.p95)}</td>
+      <td class="num">${fmt(r.p99)}</td>
+      <td class="num">${fmt(r.min)}</td>
+      <td class="num">${fmt(r.max)}</td>
+    </tr>`
+  }
+}
+
+async function runDragAll() {
+  const tbody = document.querySelector('#drag-table tbody')
+  tbody.innerHTML = ''
+  for (const sc of dragScenarios) {
+    setStatus(`Running ${sc.label} ...`)
+    await new Promise(r => requestAnimationFrame(r))
+    const state = sc.setup()
+    // warmup
+    for (let i = 0; i < 20; i++) sc.run(state, i)
+    const samples = []
+    let cur = state
+    for (let f = 0; f < sc.frames; f++) {
+      const t0 = performance.now()
+      cur = sc.run(cur, f)
+      samples.push(performance.now() - t0)
+    }
+    const s = stats(samples)
+    const cls = classify(s.mean, sc.budget)
+    const fpsCls = s.p99 < 16 ? 'ok' : s.p99 < 33 ? 'warn' : 'bad'
+    const fpsLabel = s.p99 < 16 ? '60fps' : s.p99 < 33 ? '30fps' : '<30fps'
+    tbody.innerHTML += `<tr>
+      <td>${sc.label}</td>
+      <td class="num">${sc.frames}</td>
+      <td class="num ${cls}">${fmt(s.mean)}</td>
+      <td class="num">${fmt(s.p95)}</td>
+      <td class="num">${fmt(s.p99)}</td>
+      <td class="num">${fmt(s.max)}</td>
+      <td class="num ${fpsCls}">${fpsLabel}</td>
+    </tr>`
+  }
+}
+
+async function runAll() {
+  document.getElementById('done-marker').style.display = 'none'
+  setStatus('Starting...')
+  await runMicroAll()
+  await runDragAll()
+  setStatus('Done.')
+  // Build a copy-pasteable summary
+  const microRows = [...document.querySelectorAll('#micro-table tbody tr')].map(r =>
+    [...r.children].map(c => c.textContent).join('\t')
+  ).join('\n')
+  const dragRows = [...document.querySelectorAll('#drag-table tbody tr')].map(r =>
+    [...r.children].map(c => c.textContent).join('\t')
+  ).join('\n')
+  document.getElementById('summary').textContent =
+    `=== MICRO ===\n${microRows}\n\n=== DRAG ===\n${dragRows}`
+  document.getElementById('done-marker').style.display = 'block'
+}
+
+document.getElementById('run-all').addEventListener('click', runAll)
+
+// Auto-run on load (for headless harness)
+if (location.search.includes('auto=1')) runAll()
+</script>
+
+</body>
+</html>
