@@ -1,0 +1,38 @@
+[package]
+name = "lockstep"
+version = "0.3.2"
+edition = "2021"
+default-run = "lockstep"
+
+[package.metadata.bundle]
+identifier = "com.vjtools.toolkit"
+icon = ["icons/icon.ico"]
+
+[lib]
+name = "lockstep_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "lockstep"
+path = "src/main.rs"
+
+[[bin]]
+name = "lockstep-cli"
+path = "src/bin/cli.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-log = "2"
+log = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+json5 = "0.4"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4"] }
+sha2 = "0.10"
+tempfile = "3"

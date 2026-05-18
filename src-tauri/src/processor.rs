@@ -1,0 +1,239 @@
+//! Warp orchestrator: chains the pipeline stages in `crate::pipeline` into the
+//! single `remap_video` entry point. Also houses the standalone BPM estimator
+//! and the legacy constant-fps `interpolate_video` helper which aren't part of
+//! the warp pipeline proper.
+
+use tempfile::TempDir;
+
+use crate::ffmpeg::{audio_sample_rate, video_duration};
+use crate::pipeline::{
+    post::{apply_post_processing, PostOptions},
+    rife_pass::apply_warp_aware_rife,
+    segments::{concat_segments, encode_segments, plan_segments},
+    time_map::build_time_map,
+};
+
+// Backward-compat re-exports: callers (commands, cli, tests) import these via
+// `crate::processor::`. Keep the surface stable during refactors.
+pub use crate::pipeline::options::{AudioMode, InterpMethod, WarpOptions};
+
+// ── BPM Estimation ──────────────────────────────────────────────────────────
+
+/// Returns (bpm, beat_interval, snap_interval).
+/// Ported directly from frames2/backend/processor.py::estimate_bpm
+pub fn estimate_bpm(anchor_times: &[f64]) -> (f64, f64, f64) {
+    if anchor_times.len() < 2 {
+        return (120.0, 0.5, 0.5);
+    }
+
+    let mut sorted = anchor_times.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    let intervals: Vec<f64> = sorted.windows(2).map(|w| w[1] - w[0]).collect();
+
+    let mut sorted_intervals = intervals.clone();
+    sorted_intervals.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let median_interval = sorted_intervals[sorted_intervals.len() / 2];
+
+    if median_interval <= 0.0 {
+        return (120.0, 0.5, 0.5);
+    }
+
+    let clean: Vec<f64> = intervals
+        .iter()
+        .filter(|&&x| x > 0.0 && x < median_interval * 2.5)
+        .copied()
+        .collect();
+
+    let clean = if clean.is_empty() {
+        intervals.iter().filter(|&&x| x > 0.0).copied().collect::<Vec<_>>()
+    } else {
+        clean
+    };
+
+    if clean.is_empty() {
+        return (120.0, 0.5, 0.5);
+    }
+
+    let avg_interval = clean.iter().sum::<f64>() / clean.len() as f64;
+
+    let divisors: &[f64] = &[1.0, 2.0, 0.5, 4.0, 0.25, 3.0, 1.0 / 3.0];
+    let mut best_bpm: Option<f64> = None;
+    let mut best_interval = avg_interval;
+
+    for &divisor in divisors {
+        if divisor <= 0.0 {
+            continue;
+        }
+        let candidate_interval = avg_interval / divisor;
+        if candidate_interval <= 0.0 {
+            continue;
+        }
+        let candidate_bpm = 60.0 / candidate_interval;
+        if best_bpm.is_none() && (60.0..=180.0).contains(&candidate_bpm) {
+            best_bpm = Some(candidate_bpm);
+            best_interval = candidate_interval;
+        }
+    }
+
+    let (best_bpm, best_interval) = match best_bpm {
+        Some(bpm) => (bpm, best_interval),
+        None => (60.0 / avg_interval, avg_interval),
+    };
+
+    ((best_bpm * 100.0).round() / 100.0, best_interval, avg_interval)
+}
+
+// ── Orchestrator ────────────────────────────────────────────────────────────
+
+/// Main time-warp entry point. Builds the time map, renders & concatenates
+/// retimed segments, optionally swaps the video for warp-aware RIFE output,
+/// then applies post-processing. Each stage lives in its own module under
+/// `crate::pipeline` so it can be tested and validated independently.
+pub fn remap_video<F>(
+    input_path: &str,
+    opts: &WarpOptions,
+    output_path: &str,
+    progress: &F,
+) -> Result<(), String>
+where
+    F: Fn(f64, &str) + Send,
+{
+    progress(0.0, &format!("Input: {input_path}"));
+    progress(0.0, &format!("Output (temp): {output_path}"));
+
+    // ── Stage 1: Time map ──
+    let duration = video_duration(input_path)?;
+    let clip_start = opts.clip_in.unwrap_or(0.0).max(0.0);
+    let clip_end = opts.clip_out.unwrap_or(duration).min(duration);
+    // Source frame rate is used to drop sub-frame segments before they reach
+    // ffmpeg — at low fps, two markers placed within ~1/fps would otherwise
+    // produce a zero-frame intermediate file and stall the concat demuxer.
+    let source_fps = crate::ffmpeg::video_fps(input_path).unwrap_or(30.0);
+    // Sample rate is only consulted by the `Pitch` audio mode; probing here
+    // keeps the segments + post stages decoupled from ffprobe.
+    let sample_rate = audio_sample_rate(input_path);
+    progress(
+        0.0,
+        &format!(
+            "Duration: {duration:.3}s · source_fps: {source_fps:.3} · clip: {clip_start:.3}s → {clip_end:.3}s · method: {:?} · fps: {:?}",
+            opts.interp_method, opts.interp_fps,
+        ),
+    );
+
+    // Trigger mode is raw 1.0x playback at anchor points — PCHIP smoothing +
+    // RIFE both assume a densified, stretchable time map and would fight it.
+    let smooth = !opts.no_smooth && !opts.trigger_mode;
+    if !smooth {
+        log::info!("[warp] PCHIP smoothing disabled; using raw piecewise-linear time map");
+    }
+    let time_map = build_time_map(
+        &opts.orig_times,
+        &opts.beat_times,
+        clip_start,
+        clip_end,
+        smooth,
+    );
+
+    let tmp_dir = TempDir::new().map_err(|e| e.to_string())?;
+    let tmp_path = tmp_dir.path();
+    progress(0.01, &format!("Scratch dir: {}", tmp_path.display()));
+
+    // RIFE replaces the video track wholesale and RIFE'd exports are silent by
+    // design (see rife_pass.rs), so when RIFE is selected we skip the segment
+    // encode + concat entirely. Trigger mode still uses the segment path — it's
+    // 1.0x playback with freeze-pads that the warp-aware pair selector can't
+    // express.
+    let use_rife = !opts.trigger_mode
+        && matches!(opts.interp_method, InterpMethod::Rife)
+        && opts.interp_fps.is_some();
+
+    if use_rife {
+        progress(0.05, "RIFE mode: skipping segment encode + concat");
+        let fps = opts.interp_fps.unwrap();
+        apply_warp_aware_rife(
+            input_path,
+            &time_map,
+            &opts.scene_cuts,
+            fps,
+            output_path,
+            tmp_path,
+            progress,
+        )?;
+    } else {
+        // ── Stage 2: Segments ──
+        // Drop intervals shorter than one source frame so closely-spaced
+        // markers can't produce sub-frame segments that break the concat
+        // demuxer (see issue #14).
+        let min_segment_duration = if source_fps > 0.0 { 1.0 / source_fps } else { 0.001 };
+        let plans = plan_segments(&time_map, opts.trigger_mode, min_segment_duration);
+        progress(0.01, &format!("Planned {} segment(s)", plans.len()));
+        let segment_files = encode_segments(
+            input_path,
+            &plans,
+            opts.interp_fps,
+            opts.interp_method,
+            opts.audio_mode,
+            sample_rate,
+            tmp_path,
+            progress,
+        )?;
+
+        // ── Stage 3: Concat ──
+        progress(0.82, &format!("Concat target: {output_path}"));
+        concat_segments(&segment_files, tmp_path, output_path, progress)?;
+    }
+
+    // ── Stage 5: Post-processing ──
+    let first_beat_time = opts.beat_times.iter().copied().reduce(f64::min).unwrap_or(0.0);
+    apply_post_processing(
+        output_path,
+        PostOptions {
+            bpm: opts.bpm,
+            beat_zero_time: opts.beat_zero_time,
+            first_beat_time,
+            add_to_end: opts.add_to_end,
+            trim_to_loop: opts.trim_to_loop,
+            loop_beats: opts.loop_beats,
+        },
+        tmp_path,
+        progress,
+    )?;
+
+    progress(1.0, "Done");
+    Ok(())
+}
+
+// ── Constant-fps interpolation (legacy, not part of the warp pipeline) ──────
+
+/// Re-encode `input_path` at a constant `fps` using blend-mode frame interpolation.
+/// Frames that don't align with a source frame are blended from the two nearest.
+pub fn interpolate_video<F>(
+    input_path: &str,
+    fps: u32,
+    output_path: &str,
+    progress: &F,
+) -> Result<(), String>
+where
+    F: Fn(f64, &str) + Send,
+{
+    progress(0.0, &format!("Interpolating to {fps} fps..."));
+
+    let fps_str = fps.to_string();
+    let vf = format!("minterpolate=fps={fps}:mi_mode=blend");
+
+    crate::ffmpeg::run_ffmpeg(&[
+        "-y",
+        "-i", input_path,
+        "-vf", &vf,
+        "-r", &fps_str,
+        "-c:v", "libx264",
+        "-preset", "fast",
+        "-crf", "18",
+        "-c:a", "copy",
+        output_path,
+    ])?;
+
+    progress(1.0, "Done");
+    Ok(())
+}
