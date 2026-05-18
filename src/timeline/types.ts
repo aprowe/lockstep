@@ -328,12 +328,6 @@ export type Intent =
   | { kind: 'pubHoveredScene'; time: number | null }
   | { kind: 'pubHoveredWarpLine'; id: number | null }
   | { kind: 'thumbnailHover'; payload: { time: number; x: number; y: number } | null }
-  /** Phase 5: ephemeral carry pair — install a DirectedPair(MirrorEdge) from
-   *  the clipout entity edge to a conformed beat anchor at pointerDown.
-   *  Removed on pointerUp / cancel via carryEnd. */
-  | { kind: 'carryStart'; regionId: string; edge: 'in' | 'out'; anchorId: number }
-  /** Phase 5: remove all carry:* DirectedPair constraints for a clipout. */
-  | { kind: 'carryEnd'; regionId: string }
   /** Phase 7: install a SnapTarget constraint at drag start so the resolver's
    *  Propose phase snaps the entity on every pointerMove. `pxPerUnit` lets the
    *  WarpView handler convert the pixel threshold to entity-space units.

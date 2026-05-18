@@ -14,10 +14,9 @@ import { dispatchPipelined } from '../../constraints/pipelineDispatch'
  * ScaleGroup constraint emitted by anchorLockMirrorMiddleware — the resolver
  * propagates it automatically when the clipout entity edges move.
  *
- * Conformed-marker carry is now handled structurally: the controller installs
- * an ephemeral DirectedPair(MirrorEdge) at pointerDown via recipes.carryStart,
- * so the resolver propagates the carry on every pointerMove automatically.
- * No per-frame carry logic needed here.
+ * Conformed-marker carry is handled structurally: the MirrorPair binding
+ * auto-installed by buildGraphFromSlice on positional coincidence propagates
+ * clipout-edge writes to the paired beat anchor automatically.
  */
 export const commitClipoutResize =
   (payload: { id: string; inBeatTime: number; outBeatTime: number; altKey: boolean }) =>
@@ -59,10 +58,9 @@ export const commitClipoutResize =
  * TranslateGroup constraint emitted by anchorLockMirrorMiddleware — the resolver
  * propagates it automatically when the clipout entity moves.
  *
- * Conformed-marker carry is now handled structurally: the controller installs
- * ephemeral DirectedPair(MirrorEdge) constraints at pointerDown via
- * recipes.carryStart, so the resolver propagates the carry on every pointerMove
- * automatically. No per-frame carry logic needed here.
+ * Conformed-marker carry is handled structurally: the MirrorPair binding
+ * auto-installed by buildGraphFromSlice on positional coincidence propagates
+ * clipout-edge writes (and body translates) to paired beat anchors.
  */
 export const commitClipoutPan =
   (payload:

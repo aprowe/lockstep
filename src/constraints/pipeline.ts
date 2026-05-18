@@ -59,14 +59,6 @@ export interface PipelineSlice {
   scenes?: number[]
 }
 
-export interface ConformVisualSpec {
-  anchorInId:  EntityId
-  anchorOutId: EntityId
-  clipId:      EntityId
-  clipOutId:   EntityId
-  edge:        'in' | 'out'
-}
-
 export interface DragCtx {
   /** Lasso TranslateGroup members (entity IDs). Empty when no selection. */
   lassoIds: EntityId[]
@@ -79,28 +71,12 @@ export interface DragCtx {
     mode?: 'edge' | 'body'
     targets?: Array<{ entityId: EntityId; field: 'time' | 'in' | 'out' }>
   }
-  /** Active carry pairs (clipout-edge → beat anchor). */
-  carry: Array<{ clipOutId: EntityId; edge: 'in' | 'out'; anchorOutId: EntityId }>
   /** Anchor-lock state — null/false means inactive. */
   anchorLock?: {
     clipOutId: EntityId
     innerAnchorOutIds: EntityId[]
     lockMode: 'bpm' | 'beats'
   }
-  /**
-   * Active ConformVisual constraints from the live constraint graph.
-   *
-   * When provided, `buildGraphFromSlice` uses this explicit list instead of
-   * detecting coincidences from clip/anchor positions. This is necessary for
-   * dispatch correctness: after a SetEdge op, clip positions may coincide with
-   * an anchor even though the gesture layer has NOT installed a ConformVisual.
-   * Without this override, `buildGraphFromSlice` would incorrectly
-   * over-install ConformVisual and corrupt subsequent SetEdge ops.
-   *
-   * When absent (undefined), falls back to position-based coincidence detection
-   * — correct for Phase 3 shadow-verification mode and equivalence tests.
-   */
-  conformVisuals?: ConformVisualSpec[]
 }
 
 export interface PipelineInput {
@@ -135,8 +111,9 @@ export interface PipelineOutput {
  * Build a constraint State from (slice, dragCtx).
  *
  * Derives all constraints from slice state: anchor pairs, default-link
- * DirectedPairs, ConformVisuals, SnapRules, space cohorts, twin cohorts,
- * lasso TranslateGroup, anchorLock TranslateGroup/ScaleGroup, carry pairs.
+ * DirectedPairs, MirrorPair conform bindings, SnapRules, space cohorts,
+ * twin cohorts, lasso TranslateGroup, anchorLock TranslateGroup/ScaleGroup,
+ * carry pairs.
  */
 export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): State {
   let state = emptyState()
@@ -224,68 +201,13 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     }
   }
 
-  // 4. ConformVisual constraints.
+  // 4. MirrorPair (conform binding) — auto-installed wherever clipin.edge ≈ orig
+  //    anchor.time. Symmetric 1-1 between anchor-out.time ↔ clipout.{edge}.
   //
-  //    Two modes:
-  //    A) dragCtx.conformVisuals is provided (normal path): install exactly the
-  //       ConformVisual constraints present in the live gesture state.
-  //    B) dragCtx.conformVisuals is absent (tests that don't supply it): detect
-  //       coincidences from positions for backward compatibility.
-  if (dragCtx.conformVisuals !== undefined) {
-    // Mode A: explicit list from the live graph.
-    for (const cv of dragCtx.conformVisuals) {
-      state = reduce(state, {
-        kind: OpKind.AddConstraint,
-        constraint: {
-          kind:        ConstraintKind.ConformVisual,
-          anchorInId:  cv.anchorInId,
-          anchorOutId: cv.anchorOutId,
-          clipId:      cv.clipId,
-          clipOutId:   cv.clipOutId,
-          edge:        cv.edge,
-        },
-      })
-    }
-  } else {
-    // Mode B: position-based coincidence detection.
-    const LINK_EPSILON = 1e-4
-    for (const r of slice.region.regions) {
-      const clipinEntity = state.entities[regionInId(r.id)]
-      if (!clipinEntity || clipinEntity.kind !== 'clip') continue
-      for (const orig of slice.warp.origAnchors) {
-        const beat = beatById.get(orig.id)
-        if (!beat) continue
-        for (const edge of ['in', 'out'] as const) {
-          const clipEdgeValue = edge === 'in' ? clipinEntity.in : clipinEntity.out
-          const coincident = Math.abs(clipEdgeValue - orig.time) <= LINK_EPSILON
-          if (coincident) {
-            state = reduce(state, {
-              kind: OpKind.AddConstraint,
-              constraint: {
-                kind:        ConstraintKind.ConformVisual,
-                anchorInId:  anchorInId(orig.id),
-                anchorOutId: anchorOutId(orig.id),
-                clipId:      regionInId(r.id),
-                clipOutId:   regionOutId(r.id),
-                edge,
-              },
-            })
-          }
-        }
-      }
-    }
-  }
-
-  // 4b. MirrorPair (conform binding) — auto-installed wherever clipin.edge ≈ orig
-  //     anchor.time. Symmetric 1-1 between anchor-out.time ↔ clipout.{edge}.
-  //
-  //     Same trigger as the ConformVisual auto-detect above: conformance is a
-  //     by-product of positional coincidence, not an explicit linking gesture.
-  //     Replaces the ephemeral `carry:*` DirectedPair installed by
-  //     `carryStart` for clipout-edge drags AND the unconditional write
-  //     ConformVisual performs every pipeline pass — MirrorPair fires only on
-  //     deltas, so installing it does NOT rewrite stored bounds at coincidence
-  //     time. (Phase A: coexists with ConformVisual; Phase B removes ConformVisual.)
+  //    Conformance is a by-product of positional coincidence, not an explicit
+  //    linking gesture. MirrorPair fires only on delta writes, so installing it
+  //    does NOT rewrite stored clip bounds at coincidence time — the binding
+  //    only fires when one endpoint is actively being moved.
   {
     const LINK_EPSILON = 1e-4
     for (const r of slice.region.regions) {
@@ -406,22 +328,7 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     })
   }
 
-  // 10. Carry DirectedPair(MirrorEdge) — clipout-edge → beat-anchor carry.
-  for (const c of dragCtx.carry) {
-    state = reduce(state, {
-      kind: OpKind.AddConstraint,
-      constraint: {
-        kind:     ConstraintKind.DirectedPair,
-        from:     c.clipOutId,
-        to:       c.anchorOutId,
-        mode:     PairMode.MirrorEdge,
-        fromEdge: c.edge,
-        tag:      `carry:${c.clipOutId}:${c.edge}`,
-      },
-    })
-  }
-
-  // 11. Anchor-lock constraints — from dragCtx.anchorLock (written by anchorLockMirrorMiddleware).
+  // 10. Anchor-lock constraints — from dragCtx.anchorLock (written by anchorLockMirrorMiddleware).
   if (dragCtx.anchorLock) {
     const { clipOutId, innerAnchorOutIds, lockMode } = dragCtx.anchorLock
     if (lockMode === 'beats') {
@@ -558,7 +465,6 @@ export function extractDragCtxFromSlice(state: {
       mode?: 'edge' | 'body'
       targets?: Array<{ entityId: string; field: 'time' | 'in' | 'out' }>
     } | null
-    carry:       Array<{ clipOutId: string; edge: 'in' | 'out'; anchorOutId: string }>
     anchorLock:  {
       clipOutId:           string
       innerAnchorOutIds:   string[]
@@ -568,18 +474,12 @@ export function extractDragCtxFromSlice(state: {
 }): DragCtx {
   const dc = state.dragCtx
   if (!dc) {
-    // Phase 4c: conformVisuals: [] selects Mode A (no position-based coincidence
-    // detection). ConformVisuals are managed by the gesture layer (WarpView),
-    // not inferred from slice positions.
-    return { lassoIds: [], carry: [], conformVisuals: [] }
+    return { lassoIds: [] }
   }
   return {
-    lassoIds:     dc.lassoIds,
-    snapInstall:  dc.snapInstall ?? undefined,
-    carry:        dc.carry,
-    anchorLock:   dc.anchorLock ?? undefined,
-    // Phase 4c: always Mode A — no position-based ConformVisual detection.
-    conformVisuals: [],
+    lassoIds:    dc.lassoIds,
+    snapInstall: dc.snapInstall ?? undefined,
+    anchorLock:  dc.anchorLock ?? undefined,
   }
 }
 

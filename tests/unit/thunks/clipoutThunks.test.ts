@@ -3,8 +3,6 @@ import { addRegion } from '../../../src/store/slices/regionSlice'
 import { setAnchorLock, setLockMode } from '../../../src/store/slices/uiSlice'
 import { addAnchor, moveBeatAnchor, setBeatAnchorsFromTimeline } from '../../../src/store/slices/warpSlice'
 import { commitClipoutResize, commitClipoutPan } from '../../../src/store/thunks/clipoutThunks'
-import { addCarryPair } from '../../../src/store/slices/dragCtxSlice'
-import { regionOutId, anchorOutId } from '../../../src/constraints/ids'
 import { makeStore } from '../../helpers/setup'
 
 /** Build a region with clipout from 10..20 (length 10) and a lock mode. */
@@ -216,11 +214,11 @@ describe('commitClipoutPan', () => {
   })
 })
 
-// ── Conformed-marker carry (Phase 5 design) ───────────────────────────────
-// Phase 5: carry is now structural — the controller installs a DirectedPair
-// (MirrorEdge) at pointerDown via recipes.carryStart. commitClipoutResize
-// dispatches SetEdge ops that trigger MirrorEdge propagation automatically.
-// Tests install the carry pair manually to replicate what the controller does.
+// ── Conformed-marker carry ────────────────────────────────────────────────
+// The conform binding (MirrorPair anchor-out.time ↔ clipout.{edge}) is
+// auto-installed by buildGraphFromSlice whenever clipin.edge ≈ orig anchor.time.
+// commitClipoutResize dispatches SetEdge ops that trigger MirrorPair
+// propagation automatically — no setup needed beyond positional coincidence.
 
 describe('commitClipoutResize — conformed-marker carry', () => {
   it('input-linked in-edge: paired beat anchor moves to new inBeatTime', () => {
@@ -244,13 +242,11 @@ describe('commitClipoutResize — conformed-marker carry', () => {
       { id: 9, time: 15 },
     ]))
 
-    // Phase 4c: install carry pair via dragCtx (simulating what the controller does at pointerDown)
-    store.dispatch(addCarryPair({ clipOutId: regionOutId('r'), edge: 'in', anchorOutId: anchorOutId(5) }))
-
     store.dispatch(commitClipoutResize({ id: 'r', inBeatTime: 8, outBeatTime: 20, altKey: false }))
 
     const anchors = store.getState().warp.beatAnchors
-    // Conformed in-edge anchor carries to new inBeatTime=8 via MirrorEdge
+    // MirrorPair auto-install: clipin.in=10 ≈ orig.time=10 → binding present.
+    // SetEdge clipout.in=8 propagates to anchor-out.time=8.
     expect(anchors.find(a => a.id === 5)!.time).toBeCloseTo(8, 9)
     // Other anchor unaffected (no rescale because lock='bpm')
     expect(anchors.find(a => a.id === 9)!.time).toBeCloseTo(15, 9)
@@ -274,9 +270,6 @@ describe('commitClipoutResize — conformed-marker carry', () => {
       { id: 7, time: 18 },
       { id: 3, time: 14 },
     ]))
-
-    // Phase 4c: install carry pair via dragCtx (simulating what the controller does at pointerDown)
-    store.dispatch(addCarryPair({ clipOutId: regionOutId('r'), edge: 'out', anchorOutId: anchorOutId(7) }))
 
     store.dispatch(commitClipoutResize({ id: 'r', inBeatTime: 10, outBeatTime: 22, altKey: false }))
 

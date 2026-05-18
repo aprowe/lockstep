@@ -70,7 +70,6 @@ export const ConstraintKind = {
   SingleOfKind:   'single_of_kind',
   DeleteGroup:    'delete_group',
   HighlightGroup: 'highlight_group',
-  ConformVisual:  'conform_visual',
   MirrorPair:     'mirror_pair',
   SnapCohort:     'snap_cohort',
   SnapRule:       'snap_rule',
@@ -359,22 +358,6 @@ export interface SnapRule {
   tag?:       string
 }
 
-/** Conform — when the clipin's edge coincides with anchor-in.time, writes
- *  anchor-out.time to the matching clipout edge.  `clipId` is the clipin
- *  entity being compared; `clipOutId` is the beat-space clip that receives
- *  the write.  When coincidence is broken the handler is a no-op (the
- *  clipout's edge sticks at its last value). */
-export interface ConformVisual {
-  kind:        typeof ConstraintKind.ConformVisual
-  anchorInId:  EntityId
-  anchorOutId: EntityId
-  /** The clipin entity whose edge is compared against anchor-in.time. */
-  clipId:      EntityId
-  /** The clipout entity that receives the anchor-out.time write on coincidence. */
-  clipOutId:   EntityId
-  edge:        'in' | 'out'
-}
-
 /** Symmetric 1-1 binding between two specific (entity, field) endpoints.
  *  When either endpoint's field is written in the txn, write the same value
  *  to the partner endpoint. No driver — symmetric. No re-sync on install:
@@ -404,7 +387,6 @@ export type Constraint =
   | SingleOfKind
   | DeleteGroup
   | HighlightGroup
-  | ConformVisual
   | MirrorPair
   | SnapCohort
   | SnapRule

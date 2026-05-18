@@ -1598,16 +1598,17 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       expect(r.outPoint).toBe(20)
     })
     And('inBeatTime is set to 6', () => {
-      // ConformVisual installed by linkingMirrorMiddleware when clipin.inPoint
-      // coincides with the input anchor at 10 (beat time 6). The resolver's
-      // ConformVisual propose handler writes anchor-out.time (6) to clipout.in.
+      // MirrorPair auto-installed by buildGraphFromSlice when clipin.inPoint
+      // coincides with the input anchor at 10 (beat time 6). The binding
+      // ties anchor-out.time ↔ clipout.in — propagates writes both ways.
       const r = c.store.getState().region.regions[0]
       expect(r.inBeatTime).toBe(6)
     })
     And("lockedBeats recomputes (BPM stays — even though lock='beats')", () => {
       // BPM stays at 120. Body drag translates clipout by -2 (Translate DirectedPair):
-      // clipout was [12,22], becomes [10,20]. ConformVisual then sets clipout.in=6.
-      // Final clipout: [6, 20]. Length = 20-6 = 14s → lockedBeats = 14*120/60 = 28.
+      // clipout was [12,22], becomes [10,20]. MirrorPair carries the bound to
+      // align clipout.in with anchor-out (6). Final clipout: [6, 20].
+      // Length = 20-6 = 14s → lockedBeats = 14*120/60 = 28.
       const r = c.store.getState().region.regions[0]
       expect(r.bpm).toBe(120)
       expect(r.lockedBeats).toBe(28)

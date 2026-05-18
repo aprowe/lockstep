@@ -18,7 +18,6 @@ import { anchorInId, anchorOutId, regionInId, regionOutId } from '../constraints
 import { findSnapCandidates, movementClosure } from '../constraints'
 import type { EntityId } from '../constraints/types'
 import { isClipOut } from '../constraints/ids'
-import { detectInputLinks } from './model/linkState'
 
 /**
  * Pure gesture state machine for CanvasTimeline.
@@ -698,24 +697,6 @@ function handleRegionMoveMove(
   return intents
 }
 
-/**
- * Phase 5: detect beat anchors conformed (input-side) to the given clipout
- * region edges. Returns one entry per conformed pair: { edge, anchorId }.
- * Called once at pointerDown to install ephemeral carry pairs.
- */
-function detectConformedPairs(
-  regionId: string,
-  snap: Snapshot,
-): Array<{ edge: 'in' | 'out'; anchorId: number }> {
-  const region = snap.regionDetails.find(r => r.id === regionId)
-  if (!region) return []
-  const links = detectInputLinks(region, snap.anchors, snap.beatAnchors)
-  const pairs: Array<{ edge: 'in' | 'out'; anchorId: number }> = []
-  if (links.inputIn?.beat) pairs.push({ edge: 'in', anchorId: links.inputIn.beat.id })
-  if (links.inputOut?.beat) pairs.push({ edge: 'out', anchorId: links.inputOut.beat.id })
-  return pairs
-}
-
 /** Phase 7: generate snapEnd intents to remove SnapTarget constraints installed at
  *  pointerDown. Mirrors snapStart emissions exactly — same (entityId, field) pairs. */
 function snapIntentsFromDrag(d: DragState | null): Intent[] {
@@ -945,14 +926,6 @@ export function createTimelineController(): Controller {
           origBeatAnchorTimes,
         }
         intents.push({ kind: 'dragStart' })
-        // Phase 5: install carry pairs for the dragged clipout edge.
-        // For an edge drag only the dragged edge can have a conformed anchor;
-        // detect all and emit carryStart for each.
-        if (isOutput) {
-          for (const pair of detectConformedPairs(id, snap)) {
-            intents.push({ kind: 'carryStart', regionId: id, edge: pair.edge, anchorId: pair.anchorId })
-          }
-        }
         // Phase 7: install SnapTarget for the dragged region edge.
         // For output-space edge drags: include grid for 'out' edge only when
         // lockMode='bpm' (grid not in motion). 'in' edge always moves the grid.
@@ -992,13 +965,6 @@ export function createTimelineController(): Controller {
         )
         if (drag.kind === 'region-move') drag.lastAltKey = e.altKey
         intents.push({ kind: 'dragStart' })
-        // Phase 5: install carry pairs for a clipout body pan — both edges
-        // may be conformed, so detect all pairs.
-        if (isOutput) {
-          for (const pair of detectConformedPairs(id, snap)) {
-            intents.push({ kind: 'carryStart', regionId: id, edge: pair.edge, anchorId: pair.anchorId })
-          }
-        }
         // Phase 7: install ONE body-mode SnapTarget for the dragged region.
         // Body mode (set by snapToSiblings when gestureRole='body') snaps the
         // body rigidly: if either edge is near a target, both edges shift by
@@ -1383,10 +1349,6 @@ export function createTimelineController(): Controller {
     if (d && (d.kind === 'anchor' || d.kind === 'region-edge' || d.kind === 'region-move')) {
       intents.push({ kind: 'dragEnd' })
     }
-    // Phase 5: clean up carry pairs on pointerUp for output-space clipout drags.
-    if (d && (d.kind === 'region-edge' || d.kind === 'region-move') && d.isOutput) {
-      intents.push({ kind: 'carryEnd', regionId: d.id })
-    }
     // Phase 7: remove SnapTarget constraints installed at pointerDown.
     if (snapInstalledForDrag) {
       for (const si of snapIntentsFromDrag(d)) intents.push(si)
@@ -1405,10 +1367,6 @@ export function createTimelineController(): Controller {
     const intents: Intent[] = [{ kind: 'pubClearGesture' }]
     if (d && (d.kind === 'anchor' || d.kind === 'region-edge' || d.kind === 'region-move')) {
       intents.push({ kind: 'dragCancel' })
-    }
-    // Phase 5: clean up carry pairs on cancel for output-space clipout drags.
-    if (d && (d.kind === 'region-edge' || d.kind === 'region-move') && d.isOutput) {
-      intents.push({ kind: 'carryEnd', regionId: d.id })
     }
     // Phase 7: remove SnapTarget constraints installed at pointerDown.
     if (snapInstalledForDrag) {

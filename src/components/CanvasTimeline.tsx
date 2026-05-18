@@ -127,10 +127,6 @@ export interface CanvasTimelineProps {
   onRegionEntityMove?: (id: string, delta: number, isOutput: boolean, altKey: boolean) => void
   onRegionResizeOutput?: (id: string, inBeatTime: number, outBeatTime: number, altKey: boolean) => void
   onRegionMoveOutput?: (id: string, inBeatTime: number, outBeatTime: number, altKey: boolean) => void
-  /** Phase 5: install an ephemeral carry pair at clipout drag start. */
-  onCarryStart?: (regionId: string, edge: 'in' | 'out', anchorId: number) => void
-  /** Phase 5: remove all carry pairs for a clipout on drag end / cancel. */
-  onCarryEnd?: (regionId: string) => void
   /** Phase 7: install a SnapTarget constraint at drag start for the given entity + field. */
   onSnapStart?: (entityId: string, field: 'time' | 'in' | 'out', pxPerUnit: number, grid?: { interval: number; offset: number }, gestureRole?: 'edge' | 'body' | 'anchor') => void
   /** Phase 7: remove the SnapTarget constraint for the given entity + field. */
@@ -1306,9 +1302,6 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
           if (i.isOutput) p.onRegionMoveOutput?.(i.id, i.inPoint, i.outPoint, i.altKey)
           else p.onRegionMove?.(i.id, i.inPoint, i.outPoint, i.altKey)
           break
-        // Phase 5: carry pair lifecycle.
-        case 'carryStart': p.onCarryStart?.(i.regionId, i.edge, i.anchorId); break
-        case 'carryEnd': p.onCarryEnd?.(i.regionId); break
         // Phase 7: snap constraint lifecycle.
         case 'snapStart': p.onSnapStart?.(i.entityId, i.field, i.pxPerUnit, i.grid, i.gestureRole); break
         case 'snapEnd': p.onSnapEnd?.(i.entityId, i.field); break

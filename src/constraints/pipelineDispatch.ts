@@ -11,7 +11,6 @@ import {
   runConstraintPipeline,
   extractDragCtxFromSlice,
   type PipelineSlice,
-  type ConformVisualSpec,
 } from './pipeline'
 import type { Op } from './types'
 import type { RootState } from '../store/store'

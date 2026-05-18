@@ -47,7 +47,7 @@ function emptySlice(): PipelineSlice {
 }
 
 function emptyDragCtx(): DragCtx {
-  return { lassoIds: [], carry: [], conformVisuals: [] }
+  return { lassoIds: [], carry: [] }
 }
 
 function withOrigAnchor(slice: PipelineSlice, id: number, time: number): PipelineSlice {
@@ -128,7 +128,7 @@ describe('runConstraintPipeline — equivalence with applyOp path', () => {
     const dragCtx: DragCtx = {
       lassoIds:      [anchorInId(1), anchorInId(2), anchorInId(3)],
       carry:         [],
-      conformVisuals: [],
+
     }
 
     const output = runConstraintPipeline({ slice, dragCtx, op: { kind: OpKind.Move, id: anchorInId(1), delta: 0.5 } })
@@ -246,7 +246,7 @@ describe('runConstraintPipeline — equivalence with applyOp path', () => {
     const dragCtx: DragCtx = {
       lassoIds: [],
       carry:    [{ clipOutId: regionOutId('r1'), edge: 'in', anchorOutId: anchorOutId(5) }],
-      conformVisuals: [],
+
     }
 
     const op = { kind: OpKind.SetEdge, id: regionOutId('r1'), edge: 'in' as const, value: 3.0 }
@@ -287,7 +287,7 @@ describe('runConstraintPipeline — equivalence with applyOp path', () => {
     const dragCtx: DragCtx = {
       lassoIds:      [regionInId('r1'), regionInId('r2')],
       carry:         [],
-      conformVisuals: [],
+
     }
 
     const output = runConstraintPipeline({ slice, dragCtx, op: { kind: OpKind.Move, id: regionInId('r1'), delta: 5.0 } })
@@ -310,7 +310,7 @@ describe('runConstraintPipeline — equivalence with applyOp path', () => {
     const dragCtx: DragCtx = {
       lassoIds: [],
       carry:    [],
-      conformVisuals: [],
+
       snapInstall: {
         entityId:  anchorInId(1),
         field:     'time',
@@ -357,7 +357,7 @@ describe('runConstraintPipeline — equivalence with applyOp path', () => {
     const dragCtx: DragCtx = {
       lassoIds: [],
       carry:    [],
-      conformVisuals: [],
+
       snapInstall: {
         entityId: regionOutId('r1'),
         field:    'in',
@@ -434,7 +434,7 @@ describe('runConstraintPipeline — equivalence with applyOp path', () => {
     const dragCtx: DragCtx = {
       lassoIds: [anchorInId(1), regionInId('r1')],
       carry:    [],
-      conformVisuals: [],
+
     }
 
     const output = runConstraintPipeline({ slice, dragCtx, op: { kind: OpKind.Move, id: regionInId('r1'), delta: 2.0 } })
@@ -500,7 +500,7 @@ describe('runConstraintPipeline — equivalence with applyOp path', () => {
       ui:     { anchorLock: false, anchorLockGestureOverride: null, lockMode: 'bpm' },
       lists:  { selection: { clipin: [], clipout: [] } },
     }
-    const dragCtx: DragCtx = { lassoIds: [], carry: [], conformVisuals: [] }
+    const dragCtx: DragCtx = { lassoIds: [], carry: [] }
     const state = buildGraphFromSlice(slice, dragCtx)
 
     const snapRules = state.constraints.filter(c => c.kind === 'snap_rule')

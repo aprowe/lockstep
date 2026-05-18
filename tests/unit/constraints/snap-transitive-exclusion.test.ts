@@ -4,24 +4,25 @@
  * Scenario: dragging clipin of a default-linked region that has a conformed
  * beat anchor at the clipout.in edge.
  *   - defaultlink pair: regionInId → regionOutId (Translate)  [installed by middleware]
- *   - carry pair:        regionOutId → anchorOutId  (MirrorEdge, fromEdge=in)
- * Both pairs together form a chain  regionInId → regionOutId → anchorOutId.
+ *   - conform binding:  MirrorPair anchor-out.time ↔ clipout.in
+ * Together these reach the carried anchor from the dragged clipin:
+ *   regionInId → regionOutId → anchorOutId.
  *
  * When the user drags the clipin, both clipout AND the carried anchor move
  * along with it via the resolver. If `snapToSiblings(clipinId, …)` lists the
  * anchor as a snap target, the resolver creates oscillation/feedback because
  * the anchor's position is itself being driven by the same drag.
  *
- * The fix is to compute the transitive closure of DirectedPair `from→to`
- * starting from the dragged entity and exclude every reachable entity from
- * the snap target set.
+ * The fix is to compute the movement closure (over DirectedPair from→to
+ * AND symmetric MirrorPair) starting from the dragged entity and exclude
+ * every reachable entity from the snap target set.
  */
 
 import { describe, it, expect } from 'vitest'
 import { reduce, emptyState } from '../../../src/constraints'
 import type { State } from '../../../src/constraints/types'
-import { ConstraintKind, OpKind, PairMode } from '../../../src/constraints/types'
-import { snapToSiblings, carryStart } from '../../../src/constraints/recipes'
+import { ConstraintKind, OpKind, PairMode, Field } from '../../../src/constraints/types'
+import { snapToSiblings } from '../../../src/constraints/recipes'
 import { anchorOutId, regionInId, regionOutId } from '../../../src/constraints/ids'
 
 function setup(): State {
@@ -44,8 +45,16 @@ function setup(): State {
     },
   })
 
-  // carry: clipout → anchor-out (MirrorEdge, in edge).
-  state = reduce(state, carryStart(regionOutId('r1'), 'in', anchorOutId(42)))
+  // Conform binding: MirrorPair anchor-out.time ↔ clipout.in
+  state = reduce(state, {
+    kind: OpKind.AddConstraint,
+    constraint: {
+      kind: ConstraintKind.MirrorPair,
+      a:    { id: anchorOutId(42),     field: Field.Time },
+      b:    { id: regionOutId('r1'),   field: Field.In   },
+      tag:  `conform:42:r1:in`,
+    },
+  })
 
   // Install cohorts and rules so snapToSiblings has something to work with.
   // clipin drags target anchor-in (per SNAP_RULES): add those cohorts + rule.

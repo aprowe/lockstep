@@ -14,9 +14,9 @@ import { ConstraintKind } from './types'
  *   - DirectedPair (any mode):                    from → to only.
  *   - MirrorPair (symmetric):                     a ↔ b reciprocally.
  *
- * Non-write constraints (Clamp, PreserveLength, SnapTarget, ConformVisual,
- * Derived, SingleOfKind, DeleteGroup, HighlightGroup) are ignored — they
- * don't propagate position writes.
+ * Non-write constraints (Clamp, PreserveLength, SnapTarget, Derived,
+ * SingleOfKind, DeleteGroup, HighlightGroup) are ignored — they don't
+ * propagate position writes.
  */
 export function movementClosure(state: State, seed: EntityId): Set<EntityId> {
   const closure = new Set<EntityId>([seed])

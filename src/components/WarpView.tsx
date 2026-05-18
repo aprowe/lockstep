@@ -42,13 +42,10 @@ import { setView as setReduxView, setWarpCollapsed, setGridDiv } from '../store/
 import { commitClipoutResize, commitClipoutPan } from '../store/thunks/clipoutThunks'
 import { moveAnchors, moveBeatAnchors } from '../store/thunks/regionThunks'
 import { applyAnchorEntityMove, applyRegionEntityMove } from '../store/thunks/entityWriteThunks'
-import { regionOutId, anchorOutId } from '../constraints/ids'
 import { snapToSiblings } from '../constraints/recipes'
 import {
   setSnapInstall,
   clearSnapInstall,
-  addCarryPair,
-  clearAllCarry,
 } from '../store/slices/dragCtxSlice'
 import {
   origToBeat as beatMapOrigToBeat,
@@ -670,12 +667,6 @@ const importRef = useRef<HTMLInputElement>(null)
           if (clipOverlays?.find(c => c.id === id)) {
             dispatch(commitClipoutResize({ id, inBeatTime: inP, outBeatTime: outP, altKey }))
           }
-        }}
-        onCarryStart={(regionId, edge, anchorId) => {
-          dispatch(addCarryPair({ clipOutId: regionOutId(regionId), edge, anchorOutId: anchorOutId(anchorId) }))
-        }}
-        onCarryEnd={(_regionId) => {
-          dispatch(clearAllCarry())
         }}
         onSnapStart={(entityId, field, pxPerUnit, grid, gestureRole) => {
           const op = snapToSiblings(entityId, field, constraintGraph, pxPerUnit, 8, grid, gestureRole)

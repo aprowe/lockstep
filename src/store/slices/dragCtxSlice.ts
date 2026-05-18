@@ -7,7 +7,6 @@
  *
  *   - lassoIds:    entity IDs in the current lasso/selection TranslateGroup
  *   - snapInstall: active SnapTarget constraint parameters
- *   - carry:       active carry pairs (clipout-edge → beat-anchor)
  *   - anchorLock:  active anchor-lock state
  *
  * The mirror middlewares that maintain these fields in the constraint graph
@@ -38,9 +37,6 @@ export interface DragCtxSliceState {
     targets?: { entityId: EntityId; field: Field }[]
   } | null
 
-  /** Active carry pairs (clipout edge → beat anchor). */
-  carry: Array<{ clipOutId: EntityId; edge: 'in' | 'out'; anchorOutId: EntityId }>
-
   /** Anchor-lock state — null when inactive. */
   anchorLock: {
     clipOutId: EntityId
@@ -52,7 +48,6 @@ export interface DragCtxSliceState {
 const initialState: DragCtxSliceState = {
   lassoIds: [],
   snapInstall: null,
-  carry: [],
   anchorLock: null,
 }
 
@@ -72,15 +67,6 @@ const dragCtxSlice = createSlice({
     clearSnapInstall(state) {
       state.snapInstall = null
     },
-    addCarryPair(state, action: PayloadAction<DragCtxSliceState['carry'][number]>) {
-      state.carry.push(action.payload)
-    },
-    clearCarry(state, action: PayloadAction<EntityId>) {
-      state.carry = state.carry.filter(c => c.clipOutId !== action.payload)
-    },
-    clearAllCarry(state) {
-      state.carry = []
-    },
     setAnchorLock(state, action: PayloadAction<DragCtxSliceState['anchorLock']>) {
       state.anchorLock = action.payload
     },
@@ -95,9 +81,6 @@ export const {
   clearLasso,
   setSnapInstall,
   clearSnapInstall,
-  addCarryPair,
-  clearCarry,
-  clearAllCarry,
   setAnchorLock,
   clearAnchorLock,
 } = dragCtxSlice.actions

@@ -129,34 +129,12 @@ export function lockOff(clipOutId: EntityId): Op {
 }
 
 // ─── Carry on drag ────────────────────────────────────────────────────────
-
-/** At pointerDown of a clipout edge drag, if the edge was on a conformed
- *  anchor: add a mirror_edge pair so the anchor follows the edge during
- *  the drag. Ephemeral — recipe removes on pointerUp. */
-export function carryStart(
-  clipOutId: EntityId,
-  edge: 'in' | 'out',
-  pairedAnchorOutId: EntityId,
-): Op {
-  return {
-    kind: OpKind.AddConstraint,
-    constraint: {
-      kind: ConstraintKind.DirectedPair,
-      from: clipOutId, to: pairedAnchorOutId, mode: PairMode.MirrorEdge,
-      fromEdge: edge,
-      tag: `carry:${clipOutId}:${edge}`,
-    },
-  }
-}
-
-export function carryEnd(clipOutId: EntityId): Op {
-  return {
-    kind: OpKind.RemoveConstraint,
-    predicate: c =>
-      c.kind === ConstraintKind.DirectedPair &&
-      (c.tag?.startsWith(`carry:${clipOutId}:`) ?? false),
-  }
-}
+//
+// Obsolete — the MirrorPair conform binding auto-installed by
+// `buildGraphFromSlice` now propagates clipout-edge writes to the paired
+// anchor (and vice versa) whenever positional coincidence holds. The
+// ephemeral `carry:*` DirectedPair that `carryStart` used to install at
+// pointerDown is no longer needed.
 
 // ─── Region.lock dropdown (BPM vs beats fixed) ────────────────────────────
 
@@ -474,65 +452,12 @@ export function snapToSiblings(
   }
 }
 
-// ─── Conform (write-propagating on coincidence) ───────────────────────────
-
-export function conform(
-  anchorInId: EntityId,
-  anchorOutId: EntityId,
-  clipId: EntityId,
-  clipOutId: EntityId,
-  edge: 'in' | 'out',
-): Op {
-  return {
-    kind: OpKind.AddConstraint,
-    constraint: {
-      kind: ConstraintKind.ConformVisual,
-      anchorInId, anchorOutId, clipId, clipOutId, edge,
-    },
-  }
-}
-
-export function unconform(anchorInId: EntityId, clipId: EntityId, edge: 'in' | 'out'): Op {
-  return {
-    kind: OpKind.RemoveConstraint,
-    predicate: c =>
-      c.kind === ConstraintKind.ConformVisual &&
-      c.anchorInId === anchorInId &&
-      c.clipId === clipId &&
-      c.edge === edge,
-  }
-}
-
-/** Install a ConformVisual for a linking coincidence (input anchor ↔ clipin
- *  edge → writes to clipout edge). Tag: `conform:{anchorInId}:{clipId}:{edge}`. */
-export function installLinkingConform(
-  anchorInId: EntityId,
-  anchorOutId: EntityId,
-  clipInId: EntityId,
-  clipOutId: EntityId,
-  edge: 'in' | 'out',
-): Op {
-  return {
-    kind: OpKind.AddConstraint,
-    constraint: {
-      kind: ConstraintKind.ConformVisual,
-      anchorInId,
-      anchorOutId,
-      clipId: clipInId,
-      clipOutId,
-      edge,
-    },
-  }
-}
-
-/** Remove a ConformVisual installed by `installLinkingConform`. */
-export function removeLinkingConform(
-  anchorInId: EntityId,
-  clipInId: EntityId,
-  edge: 'in' | 'out',
-): Op {
-  return unconform(anchorInId, clipInId, edge)
-}
+// ─── Conform binding ──────────────────────────────────────────────────────
+//
+// Conformance is positional and auto-managed by `buildGraphFromSlice` —
+// whenever a clipin edge ≈ orig anchor.time, a MirrorPair binding
+// anchor-out.time ↔ clipout.{edge} is installed. There is no manual
+// conform/unconform recipe — the install/remove is derived from positions.
 
 // ─── Highlight (hover / multi-select indicator) ───────────────────────────
 

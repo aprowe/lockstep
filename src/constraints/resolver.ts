@@ -12,7 +12,6 @@
 
 import type {
   Clamp,
-  ConformVisual,
   Constraint,
   DirectedPair,
   Derived,
@@ -450,53 +449,6 @@ const HANDLERS: HandlerEntry[] = [
     },
   },
 
-  /** conform_visual: when the clipin's proposed edge value coincides with
-   *  the anchor-in's time (within CONFORM_EPSILON), write the anchor-out's
-   *  time to the clipout's matching edge.  When coincidence is broken the
-   *  handler is silent — the clipout's edge sticks at its last written value. */
-  {
-    kind:  ConstraintKind.ConformVisual,
-    phase: Phase.Propose,
-    apply: (state, c: never, txn) => {
-      const cv = c as ConformVisual
-      const anchorIn  = state.entities[cv.anchorInId]
-      const anchorOut = state.entities[cv.anchorOutId]
-      const clipOut   = state.entities[cv.clipOutId]
-      if (!anchorIn  || anchorIn.kind  !== EntityKind.Anchor) return txn
-      if (!anchorOut || anchorOut.kind !== EntityKind.Anchor) return txn
-      if (!clipOut   || clipOut.kind   !== EntityKind.Clip)   return txn
-
-      // Read the proposed clipin edge value from the Txn (it may not yet be
-      // committed to state.entities, so always prefer the Txn entry).
-      const clipInEdgeField = cv.edge === 'in' ? Field.In : Field.Out
-      const clipInWrite = txn.find(w => w.entityId === cv.clipId && w.field === clipInEdgeField)
-      // Fall back to current state if no write in flight (e.g. a different entity moved).
-      const anchorInTime = txn.find(w => w.entityId === cv.anchorInId && w.field === Field.Time)?.to
-                           ?? anchorIn.time
-      const clipInEdge   = clipInWrite?.to
-                           ?? (cv.edge === 'in' ? (state.entities[cv.clipId] as { in: number } | undefined)?.in
-                                                : (state.entities[cv.clipId] as { out: number } | undefined)?.out)
-      if (clipInEdge === undefined) return txn
-
-      // Coincidence check.
-      if (Math.abs(clipInEdge - anchorInTime) > CONFORM_EPSILON) return txn
-
-      // Coincident — write anchor-out.time to the clipout's matching edge.
-      const clipOutField = cv.edge === 'in' ? Field.In : Field.Out
-      const anchorOutTime = txn.find(w => w.entityId === cv.anchorOutId && w.field === Field.Time)?.to
-                            ?? anchorOut.time
-      const clipOutCurrent = cv.edge === 'in' ? clipOut.in : clipOut.out
-      if (Math.abs(clipOutCurrent - anchorOutTime) < EPSILON) return txn
-
-      return mergeWrites(txn, [{
-        entityId: cv.clipOutId,
-        field:    clipOutField,
-        from:     clipOutCurrent,
-        to:       anchorOutTime,
-      }])
-    },
-  },
-
   // ── RESTRICT ─────────────────────────────────────────────────────────
 
   /** clamp: clip a single field's proposed value into [min, max]. */
@@ -708,10 +660,6 @@ export function bpmDerivedConstraint(
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
 const EPSILON = 1e-3
-/** Tolerance for "coincident" in the ConformVisual propose handler.
- *  Tighter than EPSILON: coincidence is a meaningful position relationship,
- *  not just floating-point slop. */
-const CONFORM_EPSILON = 1e-6
 
 export function emptyState(): State {
   return {
@@ -882,14 +830,6 @@ function constraintEntities(constraint: Constraint): EntityId[] {
 
     case ConstraintKind.SingleOfKind:
       return constraint.activeId ? [constraint.activeId] : []
-
-    case ConstraintKind.ConformVisual:
-      return [
-        constraint.anchorInId,
-        constraint.anchorOutId,
-        constraint.clipId,
-        constraint.clipOutId,
-      ]
 
     case ConstraintKind.MirrorPair:
       return [constraint.a.id, constraint.b.id]

@@ -1,8 +1,8 @@
 /**
  * Phase 4c: dragCtxMirrorMiddleware deleted.
  *
- * Snap and carry state are now dispatched directly to dragCtxSlice by WarpView
- * (setSnapInstall / clearSnapInstall / addCarryPair / clearAllCarry).
+ * Snap state is dispatched directly to dragCtxSlice by WarpView
+ * (setSnapInstall / clearSnapInstall).
  * No middleware is needed.
  *
  * This file is a stub retained for backward compatibility with test imports.

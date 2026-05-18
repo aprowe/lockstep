@@ -4,10 +4,10 @@
  * Verifies that dragCtxSlice is correctly populated by:
  *   1. selectionGraphMirrorMiddleware  (lasso shadow-write)
  *   2. anchorLockMirrorMiddleware      (anchorLock shadow-write)
- *   3. dragCtxMirrorMiddleware         (snap + carry shadow-write)
+ *   3. dragCtxMirrorMiddleware         (snap shadow-write)
  *
  * Also tests the slice reducers directly (setSnapInstall, clearSnapInstall,
- * addCarryPair, clearCarry, clearAllCarry, setAnchorLock, clearAnchorLock).
+ * setAnchorLock, clearAnchorLock).
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
@@ -26,9 +26,6 @@ import dragReducer from '../../../src/store/slices/dragSlice'
 import dragCtxReducer, {
   setSnapInstall,
   clearSnapInstall,
-  addCarryPair,
-  clearCarry,
-  clearAllCarry,
   setAnchorLock as setDragCtxAnchorLock,
   clearAnchorLock,
 } from '../../../src/store/slices/dragCtxSlice'
@@ -38,8 +35,6 @@ import { selectionGraphMirrorMiddleware } from '../../../src/store/middleware/se
 import { anchorLockMirrorMiddleware } from '../../../src/store/middleware/anchorLockMirrorMiddleware'
 import { dragCtxMirrorMiddleware } from '../../../src/store/middleware/dragCtxMirrorMiddleware'
 
-import { anchorOutId, regionOutId } from '../../../src/constraints/ids'
-import { ConstraintKind } from '../../../src/constraints/types'
 
 import type { Region } from '../../../src/types'
 
@@ -106,7 +101,6 @@ describe('dragCtxSlice — direct reducers', () => {
     const dc = getDragCtx(store)
     expect(dc.lassoIds).toEqual([])
     expect(dc.snapInstall).toBeNull()
-    expect(dc.carry).toEqual([])
     expect(dc.anchorLock).toBeNull()
   })
 
@@ -119,22 +113,6 @@ describe('dragCtxSlice — direct reducers', () => {
 
     store.dispatch(clearSnapInstall())
     expect(getDragCtx(store).snapInstall).toBeNull()
-  })
-
-  it('addCarryPair / clearCarry / clearAllCarry', () => {
-    const store = makeStore()
-    store.dispatch(addCarryPair({ clipOutId: 'r1-out', edge: 'in',  anchorOutId: 'a1-out' }))
-    store.dispatch(addCarryPair({ clipOutId: 'r1-out', edge: 'out', anchorOutId: 'a2-out' }))
-    store.dispatch(addCarryPair({ clipOutId: 'r2-out', edge: 'in',  anchorOutId: 'a3-out' }))
-    expect(getDragCtx(store).carry).toHaveLength(3)
-
-    store.dispatch(clearCarry('r1-out'))
-    const remaining = getDragCtx(store).carry
-    expect(remaining).toHaveLength(1)
-    expect(remaining[0].clipOutId).toBe('r2-out')
-
-    store.dispatch(clearAllCarry())
-    expect(getDragCtx(store).carry).toHaveLength(0)
   })
 
   it('setAnchorLock / clearAnchorLock', () => {
@@ -249,42 +227,6 @@ describe('dragCtxSlice — anchor-lock shadow-write via anchorLockMirrorMiddlewa
   })
 })
 
-describe('dragCtxSlice — carry shadow-write via dragCtxMirrorMiddleware', () => {
-  // Phase 4c: dragCtxMirrorMiddleware is a no-op. Carry state is dispatched
-  // directly to dragCtxSlice by WarpView (addCarryPair / clearAllCarry).
-  // These tests verify the direct-dispatch mechanism.
-
-  it('carryStart op populates dragCtx.carry', () => {
-    const store = makeStore()
-    store.dispatch(addAnchor({ id: 1, time: 2.0 }))
-    store.dispatch(addRegion(makeRegion({ id: 'r1', inPoint: 0, outPoint: 4, inBeatTime: 0, outBeatTime: 4 })))
-
-    const clipOutId  = regionOutId('r1')
-    const ancOutId   = anchorOutId(1)
-    // Phase 4c: dispatch directly to dragCtxSlice (WarpView path)
-    store.dispatch(addCarryPair({ clipOutId, edge: 'in', anchorOutId: ancOutId }))
-
-    const carry = getDragCtx(store).carry
-    expect(carry).toHaveLength(1)
-    expect(carry[0]).toMatchObject({ clipOutId, edge: 'in', anchorOutId: ancOutId })
-  })
-
-  it('carryEnd op removes the carry pair from dragCtx.carry', () => {
-    const store = makeStore()
-    store.dispatch(addAnchor({ id: 1, time: 2.0 }))
-    store.dispatch(addRegion(makeRegion({ id: 'r1', inPoint: 0, outPoint: 4, inBeatTime: 0, outBeatTime: 4 })))
-
-    const clipOutId = regionOutId('r1')
-    const ancOutId  = anchorOutId(1)
-    // Phase 4c: dispatch directly to dragCtxSlice (WarpView path)
-    store.dispatch(addCarryPair({ clipOutId, edge: 'in', anchorOutId: ancOutId }))
-    expect(getDragCtx(store).carry).toHaveLength(1)
-
-    store.dispatch(clearAllCarry())
-    expect(getDragCtx(store).carry).toHaveLength(0)
-  })
-})
-
 describe('dragCtxSlice — snap shadow-write via dragCtxMirrorMiddleware', () => {
   // Phase 4c: dragCtxMirrorMiddleware is a no-op. Snap state is dispatched
   // directly to dragCtxSlice by WarpView (setSnapInstall / clearSnapInstall).
@@ -321,7 +263,7 @@ describe('dragCtxSlice — snap shadow-write via dragCtxMirrorMiddleware', () =>
 })
 
 describe('dragCtxSlice — end-drag reset', () => {
-  it('clearing lasso + snap + carry resets all dragCtx fields', () => {
+  it('clearing lasso + snap resets all dragCtx fields', () => {
     const store = makeStore()
     store.dispatch(addAnchor({ id: 1, time: 1.0 }))
     store.dispatch(addRegion(makeRegion({ id: 'r1', inPoint: 0, outPoint: 4, inBeatTime: 0, outBeatTime: 4 })))
@@ -329,18 +271,13 @@ describe('dragCtxSlice — end-drag reset', () => {
     // Install state.
     store.dispatch(setSelectedOrigIds([1]))
     store.dispatch(setSnapInstall({ entityId: 'a1-out', field: 'time', threshold: 0.1 }))
-    store.dispatch(addCarryPair({ clipOutId: regionOutId('r1'), edge: 'in', anchorOutId: anchorOutId(1) }))
 
-    // End drag: clear lasso.
+    // End drag: clear lasso + snap.
     store.dispatch(setSelectedOrigIds([]))
-    // Clear snap.
     store.dispatch(clearSnapInstall())
-    // Clear carry.
-    store.dispatch(clearAllCarry())
 
     const dc = getDragCtx(store)
     expect(dc.lassoIds).toHaveLength(0)
     expect(dc.snapInstall).toBeNull()
-    expect(dc.carry).toHaveLength(0)
   })
 })
