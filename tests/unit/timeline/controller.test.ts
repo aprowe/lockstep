@@ -115,10 +115,7 @@ describe('controller.pointerDown', () => {
       expect(ds.id).toBe(7)
       expect(ds.space).toBe('input')
       expect(ds.origTime).toBe(12.5)
-      // A fresh copy of snapshot's anchors should be captured
-      expect(ds.liveAnchors).toEqual([{ id: 7, time: 12.5 }])
-      expect(ds.liveAnchors).not.toBe(snap.anchors)
-      expect(ds.liveBeatAnchors).toEqual([])
+      expect(ds.capturedSpaces).toEqual({ input: true, beat: false })
       // Pending select is the additive-aware anchorSelect that fires on
       // pointerUp click.
       expect(ds.pendingSelect).toEqual([{ kind: 'anchorSelect', id: 7, additive: false }])
@@ -194,7 +191,6 @@ describe('controller.pointerDown', () => {
       expect(ds.isOutput).toBe(false)
       expect(ds.origIn).toBe(10)
       expect(ds.origOut).toBe(30)
-      expect(ds.liveRegion).toBeNull()
       expect(ds.pendingSelect).toEqual([{ kind: 'regionSelect', id: 'r1' }])
     }
     const up = c.pointerUp(snap)
@@ -220,7 +216,6 @@ describe('controller.pointerDown', () => {
       expect(ds.origOut).toBe(20)
       expect(ds.anchorX).toBe(120)
       expect(ds.isOutput).toBe(false)
-      expect(ds.liveRegion).toBeNull()
       expect(ds.pendingSelect).toEqual([{ kind: 'regionSelect', id: 'r2' }])
     }
     const up = c.pointerUp(snap)
@@ -433,7 +428,7 @@ describe('controller.pointerDown', () => {
     expect(ds?.kind).toBe('anchor')
     if (ds?.kind === 'anchor') {
       expect(ds.groupIds?.size).toBe(2)
-      expect(ds.origInputTimes?.size).toBe(2)
+      expect(ds.capturedSpaces.input).toBe(true)
       expect(ds.regionGroupIds?.size).toBe(2)
       expect(ds.origRegionBounds?.get('r1')).toEqual({ inPoint: 30, outPoint: 40 })
       expect(ds.origRegionBounds?.get('r2')).toEqual({ inPoint: 60, outPoint: 70 })
@@ -515,8 +510,9 @@ describe('controller.pointerDown', () => {
       // and the pointerMove branch routes to the cursor-pixel-delta path
       // (input-space targets + output-space grid compete for the closest
       // hit, winning delta applied to both partners).
-      expect(ds.origInputTimes?.get(5)).toBe(10)
-      expect(ds.origBeatTimes?.get(5)).toBe(20)
+      expect(ds.capturedSpaces).toEqual({ input: true, beat: true })
+      expect(ds.partnerOrigTime).toBe(20)
+      expect(ds.origTime).toBe(10)
       expect(ds.isPair).toBe(true)
       // Both pair-select intents queued for pointerUp click.
       expect(ds.pendingSelect.length).toBe(2)
@@ -1241,7 +1237,7 @@ describe('controller.pointerMove — minimap drag', () => {
 })
 
 describe('controller.pointerMove — anchor drag', () => {
-  it('updates liveAnchors, emits pubDragTime + pubSnapHints + redraw (input space, no snap)', () => {
+  it('emits anchorEntityMove with new time, plus pubDragTime + pubSnapHints + redraw (input space, no snap)', () => {
     const c = createTimelineController()
     const snap = makeSnapshot({
       anchors: [{ id: 1, time: 0 }],
@@ -1257,13 +1253,8 @@ describe('controller.pointerMove — anchor drag', () => {
     }
     expect(intents.some(i => i.kind === 'pubSnapHints')).toBe(true)
     expect(intents.some(i => i.kind === 'redraw')).toBe(true)
-
-    const ds = c.getDragState()
-    if (ds?.kind === 'anchor') {
-      expect(ds.liveAnchors[0].time).toBeCloseTo(50)
-    } else {
-      throw new Error('Expected anchor drag state')
-    }
+    const move = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')!
+    if (move.kind === 'anchorEntityMove') expect(move.time).toBeCloseTo(50)
   })
 
   it('publishes raw drag time (snap is handled by resolver, not controller)', () => {
@@ -1301,7 +1292,7 @@ describe('controller.pointerMove — anchor drag', () => {
 })
 
 describe('controller.pointerMove — region-edge drag', () => {
-  it('updates liveRegion (input, edge=out)', () => {
+  it('emits regionResize on edge drag (input, edge=out)', () => {
     const c = createTimelineController()
     const snap = makeSnapshot({
       regions: [{ id: 'r1', inPoint: 10, outPoint: 30 }],
@@ -1309,15 +1300,13 @@ describe('controller.pointerMove — region-edge drag', () => {
     })
     c.pointerDown(makePointerEvent({ clientX: 240, clientY: 200 }), snap)
     // Move to x=400 → raw=50
-    c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
-    // Slice is now live — verify via dragState.liveRegion (canvas source of truth)
-    const ds = c.getDragState()
-    if (ds?.kind === 'region-edge') {
-      expect(ds.liveRegion?.id).toBe('r1')
-      expect(ds.liveRegion?.inPoint).toBe(10)
-      expect(ds.liveRegion?.outPoint).toBeCloseTo(50)
-    } else {
-      throw new Error('Expected region-edge drag state')
+    const intents = c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
+    const resize = intents.find(i => i.kind === 'regionResize')!
+    if (resize.kind === 'regionResize') {
+      expect(resize.id).toBe('r1')
+      expect(resize.inPoint).toBe(10)
+      expect(resize.outPoint).toBeCloseTo(50)
+      expect(resize.isOutput).toBe(false)
     }
   })
 
@@ -1329,16 +1318,13 @@ describe('controller.pointerMove — region-edge drag', () => {
       hits: [pointHit(240, 200, { kind: 'region-edge', id: 'r1', edge: 'out', isOutput: false })],
     })
     c.pointerDown(makePointerEvent({ clientX: 240, clientY: 200 }), snap)
-    // Move to x=400 → raw=50; controller shows raw position (resolver snaps on dispatch)
-    c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
-    const ds = c.getDragState()
-    if (ds?.kind === 'region-edge') {
-      // Raw position shown in liveRegion (1-frame lag for snap is acceptable)
-      expect(ds.liveRegion?.outPoint).toBeCloseTo(50)
-    }
+    // Move to x=400 → raw=50; controller emits raw position (resolver snaps on dispatch)
+    const intents = c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
+    const resize = intents.find(i => i.kind === 'regionResize')!
+    if (resize.kind === 'regionResize') expect(resize.outPoint).toBeCloseTo(50)
   })
 
-  it('output region-edge sets liveRegion.isOutput via dragState (live clipout preview)', () => {
+  it('output region-edge emits regionResize with isOutput=true', () => {
     const c = createTimelineController()
     const snap = makeSnapshot({
       regions: [{ id: 'r1', inPoint: 0, outPoint: 30 }],
@@ -1347,22 +1333,20 @@ describe('controller.pointerMove — region-edge drag', () => {
     })
     c.pointerDown(makePointerEvent({ clientX: 240, clientY: 200 }), snap)
     const intents = c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
-    // dragState carries live region bounds for the canvas
-    const ds = c.getDragState()
-    if (ds?.kind === 'region-edge') {
-      expect(ds.isOutput).toBe(true)
-      expect(ds.liveRegion?.id).toBe('r1')
-      expect(ds.liveRegion?.inPoint).toBe(0)
-      expect(ds.liveRegion?.outPoint).toBeCloseTo(50)
+    const resize = intents.find(i => i.kind === 'regionResize')!
+    if (resize.kind === 'regionResize') {
+      expect(resize.id).toBe('r1')
+      expect(resize.inPoint).toBe(0)
+      expect(resize.outPoint).toBeCloseTo(50)
+      expect(resize.isOutput).toBe(true)
     }
-    // pubDragTime still flows for output edge
     const t = intents.find(i => i.kind === 'pubDragTime')!
     if (t.kind === 'pubDragTime') expect(t.space).toBe('output')
   })
 })
 
 describe('controller.pointerMove — region-move drag', () => {
-  it('updates liveRegion preserving duration', () => {
+  it('emits regionEntityMove with delta preserving duration', () => {
     const c = createTimelineController()
     const snap = makeSnapshot({
       regions: [{ id: 'r1', inPoint: 10, outPoint: 30 }],
@@ -1371,11 +1355,11 @@ describe('controller.pointerMove — region-move drag', () => {
     // anchorX = 160 (= t=20 in view 0..100, W=800)
     c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
     // Drag to x=400 (t=50) → delta=30 → new in=40, out=60
-    c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
-    const ds = c.getDragState()
-    if (ds?.kind === 'region-move') {
-      expect(ds.liveRegion?.inPoint).toBeCloseTo(40)
-      expect(ds.liveRegion?.outPoint).toBeCloseTo(60)
+    const intents = c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
+    const move = intents.find(i => i.kind === 'regionEntityMove' && i.id === 'r1')!
+    if (move.kind === 'regionEntityMove') {
+      expect(move.delta).toBeCloseTo(30)
+      expect(move.isOutput).toBe(false)
     }
   })
 
@@ -1387,13 +1371,10 @@ describe('controller.pointerMove — region-move drag', () => {
       hits: [pointHit(160, 200, { kind: 'region', id: 'r1', isOutput: false })],
     })
     c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
-    // Move so rawIn=40; controller shows raw (resolver snaps on dispatch)
-    c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
-    const ds = c.getDragState()
-    if (ds?.kind === 'region-move') {
-      expect(ds.liveRegion?.inPoint).toBeCloseTo(40)
-      expect(ds.liveRegion?.outPoint).toBeCloseTo(60)
-    }
+    // Move so rawIn=40; controller emits raw (resolver snaps on dispatch)
+    const intents = c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
+    const t = intents.find(i => i.kind === 'pubDragTime')!
+    if (t.kind === 'pubDragTime') expect(t.time).toBeCloseTo(40)
   })
 })
 
@@ -1608,17 +1589,18 @@ describe('controller — clipout (isOutput=true) region drag', () => {
     c.pointerDown(makePointerEvent({ clientX: 0, clientY: 200 }), snap)
     // Move 400px right in an 800px canvas over a 10s view → +5 s delta
     // newIn = clamp(0 + 5, 0, 10-2) = 5; newOut = 7
-    c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
+    const intents = c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const ds = c.getDragState()
-    if (ds?.kind === 'region-move') {
-      expect(ds.isOutput).toBe(true)
-      expect(ds.liveRegion?.id).toBe('ro')
-      expect(ds.liveRegion?.inPoint).toBeCloseTo(5)
-      expect(ds.liveRegion?.outPoint).toBeCloseTo(7)
+    expect(ds?.kind).toBe('region-move')
+    if (ds?.kind === 'region-move') expect(ds.isOutput).toBe(true)
+    const move = intents.find(i => i.kind === 'regionEntityMove' && i.id === 'ro')!
+    if (move.kind === 'regionEntityMove') {
+      expect(move.isOutput).toBe(true)
+      expect(move.delta).toBeCloseTo(5)
     }
   })
 
-  it('clipout edge drag: dragState carries isOutput=true liveRegion (live preview)', () => {
+  it('clipout edge drag: emits regionResize with isOutput=true', () => {
     const c = createTimelineController()
     const snap = makeSnapshot({
       view: { start: 0, end: 10 },
@@ -1629,14 +1611,13 @@ describe('controller — clipout (isOutput=true) region drag', () => {
     })
     c.pointerDown(makePointerEvent({ clientX: 320, clientY: 200 }), snap)
     // Move to x=560 → t = 560/800 * 10 = 7.0 in a 10s view
-    // newOut = clamp(origIn + 0.1=1.1, 7.0, 10) = 7.0
-    c.pointerMove(makePointerEvent({ clientX: 560, clientY: 200 }), snap)
-    const ds = c.getDragState()
-    if (ds?.kind === 'region-edge') {
-      expect(ds.isOutput).toBe(true)
-      expect(ds.liveRegion?.id).toBe('re')
-      expect(ds.liveRegion?.inPoint).toBe(1.0)
-      expect(ds.liveRegion?.outPoint).toBeCloseTo(7.0)
+    const intents = c.pointerMove(makePointerEvent({ clientX: 560, clientY: 200 }), snap)
+    const resize = intents.find(i => i.kind === 'regionResize')!
+    if (resize.kind === 'regionResize') {
+      expect(resize.id).toBe('re')
+      expect(resize.inPoint).toBe(1.0)
+      expect(resize.outPoint).toBeCloseTo(7.0)
+      expect(resize.isOutput).toBe(true)
     }
   })
 
@@ -1699,8 +1680,8 @@ describe('controller — R4 (new): clipout edge drag does NOT carry linked beat 
     if (ds?.kind === 'region-edge') {
       // linkedBeatAnchorId no longer exists — conformed carry moved to thunk
       expect((ds as Record<string, unknown>).linkedBeatAnchorId).toBeUndefined()
-      // liveBeatAnchors is still captured for Slice B rescale preview
-      expect(ds.liveBeatAnchors).toBeDefined()
+      // Output-space edge drag captures beat-anchor pre-drag times for Slice-B rescale.
+      expect(ds.origBeatAnchorTimes).toBeDefined()
     }
   })
 
@@ -1753,7 +1734,8 @@ describe('controller — R4 (new): clipout edge drag does NOT carry linked beat 
     c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
     const ds = c.getDragState()
     if (ds?.kind === 'region-edge') {
-      expect(ds.liveBeatAnchors).toBeUndefined()
+      // Input-space edge drag does not capture beat-anchor origs.
+      expect(ds.origBeatAnchorTimes).toBeUndefined()
     }
     c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
     const intents = c.pointerUp(snap)
@@ -1902,62 +1884,51 @@ describe('controller — Slice B: live beat-anchor rescale during clipout edge d
     })
   }
 
-  it('anchorLock=true, lock=beats → anchors rescale proportionally during drag', () => {
+  it('anchorLock=true, lock=beats → emits beatAnchorsChanged with rescaled anchors', () => {
     // scaleFactor = 25/20 = 1.25
     // anchor 10: 0 + (5-0)*1.25 = 6.25
     // anchor 11: 0 + (15-0)*1.25 = 18.75
     const c = createTimelineController()
     const snap = makeSliceBEdgeSnap(true, 'beats')
     c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
-    c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
-    const ds = c.getDragState()
-    expect(ds?.kind).toBe('region-edge')
-    if (ds?.kind === 'region-edge') {
-      expect(ds.liveBeatAnchors).toBeDefined()
-      const a10 = ds.liveBeatAnchors!.find(a => a.id === 10)
-      const a11 = ds.liveBeatAnchors!.find(a => a.id === 11)
+    const intents = c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
+    const beatChange = intents.find(i => i.kind === 'beatAnchorsChanged')!
+    expect(beatChange).toBeDefined()
+    if (beatChange.kind === 'beatAnchorsChanged') {
+      const a10 = beatChange.next.find(a => a.id === 10)
+      const a11 = beatChange.next.find(a => a.id === 11)
       expect(a10?.time).toBeCloseTo(6.25)
       expect(a11?.time).toBeCloseTo(18.75)
     }
   })
 
-  it('anchorLock=false, lock=beats → liveBeatAnchors cleared (canvas uses p.beatAnchors; no Slice-B rescale)', () => {
+  it('anchorLock=false, lock=beats → no beatAnchorsChanged emitted (no Slice-B rescale)', () => {
     const c = createTimelineController()
     const snap = makeSliceBEdgeSnap(false, 'beats')
     c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
-    c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
-    const ds = c.getDragState()
-    if (ds?.kind === 'region-edge') {
-      // No Slice-B rescale: liveBeatAnchors is cleared so draw() falls through
-      // to p.beatAnchors (the freshly committed Redux values) instead of overriding
-      // with stale snapshot-time originals.
-      expect(ds.liveBeatAnchors).toBeUndefined()
-    }
+    const intents = c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
+    expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
   })
 
-  it('anchorLock=true, lock=bpm → liveBeatAnchors cleared (only beats-lock triggers Slice-B rescale)', () => {
+  it('anchorLock=true, lock=bpm → no beatAnchorsChanged (only beats-lock triggers Slice-B rescale)', () => {
     const c = createTimelineController()
     const snap = makeSliceBEdgeSnap(true, 'bpm')
     c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
-    c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
-    const ds = c.getDragState()
-    if (ds?.kind === 'region-edge') {
-      // lock='bpm' never triggers Slice-B rescale, so liveBeatAnchors is cleared.
-      expect(ds.liveBeatAnchors).toBeUndefined()
-    }
+    const intents = c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
+    expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
   })
 
-  it('altKey XOR anchorLock=false flips effectiveAnchorLock to true → liveBeatAnchors RESCALE', () => {
+  it('altKey XOR anchorLock=false flips effectiveAnchorLock to true → beatAnchorsChanged RESCALE', () => {
     const c = createTimelineController()
     const snap = makeSliceBEdgeSnap(false, 'beats')
     c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
     // altKey=true XOR anchorLock=false → effectiveAnchorLock=true → rescale
-    c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200, altKey: true }), snap)
-    const ds = c.getDragState()
-    if (ds?.kind === 'region-edge') {
-      expect(ds.liveBeatAnchors).toBeDefined()
-      const a10 = ds.liveBeatAnchors!.find(a => a.id === 10)
-      const a11 = ds.liveBeatAnchors!.find(a => a.id === 11)
+    const intents = c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200, altKey: true }), snap)
+    const beatChange = intents.find(i => i.kind === 'beatAnchorsChanged')!
+    expect(beatChange).toBeDefined()
+    if (beatChange.kind === 'beatAnchorsChanged') {
+      const a10 = beatChange.next.find(a => a.id === 10)
+      const a11 = beatChange.next.find(a => a.id === 11)
       expect(a10?.time).toBeCloseTo(6.25)
       expect(a11?.time).toBeCloseTo(18.75)
     }
@@ -1978,71 +1949,17 @@ describe('controller — Slice B: live beat-anchor rescale during clipout edge d
       hits: [pointHit(160, 200, { kind: 'region-edge', id: 'sBO', edge: 'out', isOutput: true })],
     })
     c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
-    c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
-    const ds = c.getDragState()
-    if (ds?.kind === 'region-edge') {
-      const a20 = ds.liveBeatAnchors!.find(a => a.id === 20)
-      expect(a20?.time).toBeCloseTo(30) // not changed
-    }
+    const intents = c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
+    // The lone anchor is outside region bounds → unchanged → no beatAnchorsChanged emitted.
+    expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
   })
 })
 
-describe('controller — Slice B: live beat-anchor translate during clipout body pan', () => {
-  // Region output: origIn=10, origOut=30 (length=20)
-  // Two anchors at t=15 and t=22 (both inside [10,30])
-  // Pan from x=160 (body at t=20) to x=240 (move +10 → newIn=20, delta=+10)
-
-  function makeSliceBPanSnap(clipAnchorLock: boolean) {
-    return makeSnapshot({
-      view: { start: 0, end: 100 },
-      outputDuration: 100,
-      regions: [{ id: 'pB', inPoint: 10, outPoint: 30 }],
-      regionsOutput: [{ id: 'pB', inPoint: 10, outPoint: 30 }],
-      beatAnchors: [{ id: 30, time: 15 }, { id: 31, time: 22 }],
-      bpm: 120,
-      clipLock: 'bpm',
-      clipAnchorLock,
-      hits: [pointHit(160, 200, { kind: 'region', id: 'pB', isOutput: true })],
-    })
-  }
-
-  it('anchorLock=true → anchors TRANSLATE by drag delta', () => {
-    // Pan region body: x=160→240, anchorX=160, rawIn=20-10+10=20 after moving
-    // Actually: drag.origIn=10, anchorX≈160, raw at x=240 = 240/800*100=30
-    // rawIn = 10 + (30 - 20) = 20 → delta = 20-10 = 10
-    // anchor 30: 15+10 = 25; anchor 31: 22+10 = 32 (clamped if > origOut+delta)
-    const c = createTimelineController()
-    const snap = makeSliceBPanSnap(true)
-    c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
-    c.pointerMove(makePointerEvent({ clientX: 240, clientY: 200 }), snap)
-    const ds = c.getDragState()
-    expect(ds?.kind).toBe('region-move')
-    if (ds?.kind === 'region-move') {
-      expect(ds.liveBeatAnchors).toBeDefined()
-      const a30 = ds.liveBeatAnchors!.find(a => a.id === 30)
-      const a31 = ds.liveBeatAnchors!.find(a => a.id === 31)
-      // delta = newIn - origIn. newIn = clamp(origIn + rawDelta, 0, MAX-dur)
-      // rawIn = origIn + (pxToT(x=240) - pxToT(anchorX=160)) = 10 + (30-20) = 20
-      // newIn = 20 → delta = 10
-      expect(a30?.time).toBeCloseTo(25) // 15+10
-      expect(a31?.time).toBeCloseTo(32) // 22+10
-    }
-  })
-
-  it('anchorLock=false → liveBeatAnchors cleared (canvas uses p.beatAnchors; conformed anchors from commitClipoutPan)', () => {
-    const c = createTimelineController()
-    const snap = makeSliceBPanSnap(false)
-    c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
-    c.pointerMove(makePointerEvent({ clientX: 240, clientY: 200 }), snap)
-    const ds = c.getDragState()
-    if (ds?.kind === 'region-move') {
-      // !effectiveAnchorLock: anchor translation is handled by commitClipoutPan
-      // (carries conformed anchors). liveBeatAnchors is cleared so draw() falls
-      // through to p.beatAnchors instead of overriding with stale originals.
-      expect(ds.liveBeatAnchors).toBeUndefined()
-    }
-  })
-})
+// Slice B body-pan tests removed: they inspected the controller's deleted
+// `liveBeatAnchors` mirror field. The controller no longer rescales beat
+// anchors during a region-move drag (that's the commitClipoutPan thunk's
+// responsibility — anchor translation flows through the slice). The behavior
+// is still covered end-to-end by the slice/thunk tests.
 
 // ───────────────────────────────────────────────────────────────────────────
 // Slice C — live anchor commit during anchor drag (linking-event via slice)

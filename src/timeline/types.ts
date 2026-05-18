@@ -138,8 +138,6 @@ export type DragState =
       id: number
       space: Space
       origTime: number
-      liveAnchors: Anchor[]
-      liveBeatAnchors: Anchor[]
       /** Cursor position at pointerDown. Used for cursor-pixel-delta computation
        *  (warp-line pair drag) and for the click-vs-drag threshold check that
        *  controls whether pendingSelect fires on pointerUp. */
@@ -158,19 +156,29 @@ export type DragState =
        *  Always includes the dragged id; size > 1 means the user grabbed an
        *  already-selected anchor. Each moves by the same time delta. */
       groupIds?: ReadonlySet<number>
-      /** Snapshot of original times keyed by anchor id, per space, used to
-       *  apply the delta on every pointerMove. Used by combined-selection
-       *  drag to capture BOTH spaces: an input-space anchor drag with a
-       *  selected pair will populate both maps and move both partners. */
-      origInputTimes?: Map<number, number>
-      origBeatTimes?: Map<number, number>
+      /** Which spaces the PRIMARY grabbed anchor was captured in. Drives
+       *  intent emission: only emit anchorEntityMove for a space when the
+       *  corresponding flag is true. Combined-selection drags (selected pair)
+       *  set both; single-space drags set one. */
+      capturedSpaces: { input: boolean; beat: boolean }
+      /** Pre-drag time of the PARTNER anchor for pair/conformed drags. Only
+       *  meaningful when both capturedSpaces.input and .beat are true. Set at
+       *  pointerDown from snap; persists for the duration of the drag (snap
+       *  values move during pointerMove as the slice updates live). For
+       *  single-space drags this is `origTime`. */
+      partnerOrigTime: number
+      /** Last computed dragged-space time from pointerMove. Used by pointerUp
+       *  to re-emit the final commit without needing the pointer event. This
+       *  is the controller's own record of what it last *computed* (not a
+       *  mirror of slice state) — it carries forward the gesture's intent
+       *  into the lift event. */
+      lastTime?: number
       /** Combined-selection drag: regions captured at pointerDown when the
        *  dragged anchor was already selected. Same time delta applies to
        *  every region, clamped to [0, MAX]. Empty when only anchors are in
        *  the selection. */
       regionGroupIds?: ReadonlySet<string>
       origRegionBounds?: Map<string, { inPoint: number; outPoint: number }>
-      liveRegionBounds?: { id: string; inPoint: number; outPoint: number }[]
       /** Output-space anchor drag only: region edges whose beat-space
        *  boundary was coincident with this anchor's beat time at drag start.
        *  During the drag the linked edge follows the anchor live; on
@@ -191,22 +199,21 @@ export type DragState =
       isOutput: boolean
       origIn: number
       origOut: number
-      liveRegion: { id: string; inPoint: number; outPoint: number } | null
       startClientX: number
       startClientY: number
       moved: boolean
       pendingSelect: PendingSelect[]
       /** Last observed alt-key state during the drag (for anchor-lock flip, §13). */
       lastAltKey: boolean
-      /** Live beat-anchor array for Slice B anchor rescale/translate during
-       *  output-space edge drags. Initialized to snap.beatAnchors on
-       *  pointerDown for all output-space edge drags; undefined for
-       *  input-space drags. */
-      liveBeatAnchors?: Anchor[]
       /** Snapshot of beat-anchor times at pointerDown (by id) — used as the
        *  origin for Slice B proportional rescale / translate math. Initialized
-       *  for all output-space edge drags when anchorLock is relevant. */
+       *  for all output-space edge drags so handleRegionEdgeMove can compute
+       *  rescaled beat-anchor positions inline. Undefined for input-space drags. */
       origBeatAnchorTimes?: Map<number, number>
+      /** Last computed (newIn, newOut) from pointerMove. Used by pointerUp
+       *  to re-emit the final regionResize commit. */
+      lastIn?: number
+      lastOut?: number
     }
   | {
       kind: 'region-move'
@@ -215,7 +222,6 @@ export type DragState =
       origIn: number
       origOut: number
       anchorX: number
-      liveRegion: { id: string; inPoint: number; outPoint: number } | null
       startClientX: number
       startClientY: number
       moved: boolean
@@ -228,16 +234,15 @@ export type DragState =
       groupIds?: ReadonlySet<string>
       /** Snapshot of original (inPoint, outPoint) per region id at drag start. */
       origBounds?: Map<string, { inPoint: number; outPoint: number }>
-      // liveBoundsList removed — canvas reads live bounds from p.regions (slice
-      // is current on every pointerMove via single-entity dispatch).
       /** Combined-selection drag: anchors captured at pointerDown when the
        *  dragged region was already selected. Same time delta applies to
        *  every anchor in both spaces. */
       anchorGroupIds?: ReadonlySet<number>
       origInputAnchorTimes?: Map<number, number>
       origBeatAnchorTimes?: Map<number, number>
-      liveAnchors?: Anchor[]
-      liveBeatAnchors?: Anchor[]
+      /** Last computed delta from pointerMove. Used by pointerUp to re-emit
+       *  the final regionEntityMove commit. */
+      lastDelta?: number
     }
   | {
       kind: 'lasso'

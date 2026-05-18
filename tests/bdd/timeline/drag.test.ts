@@ -520,11 +520,11 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       const dt = findIntent(intents, 'pubDragTime')
       expect(dt).toBeDefined()
       // Controller publishes raw inPoint as drag time (resolver snaps on dispatch).
-      // liveRegion and pubDragTime are both raw — they must agree.
-      const ds = c.getDragState()
-      const liveIn = ds?.kind === 'region-move' ? ds.liveRegion?.inPoint : undefined
-      expect(liveIn).toBeDefined()
-      expect(dt!.time).toBeCloseTo(liveIn!, 3)
+      // The emitted regionEntityMove's delta + origIn must agree with pubDragTime.
+      const move = intents.find(i => i.kind === 'regionEntityMove') as Extract<Intent, { kind: 'regionEntityMove' }> | undefined
+      expect(move).toBeDefined()
+      // origIn was 10 in this scenario.
+      expect(dt!.time).toBeCloseTo(10 + move!.delta, 3)
     })
   })
 
@@ -547,10 +547,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerMove(makePointer({ clientX: 100.5, clientY: yClip }), snap)
     })
     Then('the edge stops at 0.1 seconds from the opposite edge', () => {
-      const ds = c.getDragState()
-      const liveRegion = ds?.kind === 'region-edge' ? ds.liveRegion : undefined
-      expect(liveRegion).toBeDefined()
-      expect(liveRegion!.outPoint - liveRegion!.inPoint).toBeGreaterThanOrEqual(0.1 - 1e-9)
+      const resize = intents.find(i => i.kind === 'regionResize') as Extract<Intent, { kind: 'regionResize' }> | undefined
+      expect(resize).toBeDefined()
+      expect(resize!.outPoint - resize!.inPoint).toBeGreaterThanOrEqual(0.1 - 1e-9)
     })
   })
 
@@ -574,11 +573,10 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerMove(makePointer({ clientX: -500, clientY: yClip }), snap)
     })
     Then('the edge stops at the boundary', () => {
-      const ds = c.getDragState()
-      const liveRegion = ds?.kind === 'region-edge' ? ds.liveRegion : undefined
-      expect(liveRegion).toBeDefined()
-      expect(liveRegion!.inPoint).toBeGreaterThanOrEqual(0)
-      expect(liveRegion!.outPoint).toBeLessThanOrEqual(100)
+      const resize = intents.find(i => i.kind === 'regionResize') as Extract<Intent, { kind: 'regionResize' }> | undefined
+      expect(resize).toBeDefined()
+      expect(resize!.inPoint).toBeGreaterThanOrEqual(0)
+      expect(resize!.outPoint).toBeLessThanOrEqual(100)
     })
   })
 
@@ -1653,10 +1651,10 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       c.pointerDown(makePointer({ clientX: xIn, clientY: yWarp }), snap)
       const drag = c.getDragState()
       expect(drag?.kind).toBe('anchor')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect((drag as any).origInputTimes.has(1)).toBe(true)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect((drag as any).origBeatTimes.has(1)).toBe(true)
+      if (drag?.kind === 'anchor') {
+        expect(drag.capturedSpaces).toEqual({ input: true, beat: true })
+        expect(drag.isPair).toBe(true)
+      }
     })
     And('there is a scene cut in input space and a BPM grid line in output space', () => {
       expect(snap.scenes).toContain(14)
@@ -1667,18 +1665,14 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerMove(makePointer({ clientX: 144, clientY: yWarp }), snap)
     })
     Then('the snap considers both the input-space targets AND the output-space targets', () => {
-      // Snap is now handled by the constraint resolver (SnapTarget constraints
-      // installed at pointerDown for both input and output anchors).
-      // Controller publishes raw position; resolver applies snap on dispatch.
-      // Both anchor partners shift by the raw delta (+4.4):
-      // input anchor: 10 + 4.4 = 14.4 (raw; resolver snaps to scene=14 on dispatch)
-      // beat anchor:  30 + 4.4 = 34.4 (raw; resolver snaps to grid=35 on dispatch)
-      const drag = c.getDragState()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const ds = drag as any
-      // Raw positions shown by controller (snap in resolver, not controller)
-      expect(ds.liveAnchors.find((a: { id: number; time: number }) => a.id === 1).time).toBeCloseTo(14.4, 1)
-      expect(ds.liveBeatAnchors.find((a: { id: number; time: number }) => a.id === 1).time).toBeCloseTo(34.4, 1)
+      // Snap is now handled by the constraint resolver. Controller emits raw
+      // anchorEntityMove intents for both input and beat partners; resolver
+      // applies snap on dispatch. Both anchors translate by the same delta (+4.4).
+      const moves = intents.filter(i => i.kind === 'anchorEntityMove') as Extract<Intent, { kind: 'anchorEntityMove' }>[]
+      const inputMove = moves.find(m => m.entityId === 'a1-in')
+      const beatMove = moves.find(m => m.entityId === 'a1-out')
+      expect(inputMove?.time).toBeCloseTo(14.4, 1)
+      expect(beatMove?.time).toBeCloseTo(34.4, 1)
     })
     And('the winning delta aligns whichever side has the closest target', () => {
       // pubDragTime should be emitted for at least one space.
@@ -1715,13 +1709,13 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerMove(makePointer({ clientX: 300, clientY: yWarp }), snap)
     })
     Then('the live input anchor time and the live beat anchor time both update by the current drag delta', () => {
-      const drag = c.getDragState()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const ds = drag as any
       // No scenes / snap configured → delta = +20.
       // Input: 10 + 20 = 30. Beat: 20 + 20 = 40.
-      expect(ds.liveAnchors.find((a: { id: number; time: number }) => a.id === 1).time).toBeCloseTo(30, 3)
-      expect(ds.liveBeatAnchors.find((a: { id: number; time: number }) => a.id === 1).time).toBeCloseTo(40, 3)
+      const moves = intents.filter(i => i.kind === 'anchorEntityMove') as Extract<Intent, { kind: 'anchorEntityMove' }>[]
+      const inputMove = moves.find(m => m.entityId === 'a1-in')
+      const beatMove = moves.find(m => m.entityId === 'a1-out')
+      expect(inputMove?.time).toBeCloseTo(30, 3)
+      expect(beatMove?.time).toBeCloseTo(40, 3)
     })
     And('pubDragTime publishes the drag time for at least one of the two spaces (or both, controller choice)', () => {
       const dragTimeIntents = intents.filter(i => i.kind === 'pubDragTime')
@@ -1762,32 +1756,24 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       moveIntents = c.pointerMove(makePointer({ clientX: 200, clientY: yClip }), snap)
     })
     Then('the gesture store publishes live in/out points for both regions during the drag', () => {
-      // pubDragRegions is removed — live bounds now live in dragState.liveBoundsList
-      // and are committed to the slice via regionMove intents on every pointerMove.
-      const ds = c.getDragState()
-      if (ds?.kind === 'region-move' && ds.liveBoundsList) {
-        const entries = new Map(ds.liveBoundsList.map(r => [r.id, r]))
-        expect(entries.size).toBe(2)
-        // r1: 10→20 shifts to 15→25 (delta +5)
-        expect(entries.get('r1')?.inPoint).toBeCloseTo(15, 3)
-        expect(entries.get('r1')?.outPoint).toBeCloseTo(25, 3)
-        // r2: 40→60 shifts to 45→65 (delta +5)
-        expect(entries.get('r2')?.inPoint).toBeCloseTo(45, 3)
-        expect(entries.get('r2')?.outPoint).toBeCloseTo(65, 3)
-      }
+      // Multi-region propagation now happens via the resolver's lasso:main
+      // TranslateGroup. The controller emits a single primary regionEntityMove;
+      // the slice ends up reflecting all followers via the resolver.
+      const move = moveIntents.find(i => i.kind === 'regionEntityMove') as Extract<Intent, { kind: 'regionEntityMove' }> | undefined
+      expect(move).toBeDefined()
+      expect(move!.id).toBe('r1')
+      expect(move!.delta).toBeCloseTo(5, 3)
     })
     And('the gesture store\'s "most recent" singular dragRegion remains addressable for legacy consumers', () => {
-      // pubDragRegion (singular) intent has been removed from the controller.
-      // Legacy consumers now read live bounds from dragState.liveRegion (primary dragged region)
-      // or from the committed slice state via regionMove intents.
-      // Verify the primary region's live bounds are tracked in dragState.
+      // The primary region is identified in the emitted regionEntityMove.
+      // Slice state carries the post-move bounds.
       const ds = c.getDragState()
       expect(ds?.kind).toBe('region-move')
       if (ds?.kind === 'region-move') {
-        // liveRegion should reflect the primary dragged region (r1, dragged with delta +5)
-        expect(ds.liveRegion?.id).toBe('r1')
-        expect(ds.liveRegion?.inPoint).toBeCloseTo(15, 3)
-        expect(ds.liveRegion?.outPoint).toBeCloseTo(25, 3)
+        expect(ds.id).toBe('r1')
+        expect(ds.origIn).toBe(10)
+        expect(ds.origOut).toBe(20)
+        expect(ds.lastDelta).toBeCloseTo(5, 3)
       }
     })
   })
@@ -1822,25 +1808,13 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       moveIntents = c.pointerMove(makePointer({ clientX: 250, clientY: yMarker }), snap)
     })
     Then('the gesture store publishes live in/out points for both captured regions during the drag', () => {
-      // pubDragRegions gesture-store publish has been removed; live bounds are
-      // in dragState.liveRegionBounds and committed to the slice via regionMove intents.
-      const ds = c.getDragState()
-      if (ds?.kind === 'anchor' && ds.liveRegionBounds) {
-        const entries = new Map(ds.liveRegionBounds.map(r => [r.id, r]))
-        expect(entries.size).toBe(2)
-        // r1: 40→50 shifts to 45→55
-        expect(entries.get('r1')?.inPoint).toBeCloseTo(45, 3)
-        expect(entries.get('r1')?.outPoint).toBeCloseTo(55, 3)
-        // r2: 60→70 shifts to 65→75
-        expect(entries.get('r2')?.inPoint).toBeCloseTo(65, 3)
-        expect(entries.get('r2')?.outPoint).toBeCloseTo(75, 3)
-      } else {
-        // Also verify via regionMove intents emitted by the drag
-        const movesForR1 = moveIntents.filter(i => i.kind === 'regionMove' && i.id === 'r1')
-        const movesForR2 = moveIntents.filter(i => i.kind === 'regionMove' && i.id === 'r2')
-        expect(movesForR1.length).toBeGreaterThan(0)
-        expect(movesForR2.length).toBeGreaterThan(0)
-      }
+      // Combined anchor+region drag emits a regionEntityMove for the PRIMARY
+      // grabbed region; the resolver's lasso:main TranslateGroup propagates
+      // to followers. Verify the primary intent fired with the right delta.
+      const move = moveIntents.find(i => i.kind === 'regionEntityMove') as Extract<Intent, { kind: 'regionEntityMove' }> | undefined
+      expect(move).toBeDefined()
+      expect(move!.delta).toBeCloseTo(5, 3)
+      expect(move!.isOutput).toBe(false)
     })
   })
 
@@ -2150,19 +2124,14 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       postMoveIntents = c.pointerMove(makePointer({ clientX: xGrab + 50, clientY: yWarp }), snap)
     })
     Then('the input anchor moves to 15 seconds', () => {
-      const ds = c.getDragState()
-      expect(ds?.kind).toBe('anchor')
-      if (ds?.kind === 'anchor') {
-        const a = ds.liveAnchors.find(a => a.id === 1)
-        expect(a?.time).toBeCloseTo(15, 2)
-      }
+      const moves = postMoveIntents.filter(i => i.kind === 'anchorEntityMove') as Extract<Intent, { kind: 'anchorEntityMove' }>[]
+      const inputMove = moves.find(m => m.entityId === 'a1-in')
+      expect(inputMove?.time).toBeCloseTo(15, 2)
     })
     And('the beat anchor moves to 25 seconds', () => {
-      const ds = c.getDragState()
-      if (ds?.kind === 'anchor') {
-        const b = ds.liveBeatAnchors.find(a => a.id === 1)
-        expect(b?.time).toBeCloseTo(25, 2)
-      }
+      const moves = postMoveIntents.filter(i => i.kind === 'anchorEntityMove') as Extract<Intent, { kind: 'anchorEntityMove' }>[]
+      const beatMove = moves.find(m => m.entityId === 'a1-out')
+      expect(beatMove?.time).toBeCloseTo(25, 2)
     })
     And('the pair did not "snap" to align with the initial grab point', () => {
       // Zero-pixel-delta first move must leave both anchors at their original

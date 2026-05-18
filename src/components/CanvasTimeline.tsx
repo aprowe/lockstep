@@ -206,6 +206,9 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
   }, [])
 
   const warpCollapsed = props.warpCollapsed ?? false
+  // Canvas-layer wiring (hit-testing, draw commands, layout geometry) lives
+  // in this file. Pure data derivations from slice state belong in
+  // src/store/selectors/timeline.ts and arrive via props from WarpView.
   const tracks = useMemo(
     () => containerH > 0 ? buildLayout(warpCollapsed, containerH, rowOverrides) : [],
     [warpCollapsed, containerH, rowOverrides],

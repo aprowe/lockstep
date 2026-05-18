@@ -86,52 +86,29 @@ function buildAnchorDrag(
   startClientY: number,
   pendingSelect: PendingSelect[],
 ): Extract<DragState, { kind: 'anchor' }> {
-  const liveAnchors: Anchor[] = [...snap.anchors]
-  const liveBeatAnchors: Anchor[] = [...snap.beatAnchors]
-
   // Anchor group ids for the dragged space. For an input drag, we capture
   // every id in selectedOrigAnchorIds; for an output drag, selectedBeatAnchorIds.
-  // The partner space is only included when the SAME id is also in the
-  // partner's selection set (fully selected) or when forcePairCapture is true.
   const spaceSelectedIds = space === 'input'
     ? snap.selectedOrigAnchorIds
     : snap.selectedBeatAnchorIds
   const anchorIdsInSelection = wasSelected ? new Set(spaceSelectedIds) : new Set<number>()
   anchorIdsInSelection.add(id)
 
-  // Per-space pairing: each id is captured ONLY in the spaces it's selected
-  // in (plus the dragged-space partner if forcePairCapture, for conformed
-  // boundaries). A lasso in only the input track captures input anchors;
-  // their beat partners stay put unless those beat partners were ALSO
-  // lassoed (and thus are in selectedBeatAnchorIds).
-  const origInputTimes = new Map<number, number>()
-  const origBeatTimes = new Map<number, number>()
-  for (const gid of anchorIdsInSelection) {
-    const isDragged = gid === id
-    const wantInput = space === 'input'
-      ? (isDragged || snap.selectedOrigAnchorIds.has(gid))
-      : (isDragged ? (forcePairCapture || snap.selectedOrigAnchorIds.has(gid)) : snap.selectedOrigAnchorIds.has(gid))
-    const wantBeat = space === 'output'
-      ? (isDragged || snap.selectedBeatAnchorIds.has(gid))
-      : (isDragged ? (forcePairCapture || snap.selectedBeatAnchorIds.has(gid)) : snap.selectedBeatAnchorIds.has(gid))
-    if (wantInput) {
-      const ai = snap.anchors.find(a => a.id === gid)
-      if (ai) origInputTimes.set(gid, ai.time)
-    }
-    if (wantBeat) {
-      const ab = snap.beatAnchors.find(a => a.id === gid)
-      if (ab) origBeatTimes.set(gid, ab.time)
-    }
-  }
+  // capturedSpaces is for the PRIMARY anchor only. Drives intent emission:
+  // only an anchorEntityMove for a space is emitted when that space is captured.
+  // Follower propagation happens via the resolver's lasso:main TranslateGroup.
+  const primaryInputCaptured = space === 'input'
+    ? true
+    : (forcePairCapture || snap.selectedOrigAnchorIds.has(id))
+  const primaryBeatCaptured = space === 'output'
+    ? true
+    : (forcePairCapture || snap.selectedBeatAnchorIds.has(id))
 
   // Region group: every selected region's bounds at drag start. Empty when
   // the dragged anchor was not in the selection — a non-selected click
-  // does NOT pull the existing selection into this drag (the existing
-  // selection is preserved unchanged because no select intent fires).
+  // does NOT pull the existing selection into this drag.
   let regionGroupIds: ReadonlySet<string> | undefined
   let origRegionBounds: Map<string, { inPoint: number; outPoint: number }> | undefined
-  // Space-aware clip group: input-space anchor drag pulls clipin selections;
-  // output-space anchor drag pulls clipout selections.
   const spaceClipIds = space === 'input' ? snap.selectedClipinIds : snap.selectedClipoutIds
   if (wasSelected && spaceClipIds.size > 0) {
     regionGroupIds = new Set(spaceClipIds)
@@ -142,26 +119,35 @@ function buildAnchorDrag(
     }
   }
 
-  const isPair = origInputTimes.has(id) && origBeatTimes.has(id)
+  const isPair = primaryInputCaptured && primaryBeatCaptured
+
+  // Resolve partner's pre-drag time (input drag → beat partner; output drag → orig partner)
+  let partnerOrigTime = origTime
+  if (isPair) {
+    if (space === 'input') {
+      const ab = snap.beatAnchors.find(a => a.id === id)
+      if (ab) partnerOrigTime = ab.time
+    } else {
+      const ai = snap.anchors.find(a => a.id === id)
+      if (ai) partnerOrigTime = ai.time
+    }
+  }
 
   return {
     kind: 'anchor',
     id,
     space,
     origTime,
-    liveAnchors,
-    liveBeatAnchors,
     startClientX,
     startClientY,
     moved: false,
     pendingSelect,
     isPair,
     groupIds: anchorIdsInSelection,
-    origInputTimes,
-    origBeatTimes,
+    capturedSpaces: { input: primaryInputCaptured, beat: primaryBeatCaptured },
+    partnerOrigTime,
     regionGroupIds,
     origRegionBounds,
-    liveRegionBounds: undefined,
   }
 }
 
@@ -197,8 +183,6 @@ function buildRegionDrag(
   let anchorGroupIds: ReadonlySet<number> | undefined
   let origInputAnchorTimes: Map<number, number> | undefined
   let origBeatAnchorTimes: Map<number, number> | undefined
-  let liveAnchors: Anchor[] | undefined
-  let liveBeatAnchors: Anchor[] | undefined
   // For combined region+anchor drags, capture ALL uniquely-selected anchor
   // ids (union of orig and beat selected sets) so any selected anchor moves
   // with the region pan. Both spaces are moved by the same time delta.
@@ -216,15 +200,11 @@ function buildRegionDrag(
       const ab = snap.beatAnchors.find(a => a.id === gid)
       if (ab) origBeatAnchorTimes.set(gid, ab.time)
     }
-    liveAnchors = [...snap.anchors]
-    liveBeatAnchors = [...snap.beatAnchors]
   }
-  // Slice B: for output-space body pan, always capture all beat anchors and
-  // their original times so pointerMove can translate those inside the region
-  // when effectiveAnchorLock is true. This is independent of the combined-
-  // selection anchor group above (which is input-space only).
+  // Slice B: for output-space body pan, capture all beat-anchor original
+  // times so handleRegionMoveMove can compute beatAnchorsChanged inline
+  // when effectiveAnchorLock is true.
   if (isOutput) {
-    liveBeatAnchors = [...snap.beatAnchors]
     origBeatAnchorTimes = new Map()
     for (const a of snap.beatAnchors) origBeatAnchorTimes.set(a.id, a.time)
   }
@@ -236,7 +216,6 @@ function buildRegionDrag(
     origIn: r.inPoint,
     origOut: r.outPoint,
     anchorX,
-    liveRegion: null,
     startClientX,
     startClientY,
     moved: false,
@@ -247,8 +226,6 @@ function buildRegionDrag(
     anchorGroupIds,
     origInputAnchorTimes,
     origBeatAnchorTimes,
-    liveAnchors,
-    liveBeatAnchors,
   }
 }
 
@@ -331,8 +308,8 @@ function computeGridForSnap(
 
 /**
  * Handle pointerMove for an active anchor drag.
- * Mutates `drag` (updates liveAnchors / liveBeatAnchors / liveRegionBounds)
- * and returns the intents for this frame.
+ * Computes intent payloads inline from `origTime + delta` against the snapshot.
+ * No live* mirror state is mutated — the controller is intent-pure.
  */
 function handleAnchorMove(
   drag: Extract<DragState, { kind: 'anchor' }>,
@@ -346,17 +323,16 @@ function handleAnchorMove(
   markMovedIfBeyondThreshold(drag, e)
   const raw = pxToT(x, snap)
   let snapped = raw
-  const isPairDrag = !!(
-    drag.origInputTimes && drag.origBeatTimes &&
-    drag.origInputTimes.has(drag.id) && drag.origBeatTimes.has(drag.id)
-  )
+  const isPairDrag = drag.isPair
   if (isPairDrag) {
     const clientDx = e.clientX - drag.startClientX
     const rawDelta = (clientDx / W) * viewSpan
-    const origInputT = drag.origInputTimes!.get(drag.id)!
-    const origBeatT  = drag.origBeatTimes!.get(drag.id)!
-    const rawInputSubject = origInputT + rawDelta
-    const rawBeatSubject  = origBeatT  + rawDelta
+    // For pair drags, drag.origTime is the dragged-space pre-drag position
+    // and drag.partnerOrigTime is the partner-space pre-drag position.
+    const draggedInputT = drag.space === 'input' ? drag.origTime : drag.partnerOrigTime
+    const draggedBeatT  = drag.space === 'output' ? drag.origTime : drag.partnerOrigTime
+    const rawInputSubject = draggedInputT + rawDelta
+    const rawBeatSubject  = draggedBeatT  + rawDelta
 
     // Resolver snaps via SnapTarget installed at pointerDown.
     // Controller shows raw position (1-frame lag acceptable).
@@ -368,7 +344,6 @@ function handleAnchorMove(
     intents.push({ kind: 'pubSnapHints', space: chosenHintSpace, times: chosenHintTargets })
   } else {
     // Resolver snaps via SnapTarget installed at pointerDown.
-    // Controller shows raw position (1-frame lag acceptable).
     snapped = raw
     const entityIdForSnap = drag.space === 'input' ? anchorInId(drag.id) : anchorOutId(drag.id)
     const hints = constraintSnapHints(snap, entityIdForSnap, 'time', raw) ?? []
@@ -378,78 +353,52 @@ function handleAnchorMove(
 
   const t = Math.max(0, snapped)
   const delta = t - drag.origTime
-  const groupIds = drag.groupIds ?? new Set([drag.id])
-  const origInputTimes = drag.origInputTimes
-  const origBeatTimes = drag.origBeatTimes
-  if (origInputTimes && origInputTimes.size > 0) {
-    drag.liveAnchors = drag.liveAnchors.map(a => {
-      if (!groupIds.has(a.id)) return a
-      const o = origInputTimes.get(a.id)
-      if (o === undefined) return a
-      return { ...a, time: Math.max(0, o + delta) }
-    })
-  }
-  if (origBeatTimes && origBeatTimes.size > 0) {
-    drag.liveBeatAnchors = drag.liveBeatAnchors.map(a => {
-      if (!groupIds.has(a.id)) return a
-      const o = origBeatTimes.get(a.id)
-      if (o === undefined) return a
-      return { ...a, time: Math.max(0, o + delta) }
-    })
-  }
-  if (drag.regionGroupIds && drag.origRegionBounds) {
-    const MAX = snap.duration
-    const live: { id: string; inPoint: number; outPoint: number }[] = []
-    for (const gid of drag.regionGroupIds) {
-      const orig = drag.origRegionBounds.get(gid)
-      if (!orig) continue
-      const gDur = orig.outPoint - orig.inPoint
-      const gIn = Math.max(0, Math.min(MAX - gDur, orig.inPoint + delta))
-      const gOut = gIn + gDur
-      live.push({ id: gid, inPoint: gIn, outPoint: gOut })
+  drag.lastTime = t
+
+  if (drag.moved) {
+    // Emit single-entity anchorEntityMove for the PRIMARY grabbed anchor's
+    // captured spaces. Followers propagate via lasso:main TranslateGroup.
+    // We derive the new times directly from origTime + delta — for pair
+    // drags, both spaces translate by the same delta from their respective
+    // pre-drag positions stored on drag.partnerOrigTime.
+    const origInputT = drag.space === 'input' ? drag.origTime : drag.partnerOrigTime
+    const origBeatT  = drag.space === 'output' ? drag.origTime : drag.partnerOrigTime
+
+    if (drag.capturedSpaces.input) {
+      const newT = Math.max(0, origInputT + delta)
+      intents.push({ kind: 'anchorEntityMove', entityId: anchorInId(drag.id), time: newT })
     }
-    drag.liveRegionBounds = live
-  }
-  {
-    const anchorDragNow = drag
-    if (anchorDragNow.moved) {
-      // Emit a single-entity anchorEntityMove for the PRIMARY grabbed
-      // anchor. The lasso:main TranslateGroup in the resolver propagates the
-      // implied delta to every other selected entity. The liveAnchors /
-      // liveBeatAnchors arrays above are kept for canvas rendering only.
-      const primaryInputTime = anchorDragNow.origInputTimes?.has(anchorDragNow.id)
-        ? anchorDragNow.liveAnchors.find(a => a.id === anchorDragNow.id)?.time
-        : undefined
-      const primaryBeatTime = anchorDragNow.origBeatTimes?.has(anchorDragNow.id)
-        ? anchorDragNow.liveBeatAnchors.find(a => a.id === anchorDragNow.id)?.time
-        : undefined
-      if (primaryInputTime !== undefined) {
-        intents.push({ kind: 'anchorEntityMove', entityId: anchorInId(anchorDragNow.id), time: primaryInputTime })
-      }
-      if (primaryBeatTime !== undefined) {
-        intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(anchorDragNow.id), time: primaryBeatTime })
-      }
-      // Combined anchor+region drag: emit regionEntityMove for the PRIMARY
-      // grabbed region (the first in liveRegionBounds — the dragged region's
-      // own entry). Follower regions propagate via lasso:main TranslateGroup.
-      if (anchorDragNow.liveRegionBounds && anchorDragNow.origRegionBounds && anchorDragNow.liveRegionBounds.length > 0) {
-        const primary = anchorDragNow.liveRegionBounds[0]
-        const origPrimary = anchorDragNow.origRegionBounds.get(primary.id)
-        if (origPrimary) {
-          intents.push({ kind: 'regionEntityMove', id: primary.id, delta: primary.inPoint - origPrimary.inPoint, isOutput: false, altKey: false })
+    if (drag.capturedSpaces.beat) {
+      const newT = Math.max(0, origBeatT + delta)
+      intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(drag.id), time: newT })
+    }
+
+    // Combined anchor+region drag: emit regionEntityMove for the PRIMARY
+    // grabbed region. Follower regions propagate via lasso:main.
+    if (drag.regionGroupIds && drag.origRegionBounds && drag.regionGroupIds.size > 0) {
+      // Pick the same primary order the previous implementation used: first
+      // entry in the group iteration order (insertion order of the Set).
+      const firstId = drag.regionGroupIds.values().next().value as string | undefined
+      if (firstId !== undefined) {
+        const orig = drag.origRegionBounds.get(firstId)
+        if (orig) {
+          const MAX = snap.duration
+          const gDur = orig.outPoint - orig.inPoint
+          const gIn = Math.max(0, Math.min(MAX - gDur, orig.inPoint + delta))
+          const primaryDelta = gIn - orig.inPoint
+          intents.push({ kind: 'regionEntityMove', id: firstId, delta: primaryDelta, isOutput: false, altKey: false })
         }
       }
-      // For output-space drags with linked region edges, emit a
-      // regionResize (isOutput) intent so the slice gets live beat-bounds
-      // updates, making the clipout edge follow the anchor continuously.
-      if (anchorDragNow.space === 'output' && anchorDragNow.linkedOutputEdges && anchorDragNow.linkedOutputEdges.length > 0) {
-        const liveBeatT = anchorDragNow.liveBeatAnchors.find(a => a.id === anchorDragNow.id)?.time
-          ?? (anchorDragNow.origBeatTimes?.get(anchorDragNow.id) ?? anchorDragNow.origTime) + delta
-        for (const le of anchorDragNow.linkedOutputEdges) {
-          const newIn  = le.edge === 'in'  ? liveBeatT : le.origInBeatTime
-          const newOut = le.edge === 'out' ? liveBeatT : le.origOutBeatTime
-          intents.push({ kind: 'regionResize', id: le.regionId, inPoint: newIn, outPoint: newOut, isOutput: true, altKey: false })
-        }
+    }
+
+    // For output-space drags with linked region edges, emit regionResize
+    // (isOutput) so the clipout edge follows the anchor continuously.
+    if (drag.space === 'output' && drag.linkedOutputEdges && drag.linkedOutputEdges.length > 0) {
+      const liveBeatT = origBeatT + delta
+      for (const le of drag.linkedOutputEdges) {
+        const newIn  = le.edge === 'in'  ? liveBeatT : le.origInBeatTime
+        const newOut = le.edge === 'out' ? liveBeatT : le.origOutBeatTime
+        intents.push({ kind: 'regionResize', id: le.regionId, inPoint: newIn, outPoint: newOut, isOutput: true, altKey: false })
       }
     }
   }
@@ -464,7 +413,8 @@ function handleAnchorMove(
 
 /**
  * Handle pointerMove for an active region-edge drag.
- * Mutates `drag` (updates liveRegion / liveBeatAnchors) and returns intents.
+ * Computes new edge position + Slice-B beat-anchor rescale inline. No
+ * live* mirror state is mutated — only `moved` and `lastAltKey`.
  */
 function handleRegionEdgeMove(
   drag: Extract<DragState, { kind: 'region-edge' }>,
@@ -473,90 +423,62 @@ function handleRegionEdgeMove(
 ): Intent[] {
   const intents: Intent[] = []
   const x = e.clientX - e.canvasRect.left
-  const W = snap.canvas.width || 1
-  const viewSpan = snap.view.end - snap.view.start
   markMovedIfBeyondThreshold(drag, e)
   drag.lastAltKey = e.altKey
   const raw = pxToT(x, snap)
   const MAX = drag.isOutput ? snap.outputDuration : snap.duration
   const space = drag.isOutput ? 'output' : 'input'
-  // Resolver snaps via SnapTarget installed at pointerDown.
-  // Controller shows raw position (1-frame lag acceptable).
   const edgeEntityId = drag.isOutput ? regionOutId(drag.id) : regionInId(drag.id)
   const snapped = raw
   const hints = constraintSnapHints(snap, edgeEntityId, drag.edge, raw) ?? []
   intents.push({ kind: 'pubSnapHints', space, times: hints })
   intents.push({ kind: 'pubDragTime', space, time: snapped })
 
+  // Compute new edge bounds inline.
+  let newIn: number, newOut: number
   if (drag.edge === 'in') {
-    const newIn = Math.max(0, Math.min(drag.origOut - 0.1, snapped))
-    drag.liveRegion = { id: drag.id, inPoint: newIn, outPoint: drag.origOut }
+    newIn = Math.max(0, Math.min(drag.origOut - 0.1, snapped))
+    newOut = drag.origOut
   } else {
-    const newOut = Math.max(drag.origIn + 0.1, Math.min(MAX, snapped))
-    drag.liveRegion = { id: drag.id, inPoint: drag.origIn, outPoint: newOut }
+    newIn = drag.origIn
+    newOut = Math.max(drag.origIn + 0.1, Math.min(MAX, snapped))
   }
-  // liveRegion is stored on dragState for use in pointerUp intent emission.
-  // Live BPM / lockedBeats are now committed to the slice on every pointerMove
-  // (via the regionResize intent below → onRegionResizeOutput → commitClipoutResize
-  // → applyConformedClipout), so no gesture-store publish is needed here.
-  // Slice B: live beat-anchor rescale during output-space edge drag.
-  // effectiveAnchorLock = (clipAnchorLock ?? false) XOR lastAltKey.
-  // When effectiveAnchorLock && lock='beats': proportionally rescale beat
-  // anchors that lie inside [origIn, origOut] so the canvas shows them
-  // moving with the clip boundary before the commit fires on pointerUp.
-  if (drag.isOutput && drag.liveRegion && drag.liveBeatAnchors && drag.origBeatAnchorTimes) {
-    const effectiveAnchorLock = (snap.clipAnchorLock ?? false) !== drag.lastAltKey // XOR
-    const shouldRescale = effectiveAnchorLock && snap.clipLock === 'beats'
-    // Extract narrowed-drag fields to locals so TS doesn't lose the union
-    // narrowing inside the .map() callback.
-    const edgeOrigBeatTimes = drag.origBeatAnchorTimes
-    const edgeOrigIn = drag.origIn
-    const edgeOrigOut = drag.origOut
-    if (shouldRescale) {
-      const oldLength = edgeOrigOut - edgeOrigIn
-      const newLength = drag.liveRegion.outPoint - drag.liveRegion.inPoint
-      if (oldLength > 1e-9 && newLength > 1e-9) {
-        const scaleFactor = newLength / oldLength
-        const newIn = drag.liveRegion.inPoint
-        drag.liveBeatAnchors = drag.liveBeatAnchors.map(a => {
-          const origTime = edgeOrigBeatTimes.get(a.id) ?? a.time
-          if (origTime >= edgeOrigIn && origTime <= edgeOrigOut) {
-            return { ...a, time: newIn + (origTime - edgeOrigIn) * scaleFactor }
+  drag.lastIn = newIn
+  drag.lastOut = newOut
+
+  if (drag.moved) {
+    intents.push({
+      kind: 'regionResize',
+      id: drag.id,
+      inPoint: newIn,
+      outPoint: newOut,
+      isOutput: drag.isOutput,
+      altKey: drag.lastAltKey,
+    })
+    // Slice B: rescale beat anchors that lay inside [origIn, origOut] when
+    // effectiveAnchorLock && lock='beats'. Otherwise the slice's beatAnchors
+    // remain authoritative (no override needed).
+    if (drag.isOutput && drag.origBeatAnchorTimes) {
+      const effectiveAnchorLock = (snap.clipAnchorLock ?? false) !== drag.lastAltKey // XOR
+      const shouldRescale = effectiveAnchorLock && snap.clipLock === 'beats'
+      if (shouldRescale) {
+        const oldLength = drag.origOut - drag.origIn
+        const newLength = newOut - newIn
+        if (oldLength > 1e-9 && newLength > 1e-9) {
+          const scaleFactor = newLength / oldLength
+          const origMap = drag.origBeatAnchorTimes
+          const origIn = drag.origIn
+          const origOut = drag.origOut
+          const next: Anchor[] = []
+          let changed = false
+          for (const a of snap.beatAnchors) {
+            const orig = origMap.get(a.id) ?? a.time
+            const inside = orig >= origIn && orig <= origOut
+            const nextTime = inside ? newIn + (orig - origIn) * scaleFactor : orig
+            if (Math.abs(nextTime - orig) > 1e-9) changed = true
+            next.push({ ...a, time: nextTime })
           }
-          return { ...a, time: origTime }
-        })
-      }
-    } else {
-      // No Slice-B rescale: clear liveBeatAnchors so liveBeatAnchorOverrides
-      // returns [] and draw() falls through to p.beatAnchors (the freshly
-      // committed Redux slice values). Syncing from snap.beatAnchors here
-      // would use stale positions — snap is built before applyIntents fires
-      // commitClipoutResize, so it is always one render cycle behind.
-      drag.liveBeatAnchors = undefined
-    }
-  }
-  // Live commit: dispatch region resize on every pointerMove (after threshold).
-  // For output-space drags also commit beat-anchor changes.
-  {
-    const edgeDragNow = drag
-    if (edgeDragNow.moved && edgeDragNow.liveRegion) {
-      intents.push({
-        kind: 'regionResize',
-        id: edgeDragNow.liveRegion.id,
-        inPoint: edgeDragNow.liveRegion.inPoint,
-        outPoint: edgeDragNow.liveRegion.outPoint,
-        isOutput: edgeDragNow.isOutput,
-        altKey: edgeDragNow.lastAltKey,
-      })
-      if (edgeDragNow.isOutput && edgeDragNow.liveBeatAnchors && edgeDragNow.origBeatAnchorTimes) {
-        const edgeBeatOrigTimes = edgeDragNow.origBeatAnchorTimes
-        const edgeLiveBeatAnchors = edgeDragNow.liveBeatAnchors
-        const beatAnchorsChanged = edgeLiveBeatAnchors.some(a => {
-          const o = edgeBeatOrigTimes.get(a.id)
-          return o !== undefined && o !== a.time
-        })
-        if (beatAnchorsChanged) {
-          intents.push({ kind: 'beatAnchorsChanged', next: edgeLiveBeatAnchors })
+          if (changed) intents.push({ kind: 'beatAnchorsChanged', next })
         }
       }
     }
@@ -567,8 +489,7 @@ function handleRegionEdgeMove(
 
 /**
  * Handle pointerMove for an active region-move (body pan) drag.
- * Mutates `drag` (updates liveRegion / liveBoundsList / liveBeatAnchors / liveAnchors)
- * and returns intents.
+ * Computes payloads inline from origIn/origOut + delta. No live* mirror state.
  */
 function handleRegionMoveMove(
   drag: Extract<DragState, { kind: 'region-move' }>,
@@ -577,120 +498,50 @@ function handleRegionMoveMove(
 ): Intent[] {
   const intents: Intent[] = []
   const x = e.clientX - e.canvasRect.left
-  const W = snap.canvas.width || 1
-  const viewSpan = snap.view.end - snap.view.start
   markMovedIfBeyondThreshold(drag, e)
   drag.lastAltKey = e.altKey
   const raw = pxToT(x, snap)
   const MAX = drag.isOutput ? snap.outputDuration : snap.duration
   const dur = drag.origOut - drag.origIn
   const space = drag.isOutput ? 'output' : 'input'
-  // Resolver snaps via SnapTarget installed at pointerDown.
-  // Controller shows raw position (1-frame lag acceptable).
   const moveEntityId = drag.isOutput ? regionOutId(drag.id) : regionInId(drag.id)
   const rawIn = drag.origIn + (raw - pxToT(drag.anchorX, snap))
   const rawOut = rawIn + dur
   const newIn = Math.max(0, Math.min(MAX - dur, rawIn))
   const newOut = newIn + dur
   // Body-pan hints: pass the OTHER edge as bodyOtherEdge so evaluateSnap
-  // considers cross-edge alignment (in-edge can snap to another clip's
-  // out-edge for "abut") — matching what the resolver's body-mode propose
-  // handler does.
+  // considers cross-edge alignment.
   const inHints = constraintSnapHints(snap, moveEntityId, 'in', rawIn, rawOut) ?? []
   const outHints = constraintSnapHints(snap, moveEntityId, 'out', rawOut, rawIn) ?? []
   const hints = [...new Set([...inHints, ...outHints])]
   intents.push({ kind: 'pubSnapHints', space, times: hints })
   intents.push({ kind: 'pubDragTime', space, time: newIn })
 
-  // Always update liveRegion for pointerUp — used in pointerUp intent emission.
-  drag.liveRegion = { id: drag.id, inPoint: newIn, outPoint: newOut }
-
-  // Multi-region move: the slice (p.regions) is updated on every pointerMove
-  // via single-entity dispatch + resolver propagation, so no liveBoundsList is needed.
   const deltaT = newIn - drag.origIn
-  // Slice B: live beat-anchor translate during output-space (clipout) body
-  // pan. effectiveAnchorLock = (clipAnchorLock ?? false) XOR lastAltKey.
-  // When effectiveAnchorLock: translate anchors inside [origIn, origOut]
-  // by the same delta as the region, so they move with the clip body live.
-  if (drag.isOutput && drag.liveBeatAnchors && drag.origBeatAnchorTimes) {
-    const effectiveAnchorLock = (snap.clipAnchorLock ?? false) !== drag.lastAltKey // XOR
-    if (effectiveAnchorLock) {
-      const panOrigBeatTimes = drag.origBeatAnchorTimes
-      const panOrigIn = drag.origIn
-      const panOrigOut = drag.origOut
-      drag.liveBeatAnchors = drag.liveBeatAnchors.map(a => {
-        const origTime = panOrigBeatTimes.get(a.id) ?? a.time
-        if (origTime >= panOrigIn && origTime <= panOrigOut) {
-          return { ...a, time: origTime + deltaT }
-        }
-        return { ...a, time: origTime }
-      })
-    } else {
-      // !effectiveAnchorLock: conformed anchors are carried by commitClipoutPan.
-      // Clear liveBeatAnchors so liveBeatAnchorOverrides returns [] and draw()
-      // falls through to p.beatAnchors (the freshly committed Redux values).
-      // Keeping stale origTimes here would override the correct committed positions.
-      drag.liveBeatAnchors = undefined
+  drag.lastDelta = deltaT
+
+  if (drag.moved) {
+    intents.push({
+      kind: 'regionEntityMove',
+      id: drag.id,
+      delta: deltaT,
+      isOutput: drag.isOutput,
+      altKey: drag.lastAltKey,
+    })
+    // Combined region+anchor drag: emit anchorEntityMove for the primary
+    // anchor in each space. Follower anchors propagate via lasso:main.
+    // Input-space only — output-space pans handle anchor translation in commitClipoutPan.
+    if (!drag.isOutput && drag.origInputAnchorTimes && drag.origInputAnchorTimes.size > 0) {
+      const firstInputId = drag.origInputAnchorTimes.keys().next().value as number
+      const orig = drag.origInputAnchorTimes.get(firstInputId)!
+      const newT = Math.max(0, orig + deltaT)
+      intents.push({ kind: 'anchorEntityMove', entityId: anchorInId(firstInputId), time: newT })
     }
-  }
-  // Combined drag: shift every captured anchor by the same delta in
-  // BOTH spaces (input-space only — output-space region drags don't
-  // move combined anchor groups).
-  if (!drag.isOutput && drag.anchorGroupIds && drag.liveAnchors && drag.liveBeatAnchors) {
-    const orInput = drag.origInputAnchorTimes
-    const orBeat = drag.origBeatAnchorTimes
-    const anchorIds = drag.anchorGroupIds
-    if (orInput) {
-      drag.liveAnchors = drag.liveAnchors.map(a => {
-        if (!anchorIds.has(a.id)) return a
-        const o = orInput.get(a.id)
-        if (o === undefined) return a
-        return { ...a, time: Math.max(0, o + deltaT) }
-      })
-    }
-    if (orBeat) {
-      drag.liveBeatAnchors = drag.liveBeatAnchors.map(a => {
-        if (!anchorIds.has(a.id)) return a
-        const o = orBeat.get(a.id)
-        if (o === undefined) return a
-        return { ...a, time: Math.max(0, o + deltaT) }
-      })
-    }
-  }
-  // Live commit: dispatch region moves on every pointerMove (after threshold).
-  // History + persistence skip during drag.active; dragEnd fires the snapshot.
-  // Emit regionEntityMove for the PRIMARY grabbed region only.
-  // Follower regions propagate via lasso:main TranslateGroup in the resolver.
-  {
-    const moveDragNow = drag
-    if (moveDragNow.moved) {
-      if (moveDragNow.liveRegion) {
-        intents.push({
-          kind: 'regionEntityMove',
-          id: moveDragNow.liveRegion.id,
-          delta: moveDragNow.liveRegion.inPoint - moveDragNow.origIn,
-          isOutput: moveDragNow.isOutput,
-          altKey: moveDragNow.lastAltKey,
-        })
-      }
-      // Combined region+anchor drag: emit anchorEntityMove for the primary
-      // anchor in each space. Follower anchors propagate via lasso:main.
-      if (!moveDragNow.isOutput && moveDragNow.liveAnchors && moveDragNow.origInputAnchorTimes && moveDragNow.origInputAnchorTimes.size > 0) {
-        // Emit for first captured input anchor (primary).
-        const firstInputId = [...moveDragNow.origInputAnchorTimes.keys()][0]
-        const primaryInputAnchor = moveDragNow.liveAnchors.find(a => a.id === firstInputId)
-        if (primaryInputAnchor) {
-          intents.push({ kind: 'anchorEntityMove', entityId: anchorInId(firstInputId), time: primaryInputAnchor.time })
-        }
-      }
-      if (!moveDragNow.isOutput && moveDragNow.liveBeatAnchors && moveDragNow.origBeatAnchorTimes && moveDragNow.origBeatAnchorTimes.size > 0) {
-        // Emit for first captured beat anchor (primary).
-        const firstBeatId = [...moveDragNow.origBeatAnchorTimes.keys()][0]
-        const primaryBeatAnchor = moveDragNow.liveBeatAnchors.find(a => a.id === firstBeatId)
-        if (primaryBeatAnchor) {
-          intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(firstBeatId), time: primaryBeatAnchor.time })
-        }
-      }
+    if (!drag.isOutput && drag.origBeatAnchorTimes && drag.origBeatAnchorTimes.size > 0) {
+      const firstBeatId = drag.origBeatAnchorTimes.keys().next().value as number
+      const orig = drag.origBeatAnchorTimes.get(firstBeatId)!
+      const newT = Math.max(0, orig + deltaT)
+      intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(firstBeatId), time: newT })
     }
   }
   intents.push({ kind: 'redraw' })
@@ -870,10 +721,10 @@ export function createTimelineController(): Controller {
           e.clientX, e.clientY,
           pendingSelect,
         )
-        // Force-include both partners in the capture maps even when nothing
-        // else was selected.
-        if (!dragState.origInputTimes!.has(id)) dragState.origInputTimes!.set(id, inAnchor.time)
-        if (!dragState.origBeatTimes!.has(id)) dragState.origBeatTimes!.set(id, beatAnchor.time)
+        // Force-pair: both spaces are captured for the primary, partner's
+        // beat-space pre-drag time is `beatAnchor.time`.
+        dragState.capturedSpaces = { input: true, beat: true }
+        dragState.partnerOrigTime = beatAnchor.time
         dragState.isPair = true
         drag = dragState
         intents.push({ kind: 'dragStart' })
@@ -900,12 +751,10 @@ export function createTimelineController(): Controller {
       const list = isOutput ? (snap.regionsOutput ?? snap.regions) : snap.regions
       const r = list.find(rr => rr.id === id)
       if (r) {
-        // For output-space edge drags, capture all beat anchors + their
-        // original times for Slice B live rescale/translate preview.
-        let liveBeatAnchors: Anchor[] | undefined
+        // For output-space edge drags, capture beat-anchor original times
+        // so handleRegionEdgeMove can compute Slice-B rescale inline.
         let origBeatAnchorTimes: Map<number, number> | undefined
         if (isOutput) {
-          liveBeatAnchors = [...snap.beatAnchors]
           origBeatAnchorTimes = new Map()
           for (const a of snap.beatAnchors) origBeatAnchorTimes.set(a.id, a.time)
         }
@@ -916,13 +765,11 @@ export function createTimelineController(): Controller {
           isOutput,
           origIn: r.inPoint,
           origOut: r.outPoint,
-          liveRegion: null,
           startClientX: e.clientX,
           startClientY: e.clientY,
           moved: false,
           pendingSelect: [{ kind: 'regionSelect', id }],
           lastAltKey: e.altKey,
-          liveBeatAnchors,
           origBeatAnchorTimes,
         }
         intents.push({ kind: 'dragStart' })
@@ -1218,49 +1065,40 @@ export function createTimelineController(): Controller {
     if (d) {
       if (d.kind === 'anchor') {
         if (!d.moved) {
-          // Click (no drag): flush the deferred selection intents and emit
-          // no move commits. The drag was armed at pointerDown but the user
-          // released before crossing the threshold.
+          // Click (no drag): flush the deferred selection intents.
           for (const ps of d.pendingSelect) intents.push(ps)
         } else {
-          // Single-entity commit — same structure as handleAnchorMove's
-          // live dispatch. Emit anchorEntityMove for the PRIMARY grabbed anchor so
-          // the resolver's lasso:main TranslateGroup propagates to all followers.
-          // The whole-array anchorsChanged / beatAnchorsChanged / per-region
-          // regionMove paths are replaced here to avoid N applyOp + N slice-mirror
-          // syncs and to ensure the structural one-op-per-drag-commit guarantee
-          // holds end-to-end (not just during pointerMove).
-          const primaryInputTime = d.origInputTimes?.has(d.id)
-            ? d.liveAnchors.find(a => a.id === d.id)?.time
-            : undefined
-          const primaryBeatTime = d.origBeatTimes?.has(d.id)
-            ? d.liveBeatAnchors.find(a => a.id === d.id)?.time
-            : undefined
-          if (primaryInputTime !== undefined) {
-            intents.push({ kind: 'anchorEntityMove', entityId: anchorInId(d.id), time: primaryInputTime })
+          // Single-entity commit. Use the controller's record of the last
+          // computed position (d.lastTime) — populated by handleAnchorMove.
+          const finalT = d.lastTime ?? d.origTime
+          const delta = finalT - d.origTime
+          const finalInputT = Math.max(0, (d.space === 'input' ? d.origTime : d.partnerOrigTime) + delta)
+          const finalBeatT  = Math.max(0, (d.space === 'output' ? d.origTime : d.partnerOrigTime) + delta)
+          if (d.capturedSpaces.input) {
+            intents.push({ kind: 'anchorEntityMove', entityId: anchorInId(d.id), time: finalInputT })
           }
-          if (primaryBeatTime !== undefined) {
-            intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(d.id), time: primaryBeatTime })
+          if (d.capturedSpaces.beat) {
+            intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(d.id), time: finalBeatT })
           }
           // Combined anchor+region drag: emit regionEntityMove for the PRIMARY
-          // grabbed region (first in liveRegionBounds). Follower regions propagate
-          // via lasso:main TranslateGroup.
-          if (d.liveRegionBounds && d.origRegionBounds && d.liveRegionBounds.length > 0) {
-            const primary = d.liveRegionBounds[0]
-            const origPrimary = d.origRegionBounds.get(primary.id)
-            if (origPrimary) {
-              intents.push({ kind: 'regionEntityMove', id: primary.id, delta: primary.inPoint - origPrimary.inPoint, isOutput: false, altKey: false })
+          // grabbed region using the same delta.
+          if (d.regionGroupIds && d.origRegionBounds && d.regionGroupIds.size > 0) {
+            const firstId = d.regionGroupIds.values().next().value as string | undefined
+            if (firstId !== undefined) {
+              const orig = d.origRegionBounds.get(firstId)
+              if (orig) {
+                const MAX = snap.duration
+                const gDur = orig.outPoint - orig.inPoint
+                const gIn = Math.max(0, Math.min(MAX - gDur, orig.inPoint + delta))
+                intents.push({ kind: 'regionEntityMove', id: firstId, delta: gIn - orig.inPoint, isOutput: false, altKey: false })
+              }
             }
           }
-          // Commit: emit final regionResize (isOutput) for any
-          // output-linked region edges so beat bounds are persisted.
+          // Commit: emit final regionResize (isOutput) for output-linked edges.
           if (d.space === 'output' && d.linkedOutputEdges && d.linkedOutputEdges.length > 0) {
-            // The dragged beat anchor's final position is in liveBeatAnchors.
-            const finalBeatT = d.liveBeatAnchors.find(a => a.id === d.id)?.time ?? d.origTime
             for (const le of d.linkedOutputEdges) {
               const newIn  = le.edge === 'in'  ? finalBeatT : le.origInBeatTime
               const newOut = le.edge === 'out' ? finalBeatT : le.origOutBeatTime
-              // Only emit if the anchor actually moved.
               if (Math.abs(newIn - le.origInBeatTime) < 1e-9 && Math.abs(newOut - le.origOutBeatTime) < 1e-9) continue
               intents.push({ kind: 'regionResize', id: le.regionId, inPoint: newIn, outPoint: newOut, isOutput: true, altKey: false })
             }
@@ -1269,12 +1107,15 @@ export function createTimelineController(): Controller {
       } else if (d.kind === 'region-edge') {
         if (!d.moved) {
           for (const ps of d.pendingSelect) intents.push(ps)
-        } else if (d.liveRegion) {
+        } else {
+          // Re-emit final regionResize using the controller's last computed bounds.
+          const newIn = d.lastIn ?? d.origIn
+          const newOut = d.lastOut ?? d.origOut
           intents.push({
             kind: 'regionResize',
-            id: d.liveRegion.id,
-            inPoint: d.liveRegion.inPoint,
-            outPoint: d.liveRegion.outPoint,
+            id: d.id,
+            inPoint: newIn,
+            outPoint: newOut,
             isOutput: d.isOutput,
             altKey: d.lastAltKey,
           })
@@ -1283,38 +1124,25 @@ export function createTimelineController(): Controller {
         if (!d.moved) {
           for (const ps of d.pendingSelect) intents.push(ps)
         } else {
-        // Single-entity commit — same structure as handleRegionMove's
-        // live dispatch. Emit regionEntityMove for the PRIMARY grabbed region so
-        // the resolver's lasso:main TranslateGroup propagates to all followers.
-        // The per-region regionMove loop and whole-array anchorsChanged /
-        // beatAnchorsChanged are replaced here to achieve the one-op-per-drag-
-        // commit guarantee end-to-end (not just during pointerMove).
-        if (d.liveRegion) {
+          const deltaT = d.lastDelta ?? 0
           intents.push({
             kind: 'regionEntityMove',
-            id: d.liveRegion.id,
-            delta: d.liveRegion.inPoint - d.origIn,
+            id: d.id,
+            delta: deltaT,
             isOutput: d.isOutput,
             altKey: d.lastAltKey,
           })
-        }
-        // Combined drag: emit anchorEntityMove for the PRIMARY anchor in each
-        // space. Follower anchors propagate via lasso:main TranslateGroup.
-        // Output-space pans handle anchor translation inside commitClipoutPan.
-        if (!d.isOutput && d.liveAnchors && d.origInputAnchorTimes && d.origInputAnchorTimes.size > 0) {
-          const firstInputId = [...d.origInputAnchorTimes.keys()][0]
-          const primaryInputAnchor = d.liveAnchors.find(a => a.id === firstInputId)
-          if (primaryInputAnchor) {
-            intents.push({ kind: 'anchorEntityMove', entityId: anchorInId(firstInputId), time: primaryInputAnchor.time })
+          // Combined drag: emit anchorEntityMove for the primary anchor in each space.
+          if (!d.isOutput && d.origInputAnchorTimes && d.origInputAnchorTimes.size > 0) {
+            const firstInputId = d.origInputAnchorTimes.keys().next().value as number
+            const orig = d.origInputAnchorTimes.get(firstInputId)!
+            intents.push({ kind: 'anchorEntityMove', entityId: anchorInId(firstInputId), time: Math.max(0, orig + deltaT) })
           }
-        }
-        if (!d.isOutput && d.liveBeatAnchors && d.origBeatAnchorTimes && d.origBeatAnchorTimes.size > 0) {
-          const firstBeatId = [...d.origBeatAnchorTimes.keys()][0]
-          const primaryBeatAnchor = d.liveBeatAnchors.find(a => a.id === firstBeatId)
-          if (primaryBeatAnchor) {
-            intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(firstBeatId), time: primaryBeatAnchor.time })
+          if (!d.isOutput && d.origBeatAnchorTimes && d.origBeatAnchorTimes.size > 0) {
+            const firstBeatId = d.origBeatAnchorTimes.keys().next().value as number
+            const orig = d.origBeatAnchorTimes.get(firstBeatId)!
+            intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(firstBeatId), time: Math.max(0, orig + deltaT) })
           }
-        }
         }
       } else if (d.kind === 'lasso') {
         if (d.active) {

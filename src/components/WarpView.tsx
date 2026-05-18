@@ -26,6 +26,14 @@ import {
   selectConstraintGraph,
 } from '../store/selectors'
 import {
+  selectQuantAnchors,
+  selectSnapTargetsInput as selectSnapInputAnchors,
+  selectSnapTargetsOutput,
+  selectBeatOffset,
+  selectLinkedBoundaries,
+  selectSelectedBoundaries,
+} from '../store/selectors/timeline'
+import {
   setOrigAnchorsFromTimeline,
   setBeatAnchorsFromTimeline,
   removeAnchors,
@@ -198,24 +206,16 @@ const importRef = useRef<HTMLInputElement>(null)
     return beat > 0 ? beatSpan / beat : undefined
   }, [activeRegion, lockMode, beat, effectiveBounds])
 
-  const beatOffset = useMemo(() => {
-    if (clipIn === undefined) return sortedBeat[0]?.time ?? 0
-    if (beatZeroId !== null) {
-      const z = sortedBeat.find(a => a.id === beatZeroId)
-      if (z) return z.time
-    }
-    // Use effective in-beat so input-anchor conform shifts the beat grid origin.
-    return effectiveBounds?.inBeatTime ?? clipInBeatTime ?? clipIn
-  }, [clipIn, clipInBeatTime, effectiveBounds, sortedBeat, beatZeroId])
+  const beatOffset = useAppSelector(selectBeatOffset)
 
   const maxDuration = Math.max(duration, outputDuration)
 
   const scenes = useMemo(() => scenesProp ?? [], [scenesProp])
 
   // ── Segments (with synthetic clip boundary anchors) ────────────────────────
-  const { segments, segmentAnchors } = useMemo(() => {
+  const segments = useMemo(() => {
     if (clipIn === undefined && clipOut === undefined) {
-      return { segments: buildSegments(sortedOrig, sortedBeat, duration, outputDuration), segmentAnchors: sortedOrig }
+      return buildSegments(sortedOrig, sortedBeat, duration, outputDuration)
     }
     const augOrig = [...sortedOrig]
     const augBeat = [...sortedBeat]
@@ -228,7 +228,7 @@ const importRef = useRef<HTMLInputElement>(null)
       augOrig.push({ id: -9999, time: clipOut })
       augBeat.push({ id: -9999, time: clipOutBeatTime ?? clipOut })
     }
-    return { segments: buildSegments(augOrig, augBeat, duration, outputDuration), segmentAnchors: augOrig }
+    return buildSegments(augOrig, augBeat, duration, outputDuration)
   }, [sortedOrig, sortedBeat, duration, outputDuration, clipIn, clipOut, clipInBeatTime, clipOutBeatTime])
 
   // ── Region-scoped mapping ─────────────────────────────────────────────────
@@ -322,30 +322,20 @@ const importRef = useRef<HTMLInputElement>(null)
     [maxDuration, syncViewToRedux],
   )
 
-  const quantAnchors: Anchor[] = useMemo(
-    () => sortedBeat.map(a => ({ id: a.id, time: a.time })),
-    [sortedBeat],
-  )
+  const quantAnchors = useAppSelector(selectQuantAnchors)
 
+  // Input-space snap targets: slice-derived anchor times (via selector)
+  // combined with prop-provided scene times. The merge happens at the wiring
+  // boundary because scenes arrive via props from CenterColumn's filtered set.
+  const snapInputAnchors = useAppSelector(selectSnapInputAnchors)
   const snapTargetsInput = useMemo(
-    () => [...scenes, ...origAnchors.map(a => a.time)],
-    [scenes, origAnchors],
+    () => [...scenes, ...snapInputAnchors],
+    [scenes, snapInputAnchors],
   )
-  const snapTargetsOutput = useMemo(() => {
-    const beatTimes = quantAnchors.map(a => a.time)
-    if (clipIn === undefined) return beatTimes
-    return [...beatTimes, beatClipIn ?? 0, beatClipOut ?? outputDuration]
-  }, [quantAnchors, clipIn, beatClipIn, beatClipOut, outputDuration])
+  const snapTargetsOutput = useAppSelector(selectSnapTargetsOutput)
 
-  const linkedBoundaries = useMemo(
-    () => segmentAnchors.map(a => a.id < 0 || linkedAnchorIds.has(a.id)),
-    [segmentAnchors, linkedAnchorIds],
-  )
-
-  const selectedBoundaries = useMemo(
-    () => segmentAnchors.map(a => selectedIds.has(a.id)),
-    [segmentAnchors, selectedIds],
-  )
+  const linkedBoundaries = useAppSelector(selectLinkedBoundaries)
+  const selectedBoundaries = useAppSelector(selectSelectedBoundaries)
 
   // ── Selection helpers ─────────────────────────────────────────────────────
   /** Lasso commit: set orig and beat selection from the two separate id sets. */
