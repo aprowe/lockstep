@@ -204,3 +204,71 @@ export function dispatchPipelinedReplay(
     dispatch(_syncRegionMeta(output.metaDiffs) as never)
   }
 }
+
+// ─── beginReplayFrame ────────────────────────────────────────────────────────
+
+/**
+ * Reset slice's regions and anchors back to their PRE-DRAG values. Call
+ * this at the start of each pointer-event frame (before processing any
+ * intents) so each frame's constraint replay starts from a clean baseline.
+ * Without it, fields written by a prior frame's constraint cascade (e.g.,
+ * inner anchors moved by an anchor-lock TranslateGroup that's no longer
+ * installed this frame because alt was released) would persist into the
+ * current frame's slice, defeating the "each frame is f(preDrag, ops)"
+ * invariant the replay model relies on.
+ *
+ * No-op when no drag is active (no preDrag).
+ */
+export function beginReplayFrame(
+  dispatch: AppDispatch,
+  getState: () => RootState,
+): void {
+  const state = getState()
+  const preDrag = state.drag?.preDrag
+  if (!preDrag) return
+
+  // Region position resets — restore any drifted field to its preDrag value.
+  const regionDiffs: Record<string, Partial<{
+    inPoint:       number
+    outPoint:      number
+    inBeatTime:    number
+    outBeatTime:   number
+    defaultLinked: boolean
+  }>> = {}
+  for (const r of preDrag.regions) {
+    const current = state.region.regions.find(c => c.id === r.id)
+    if (!current) continue
+    const diff: Partial<{
+      inPoint:       number
+      outPoint:      number
+      inBeatTime:    number
+      outBeatTime:   number
+      defaultLinked: boolean
+    }> = {}
+    if (current.inPoint       !== r.inPoint)       diff.inPoint       = r.inPoint
+    if (current.outPoint      !== r.outPoint)      diff.outPoint      = r.outPoint
+    if (current.inBeatTime    !== r.inBeatTime)    diff.inBeatTime    = r.inBeatTime
+    if (current.outBeatTime   !== r.outBeatTime)   diff.outBeatTime   = r.outBeatTime
+    if (current.defaultLinked !== r.defaultLinked) diff.defaultLinked = r.defaultLinked
+    if (Object.keys(diff).length > 0) regionDiffs[r.id] = diff
+  }
+  if (Object.keys(regionDiffs).length > 0) {
+    dispatch(_syncRegionPositions(regionDiffs) as never)
+  }
+
+  // Anchor position resets.
+  const anchorDiffs: { orig: Record<number, number>; beat: Record<number, number> } = {
+    orig: {}, beat: {},
+  }
+  for (const a of preDrag.origAnchors) {
+    const current = state.warp.origAnchors.find(c => c.id === a.id)
+    if (current && current.time !== a.time) anchorDiffs.orig[a.id] = a.time
+  }
+  for (const a of preDrag.beatAnchors) {
+    const current = state.warp.beatAnchors.find(c => c.id === a.id)
+    if (current && current.time !== a.time) anchorDiffs.beat[a.id] = a.time
+  }
+  if (Object.keys(anchorDiffs.orig).length > 0 || Object.keys(anchorDiffs.beat).length > 0) {
+    dispatch(_syncAnchorPositions(anchorDiffs) as never)
+  }
+}

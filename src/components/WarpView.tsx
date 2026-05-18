@@ -42,6 +42,7 @@ import { setView as setReduxView, setWarpCollapsed, setGridDiv } from '../store/
 import { commitClipoutResize, commitClipoutPan } from '../store/thunks/clipoutThunks'
 import { moveAnchors, moveBeatAnchors } from '../store/thunks/regionThunks'
 import { applyAnchorEntityMove, applyRegionEntityMove } from '../store/thunks/entityWriteThunks'
+import { beginReplayFrame } from '../constraints/pipelineDispatch'
 import { snapToSiblings } from '../constraints/recipes'
 import {
   setSnapInstall,
@@ -374,6 +375,14 @@ const importRef = useRef<HTMLInputElement>(null)
     [dispatch],
   )
 
+  /** Replay-frame boundary: reset slice's regions/anchors to preDrag values
+   *  at the start of each pointer event's intent batch. Required by the
+   *  replay-based drag model. */
+  const handleBeginReplayFrame = useCallback(
+    () => dispatch((d, g) => beginReplayFrame(d, g)),
+    [dispatch],
+  )
+
   /** Phase 2.5: single-entity region body move — dispatches Move ops on the
    *  primary clipin entity; resolver propagates to followers via lasso:main.
    *  delta is the signed translate from the entity's position at drag start.
@@ -626,6 +635,7 @@ const importRef = useRef<HTMLInputElement>(null)
         onAnchorContextMenu={handleAnchorContextMenu}
         onAnchorsChange={handleOrigChange}
         onAnchorEntityMove={handleAnchorEntityMove}
+        onBeginReplayFrame={handleBeginReplayFrame}
         beatAnchors={quantAnchors}
         linkedBeatIds={linkedAnchorIds}
         onBeatAnchorDelete={handleThinBeatAnchorDelete}

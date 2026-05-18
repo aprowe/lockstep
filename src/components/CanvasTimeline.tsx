@@ -87,6 +87,10 @@ export interface CanvasTimelineProps {
   /** Phase 2.5: single-entity anchor move (primary grabbed entity only).
    *  The resolver propagates to other selected entities via lasso:main. */
   onAnchorEntityMove?: (entityId: string, time: number) => void
+  /** Called at the start of each pointer-event intent batch to reset slice
+   *  entities to preDrag values. Implements the per-frame replay boundary
+   *  that the constraint pipeline's drag model relies on. */
+  onBeginReplayFrame?: () => void
   beatAnchors: Anchor[]
   linkedBeatIds?: ReadonlySet<number>
   onBeatAnchorDelete?: (id: number) => void
@@ -1257,6 +1261,11 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
 
   function applyIntents(intents: Intent[]) {
     const p = propsRef.current
+    // Replay-frame boundary: reset slice's regions/anchors to preDrag values
+    // before processing this pointer event's intents. Required by the
+    // replay-based drag model — without it, prior-frame constraint writes
+    // (e.g., anchor-lock while alt was held) persist into the current frame.
+    p.onBeginReplayFrame?.()
     for (const i of intents) {
       switch (i.kind) {
         case 'seek': p.onSeek?.(i.time); break

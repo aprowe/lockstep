@@ -5,6 +5,7 @@ import type { Anchor, Region, View, WarpSegment } from '../../../src/types'
 import type { RegionBlock } from '../../../src/timeline/types'
 import { buildLayout, MINIMAP_H } from '../../../src/timeline/layout'
 import { createTimelineController } from '../../../src/timeline/controller'
+import { beginReplayFrame } from '../../../src/constraints/pipelineDispatch'
 import { makeStore } from '../../helpers/setup'
 import { gesture } from '../../../src/store/gesture'
 import { selectLinkedAnchorIds } from '../../../src/store/selectors'
@@ -237,6 +238,12 @@ export function driveController(opts: DriverOptions): DriverHandle {
   const controller = createTimelineController()
 
   function applyIntents(intents: Intent[]): void {
+    // Replay-frame boundary: reset slice's regions/anchors to preDrag values
+    // before processing this pointer event's intents. Without this, fields
+    // written by a prior frame's constraint cascade (e.g., anchor-lock
+    // moving inner anchors while alt was held) persist into the current
+    // frame's slice — defeating the replay invariant.
+    beginReplayFrame(store.dispatch, store.getState as never)
     for (const i of intents) {
       switch (i.kind) {
         // ── commit intents → dispatched thunks (production path) ────────────

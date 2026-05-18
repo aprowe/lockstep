@@ -18,6 +18,7 @@ import { addAnchor, moveBeatAnchor } from '../../../src/store/slices/warpSlice'
 import { applyRegionEntityMove } from '../../../src/store/thunks/entityWriteThunks'
 import { dragStart } from '../../../src/store/slices/dragSlice'
 import { snapshotPreDragState } from '../../../src/store/thunks/dragThunks'
+import { beginReplayFrame } from '../../../src/constraints/pipelineDispatch'
 import type { Region } from '../../../src/types'
 
 function setup() {
@@ -92,14 +93,11 @@ describe('Clipin drag onto diverged anchor: clipout conforms to beat anchor', ()
     expect(r.inBeatTime).toBeCloseTo(22, 6)
   })
 
-  // Known failing — diff-only replay dispatch doesn't restore clipout for
-  // diverged regions when conform releases (the pipeline doesn't WRITE
-  // clipout in the release frame, so the slice retains the conform write
-  // from the prior frame). Full-state replay dispatch would fix this but
-  // breaks multi-op accumulation within a single pointer event. Proper
-  // fix needs op batching per frame, or a constraint that writes preDrag
-  // value when conform isn't engaged.
-  it.fails('sequential drag (DIVERGED region, no default-link): conform must also release', () => {
+  // Fixed by beginReplayFrame: at the start of each pointer-event frame,
+  // slice is reset to preDrag values. The conform-released frame sees a
+  // clean baseline (clipout=preDrag), the pipeline doesn't write clipout
+  // (no coincidence), so slice clipout stays at preDrag.
+  it('sequential drag (DIVERGED region, no default-link): conform must also release', () => {
     // Same anchor (orig=20, beat=25), but the region is NOT default-linked.
     // Its clipout has its own independent inBeatTime/outBeatTime.
     const store = makeStore()
@@ -116,27 +114,31 @@ describe('Clipin drag onto diverged anchor: clipout conforms to beat anchor', ()
 
     store.dispatch(dragStart(snapshotPreDragState(store.getState())))
 
+    // Helper: simulate one pointer-event frame — reset slice to preDrag
+    // (the replay-frame boundary that applyIntents/CanvasTimeline does in
+    // production), then dispatch the frame's thunks.
+    const frame = (cumulativeDelta: number) => {
+      store.dispatch((d: never, g: never) => beginReplayFrame(d, g) as never)
+      store.dispatch(applyRegionEntityMove({ id: 'r', delta: cumulativeDelta }))
+    }
+
     // Frame 1: drag to inPoint=15. No conform. clipout (diverged) unchanged.
-    store.dispatch(applyRegionEntityMove({ id: 'r', delta: 5 }))
+    frame(5)
     let r = store.getState().region.regions[0]
     expect(r.inPoint).toBeCloseTo(15, 6)
     expect(r.inBeatTime).toBeCloseTo(100, 6)       // diverged — clipout independent
 
     // Frame 2: drag onto anchor at orig=20. ConformVisual fires (clipin write
     // coincides with orig) → writes clipout.in = beat anchor's time = 25.
-    store.dispatch(applyRegionEntityMove({ id: 'r', delta: 10 }))
+    frame(10)
     r = store.getState().region.regions[0]
     expect(r.inPoint).toBeCloseTo(20, 6)
     expect(r.inBeatTime).toBeCloseTo(25, 6)        // conform engaged
 
-    // Frame 3: drag past the anchor. Conform must RELEASE — clipout returns
-    // to its pre-conform (diverged) value of 100. WITHOUT defaultlink there
-    // is no cascade to re-assert any value, so ConformVisual's transient
-    // write currently PERSISTS in the slice. To match the user requirement
-    // ("restore non default linked regions too") we need a separate mechanism
-    // — e.g., a pre-drag snapshot of clipout that's restored when conform
-    // disengages.
-    store.dispatch(applyRegionEntityMove({ id: 'r', delta: 12 }))
+    // Frame 3: drag past the anchor. beginReplayFrame resets slice clipout
+    // back to preDrag (100). ConformVisual doesn't fire (clipin past orig)
+    // → slice clipout stays at preDrag value.
+    frame(12)
     r = store.getState().region.regions[0]
     expect(r.inPoint).toBeCloseTo(22, 6)
     expect(r.inBeatTime).toBeCloseTo(100, 6)       // restored to pre-conform diverged value
