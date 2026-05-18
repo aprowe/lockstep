@@ -1,0 +1,255 @@
+{
+  "layouts": {
+    "menubar": {
+      "id": "menubar",
+      "name": "Main menu bar",
+      "file": "spec/layouts/menubar.layout.yaml",
+      "groups": [
+        {
+          "items": [
+            {
+              "id": "file",
+              "label": "File"
+            },
+            {
+              "id": "edit",
+              "label": "Edit"
+            },
+            {
+              "id": "view",
+              "label": "View"
+            }
+          ]
+        }
+      ]
+    },
+    "file-menu": {
+      "id": "file-menu",
+      "name": "File menu",
+      "file": "spec/layouts/menubar.layout.yaml",
+      "groups": [
+        {
+          "items": [
+            {
+              "id": "open-video",
+              "label": "Open Video"
+            },
+            {
+              "id": "open-folder",
+              "label": "Open Folder"
+            }
+          ]
+        },
+        {
+          "items": [
+            {
+              "id": "open-project",
+              "label": "Open Project"
+            },
+            {
+              "id": "save-project-as",
+              "label": "Save Project As"
+            }
+          ]
+        },
+        {
+          "items": [
+            {
+              "id": "reset-project",
+              "label": "Reset Project"
+            }
+          ]
+        },
+        {
+          "items": [
+            {
+              "id": "close-video",
+              "label": "Close Video"
+            }
+          ]
+        }
+      ]
+    },
+    "edit-menu": {
+      "id": "edit-menu",
+      "name": "Edit menu",
+      "file": "spec/layouts/menubar.layout.yaml",
+      "groups": [
+        {
+          "items": [
+            {
+              "id": "undo",
+              "label": "Undo"
+            },
+            {
+              "id": "redo",
+              "label": "Redo"
+            }
+          ]
+        },
+        {
+          "items": [
+            {
+              "id": "select-all",
+              "label": "Select All"
+            },
+            {
+              "id": "deselect",
+              "label": "Deselect"
+            }
+          ]
+        },
+        {
+          "items": [
+            {
+              "id": "settings",
+              "label": "Settings…"
+            }
+          ]
+        }
+      ]
+    },
+    "view-menu": {
+      "id": "view-menu",
+      "name": "View menu",
+      "file": "spec/layouts/menubar.layout.yaml",
+      "groups": [
+        {
+          "items": [
+            {
+              "id": "increase-ui-scale",
+              "label": "Increase UI Scale"
+            },
+            {
+              "id": "decrease-ui-scale",
+              "label": "Decrease UI Scale"
+            },
+            {
+              "id": "reset-ui-scale",
+              "label": "Reset UI Scale"
+            }
+          ]
+        },
+        {
+          "items": [
+            {
+              "id": "keyboard-shortcuts",
+              "label": "Keyboard Shortcuts…"
+            }
+          ]
+        },
+        {
+          "items": [
+            {
+              "id": "reset-panel-layout",
+              "label": "Reset Panel Layout"
+            }
+          ]
+        }
+      ]
+    },
+    "main-toolbar": {
+      "id": "main-toolbar",
+      "name": "Main toolbar",
+      "file": "spec/layouts/toolbar.layout.yaml",
+      "groups": [
+        {
+          "items": [
+            {
+              "id": "new-scene",
+              "label": "New Scene"
+            },
+            {
+              "id": "prev-scene",
+              "label": "Prev Scene"
+            },
+            {
+              "id": "next-scene",
+              "label": "Next Scene"
+            }
+          ]
+        },
+        {
+          "items": [
+            {
+              "id": "set-in-region",
+              "label": "Set In Region"
+            },
+            {
+              "id": "set-out-region",
+              "label": "Set Out Region"
+            },
+            {
+              "id": "new-region",
+              "label": "New Region"
+            },
+            {
+              "id": "jump-to-region-start",
+              "label": "Jump to Region Start"
+            },
+            {
+              "id": "jump-to-region-end",
+              "label": "Jump to Region End"
+            }
+          ]
+        },
+        {
+          "items": [
+            {
+              "id": "new-marker",
+              "label": "New Marker"
+            },
+            {
+              "id": "prev-marker",
+              "label": "Prev Marker"
+            },
+            {
+              "id": "next-marker",
+              "label": "Next Marker"
+            }
+          ]
+        },
+        {
+          "items": [
+            {
+              "id": "play",
+              "label": "Play"
+            },
+            {
+              "id": "prev-frame",
+              "label": "Prev Frame"
+            },
+            {
+              "id": "next-frame",
+              "label": "Next Frame"
+            },
+            {
+              "id": "playback-loop-mode",
+              "label": "Playback Loop Mode"
+            },
+            {
+              "id": "play-time",
+              "label": "Play Time"
+            },
+            {
+              "id": "frame-count",
+              "label": "Frame Count"
+            },
+            {
+              "id": "beat-count-clip-based",
+              "label": "Beat Count (clip based)"
+            }
+          ]
+        },
+        {
+          "items": [
+            {
+              "id": "speed",
+              "label": "Speed"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

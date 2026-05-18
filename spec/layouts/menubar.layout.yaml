@@ -1,0 +1,59 @@
+# Top-level menu bar and all submenus.
+#
+# Each menu's items are grouped by visual separators (matches the
+# `{ separator: true }` entries in MenuDef definitions).
+#
+# Enforced by tests/bdd/menubarLayout.test.tsx
+# Run `npm run layouts` after editing to regenerate the registry.
+
+id: menubar
+name: Main menu bar
+
+groups:
+  - - File
+    - Edit
+    - View
+
+---
+
+id: file-menu
+name: File menu
+
+groups:
+  - - Open Video
+    - Open Folder
+
+  - - Open Project
+    - Save Project As
+
+  - - Reset Project
+
+  - - Close Video
+
+---
+
+id: edit-menu
+name: Edit menu
+
+groups:
+  - - Undo
+    - Redo
+
+  - - Select All
+    - Deselect
+
+  - - Settings…
+
+---
+
+id: view-menu
+name: View menu
+
+groups:
+  - - Increase UI Scale
+    - Decrease UI Scale
+    - Reset UI Scale
+
+  - - Keyboard Shortcuts…
+
+  - - Reset Panel Layout
