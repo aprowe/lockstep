@@ -8,7 +8,6 @@ import { pushSnapshot, undo } from '../../../src/store/slices/historySlice'
 import { gesture, getSnapshot } from '../../../src/store/gesture'
 import { calcZoomToRegion, viewFitsRegion } from '../../../src/utils/view'
 import { setInPointToPlayhead, setOutPointToPlayhead, moveRegionBounds } from '../../../src/store/thunks/regionThunks'
-import { projectClipoutRegions } from '../../../src/timeline/model/clipoutProjection'
 import { detectInputLinks, detectOutputLinks, isDefaultLinked } from '../../../src/timeline/model/linkState'
 import { commitClipoutResize, commitClipoutPan } from '../../../src/store/thunks/clipoutThunks'
 import { makeStore } from '../../helpers/setup'
@@ -58,19 +57,9 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     })
     And('clipin and clipout render at the same horizontal positions', () => {
       const r = store.getState().region.regions[0]
-      const block = { id: r.id, inPoint: r.inPoint, outPoint: r.outPoint }
-      const result = projectClipoutRegions({
-        regions: [block],
-        regionsOutput: [block],
-        origAnchors: [],
-        beatAnchors: [],
-        liveInputAnchors: [],
-        liveRegionMap: new Map(),
-        anchorsDragging: false,
-      })
-      expect(result).toBeDefined()
-      expect(result![0].inPoint).toBe(r.inPoint)
-      expect(result![0].outPoint).toBe(r.outPoint)
+      // Render reads the slice directly — clipin = inPoint, clipout = inBeatTime.
+      expect(r.inBeatTime).toBe(r.inPoint)
+      expect(r.outBeatTime).toBe(r.outPoint)
     })
     And('the region is reported as default-linked', () => {
       const r = store.getState().region.regions[0]
@@ -90,31 +79,12 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     })
     Then("clipout's in-edge displays at inPoint", () => {
       const r = store.getState().region.regions[0]
-      const block = { id: r.id, inPoint: r.inPoint, outPoint: r.outPoint }
-      const result = projectClipoutRegions({
-        regions: [block],
-        regionsOutput: [block],
-        origAnchors: [],
-        beatAnchors: [],
-        liveInputAnchors: [],
-        liveRegionMap: new Map(),
-        anchorsDragging: false,
-      })
-      expect(result![0].inPoint).toBe(10)
+      // Default-linked: inBeatTime === inPoint. Render reads slice directly.
+      expect(r.inBeatTime).toBe(10)
     })
     And("clipout's out-edge displays at outPoint", () => {
       const r = store.getState().region.regions[0]
-      const block = { id: r.id, inPoint: r.inPoint, outPoint: r.outPoint }
-      const result = projectClipoutRegions({
-        regions: [block],
-        regionsOutput: [block],
-        origAnchors: [],
-        beatAnchors: [],
-        liveInputAnchors: [],
-        liveRegionMap: new Map(),
-        anchorsDragging: false,
-      })
-      expect(result![0].outPoint).toBe(20)
+      expect(r.outBeatTime).toBe(20)
     })
   })
 
@@ -427,23 +397,12 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       store.dispatch(updateRegionInOut({ id: 'r', inPoint: 15, outPoint: 25 }))
     })
     Then('clip out edges move as well, since they are linked', () => {
-      const state = store.getState()
-      const r = state.region.regions[0]
-      // Region is default-linked (no explicit inBeatTime/outBeatTime set).
-      // When default-linked, regionsOutput = regions (beat space mirrors input space).
-      const block = { id: r.id, inPoint: r.inPoint, outPoint: r.outPoint }
-      const result = projectClipoutRegions({
-        regions: [block],
-        regionsOutput: [block],
-        origAnchors: state.warp.origAnchors,
-        beatAnchors: state.warp.beatAnchors,
-        liveInputAnchors: state.warp.origAnchors,
-        liveRegionMap: new Map(),
-        anchorsDragging: false,
-      })
-      expect(result).toBeDefined()
-      expect(result![0].inPoint).toBe(15)
-      expect(result![0].outPoint).toBe(25)
+      const r = store.getState().region.regions[0]
+      // Default-linked: the defaultlink DirectedPair (Translate) propagates the
+      // clipin Move to the clipout in the constraint pipeline. Slice's
+      // inBeatTime/outBeatTime mirror inPoint/outPoint.
+      expect(r.inBeatTime).toBe(15)
+      expect(r.outBeatTime).toBe(25)
     })
   })
 

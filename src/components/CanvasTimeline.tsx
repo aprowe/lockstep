@@ -3,7 +3,6 @@ import { useAppDispatch, useAppSelector } from '../store/hooks'
 import type { RegionBlock } from '../timeline/types'
 import type { Anchor, Region, WarpSegment, View } from '../types'
 import type { State as ConstraintState } from '../constraints/types'
-import { projectClipoutRegions } from '../timeline/model/clipoutProjection'
 import { buildAnchorPairs, origToBeat } from '../timeline/model/beatMap'
 import { clipHsl } from '../timeline/palette'
 import { gesture, useGesture } from '../store/gesture'
@@ -385,19 +384,11 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
           ? liveOrigToBeat(p.clipIn!)
           : (p.beatOffset ?? 0)
 
-    // Project clipout regions using the slice data directly (no live-override map
-    // needed — the slice is updated on every pointerMove).
-    const emptyRegionMap: ReadonlyMap<string, { inPoint: number; outPoint: number }> = new Map()
-    const projectedRegionsOutput = projectClipoutRegions({
-      regions: p.regions,
-      regionsOutput: p.regionsOutput,
-      origAnchors: p.anchors,
-      beatAnchors,
-      liveInputAnchors: anchors,
-      liveRegionMap: emptyRegionMap,
-      anchorsDragging,
-    })
-    const regionsOutput = projectedRegionsOutput
+    // Clipout regions render from the slice directly. Conform-driven position
+    // overrides used to live here; they were removed because they duplicated
+    // what MirrorPair already writes to the slice and could LIE about the
+    // current value during a drag.
+    const regionsOutput = p.regionsOutput
 
     function spaceRange(space: 'input' | 'warp' | 'output') {
       const ts = tracks.filter(t => t.space === space)

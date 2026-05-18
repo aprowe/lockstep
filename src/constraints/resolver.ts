@@ -343,19 +343,14 @@ const HANDLERS: HandlerEntry[] = [
   },
 
   /** mirror_pair: symmetric 1-1 binding between (a.id, a.field) and
-   *  (b.id, b.field). If exactly one endpoint has a write in the txn,
-   *  mirror its target value into the other endpoint. If both already
-   *  have writes (including equal values), do nothing — the explicit
-   *  writes win. If neither has a write, the constraint is inert
-   *  (no install-time sync — adding the constraint to a state where the
-   *  two endpoints differ does NOT rewrite either).
+   *  (b.id, b.field). Exactly-one-endpoint-written propagates to the
+   *  partner. If both already have writes (including equal values), no-op.
+   *  If neither has a write, no-op (no install-time sync).
    *
    *  Optional `guard`: two endpoints whose coincidence is the binding's
    *  implicit install-time premise (e.g., conform's clipin.in ≈ orig.time).
    *  If those endpoints have divergent deltas in this txn, the premise is
-   *  being broken — suppress propagation. Matches the no-snap world's
-   *  behavior, where the binding would have been uninstalled by the next
-   *  pass and never propagated the breakout delta. */
+   *  being broken — suppress propagation. */
   {
     kind:  ConstraintKind.MirrorPair,
     phase: Phase.Propose,
