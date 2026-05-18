@@ -7,8 +7,6 @@
  *   reduce(state, op)  — apply an op + propagate constraints, returns new state.
  *   emptyState()       — fresh empty state.
  *   recipes.*          — high-level gestures (lasso, lockOn, snapToSiblings, ...).
- *
- * See sandbox/index.html for a runnable demo.
  */
 
 export * from './types'
