@@ -128,13 +128,13 @@ export function lockOff(clipOutId: EntityId): Op {
   }
 }
 
-// ─── Carry on drag ────────────────────────────────────────────────────────
+// ─── Conform-driven edge/anchor propagation ──────────────────────────────
 //
-// Obsolete — the MirrorPair conform binding auto-installed by
-// `buildGraphFromSlice` now propagates clipout-edge writes to the paired
-// anchor (and vice versa) whenever positional coincidence holds. The
-// ephemeral `carry:*` DirectedPair that `carryStart` used to install at
-// pointerDown is no longer needed.
+// No recipe is needed here. The ConformVisual + MirrorPair bindings that
+// `buildGraphFromSlice` auto-installs whenever a clipout edge is positionally
+// coincident with an anchor handle the propagation in both directions:
+// clipout-edge writes drive the paired anchor, and anchor writes drive the
+// edge. No ephemeral pointerDown-time DirectedPair is required.
 
 // ─── Region.lock dropdown (BPM vs beats fixed) ────────────────────────────
 
