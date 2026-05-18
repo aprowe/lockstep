@@ -1,7 +1,5 @@
 Feature: Clip Bounds
 
-    # See docs/superpowers/specs/2026-05-11-region-lock-conform-design.md.
-    #
     # A region has TWO parallel sets of bounds:
     #   clipin  (input space):  region.inPoint / outPoint        — seconds in source
     #   clipout (beat space):   region.inBeatTime / outBeatTime  — seconds in output
