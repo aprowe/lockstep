@@ -1,0 +1,91 @@
+/* ═══════════════════════════════════════════════════════════
+   Catppuccin Mocha — adapted from catppuccin/nvim
+   Soft pastel palette on a desaturated indigo base. Mauve as the
+   primary accent, peach as the secondary. See warm-dark.css for
+   the canonical token doc.
+   ═══════════════════════════════════════════════════════════ */
+:root[data-theme="catppuccin-mocha"] {
+  /* ── Backgrounds ────────────────────────────────────────── */
+  --bg-0:     #11111b;   /* crust */
+  --bg-1:     #181825;   /* mantle */
+  --bg-2:     #1e1e2e;   /* base */
+  --bg-3:     #232337;
+  --bg-4:     #282844;
+  --bg-5:     #2e2e4e;
+  --bg-6:     #313244;   /* surface0 */
+  --bg-7:     #45475a;   /* surface1 */
+  --bg-hover: #313244;
+  --bg-sel:   #3a3a55;
+  --bg-inset: #0c0c14;
+
+  /* ── Foreground (text) ──────────────────────────────────── */
+  --fg-1: #cdd6f4;   /* text */
+  --fg-2: #bac2de;   /* subtext1 */
+  --fg-3: #a6adc8;   /* subtext0 */
+  --fg-4: #7f849c;   /* overlay2 */
+  --fg-5: #585b70;   /* surface2 */
+
+  /* ── Accent ─────────────────────────────────────────────── */
+  --accent:     #cba6f7;   /* mauve */
+  --accent-hi:  #dcc1ff;
+  --accent-2:   #fab387;   /* peach */
+  --accent-2hi: #ffc59d;
+
+  /* ── Borders ────────────────────────────────────────────── */
+  --border:    #313244;
+  --border-hi: #45475a;
+
+  /* ── Special ────────────────────────────────────────────── */
+  --blue:       #89b4fa;   /* blue */
+  --blue-light: #b4d0fb;
+  --blue-soft:  #74a8f5;
+  --tan:        #f9e2af;   /* yellow */
+  --tan-hi:     #fff0c8;
+  --error:      #f38ba8;   /* red */
+
+  /* ── Scene cuts ─────────────────────────────────────────── */
+  --scene-cut:           #f9e2af;
+  --scene-cut-hi:        #fff0c8;
+  --scene-cut-bd:        #d4b97a;
+  --scene-cut-active:    #fff0c8;
+  --scene-cut-active-bd: #fff8e0;
+  --scene-cut-rgb:       249, 226, 175;
+
+  /* ── Snap hints ─────────────────────────────────────────── */
+  --snap:        #a6e3a1;   /* catppuccin green */
+  --snap-active: #f9e2af;   /* catppuccin yellow */
+
+  /* ── Timeline space hues ────────────────────────────────── */
+  --space-input:  #89b4fa;  /* catppuccin blue */
+  --space-warp:   #fab387;  /* catppuccin peach */
+  --space-output: #cba6f7;  /* catppuccin mauve */
+
+  /* ── RGB channels for rgba() transparency ───────────────── */
+  --accent-rgb:   203, 166, 247;
+  --accent-2-rgb: 250, 179, 135;
+  --fg-1-rgb:     205, 214, 244;
+  --blue-rgb:     137, 180, 250;
+  --beat-rgb:     205, 214, 244;
+
+  /* ── Playhead ──────────────────────────────────────────── */
+  --playhead:     hsl(0, 90%, 65%);
+  --playhead-rgb: 240, 92, 92;
+
+  /* ── Warp panel ─────────────────────────────────────────── */
+  --wp-bg:   #181825;
+  --wp-bg2:  #1e1e2e;
+  --wp-bg3:  #232337;
+  --wp-foot: #0c0c14;
+  --wp-bd:   #313244;
+  --wp-bd2:  #282844;
+  --wp-bd3:  #45475a;
+  --wp-bd4:  #585b70;
+  --wp-tx:   #cdd6f4;
+  --wp-tx2:  #bac2de;
+  --wp-tx3:  #a6adc8;
+  --wp-tx4:  #7f849c;
+  --wp-tx5:  #585b70;
+
+  /* ── Font ───────────────────────────────────────────────── */
+  --font-family: ui-monospace, Consolas, monospace;
+}

@@ -1,0 +1,151 @@
+export interface VideoInfo {
+  /** Local filesystem path — used for Tauri commands */
+  path: string
+  originalName: string
+  /** convertFileSrc(path) — used for the HTML5 video element */
+  videoUrl: string
+  duration: number
+  fps: number
+  /** Stable content fingerprint — used as localStorage key for markers */
+  fileHash: string
+  /** ── Stream metadata reported by ffprobe ───────────────────────────── */
+  width?: number
+  height?: number
+  videoCodec?: string
+  container?: string
+  fileSize?: number
+  bitrate?: number
+  audioCodec?: string
+  audioChannels?: number
+  audioSampleRate?: number
+}
+
+export interface Anchor {
+  id: number
+  time: number // seconds
+  /** Persisted link flag. `true` (default when absent) = beat-side tracks
+   *  orig-side (the `pair:a{id}-in` DeleteGroup is present in the constraint
+   *  graph). `false` = pair was diverged by the user (DeleteGroup removed). */
+  linked?: boolean
+}
+
+export interface QuantizedAnchor {
+  id: number
+  origTime: number
+  quantTime: number
+}
+
+export interface WarpSegment {
+  origLeft: number  // % of original duration (0-100)
+  origRight: number
+  quantLeft: number // % of output duration (0-100)
+  quantRight: number
+  stretchRatio: number // quantSpan / origSpan — >1 means stretched, <1 compressed
+}
+
+export interface Band {
+  left: number  // % within this timeline's full duration
+  right: number
+  stretchRatio: number
+}
+
+export interface View {
+  start: number // seconds
+  end: number
+}
+
+export interface WarpData {
+  origAnchors: Anchor[]
+  beatAnchors: Anchor[]
+  bpm: number
+  minStretch: number
+  maxStretch: number
+  /** Beat-time of the designated beat-zero anchor in the output */
+  beatZeroTime: number
+  /** When true, the pre-beat-zero section is appended to the end of the output */
+  addToEnd: boolean
+}
+
+/** A user-defined sub-region of a video.
+ *  Markers are global to the video — the region just defines a view window.
+ *  Beat zero is always the region's inPoint. */
+export interface Region {
+  id: string
+  name: string
+  inPoint: number              // seconds in original video — also beat zero
+  outPoint: number             // seconds in original video
+  bpm: number
+  minStretch: number
+  maxStretch: number
+  addToEnd: boolean
+  /** Beat-space time for the in boundary. Always a concrete number. */
+  inBeatTime: number
+  /** Beat-space time for the out boundary. Always a concrete number. */
+  outBeatTime: number
+  /** When true, clipout follows clipin (structural DirectedPair is installed).
+   *  When false, user owns the clipout's beat-space anchoring (diverged). */
+  defaultLinked: boolean
+  /** Snapshot of beat count when lock='beats' (used to derive BPM on resize) */
+  lockedBeats?: number
+  /** When true, export plays each anchor interval at 1.0x (truncating source or
+   *  padding with a freeze-frame) instead of time-warping. No frame interp. */
+  triggerMode?: boolean
+  /** Stable seed for the palette swatch (mod 8 → clip-overlay--color-N).
+   *  Captured at creation time so deletions and re-orderings don't shuffle
+   *  the colors. Optional only for backwards-compat with old saves; the
+   *  region slice fills it in on load via the array index fallback. */
+  colorIndex?: number
+}
+
+/** A clip block overlaid on the timeline track at the same zoom level */
+export interface ClipOverlay {
+  id: string
+  name: string
+  inPoint: number
+  outPoint: number
+  active: boolean
+  /** Member of the multi-select set in the clips list — drawn with an
+   *  accent outline on the timeline so the user can see which clips a
+   *  bulk action would touch. */
+  selected?: boolean
+  /** 0-based index for color cycling (optional, defaults to 0) */
+  colorIndex?: number
+  /** Beat-space in boundary (matches region.inBeatTime; always set when cloned from a Region) */
+  inBeatTime?: number
+  /** Beat-space out boundary (matches region.outBeatTime; always set when cloned from a Region) */
+  outBeatTime?: number
+}
+
+/** Multi-selection state for markers */
+export interface SelectionState {
+  selectedIds: Set<number>
+  lastClickedId: number | null
+}
+
+/** Persisted per-video state */
+export interface SavedVideoState {
+  version: 2 | 3
+  defaultRegion: {
+    origAnchors: Anchor[]
+    beatAnchors: Anchor[]
+    bpm: number
+    minStretch: number
+    maxStretch: number
+    beatZeroAnchorTime: number | null
+    loopBeats?: number | null
+    trimToLoop?: boolean
+    addToEnd?: boolean
+  }
+  regions: Region[]
+  /** Cached scene detection output — keyed to the threshold it was computed at.
+   *  `minGap` is the per-video min-spacing setting; persists independently of
+   *  cuts so a freshly opened video remembers it without re-running detection.
+   *  `userCuts` are operator-placed boundaries that bypass min-gap filtering
+   *  (the operator explicitly dropped them so they always survive). */
+  scenes?: {
+    threshold: number
+    cuts: number[]
+    minGap?: number
+    userCuts?: number[]
+  }
+}

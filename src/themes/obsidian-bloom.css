@@ -1,0 +1,90 @@
+/* ═══════════════════════════════════════════════════════════
+   Obsidian Bloom — per docs/VISUAL_DESIGN.md (§2.1)
+   Bitwig-leaning. Warm near-black surfaces, off-white text,
+   amber-yellow primary against orange warp + magenta playhead.
+   ═══════════════════════════════════════════════════════════ */
+:root[data-theme="obsidian-bloom"] {
+  /* ── Backgrounds ────────────────────────────────────────── */
+  --bg-0:     #0e0e10;
+  --bg-1:     #131315;
+  --bg-2:     #1a1a1c;
+  --bg-3:     #1f1f22;
+  --bg-4:     #232326;
+  --bg-5:     #28282c;
+  --bg-6:     #2e2e32;
+  --bg-7:     #34343a;
+  --bg-hover: #2c2c30;
+  --bg-sel:   #2a2218;
+  --bg-inset: #0a0a0c;
+
+  /* ── Foreground (text) ──────────────────────────────────── */
+  --fg-1: #f2f2ec;
+  --fg-2: #b5b5ac;
+  --fg-3: #8a8a82;
+  --fg-4: #6e6e66;
+  --fg-5: #4a4a42;
+
+  /* ── Accent ─────────────────────────────────────────────── */
+  --accent:     #ffcb2d;   /* amber primary */
+  --accent-hi:  #ffe066;
+  --accent-2:   #ff7a1a;   /* warp orange */
+  --accent-2hi: #ff9540;
+
+  /* ── Borders ────────────────────────────────────────────── */
+  --border:    #2c2c30;
+  --border-hi: #3a3a3d;
+
+  /* ── Special ────────────────────────────────────────────── */
+  --blue:       #5ba8ff;
+  --blue-light: #8ac4ff;
+  --blue-soft:  #4f8fe0;
+  --tan:        #c2a870;
+  --tan-hi:     #e0c888;
+  --error:      #ff5a78;
+
+  /* ── Scene cuts ─────────────────────────────────────────── */
+  --scene-cut:           hsl(48, 95%, 62%);
+  --scene-cut-hi:        hsl(48, 100%, 72%);
+  --scene-cut-bd:        hsl(40, 90%, 45%);
+  --scene-cut-active:    hsl(48, 100%, 78%);
+  --scene-cut-active-bd: hsl(48, 100%, 88%);
+  --scene-cut-rgb:       240, 200, 50;
+
+  /* ── Snap hints ─────────────────────────────────────────── */
+  --snap:        hsl(150, 80%, 60%);
+  --snap-active: hsl(48, 100%, 62%);
+
+  /* ── Timeline space hues ────────────────────────────────── */
+  --space-input:  hsl(195, 80%, 60%);
+  --space-warp:   hsl(28, 95%, 55%);
+  --space-output: hsl(290, 75%, 65%);
+
+  /* ── RGB channels for rgba() transparency ───────────────── */
+  --accent-rgb:   255, 203, 45;
+  --accent-2-rgb: 255, 122, 26;
+  --fg-1-rgb:     242, 242, 236;
+  --blue-rgb:     91, 168, 255;
+  --beat-rgb:     255, 240, 220;
+
+  /* ── Playhead ───────────────────────────────────────────── */
+  --playhead:     #c84bff;
+  --playhead-rgb: 200, 75, 255;
+
+  /* ── Warp panel (cool dark — keeps the warp UI as its own surface) ── */
+  --wp-bg:   #13151c;
+  --wp-bg2:  #1c1e26;
+  --wp-bg3:  #1a1c24;
+  --wp-foot: #0d0f14;
+  --wp-bd:   #1e2028;
+  --wp-bd2:  #1a1c22;
+  --wp-bd3:  #2a2c36;
+  --wp-bd4:  #363944;
+  --wp-tx:   #e5e7eb;
+  --wp-tx2:  #9ca3af;
+  --wp-tx3:  #6b7280;
+  --wp-tx4:  #4b5563;
+  --wp-tx5:  #3a3d4a;
+
+  /* ── Font ───────────────────────────────────────────────── */
+  --font-family: ui-monospace, Consolas, monospace;
+}

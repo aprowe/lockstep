@@ -1,0 +1,114 @@
+/* ═══════════════════════════════════════════════════════════
+   Paper Light — light counterpart to obsidian-bloom.
+   Off-white paper surfaces, dark slate text, amber primary.
+   Same token surface as the dark themes (see warm-dark.css for
+   the canonical doc on what each variable means).
+   ═══════════════════════════════════════════════════════════ */
+:root[data-theme="paper-light"] {
+  /* ── Backgrounds (deepest → brightest paper) ───────────── */
+  --bg-0:     #e6e6ea;
+  --bg-1:     #ececf0;
+  --bg-2:     #f1f1f4;
+  --bg-3:     #f5f5f7;
+  --bg-4:     #f8f8fa;
+  --bg-5:     #fafafc;
+  --bg-6:     #ffffff;
+  --bg-7:     #ffffff;
+  --bg-hover: #ededf0;
+  --bg-sel:   #fff4d4;
+  --bg-inset: #dededf;
+
+  /* ── Foreground (text) ──────────────────────────────────── */
+  --fg-1: #1c1c1f;
+  --fg-2: #3f3f46;
+  --fg-3: #6b6b72;
+  --fg-4: #93939a;
+  --fg-5: #b8b8be;
+
+  /* ── Accent ─────────────────────────────────────────────── */
+  --accent:     #d97706;   /* deep amber — readable on white */
+  --accent-hi:  #f59e0b;
+  --accent-2:   #ea580c;   /* warp orange */
+  --accent-2hi: #f97316;
+
+  /* ── Borders ────────────────────────────────────────────── */
+  --border:    #d8d8dc;
+  --border-hi: #b8b8be;
+
+  /* ── Special ────────────────────────────────────────────── */
+  --blue:       #2563eb;
+  --blue-light: #3b82f6;
+  --blue-soft:  #60a5fa;
+  --tan:        #a07a3a;
+  --tan-hi:     #c0964e;
+  --error:      #dc2626;
+
+  /* ── Scene cuts ─────────────────────────────────────────── */
+  --scene-cut:           hsl(40, 90%, 50%);
+  --scene-cut-hi:        hsl(40, 95%, 58%);
+  --scene-cut-bd:        hsl(38, 90%, 38%);
+  --scene-cut-active:    hsl(40, 100%, 60%);
+  --scene-cut-active-bd: hsl(38, 95%, 45%);
+  --scene-cut-rgb:       212, 162, 28;
+
+  /* ── Snap hints ─────────────────────────────────────────── */
+  --snap:        hsl(150, 70%, 38%);
+  --snap-active: hsl(40, 95%, 50%);
+
+  /* ── Timeline space hues ────────────────────────────────── */
+  --space-input:  hsl(200, 75%, 42%);
+  --space-warp:   hsl(28, 90%, 45%);
+  --space-output: hsl(280, 55%, 50%);
+
+  /* ── RGB channels for rgba() transparency ───────────────── */
+  --accent-rgb:   217, 119, 6;
+  --accent-2-rgb: 234, 88, 12;
+  --fg-1-rgb:     28, 28, 31;
+  --blue-rgb:     37, 99, 235;
+  --beat-rgb:     90, 60, 20;
+
+  /* ── Playhead (magenta — pops against paper) ──────────── */
+  --playhead:     #c026d3;
+  --playhead-rgb: 192, 38, 211;
+
+  /* ── Warp panel (cool slate — its own surface story) ──── */
+  --wp-bg:   #eef0f5;
+  --wp-bg2:  #e4e7ee;
+  --wp-bg3:  #e9ecf2;
+  --wp-foot: #dde1ea;
+  --wp-bd:   #d2d6df;
+  --wp-bd2:  #c8ccd5;
+  --wp-bd3:  #b8bcc6;
+  --wp-bd4:  #9aa0ad;
+  --wp-tx:   #1a1d24;
+  --wp-tx2:  #4b5563;
+  --wp-tx3:  #6b7280;
+  --wp-tx4:  #9ca3af;
+  --wp-tx5:  #c8ccd5;
+
+  /* ── Region overlay tweaks ──────────────────────────────────
+     Region fills are 0.32 alpha by default — that's invisible on
+     paper. Push to 0.55 and flip the label to dark text with a
+     light halo so names stay readable on the brighter pastel fills. */
+  --region-fill-alpha: 0.55;
+  --region-label-color: #1a1a1c;
+  --region-label-shadow:
+    0 0 2px hsla(0, 0%, 100%, 0.9),
+    0 1px 2px hsla(0, 0%, 100%, 0.6);
+  /* Speed strip label: kill the dark glow on paper — a crisp white halo
+   * keeps numerals legible without the blurry "neon" look. */
+  --speed-label-shadow: none;
+  /* Out-of-warp-range overlay: a 45% black wash reads as a heavy grey
+   * stripe on white. Use a translucent neutral instead. */
+  --out-of-range-fill: hsla(220, 8%, 55%, 0.12);
+
+  /* Active-region selection border: the dark-theme pastel yellow vanishes
+   * against pastel region fills on white. Use a deep amber that pops
+   * against light pastels instead. */
+  --region-active-border: hsl(28, 95%, 42%);
+  --region-handle-bg:     hsla(28, 95%, 42%, 0.25);
+  --region-handle-border: hsla(28, 95%, 42%, 0.8);
+
+  /* ── Font ───────────────────────────────────────────────── */
+  --font-family: ui-monospace, Consolas, monospace;
+}

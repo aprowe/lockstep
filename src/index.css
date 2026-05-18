@@ -1,0 +1,163 @@
+/* ── Themes ─────────────────────────────────────────────────
+   To switch theme, set data-theme on <html>:
+     <html data-theme="neon-rhythm">
+   Default (no attribute) = warm-dark.
+
+   Token reference + how to add a new theme: see warm-dark.css.
+   ─────────────────────────────────────────────────────────── */
+@import './themes/warm-dark.css';
+@import './themes/neon-rhythm.css';
+@import './themes/violet-dusk.css';
+@import './themes/tokyo-night.css';
+@import './themes/catppuccin-mocha.css';
+@import './themes/obsidian-bloom.css';
+@import './themes/paper-light.css';
+@import './themes/slate-light.css';
+
+/* ═══════════════════════════════════════════════════════════
+   Scale & structural tokens — theme-independent.
+   Colors and fonts live in themes/*.css.
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  /* ── Scale ────────────────────────────────────────────────
+     Multiplies all font-size, spacing, and component-size
+     tokens.  Set to 1.2 to zoom the whole UI by 20 %.      */
+  --ui-scale: 1;
+
+  /* ── Brand display font ─────────────────────────────────────
+     Used by the wordmark (LockstepLogo) and any UI surface that
+     wants the Lockstep display face. Body text continues to use
+     --font-family from the active theme. */
+  --font-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+
+  /* ── Typography ─────────────────────────────────────────── */
+  --t-2xs:  calc(9px  * var(--ui-scale));
+  --t-xs:   calc(10px * var(--ui-scale));
+  --t-sm:   calc(11px * var(--ui-scale));
+  --t-base: calc(12px * var(--ui-scale));
+  --t-md:   calc(13px * var(--ui-scale));
+  --t-lg:   calc(14px * var(--ui-scale));
+  --t-xl:   calc(16px * var(--ui-scale));
+  --t-2xl:  calc(18px * var(--ui-scale));
+
+  /* ── Spacing ────────────────────────────────────────────── */
+  --sp-0: calc(2px  * var(--ui-scale));
+  --sp-1: calc(4px  * var(--ui-scale));
+  --sp-2: calc(6px  * var(--ui-scale));
+  --sp-3: calc(8px  * var(--ui-scale));
+  --sp-4: calc(10px * var(--ui-scale));
+  --sp-5: calc(12px * var(--ui-scale));
+  --sp-6: calc(14px * var(--ui-scale));
+  --sp-7: calc(16px * var(--ui-scale));
+  --sp-8: calc(24px * var(--ui-scale));
+  --sp-9: calc(48px * var(--ui-scale));
+
+  /* ── Component sizes ────────────────────────────────────── */
+  --sz-btn-sm:    calc(20px * var(--ui-scale));
+  --sz-btn:       calc(32px * var(--ui-scale));
+  --sz-btn-play:  calc(36px * var(--ui-scale));
+  --sz-menubar:   calc(32px * var(--ui-scale));
+  --sz-rail:      calc(18px * var(--ui-scale));
+  --sz-resizer:   calc(5px  * var(--ui-scale));
+  --sz-track:     calc(50px * var(--ui-scale));
+  --sz-ruler:     calc(28px * var(--ui-scale));
+  --sz-minimap:   calc(28px * var(--ui-scale));
+  --sz-connector: calc(26px * var(--ui-scale));
+}
+
+/* Tell the browser native form controls (spin buttons, select dropdowns,
+   scrollbar shadows) are rendered on a dark surface. */
+html { color-scheme: dark; }
+
+* { box-sizing: border-box; }
+
+*:not(input):not(textarea) {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  background: var(--bg-1);
+  color: var(--fg-1);
+  overflow: hidden;
+  height: 100vh;
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+}
+
+p { margin: 0; }
+
+/* ── Checkboxes ─────────────────────────────────────────── */
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: calc(13px * var(--ui-scale));
+  height: calc(13px * var(--ui-scale));
+  margin: 0;
+  background: var(--bg-6);
+  border: 1px solid var(--border-hi);
+  border-radius: 3px;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  vertical-align: middle;
+  transition: background 0.1s, border-color 0.1s;
+}
+input[type="checkbox"]:hover:not(:disabled) { border-color: var(--fg-3); }
+input[type="checkbox"]:focus-visible {
+  outline: 1px solid var(--accent-2);
+  outline-offset: 1px;
+}
+input[type="checkbox"]:checked {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+}
+input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: calc(3px * var(--ui-scale));
+  height: calc(7px * var(--ui-scale));
+  border: solid var(--bg-1);
+  border-width: 0 calc(2px * var(--ui-scale)) calc(2px * var(--ui-scale)) 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+input[type="checkbox"]:disabled { opacity: 0.4; cursor: default; }
+
+/* ── Numeric stepper ────────────────────────────────────── */
+/* Show native spin buttons by default — themed via color-scheme above.
+   Opt out per-input with the `no-stepper` class. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
+  cursor: pointer;
+}
+input[type="number"].no-stepper::-webkit-outer-spin-button,
+input[type="number"].no-stepper::-webkit-inner-spin-button { -webkit-appearance: none; }
+input[type="number"].no-stepper { -moz-appearance: textfield; }
+
+/* ── Clip color palette ──────────────────────────────────
+   Sets --clip-h/s/l for a region based on its colorIndex.
+   Sole source of truth for the clip palette — every consumer reads
+   --clip-h/s/l via this class instead of duplicating the table. */
+.clip-overlay--color-0 { --clip-h: 0;   --clip-s: 75%; --clip-l: 55%; }
+.clip-overlay--color-1 { --clip-h: 30;  --clip-s: 80%; --clip-l: 52%; }
+.clip-overlay--color-2 { --clip-h: 58;  --clip-s: 80%; --clip-l: 48%; }
+.clip-overlay--color-3 { --clip-h: 115; --clip-s: 65%; --clip-l: 45%; }
+.clip-overlay--color-4 { --clip-h: 183; --clip-s: 65%; --clip-l: 42%; }
+.clip-overlay--color-5 { --clip-h: 213; --clip-s: 70%; --clip-l: 55%; }
+.clip-overlay--color-6 { --clip-h: 270; --clip-s: 60%; --clip-l: 55%; }
+.clip-overlay--color-7 { --clip-h: 305; --clip-s: 65%; --clip-l: 52%; }
+
+/* ── Scrollbars ─────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-2); }
+::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--fg-5); }
+::-webkit-scrollbar-corner { background: var(--bg-2); }
