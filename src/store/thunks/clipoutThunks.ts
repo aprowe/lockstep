@@ -3,7 +3,7 @@ import { applyConformedClipout } from '../slices/regionSlice'
 import { setAnchorLockGestureOverride } from '../slices/uiSlice'
 import { regionOutId } from '../../constraints/ids'
 import { OpKind } from '../../constraints/types'
-import { dispatchPipelined } from '../../constraints/pipelineDispatch'
+import { dispatchPipelinedReplay } from '../../constraints/pipelineDispatch'
 
 /**
  * Commit a clipout RESIZE — edge dragged.
@@ -99,20 +99,19 @@ export const commitClipoutPan =
       dispatch(setAnchorLockGestureOverride(!state.ui.anchorLock))
     }
 
-    // Emit a translate-shaped Move op on the clipout entity so the resolver's
-    // TranslateGroup (emitted by anchorLockMirrorMiddleware when anchorLock=true
-    // or when gesture override is active) propagates the pan delta to inner
-    // anchors automatically. Also goes through SnapTarget (body-mode) so the
-    // body may snap rigidly to twin/grid targets.
-    const delta = inBeatTime - region.inBeatTime
-    if (Math.abs(delta) > 1e-9) {
-      dispatchPipelined(dispatch, getState, { kind: OpKind.Move, id: regionOutId(payload.id), delta })
+    // Absolute-replay drag: Move clipout by the absolute delta vs preDrag.
+    // dispatchPipelinedReplay rebuilds the pipeline slice from preDrag and
+    // runs the Move against that baseline — so each frame is a pure function
+    // of (preDrag, cumulativeDelta), no state carrying from prior frames.
+    const cumulativeDelta = inBeatTime - preDragRegion.inBeatTime
+    if (Math.abs(cumulativeDelta) > 1e-9) {
+      dispatchPipelinedReplay(dispatch, getState,
+        { kind: OpKind.Move, id: regionOutId(payload.id), delta: cumulativeDelta })
     }
 
     // Re-read post-Move values from the slice so applyConformedClipout's
-    // SetEdge ops use the SNAPPED positions (if snap engaged), not the
-    // pre-snap target. Without this, those SetEdge ops would overwrite the
-    // snap and the body would visibly "pop back" off the snap target.
+    // SetEdge ops use the (snap-restricted) result of the Move, not the
+    // raw target.
     const postMoveState = getState()
     const postMoveRegion = postMoveState.region.regions.find(r => r.id === payload.id)
     const finalInBeatTime  = postMoveRegion?.inBeatTime  ?? inBeatTime

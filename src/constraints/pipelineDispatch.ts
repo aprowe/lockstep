@@ -122,3 +122,85 @@ export function dispatchPipelined(
     dispatch(_syncRegionMeta(output.metaDiffs) as never)
   }
 }
+
+// ─── dispatchPipelinedReplay ─────────────────────────────────────────────────
+
+/**
+ * Drag-aware dispatch that recomputes the slice state from the PRE-DRAG
+ * baseline on every call. Each frame is a pure function of (preDrag, op):
+ * no state carries forward from previous frames. Solves the "stale slice
+ * state contaminates this frame" class of bugs — e.g., a transient conform
+ * write on frame N persisting through subsequent frames where conform no
+ * longer engages.
+ *
+ * When no drag is active (no preDrag), falls back to `dispatchPipelined`.
+ *
+ * Callers should pass an ABSOLUTE op relative to preDrag:
+ *   - Move: delta = cumulative target − preDrag value (NOT current slice
+ *           value).
+ *   - SetEdge / SetValue: target as the user intends it from drag start.
+ *
+ * The resulting slice = preDrag + computed pipeline effects. Region and
+ * anchor fields are dispatched as FULL post-state values (not incremental
+ * diffs) so any stale-from-previous-frame values are overwritten.
+ */
+export function dispatchPipelinedReplay(
+  dispatch: AppDispatch,
+  getState: () => RootState,
+  op: Op,
+): void {
+  const state = getState()
+  const preDrag = state.drag?.preDrag
+  if (!preDrag) {
+    // No drag active — fall back to incremental dispatch against current slice.
+    dispatchPipelined(dispatch, getState, op)
+    return
+  }
+
+  // Build pipeline slice using PRE-DRAG region/anchor values. Everything else
+  // (ui, lists, scenes, region meta) comes from the current state.
+  const currentSlice = extractSliceForPipeline(state)
+  const baselineSlice: PipelineSlice = {
+    ...currentSlice,
+    warp: {
+      origAnchors: preDrag.origAnchors.map(a => ({ id: a.id, time: a.time })),
+      beatAnchors: preDrag.beatAnchors.map(a => ({
+        id: a.id,
+        time: a.time,
+        linked: (a as { linked?: boolean }).linked !== false,
+      })),
+    },
+    region: {
+      regions: preDrag.regions.map(r => ({
+        id:            r.id,
+        inPoint:       r.inPoint,
+        outPoint:      r.outPoint,
+        inBeatTime:    r.inBeatTime,
+        outBeatTime:   r.outBeatTime,
+        bpm:           r.bpm,
+        lockedBeats:   r.lockedBeats,
+        defaultLinked: r.defaultLinked,
+      })),
+    },
+  }
+
+  const dragCtx = extractDragCtxFromSlice(state as Parameters<typeof extractDragCtxFromSlice>[0])
+  const output  = runConstraintPipeline({ slice: baselineSlice, dragCtx, op })
+
+  // Dispatch the diffs (vs preDrag) computed by extractDiffs. Sequential ops
+  // within a single pointer event each replay against the same preDrag
+  // baseline, but the dispatched diffs only touch the fields the op
+  // actually wrote — so op N's writes aren't clobbered by op N+1's
+  // (different fields) dispatch.
+  const hasOrigDiffs = Object.keys(output.anchorDiffs.orig).length > 0
+  const hasBeatDiffs = Object.keys(output.anchorDiffs.beat).length > 0
+  if (hasOrigDiffs || hasBeatDiffs) {
+    dispatch(_syncAnchorPositions(output.anchorDiffs) as never)
+  }
+  if (Object.keys(output.regionDiffs).length > 0) {
+    dispatch(_syncRegionPositions(output.regionDiffs) as never)
+  }
+  if (Object.keys(output.metaDiffs).length > 0) {
+    dispatch(_syncRegionMeta(output.metaDiffs) as never)
+  }
+}

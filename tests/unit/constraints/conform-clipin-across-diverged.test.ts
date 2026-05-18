@@ -92,11 +92,13 @@ describe('Clipin drag onto diverged anchor: clipout conforms to beat anchor', ()
     expect(r.inBeatTime).toBeCloseTo(22, 6)
   })
 
-  // Known failing — documents the next required behavior.
-  // ConformVisual's transient write to clipout currently persists in the
-  // slice (no defaultlink cascade to restore for a diverged region).
-  // Fix path: snapshot clipout at drag start and restore when conform
-  // disengages (or store lastUnconformedBounds).
+  // Known failing — diff-only replay dispatch doesn't restore clipout for
+  // diverged regions when conform releases (the pipeline doesn't WRITE
+  // clipout in the release frame, so the slice retains the conform write
+  // from the prior frame). Full-state replay dispatch would fix this but
+  // breaks multi-op accumulation within a single pointer event. Proper
+  // fix needs op batching per frame, or a constraint that writes preDrag
+  // value when conform isn't engaged.
   it.fails('sequential drag (DIVERGED region, no default-link): conform must also release', () => {
     // Same anchor (orig=20, beat=25), but the region is NOT default-linked.
     // Its clipout has its own independent inBeatTime/outBeatTime.

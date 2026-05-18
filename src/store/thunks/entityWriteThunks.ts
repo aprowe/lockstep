@@ -54,7 +54,7 @@ import { clampRegionInOut } from '../../timeline/model/clampRegion'
 import { OpKind } from '../../constraints'
 import { anchorInId, anchorOutId, regionInId, regionOutId } from '../../constraints/ids'
 import { initAnchorPair, unlinkAnchor } from '../../constraints/recipes'
-import { dispatchPipelined } from '../../constraints/pipelineDispatch'
+import { dispatchPipelined, dispatchPipelinedReplay } from '../../constraints/pipelineDispatch'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -107,27 +107,35 @@ export const applyAnchorEntityMove =
   (payload: { entityId: string; time: number }) =>
   (dispatch: AppDispatch, getState: () => RootState) => {
     const { entityId, time } = payload
-    // Determine current time from the slice (anchors are now the source of truth).
     // entityId is either `a{n}-in` (orig) or `a{n}-out` (beat).
     const state = getState()
-    let currentTime: number | undefined
     let pairId: number | undefined
     const origMatch = entityId.match(/^a(\d+)-in$/)
     const beatMatch  = entityId.match(/^a(\d+)-out$/)
-    if (origMatch) {
-      pairId = parseInt(origMatch[1], 10)
-      currentTime = state.warp.origAnchors.find(a => a.id === pairId)?.time
-    } else if (beatMatch) {
-      pairId = parseInt(beatMatch[1], 10)
-      currentTime = state.warp.beatAnchors.find(a => a.id === pairId)?.time
+    if (origMatch) pairId = parseInt(origMatch[1], 10)
+    else if (beatMatch) pairId = parseInt(beatMatch[1], 10)
+    if (pairId === undefined) return
+
+    // Absolute-replay drag: compute delta against the PRE-DRAG snapshot, not
+    // the live slice. dispatchPipelinedReplay then runs the pipeline against
+    // a fresh preDrag baseline each frame, so transient constraint writes
+    // (e.g., conform engaging mid-drag) don't carry forward to subsequent
+    // frames. When no drag is active, falls back to delta vs current slice.
+    const preDrag = state.drag?.preDrag
+    let baselineTime: number | undefined
+    if (preDrag) {
+      const list = origMatch ? preDrag.origAnchors : preDrag.beatAnchors
+      baselineTime = list.find(a => a.id === pairId)?.time
+    } else {
+      const list = origMatch ? state.warp.origAnchors : state.warp.beatAnchors
+      baselineTime = list.find(a => a.id === pairId)?.time
     }
-    if (currentTime === undefined || pairId === undefined) return
-    // `time` is the absolute target. Residual = target - current; emitting this on every
-    // pointerMove+pointerUp converges instead of compounding.
-    const delta = time - currentTime
+    if (baselineTime === undefined) return
+
+    const delta = time - baselineTime
     if (Math.abs(delta) < 1e-12) return
 
-    dispatchPipelined(dispatch, getState, { kind: OpKind.Move, id: entityId, delta })
+    dispatchPipelinedReplay(dispatch, getState, { kind: OpKind.Move, id: entityId, delta })
 
     // Re-link check: when a BEAT anchor (anchor-out) is moved to exactly its
     // orig partner's time AND the pair is currently diverged, re-link it.
@@ -177,27 +185,18 @@ export const applyRegionEntityMove =
     const state = getState()
     const sliceR = state.region.regions.find(r => r.id === id)
     if (!sliceR) return
-    // `cumulativeDelta` is from drag start (controller emits this on every
-    // pointerMove + pointerUp). Convert to a residual delta against the
-    // CURRENT slice position using preDrag as the anchor so repeated
-    // dispatches during a drag converge instead of compounding.
-    const preR = state.drag?.preDrag?.regions.find(r => r.id === id)
-    const baseIn = preR ? preR.inPoint : sliceR.inPoint
-    const residual = (baseIn + cumulativeDelta) - sliceR.inPoint
-    if (Math.abs(residual) < 1e-12) return
-    // Move op seeds both in+out writes together — translate signature — so the
-    // lasso:main TranslateGroup sees it and propagates to follower clipin entities.
-    // For default-linked regions the defaultlink DirectedPair propagates the
-    // delta to the clipout in the same pipeline pass. For diverged regions the
-    // pair is absent and the clipout stays put — diverged means the user owns
-    // the clipout's beat-space anchoring; clipin moves don't drag it.
-    dispatchPipelined(dispatch, getState, { kind: OpKind.Move, id: regionInId(id), delta: residual })
+    // Absolute-replay drag: `cumulativeDelta` is the displacement from the
+    // PRE-DRAG snapshot (the controller emits this on every pointerMove +
+    // pointerUp). dispatchPipelinedReplay rebuilds the pipeline slice from
+    // preDrag each frame and runs the Move against that — so each frame is
+    // a pure function of (preDrag, cumulativeDelta), with no state carrying
+    // over from previous frames.
+    dispatchPipelinedReplay(dispatch, getState,
+      { kind: OpKind.Move, id: regionInId(id), delta: cumulativeDelta })
 
-    // No linking-event commit during drag. ConformVisual now handles input-side
+    // No linking-event commit during drag. ConformVisual handles input-side
     // conform transiently in the constraint pipeline — engages while clipin
-    // sits on the orig anchor, releases when clipin moves past. Permanently
-    // committing via applyLinkingEvent here would set defaultLinked=false and
-    // freeze inBeatTime at the beat anchor's time, breaking the release.
+    // sits on the orig anchor, releases when clipin moves past.
   }
 
 /**
