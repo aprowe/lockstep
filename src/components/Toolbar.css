@@ -1,0 +1,372 @@
+/* ── Toolbar strip ──────────────────────────────────────── */
+.toolbar {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  padding: var(--sp-2) var(--sp-5);
+  background: var(--bg-3);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  gap: var(--sp-3);
+  overflow: hidden;
+}
+
+.tb-side {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.tb-side--right {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ── Group: semantic cluster with label above buttons ──── */
+.tb-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.tb-group--center {
+  flex: 1 1 auto;
+  align-self: stretch;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--sp-2);
+}
+
+.tb-group--center .tb-btn--play {
+  align-self: stretch;
+  width: auto;
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
+
+.tb-group--center .tb-group-buttons {
+  gap: var(--sp-2);
+}
+
+.tb-group--center .tb-time {
+  align-self: stretch;
+  justify-content: center;
+  margin-left: 0;
+}
+
+/* Category color token — set once per group, cascades into buttons */
+.tb-group--marker   { --cat: var(--space-input); }
+.tb-group--region   { --cat: var(--error); }
+.tb-group--scene    { --cat: var(--scene-cut); }
+
+.tb-group-label {
+  font-family: var(--font-family);
+  font-size: calc(10px * var(--ui-scale));
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  line-height: 1;
+  user-select: none;
+}
+
+.tb-group-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+/* ── Separator ───────────────────────────────────────────── */
+.tb-sep {
+  width: 1px;
+  height: calc(28px * var(--ui-scale));
+  background: var(--border);
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+
+/* ── Joined prev/next pairs ──────────────────────────────── */
+.tb-pair {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid color-mix(in srgb, var(--cat, var(--border-hi)) 38%, transparent);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.tb-pair .tb-btn {
+  border: none;
+  border-radius: 0;
+}
+
+.tb-pair .tb-btn + .tb-btn {
+  border-left: 1px solid color-mix(in srgb, var(--cat, var(--border-hi)) 28%, transparent);
+}
+
+/* Playback frame-step pair — keyed to the playhead color */
+.tb-pair--playback {
+  --cat: var(--playhead);
+  border-color: color-mix(in srgb, var(--playhead) 38%, transparent);
+}
+.tb-pair--playback .tb-btn + .tb-btn {
+  border-left-color: color-mix(in srgb, var(--playhead) 28%, transparent);
+}
+.tb-pair--playback .tb-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--playhead) 15%, var(--bg-hover));
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.tb-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(28px * var(--ui-scale));
+  height: calc(28px * var(--ui-scale));
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--cat, var(--border-hi)) 38%, transparent);
+  border-radius: 5px;
+  color: var(--cat, var(--fg-2));
+  cursor: pointer;
+  font-family: var(--font-family);
+  font-size: var(--t-lg);
+  font-weight: 700;
+  transition: background 0.1s, color 0.1s, opacity 0.1s;
+  flex-shrink: 0;
+}
+
+.tb-btn:disabled { opacity: 0.3; cursor: default; }
+
+/* ── Action-type shading ─────────────────────────────────── */
+
+/* Create: solid icon + tinted background */
+.tb-btn--create {
+  background: color-mix(in srgb, var(--cat) 18%, transparent);
+  border-color: color-mix(in srgb, var(--cat) 38%, transparent);
+}
+.tb-btn--create:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cat) 28%, transparent);
+  color: color-mix(in srgb, var(--cat) 90%, white);
+}
+
+/* Delimit: bracket icons + subtle tint */
+.tb-btn--delimit {
+  background: color-mix(in srgb, var(--cat) 8%, transparent);
+  border-color: color-mix(in srgb, var(--cat) 38%, transparent);
+}
+.tb-btn--delimit:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cat) 18%, transparent);
+}
+
+/* Nav: transparent + dimmed icon, border from group */
+.tb-btn--nav {
+  background: transparent;
+  color: color-mix(in srgb, var(--cat, var(--fg-2)) 55%, transparent);
+}
+.tb-btn--nav:hover:not(:disabled) {
+  color: var(--cat, var(--fg-2));
+  background: color-mix(in srgb, var(--cat, var(--bg-hover)) 15%, var(--bg-hover));
+}
+
+/* ── Play button ─────────────────────────────────────────── */
+.tb-btn--play {
+  color: var(--accent);
+  border-color: rgba(var(--accent-rgb), 0.3);
+  background: rgba(var(--accent-rgb), 0.08);
+}
+.tb-btn--play:hover:not(:disabled) {
+  background: rgba(var(--accent-rgb), 0.16);
+  color: var(--accent);
+}
+
+/* ── Playback loop-mode toggle ─────────────────────────────
+ * Active hue lights up only when mode is non-default (loop or stop). */
+.tb-btn--loop-mode {
+  color: var(--fg-3);
+  border-color: var(--border-hi);
+  background: transparent;
+}
+.tb-btn--loop-mode:hover:not(:disabled) {
+  color: var(--fg-1);
+  background: var(--bg-hover);
+}
+
+.tb-btn--loop-mode--active {
+  color: var(--accent);
+  border-color: rgba(var(--accent-rgb), 0.45);
+  background: rgba(var(--accent-rgb), 0.10);
+}
+.tb-btn--loop-mode--active:hover:not(:disabled) {
+  color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.16);
+}
+
+/* ── Time display ────────────────────────────────────────── */
+.tb-time {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 12px;
+  font-family: var(--font-family);
+  font-size: var(--t-xl);
+}
+
+.tb-time__clock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  line-height: 1;
+}
+
+.tb-time__current { color: var(--fg-1); font-size: var(--t-xl); }
+.tb-time__total   { color: var(--fg-3); font-size: var(--t-md); }
+
+.tb-time__counts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+  line-height: 1;
+}
+
+.tb-time__frames,
+.tb-time__beats {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--fg-2);
+}
+
+.tb-time__frames {
+  cursor: pointer;
+  transition: color 0.1s;
+}
+.tb-time__frames:hover { color: var(--fg-1); }
+
+.tb-time__count-value {
+  display: inline-block;
+  min-width: 4ch;
+  text-align: right;
+  font-family: var(--font-family);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tb-time__count-label {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+}
+
+.tb-time__frames-input {
+  width: 56px;
+  margin-left: 8px;
+  padding: 2px 4px;
+  background: var(--bg-inset);
+  border: 1px solid #f59e0b;
+  border-radius: 3px;
+  color: #e2dbd2;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  text-align: right;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.tb-time__frames-input::-webkit-outer-spin-button,
+.tb-time__frames-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+/* ── Playback mode toggle (orig / beat) ──────────────────── */
+.tb-playback-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding-left: calc(10px * var(--ui-scale, 1));
+  border-left: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.tb-playback-mode__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(3px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1));
+  background: transparent;
+  border: 1px solid var(--border-hi);
+  border-radius: 0;
+  color: var(--fg-3);
+  font-family: var(--font-family);
+  font-size: calc(11px * var(--ui-scale, 1));
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  white-space: nowrap;
+}
+
+.tb-playback-mode__btn:first-child {
+  border-top-left-radius: calc(4px * var(--ui-scale, 1));
+  border-top-right-radius: calc(4px * var(--ui-scale, 1));
+}
+.tb-playback-mode__btn:last-child {
+  border-bottom-left-radius: calc(4px * var(--ui-scale, 1));
+  border-bottom-right-radius: calc(4px * var(--ui-scale, 1));
+}
+.tb-playback-mode__btn + .tb-playback-mode__btn {
+  border-top: none;
+}
+/* When the bottom button is active, color the shared divider (which is the
+ * top button's bottom border) to match its highlight. The orig-active case
+ * already works because the active button colors its full border. */
+.tb-playback-mode:has(.tb-playback-mode__btn--beat.tb-playback-mode__btn--active) .tb-playback-mode__btn--orig {
+  border-bottom-color: color-mix(in srgb, var(--space-output) 50%, transparent);
+}
+
+.tb-playback-mode__btn:hover:not(.tb-playback-mode__btn--active) {
+  color: var(--fg-1);
+  background: var(--bg-hover);
+}
+
+.tb-playback-mode__btn--orig.tb-playback-mode__btn--active {
+  color: var(--space-input);
+  border-color: color-mix(in srgb, var(--space-input) 50%, transparent);
+  background: color-mix(in srgb, var(--space-input) 14%, transparent);
+}
+
+.tb-playback-mode__btn--beat.tb-playback-mode__btn--active {
+  color: var(--space-output);
+  border-color: color-mix(in srgb, var(--space-output) 50%, transparent);
+  background: color-mix(in srgb, var(--space-output) 14%, transparent);
+}
+
+/* ── Inline labels ───────────────────────────────────────── */
+.tb-label {
+  font-family: var(--font-family);
+  font-size: var(--t-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+  flex-shrink: 0;
+}
+
+/* ── Dropdowns (speed) ───────────────────────────────────── */
+.tb-select {
+  background: var(--bg-6);
+  border: 1px solid var(--border-hi);
+  border-radius: 5px;
+  color: var(--fg-2);
+  font-family: var(--font-family);
+  font-size: var(--t-md);
+  padding: var(--sp-1) var(--sp-2);
+  cursor: pointer;
+  outline: none;
+  flex-shrink: 0;
+}
+.tb-select:hover { border-color: var(--fg-3); }
+.tb-select:focus { border-color: var(--fg-3); }

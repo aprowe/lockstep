@@ -1,0 +1,137 @@
+.clip-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  cursor: pointer;
+  /* Reserve the left-bar gutter so adding the active bar doesn't shift
+   * the row content horizontally on activate. */
+  border-left: 3px solid transparent;
+  transition: background 0.08s, border-color 0.08s;
+}
+
+.clip-row:hover {
+  background: var(--bg-2);
+}
+
+/* ── Selected (multi-select set) ──────────────────────────────────────────
+ * Accent-tinted background so a selection of N rows reads as a clear band
+ * — distinct from hover (cool grey) and from active (left bar). Selected
+ * + active stacks cleanly: bar + tinted bg.
+ */
+.clip-row--selected {
+  background: rgba(var(--accent-rgb), 0.16);
+}
+
+.clip-row--selected:hover {
+  background: rgba(var(--accent-rgb), 0.22);
+}
+
+/* ── Active (single — drives the timeline) ───────────────────────────────
+ * Thick accent bar on the left + bold name. The bar is what reads at a
+ * glance even when the row is also selected.
+ */
+.clip-row--active {
+  border-left-color: var(--accent);
+}
+
+.clip-row--active .clip-row__name {
+  color: var(--fg-1);
+  font-weight: 600;
+}
+
+/* ── Row content ─────────────────────────────────────────────────────────*/
+.clip-row__check {
+  margin: 0;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* Color comes from the .clip-overlay--color-N modifier set in JSX, which
+ * supplies --clip-h/s/l. Single source of truth for clip palette. */
+.clip-row__swatch {
+  width: 8px;
+  height: 18px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  background: hsl(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%));
+}
+
+.clip-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.clip-row__name {
+  font-size: var(--t-md);
+  color: var(--fg-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clip-row__rename {
+  background: var(--bg-3);
+  border: 1px solid var(--accent);
+  color: var(--fg-1);
+  font-family: inherit;
+  font-size: var(--t-md);
+  padding: 1px var(--sp-1);
+  border-radius: 2px;
+  outline: none;
+  width: 100%;
+}
+
+.clip-row__range {
+  font-size: var(--t-xs);
+  color: var(--fg-4);
+}
+
+/* Per-row delete button — visible on hover or when the row is selected /
+ * active so it's reachable without obscuring rest-of-list scanning. */
+.clip-row__del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(20px * var(--ui-scale));
+  height: calc(20px * var(--ui-scale));
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 2px;
+  color: var(--fg-5);
+  font-family: inherit;
+  font-size: var(--t-md);
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.08s, color 0.08s, background 0.08s;
+  flex-shrink: 0;
+}
+
+.clip-row:hover .clip-row__del,
+.clip-row--selected .clip-row__del,
+.clip-row--active .clip-row__del {
+  opacity: 1;
+}
+
+.clip-row__del:hover {
+  color: var(--error);
+  background: var(--bg-3);
+}
+
+.clip-row__del svg {
+  width: calc(14px * var(--ui-scale));
+  height: calc(14px * var(--ui-scale));
+}
+
+/* Full-Video virtual entry — same row metrics as user clips so the active
+ * highlight aligns, but neutral coloring since it has no metadata. */
+.clip-row--full {
+  border-bottom: 1px solid var(--border);
+}

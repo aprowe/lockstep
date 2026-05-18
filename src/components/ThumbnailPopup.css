@@ -1,0 +1,23 @@
+.thumb-popup {
+  z-index: 1000;
+}
+
+.thumb-popup__img {
+  display: block;
+  width: 128px;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+  background: var(--bg-1);
+  object-fit: cover;
+}
+.thumb-popup__img--placeholder {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--bg-3),
+    var(--bg-3) 5px,
+    var(--bg-2) 5px,
+    var(--bg-2) 10px
+  );
+}

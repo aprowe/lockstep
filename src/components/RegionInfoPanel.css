@@ -1,0 +1,326 @@
+/* ── Region Info Panel ──────────────────────────────────── */
+
+.rip {
+  height: 100%;
+  background: var(--bg-3);
+  border-right: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-family);
+  font-size: var(--t-base);
+}
+
+.rip__header {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--sp-4);
+  height: calc(28px * var(--ui-scale));
+  background: var(--bg-7);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.rip__title {
+  font-size: var(--t-base);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+
+.rip__body {
+  flex: 1;
+  min-height: 0;
+  padding: var(--sp-4) var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  overflow-y: auto;
+}
+
+/* ── Rows ──────────────────────────────────────────────── */
+
+.rip__name {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.rip__name-text {
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--fg-1);
+}
+
+.rip__name-edit {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--fg-4);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+}
+
+.rip__name:hover .rip__name-edit {
+  opacity: 1;
+}
+
+.rip__name-edit:hover {
+  color: var(--fg-1);
+}
+
+.rip__input--name {
+  flex: 1;
+  font-size: var(--t-sm);
+  font-weight: 600;
+}
+
+.rip__row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* ── Grid layout for BPM/Beats ───────────────────────── */
+.rip__grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: center;
+}
+
+.rip__field {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.rip__label {
+  font-size: var(--t-base);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+  flex-shrink: 0;
+  min-width: calc(44px * var(--ui-scale));
+  text-align: right;
+}
+
+.rip__value {
+  color: var(--fg-2);
+  font-size: var(--t-md);
+}
+
+.rip__value--computed {
+  color: var(--fg-4);
+  font-style: italic;
+}
+
+.rip__value--editable {
+  cursor: text;
+  border-radius: 3px;
+  padding: 1px var(--sp-1);
+  margin: -1px calc(-1 * var(--sp-1));
+  transition: background 0.1s;
+}
+.rip__value--editable:hover { background: var(--bg-6); }
+
+/* ── Input fields ──────────────────────────────────────── */
+
+.rip__input {
+  width: calc(88px * var(--ui-scale));
+  box-sizing: border-box;
+  height: calc(28px * var(--ui-scale));
+  background: var(--bg-6);
+  border: 1px solid var(--border-hi);
+  border-radius: 4px;
+  color: var(--fg-1);
+  font-family: var(--font-family);
+  font-size: var(--t-md);
+  padding: 0 var(--sp-1) 0 var(--sp-2);
+  text-align: right;
+  outline: none;
+}
+/* Give Chromium's native spin-buttons breathing room next to the value. */
+.rip__input::-webkit-inner-spin-button {
+  margin-left: var(--sp-1);
+  height: 100%;
+}
+.rip__input:focus { border-color: var(--fg-3); }
+
+/* Stretch-mode indicator: lit up when Alt is held */
+.rip__input--stretch {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.rip__input--stretch:focus { border-color: var(--accent); }
+
+.rip__input--time {
+  width: calc(90px * var(--ui-scale));
+  -moz-appearance: textfield;
+  text-align: left;
+}
+
+
+/* ── Lock button ───────────────────────────────────────── */
+
+.rip__detect {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(28px * var(--ui-scale));
+  height: calc(28px * var(--ui-scale));
+  box-sizing: border-box;
+  background: none;
+  border: 1px solid var(--border-hi);
+  border-radius: 4px;
+  color: var(--fg-2);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.1s, border-color 0.1s;
+}
+.rip__detect:hover { border-color: var(--accent); color: var(--accent); }
+.rip__detect:disabled { opacity: 0.4; cursor: default; }
+
+.rip__lock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(28px * var(--ui-scale));
+  height: calc(28px * var(--ui-scale));
+  box-sizing: border-box;
+  background: none;
+  border: 1px solid var(--border-hi);
+  border-radius: 4px;
+  color: var(--fg-4);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.1s, border-color 0.1s, background 0.1s;
+}
+
+.rip__lock:hover { color: var(--fg-2); border-color: var(--fg-3); }
+
+.rip__lock--active {
+  color: var(--accent-2);
+  border-color: rgba(var(--accent-2-rgb), 0.4);
+  background: rgba(var(--accent-2-rgb), 0.08);
+}
+.rip__lock--active:hover {
+  color: var(--accent-2);
+  border-color: rgba(var(--accent-2-rgb), 0.6);
+  background: rgba(var(--accent-2-rgb), 0.14);
+}
+
+/* Scale SVG icons with --ui-scale */
+.rip__lock svg, .rip__detect svg {
+  width: calc(16px * var(--ui-scale));
+  height: calc(16px * var(--ui-scale));
+}
+
+/* ── Beat adjustment button group ─────────────────────── */
+
+.rip__btn-group {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border-hi);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-left: var(--sp-0);
+}
+
+.rip__btn-group--full {
+  grid-column: 1 / -1;
+  margin-left: 0;
+}
+
+.rip__adj {
+  background: var(--bg-6);
+  border: none;
+  border-right: 1px solid var(--border-hi);
+  color: var(--fg-3);
+  font-family: var(--font-family);
+  font-size: var(--t-sm);
+  padding: var(--sp-1) var(--sp-2);
+  cursor: pointer;
+  line-height: 1.2;
+  transition: color 0.1s, background 0.1s;
+}
+
+.rip__adj:last-child { border-right: none; }
+
+.rip__adj:hover {
+  color: var(--fg-1);
+  background: var(--bg-hover);
+}
+
+.rip__adj:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.rip__adj:disabled:hover {
+  color: var(--fg-3);
+  background: var(--bg-6);
+}
+
+/* ── Start at select ───────────────────────────────────── */
+.rip__select {
+  flex: 1;
+  min-width: 0;
+  padding: var(--sp-1) var(--sp-2);
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--fg-2);
+  font-family: var(--font-family);
+  font-size: var(--t-base);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.1s;
+}
+.rip__select:focus { border-color: var(--accent-2); }
+.rip__select option { background: var(--bg-3); }
+
+/* ── Checkbox row ──────────────────────────────────────── */
+
+.rip__check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.rip__check input[type="checkbox"] {
+  accent-color: var(--accent-2);
+  cursor: pointer;
+}
+
+.rip__check-label {
+  font-size: var(--t-base);
+  color: var(--fg-2);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* ── Empty state ───────────────────────────────────────── */
+
+.rip__empty {
+  padding: var(--sp-5) var(--sp-4);
+  font-size: var(--t-base);
+  color: #5a5048;
+  font-style: italic;
+}
+
+/* ── Divider ───────────────────────────────────────────── */
+
+.rip__divider {
+  height: 1px;
+  background: var(--border);
+  margin: var(--sp-0) 0;
+}

@@ -1,0 +1,109 @@
+.scene-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  font-size: var(--t-sm);
+  color: var(--fg-2);
+  transition: background 0.08s, border-color 0.08s;
+}
+
+.scene-row:hover {
+  background: var(--bg-2);
+}
+
+.scene-row--selected {
+  background: rgba(var(--accent-rgb), 0.16);
+}
+
+.scene-row--selected:hover {
+  background: rgba(var(--accent-rgb), 0.22);
+}
+
+.scene-row--active {
+  border-left-color: var(--accent);
+}
+
+.scene-row__check {
+  margin: 0;
+  accent-color: var(--accent);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* Default to neutral when no region claims this scene; the
+ * clip-overlay--color-N modifier (composed at the JSX level) overrides
+ * this with the persisted region hue when one is in scope. */
+.scene-row__color {
+  width: 8px;
+  height: 18px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  background: var(--bg-3);
+}
+
+.scene-row__color.clip-overlay--color-0,
+.scene-row__color.clip-overlay--color-1,
+.scene-row__color.clip-overlay--color-2,
+.scene-row__color.clip-overlay--color-3,
+.scene-row__color.clip-overlay--color-4,
+.scene-row__color.clip-overlay--color-5,
+.scene-row__color.clip-overlay--color-6,
+.scene-row__color.clip-overlay--color-7 {
+  background: hsl(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%));
+}
+
+.scene-row__idx {
+  width: 22px;
+  flex-shrink: 0;
+  color: var(--fg-4);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.scene-row__time {
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-1);
+}
+
+.scene-row__len {
+  margin-left: auto;
+  color: var(--fg-4);
+  font-variant-numeric: tabular-nums;
+}
+
+.scene-row__del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(20px * var(--ui-scale));
+  height: calc(20px * var(--ui-scale));
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 2px;
+  color: var(--fg-5);
+  cursor: pointer;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: opacity 0.08s, color 0.08s, background 0.08s;
+}
+
+.scene-row:hover .scene-row__del,
+.scene-row--selected .scene-row__del,
+.scene-row--active .scene-row__del {
+  opacity: 1;
+}
+
+.scene-row__del:hover {
+  color: var(--error);
+  background: var(--bg-3);
+}
+
+.scene-row__del svg {
+  width: calc(14px * var(--ui-scale));
+  height: calc(14px * var(--ui-scale));
+}

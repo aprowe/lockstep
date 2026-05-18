@@ -1,0 +1,21 @@
+.list-thumb-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--fg-3);
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.08s, color 0.08s, border-color 0.08s;
+}
+
+.list-thumb-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--fg-1);
+  border-color: var(--border);
+}
