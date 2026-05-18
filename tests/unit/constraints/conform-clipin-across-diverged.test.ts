@@ -66,7 +66,7 @@ describe('Clipin drag onto diverged anchor: clipout conforms to beat anchor', ()
     expect(post.inBeatTime).toBeCloseTo(22, 6)
   })
 
-  it('sequential drag: pre-anchor → on-anchor → past-anchor (3 frames)', () => {
+  it('sequential drag (default-linked): pre-anchor → on-anchor → past-anchor', () => {
     const store = setup()
     // Set preDrag so cumulative deltas resolve against the drag-start baseline,
     // matching what the controller does at pointerDown.
@@ -82,16 +82,61 @@ describe('Clipin drag onto diverged anchor: clipout conforms to beat anchor', ()
     store.dispatch(applyRegionEntityMove({ id: 'r', delta: 10 }))
     r = store.getState().region.regions[0]
     expect(r.inPoint).toBeCloseTo(20, 6)
-    expect(r.inBeatTime).toBeCloseTo(25, 6)        // linking event → beat anchor's time
+    expect(r.inBeatTime).toBeCloseTo(25, 6)        // ConformVisual → beat anchor's time
 
     // Frame 3: drag past the anchor to inPoint=22. Conform releases.
     store.dispatch(applyRegionEntityMove({ id: 'r', delta: 12 }))
     r = store.getState().region.regions[0]
     expect(r.inPoint).toBeCloseTo(22, 6)
-    // Slice's defaultLinked is false after the linking event; clipin moves
-    // freely but clipout no longer cascades. What's the expected behavior?
-    // The user's mental model: "conform releases" means clipout should restore
-    // to its un-conformed value (i.e., cascade with clipin = 22).
+    // Conform releases → defaultlink MirrorEdge cascade restores clipout to clipin.
     expect(r.inBeatTime).toBeCloseTo(22, 6)
+  })
+
+  // Known failing — documents the next required behavior.
+  // ConformVisual's transient write to clipout currently persists in the
+  // slice (no defaultlink cascade to restore for a diverged region).
+  // Fix path: snapshot clipout at drag start and restore when conform
+  // disengages (or store lastUnconformedBounds).
+  it.fails('sequential drag (DIVERGED region, no default-link): conform must also release', () => {
+    // Same anchor (orig=20, beat=25), but the region is NOT default-linked.
+    // Its clipout has its own independent inBeatTime/outBeatTime.
+    const store = makeStore()
+    const divergedRegion: Region = {
+      id: 'r', name: 'r', inPoint: 10, outPoint: 30,
+      // Explicit beat bounds different from input bounds → diverged.
+      inBeatTime: 100, outBeatTime: 120, defaultLinked: false,
+      bpm: 120, lockedBeats: 40,
+      minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+    }
+    store.dispatch(addRegion(divergedRegion))
+    store.dispatch(addAnchor({ id: 1, time: 20 }))
+    store.dispatch(moveBeatAnchor({ id: 1, time: 25 }))
+
+    store.dispatch(dragStart(snapshotPreDragState(store.getState())))
+
+    // Frame 1: drag to inPoint=15. No conform. clipout (diverged) unchanged.
+    store.dispatch(applyRegionEntityMove({ id: 'r', delta: 5 }))
+    let r = store.getState().region.regions[0]
+    expect(r.inPoint).toBeCloseTo(15, 6)
+    expect(r.inBeatTime).toBeCloseTo(100, 6)       // diverged — clipout independent
+
+    // Frame 2: drag onto anchor at orig=20. ConformVisual fires (clipin write
+    // coincides with orig) → writes clipout.in = beat anchor's time = 25.
+    store.dispatch(applyRegionEntityMove({ id: 'r', delta: 10 }))
+    r = store.getState().region.regions[0]
+    expect(r.inPoint).toBeCloseTo(20, 6)
+    expect(r.inBeatTime).toBeCloseTo(25, 6)        // conform engaged
+
+    // Frame 3: drag past the anchor. Conform must RELEASE — clipout returns
+    // to its pre-conform (diverged) value of 100. WITHOUT defaultlink there
+    // is no cascade to re-assert any value, so ConformVisual's transient
+    // write currently PERSISTS in the slice. To match the user requirement
+    // ("restore non default linked regions too") we need a separate mechanism
+    // — e.g., a pre-drag snapshot of clipout that's restored when conform
+    // disengages.
+    store.dispatch(applyRegionEntityMove({ id: 'r', delta: 12 }))
+    r = store.getState().region.regions[0]
+    expect(r.inPoint).toBeCloseTo(22, 6)
+    expect(r.inBeatTime).toBeCloseTo(100, 6)       // restored to pre-conform diverged value
   })
 })
