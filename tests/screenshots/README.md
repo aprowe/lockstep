@@ -174,5 +174,4 @@ update:
   `--scopes workflow` (the default scopes already include it).
 
 If a session lacks `workflow` scope, stage proposed YAML somewhere outside
-`.github/workflows/` (e.g. `docs/screenshot-workflow.yml`) and apply it
-via one of the above paths.
+`.github/workflows/` and apply it via one of the above paths.

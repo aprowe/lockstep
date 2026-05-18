@@ -3,6 +3,3 @@ contact_links:
   - name: Codebase tour
     url: https://github.com/aprowe/lockstep/blob/main/CLAUDE.md
     about: Architecture, command surface, and the warp pipeline.
-  - name: User guide
-    url: https://github.com/aprowe/lockstep/blob/main/docs/guide.html
-    about: How to use Lockstep.

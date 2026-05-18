@@ -20,8 +20,6 @@
 4. Drag each marker's beat-side handle onto the beat where it should land
 5. **File → Export**
 
-For the full walkthrough — interface tour, regions, export options, shortcuts — see the **[user guide](./docs/guide.html)**.
-
 ---
 
 ## Install
