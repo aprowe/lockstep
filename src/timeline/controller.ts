@@ -378,7 +378,7 @@ function handleAnchorMove(
     if (drag.regionGroupIds && drag.origRegionBounds && drag.regionGroupIds.size > 0) {
       // Pick the same primary order the previous implementation used: first
       // entry in the group iteration order (insertion order of the Set).
-      const firstId = drag.regionGroupIds.values().next().value as string | undefined
+      const firstId = drag.regionGroupIds.values().next().value
       if (firstId !== undefined) {
         const orig = drag.origRegionBounds.get(firstId)
         if (orig) {
@@ -1083,7 +1083,7 @@ export function createTimelineController(): Controller {
           // Combined anchor+region drag: emit regionEntityMove for the PRIMARY
           // grabbed region using the same delta.
           if (d.regionGroupIds && d.origRegionBounds && d.regionGroupIds.size > 0) {
-            const firstId = d.regionGroupIds.values().next().value as string | undefined
+            const firstId = d.regionGroupIds.values().next().value
             if (firstId !== undefined) {
               const orig = d.origRegionBounds.get(firstId)
               if (orig) {

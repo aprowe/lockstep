@@ -64,6 +64,18 @@ describe('selectSnapTargetsOutput', () => {
     const targets = selectSnapTargetsOutput(selectorState(store))
     expect(targets).toEqual([5])
   })
+
+  it('includes the active region inBeatTime/outBeatTime when set', () => {
+    const store = makeStore()
+    store.dispatch(addAnchor({ id: 1, time: 5 }))
+    store.dispatch(addRegion({
+      id: 'r', name: 'r', inPoint: 2, outPoint: 12, inBeatTime: 7, outBeatTime: 17, colorIndex: 0,
+    }))
+    store.dispatch(setActiveRegionId('r'))
+    const targets = selectSnapTargetsOutput(selectorState(store))
+    expect(targets).toContain(7)
+    expect(targets).toContain(17)
+  })
 })
 
 describe('selectSegmentAnchors', () => {

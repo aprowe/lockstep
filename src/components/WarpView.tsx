@@ -8,6 +8,7 @@ import {
   snapAllToBeat,
 } from '../utils/quantize'
 import { clampView } from '../utils/view'
+import { augmentBoundaryAnchorsPaired } from '../utils/anchorAugment'
 import { clipHsl } from '../timeline/palette'
 import type { Anchor, View, ClipOverlay } from '../types'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
@@ -175,7 +176,7 @@ export default function WarpView({
   const [mouseOver, setMouseOver] = useState(false)
 
   const warpContainerRef = useRef<HTMLDivElement>(null)
-const importRef = useRef<HTMLInputElement>(null)
+  const importRef = useRef<HTMLInputElement>(null)
 
   // Sync local view to Redux (debounced on idle)
   const viewSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -214,20 +215,9 @@ const importRef = useRef<HTMLInputElement>(null)
 
   // ── Segments (with synthetic clip boundary anchors) ────────────────────────
   const segments = useMemo(() => {
-    if (clipIn === undefined && clipOut === undefined) {
-      return buildSegments(sortedOrig, sortedBeat, duration, outputDuration)
-    }
-    const augOrig = [...sortedOrig]
-    const augBeat = [...sortedBeat]
-    const EPS = 0.01
-    if (clipIn !== undefined && (augOrig.length === 0 || augOrig[0].time - clipIn > EPS)) {
-      augOrig.unshift({ id: -9998, time: clipIn })
-      augBeat.unshift({ id: -9998, time: clipInBeatTime ?? clipIn })
-    }
-    if (clipOut !== undefined && (augOrig.length === 0 || clipOut - augOrig[augOrig.length - 1].time > EPS)) {
-      augOrig.push({ id: -9999, time: clipOut })
-      augBeat.push({ id: -9999, time: clipOutBeatTime ?? clipOut })
-    }
+    const { orig: augOrig, beat: augBeat } = augmentBoundaryAnchorsPaired(
+      sortedOrig, sortedBeat, clipIn, clipOut, clipInBeatTime, clipOutBeatTime,
+    )
     return buildSegments(augOrig, augBeat, duration, outputDuration)
   }, [sortedOrig, sortedBeat, duration, outputDuration, clipIn, clipOut, clipInBeatTime, clipOutBeatTime])
 

@@ -10,6 +10,7 @@ import {
   selectLinkedAnchorIds,
   selectSelectedIdsUnion,
 } from '../selectors'
+import { augmentBoundaryAnchors } from '../../utils/anchorAugment'
 
 /**
  * Timeline-display derivations that were previously inline `useMemo`s in
@@ -41,8 +42,8 @@ export const selectSnapTargetsOutput = createSelector(
   (quantAnchors, clipIn, activeRegion): number[] => {
     const beatTimes = quantAnchors.map(a => a.time)
     if (clipIn === undefined) return beatTimes
-    const beatIn  = activeRegion?.inBeatTime  ?? 0
-    const beatOut = activeRegion?.outBeatTime ?? 0
+    const beatIn  = activeRegion?.inBeatTime  ?? clipIn
+    const beatOut = activeRegion?.outBeatTime ?? clipIn
     return [...beatTimes, beatIn, beatOut]
   },
 )
@@ -55,18 +56,8 @@ export const selectSegmentAnchors = createSelector(
   selectSortedOrig,
   selectClipIn,
   selectClipOut,
-  (sortedOrig, clipIn, clipOut): Anchor[] => {
-    if (clipIn === undefined && clipOut === undefined) return sortedOrig
-    const aug = [...sortedOrig]
-    const EPS = 0.01
-    if (clipIn !== undefined && (aug.length === 0 || aug[0].time - clipIn > EPS)) {
-      aug.unshift({ id: -9998, time: clipIn })
-    }
-    if (clipOut !== undefined && (aug.length === 0 || clipOut - aug[aug.length - 1].time > EPS)) {
-      aug.push({ id: -9999, time: clipOut })
-    }
-    return aug
-  },
+  (sortedOrig, clipIn, clipOut): Anchor[] =>
+    augmentBoundaryAnchors(sortedOrig, clipIn, clipOut),
 )
 
 /** Per-segment-anchor boolean: true when the anchor is a synthetic boundary
