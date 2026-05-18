@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+echo "▶ tests"
+npm test --silent
+
+echo "▶ behavior coverage"
+npm run behaviors --silent
+
+echo "▶ layout coverage"
+npm run layouts --silent

@@ -1,0 +1,56 @@
+Lockstep — Dual License
+Copyright (c) 2026 Alexander Rowe
+
+Lockstep is offered under two licenses. You may choose whichever applies to
+your use of the software.
+
+================================================================================
+1. AGPL-3.0 — Personal, Non-Commercial, and Open-Source Use
+================================================================================
+
+For personal, hobbyist, academic, research, and other non-commercial use,
+Lockstep is licensed under the GNU Affero General Public License, version 3
+(AGPL-3.0). The full, canonical text of the AGPL-3.0 is available at:
+
+    https://www.gnu.org/licenses/agpl-3.0.txt
+
+Summary of your obligations under the AGPL-3.0 (not a substitute for the
+full license — read the canonical text linked above):
+
+  - You are free to use, study, modify, and redistribute Lockstep.
+  - Any derivative work that you distribute, or that you make available to
+    users over a network, must also be released under the AGPL-3.0, with
+    its complete corresponding source code made available to those users.
+  - You must preserve copyright notices and license notices in any copy or
+    derivative work you distribute.
+  - The software is provided "as is", without warranty of any kind. See
+    sections 15 and 16 of the AGPL-3.0 for the full disclaimer.
+
+================================================================================
+2. Commercial License
+================================================================================
+
+If you wish to use Lockstep in any of the following ways, you need to obtain
+a separate commercial license:
+
+  - In a commercial product, service, or for-profit workflow.
+  - Inside proprietary software whose source code you do not wish to release
+    under the AGPL-3.0.
+  - As part of a closed, hosted, or SaaS offering where you do not want to
+    fulfil the AGPL-3.0 source-disclosure requirements to your users.
+  - Any other use that the AGPL-3.0 would not permit.
+
+A commercial license grants you the right to use Lockstep under terms that
+do not require AGPL-3.0 compliance, and can be tailored to your use case.
+
+To inquire about a commercial license, please contact:
+
+    alexrowe707@gmail.com
+
+================================================================================
+Contact
+================================================================================
+
+If you are unsure which license applies to your use of Lockstep, please
+reach out at the address above before using the software. I am happy to
+help clarify which option fits your situation.

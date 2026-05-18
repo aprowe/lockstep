@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies (Tauri + ffmpeg)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ffmpeg \
+            libglib2.0-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libssl-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            pkg-config \
+            build-essential \
+            curl \
+            wget \
+            file
+
+      - name: Stage sidecar binaries for Tauri build
+        run: |
+          triple=x86_64-unknown-linux-gnu
+          mkdir -p src-tauri/binaries
+          cp "$(which ffmpeg)"  "src-tauri/binaries/ffmpeg-${triple}"
+          cp "$(which ffprobe)" "src-tauri/binaries/ffprobe-${triple}"
+          # rife-ncnn-vulkan needs Vulkan + ~400MB model; heavy rife test is
+          # skipped below, so a stub is enough to satisfy tauri.conf externalBin.
+          printf '#!/bin/sh\necho "rife stub (CI)"; exit 1\n' \
+            > "src-tauri/binaries/rife-ncnn-vulkan-${triple}"
+          chmod +x src-tauri/binaries/*-"${triple}"
+          # resources: glob "binaries/rife-v4.6/*" needs ≥1 file to resolve.
+          mkdir -p src-tauri/binaries/rife-v4.6
+          touch src-tauri/binaries/rife-v4.6/.stub
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run test:unit
+        name: Vitest
+
+      - run: npm run test:rs
+        name: Rust Tests
+
+      - run: npx tsx scripts/behavior.ts check
+        name: Behavior coverage
+
+      - run: npx tsx scripts/layouts.ts check
+        name: Layout coverage
+
+      - name: End-to-end tests (skip RIFE — needs Vulkan GPU)
+        run: cargo test --manifest-path src-tauri/Cargo.toml --target-dir src-tauri/target-test -- --ignored --skip rife
+
