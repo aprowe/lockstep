@@ -88,7 +88,7 @@ export const applyRemoveAnchors =
   }
 
 /**
- * Phase 2.5 — single-entity anchor move via the constraint graph.
+ * Single-entity anchor move via the constraint graph.
  *
  * Dispatches ONE Move op for the PRIMARY grabbed entity (identified by its
  * graph entity ID string, e.g. `a7-in` or `a7-out`). The resolver's

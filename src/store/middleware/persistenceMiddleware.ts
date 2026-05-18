@@ -79,7 +79,7 @@ persistenceMiddleware.startListening({
 
     const warp = state.warp
 
-    // Slice is the source of truth for positions (Phase 4c).
+    // Slice is the source of truth for positions.
     const matOrigAnchors: Anchor[] = warp.origAnchors.map(a => ({ id: a.id, time: a.time }))
 
     // Determine which anchors are linked via the slice's beatAnchors[n].linked field.
@@ -98,7 +98,7 @@ persistenceMiddleware.startListening({
       if (z) beatZeroTime = z.time
     }
 
-    // Materialise region positions from the slice (source of truth in Phase 4c).
+    // Materialise region positions from the slice (source of truth).
     const matRegions = state.region.regions.map(r => ({ ...r }))
 
     const cuts = state.scene.cutsByPath[vid.path]

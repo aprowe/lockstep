@@ -271,16 +271,15 @@ export type Intent =
   | { kind: 'viewChange'; view: View }
   | { kind: 'anchorsChanged'; next: Anchor[] }
   | { kind: 'beatAnchorsChanged'; next: Anchor[] }
-  /** Phase 2.5: single-entity anchor move. Carries the graph entity ID of
-   *  the PRIMARY grabbed anchor and its new absolute time. The resolver's
-   *  lasso:main TranslateGroup propagates the implied delta to all other
-   *  selected entities. Replaces whole-array anchorsChanged/beatAnchorsChanged
-   *  for drag commits. */
+  /** Single-entity anchor move. Carries the graph entity ID of the PRIMARY
+   *  grabbed anchor and its new absolute time. The resolver's lasso:main
+   *  TranslateGroup propagates the implied delta to all other selected entities.
+   *  Replaces whole-array anchorsChanged/beatAnchorsChanged for drag commits. */
   | { kind: 'anchorEntityMove'; entityId: string; time: number }
-  /** Phase 2.5: single-entity region body move. Carries the region's slice
-   *  id, the signed translate delta for the PRIMARY grabbed region, and the
-   *  space/modifier context for caller routing. The resolver's lasso:main
-   *  TranslateGroup propagates to other selected regions.
+  /** Single-entity region body move. Carries the region's slice id, the signed
+   *  translate delta for the PRIMARY grabbed region, and the space/modifier
+   *  context for caller routing. The resolver's lasso:main TranslateGroup
+   *  propagates to other selected regions.
    *  isOutput distinguishes clipin (input-space) vs clipout (output-space) drags. */
   | { kind: 'regionEntityMove'; id: string; delta: number; isOutput: boolean; altKey: boolean }
   | { kind: 'regionResize'; id: string; inPoint: number; outPoint: number; isOutput: boolean; altKey: boolean }
@@ -318,10 +317,6 @@ export type Intent =
    *  and separate clipin/clipout region id sets. */
   | { kind: 'pubLasso'; clipinIds: Set<string>; clipoutIds: Set<string>; origAnchorIds: Set<number>; beatAnchorIds: Set<number>; sceneTimes: Set<number> }
   | { kind: 'pubClearGesture' }
-  /** Publish live beat-anchor positions during a clipout-edge drag that carries a
-   *  linked beat anchor. Canvas draws from dragState directly (liveBeatAnchorOverrides);
-   *  this intent triggers a redraw. */
-  | { kind: 'pubLiveBeatAnchors'; anchors: Anchor[] }
   | { kind: 'pubModifierKeys'; alt: boolean; shift: boolean }
   | { kind: 'pubHoveredAnchor'; id: number | null }
   | { kind: 'pubHoveredRegion'; id: string | null }

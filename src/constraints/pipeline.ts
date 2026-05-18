@@ -113,7 +113,7 @@ export interface PipelineOutput {
  * Derives all constraints from slice state: anchor pairs, default-link
  * DirectedPairs, ConformVisual bindings, SnapRules, space cohorts,
  * twin cohorts, lasso TranslateGroup, anchorLock TranslateGroup/ScaleGroup,
- * carry pairs.
+ * ConformVisual + MirrorPair conform bindings.
  */
 export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): State {
   let state = emptyState()

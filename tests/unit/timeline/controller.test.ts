@@ -1704,15 +1704,6 @@ describe('controller — R4 (new): clipout edge drag does NOT carry linked beat 
     }
   })
 
-  it('pointerMove does NOT emit pubLiveBeatAnchors for linked edge (carry now in thunk)', () => {
-    const c = createTimelineController()
-    const snap = makeR4Snap()
-    c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
-    const intents = c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
-    // Controller no longer emits pubLiveBeatAnchors — carry is at commit time
-    expect(intents.some(i => i.kind === 'pubLiveBeatAnchors')).toBe(false)
-  })
-
   it('pointerUp emits regionResize but NOT a separate beatAnchorsChanged (carry in thunk)', () => {
     const c = createTimelineController()
     const snap = makeR4Snap()

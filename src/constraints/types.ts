@@ -246,9 +246,9 @@ export interface ScaleGroup {
  *  Used for: default-linked clipin → clipout, and edge-mirror behaviors.
  *
  *  `fromEdge` (optional): for MirrorEdge mode, constrains which edge write
- *  triggers the carry. When omitted, the first matching write drives.
- *  Required for body-pan carry so 'in' and 'out' carries each track their
- *  respective edge. */
+ *  triggers propagation. When omitted, the first matching write drives.
+ *  Required for body-pan so 'in' and 'out' edges each track their
+ *  respective write. */
 export interface DirectedPair {
   kind:      typeof ConstraintKind.DirectedPair
   from:      EntityId

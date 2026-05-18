@@ -1,5 +1,5 @@
 /**
- * Phase 4c: dragCtxMirrorMiddleware deleted.
+ * dragCtxMirrorMiddleware deleted.
  *
  * Snap state is dispatched directly to dragCtxSlice by WarpView
  * (setSnapInstall / clearSnapInstall).

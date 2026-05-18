@@ -413,7 +413,7 @@ function handleAnchorMove(
   {
     const anchorDragNow = drag
     if (anchorDragNow.moved) {
-      // Phase 2.5: emit a single-entity anchorEntityMove for the PRIMARY grabbed
+      // Emit a single-entity anchorEntityMove for the PRIMARY grabbed
       // anchor. The lasso:main TranslateGroup in the resolver propagates the
       // implied delta to every other selected entity. The liveAnchors /
       // liveBeatAnchors arrays above are kept for canvas rendering only.
@@ -439,7 +439,7 @@ function handleAnchorMove(
           intents.push({ kind: 'regionEntityMove', id: primary.id, delta: primary.inPoint - origPrimary.inPoint, isOutput: false, altKey: false })
         }
       }
-      // Bug G/H: For output-space drags with linked region edges, emit a
+      // For output-space drags with linked region edges, emit a
       // regionResize (isOutput) intent so the slice gets live beat-bounds
       // updates, making the clipout edge follow the anchor continuously.
       if (anchorDragNow.space === 'output' && anchorDragNow.linkedOutputEdges && anchorDragNow.linkedOutputEdges.length > 0) {
@@ -635,7 +635,7 @@ function handleRegionMoveMove(
   }
   // Combined drag: shift every captured anchor by the same delta in
   // BOTH spaces (input-space only — output-space region drags don't
-  // carry combined anchor groups).
+  // move combined anchor groups).
   if (!drag.isOutput && drag.anchorGroupIds && drag.liveAnchors && drag.liveBeatAnchors) {
     const orInput = drag.origInputAnchorTimes
     const orBeat = drag.origBeatAnchorTimes
@@ -659,7 +659,7 @@ function handleRegionMoveMove(
   }
   // Live commit: dispatch region moves on every pointerMove (after threshold).
   // History + persistence skip during drag.active; dragEnd fires the snapshot.
-  // Phase 2.5: emit regionEntityMove for the PRIMARY grabbed region only.
+  // Emit regionEntityMove for the PRIMARY grabbed region only.
   // Follower regions propagate via lasso:main TranslateGroup in the resolver.
   {
     const moveDragNow = drag
@@ -793,7 +793,7 @@ export function createTimelineController(): Controller {
       // For an input-space anchor that sits on a region's inPoint or outPoint
       // (conformed), also capture the paired beat anchor so it moves with the
       // input anchor live. This mirrors the symmetric behavior of output-space
-      // anchor drags moving linked clipout edges (Bug G/H / linkedOutputEdges).
+      // anchor drags moving linked clipout edges (linkedOutputEdges).
       const LINK_TOL = 1e-4
       const isConformedInput = space === 'input' && anchor !== undefined &&
         snap.regionDetails.some(rd =>
@@ -811,7 +811,7 @@ export function createTimelineController(): Controller {
         e.clientX, e.clientY,
         pendingSelect,
       )
-      // Bug G/H: For output-space anchor drags, record any region edge whose
+      // For output-space anchor drags, record any region edge whose
       // beat-space boundary (inBeatTime / outBeatTime) is coincident with
       // this anchor at drag start. These edges will follow the anchor live.
       if (space === 'output' && anchor && snap.regionDetails.length > 0) {
@@ -1223,7 +1223,7 @@ export function createTimelineController(): Controller {
           // released before crossing the threshold.
           for (const ps of d.pendingSelect) intents.push(ps)
         } else {
-          // Phase 2.5: single-entity commit — same structure as handleAnchorMove's
+          // Single-entity commit — same structure as handleAnchorMove's
           // live dispatch. Emit anchorEntityMove for the PRIMARY grabbed anchor so
           // the resolver's lasso:main TranslateGroup propagates to all followers.
           // The whole-array anchorsChanged / beatAnchorsChanged / per-region
@@ -1252,7 +1252,7 @@ export function createTimelineController(): Controller {
               intents.push({ kind: 'regionEntityMove', id: primary.id, delta: primary.inPoint - origPrimary.inPoint, isOutput: false, altKey: false })
             }
           }
-          // Bug G/H commit: emit final regionResize (isOutput) for any
+          // Commit: emit final regionResize (isOutput) for any
           // output-linked region edges so beat bounds are persisted.
           if (d.space === 'output' && d.linkedOutputEdges && d.linkedOutputEdges.length > 0) {
             // The dragged beat anchor's final position is in liveBeatAnchors.
@@ -1283,7 +1283,7 @@ export function createTimelineController(): Controller {
         if (!d.moved) {
           for (const ps of d.pendingSelect) intents.push(ps)
         } else {
-        // Phase 2.5: single-entity commit — same structure as handleRegionMove's
+        // Single-entity commit — same structure as handleRegionMove's
         // live dispatch. Emit regionEntityMove for the PRIMARY grabbed region so
         // the resolver's lasso:main TranslateGroup propagates to all followers.
         // The per-region regionMove loop and whole-array anchorsChanged /

@@ -1,5 +1,5 @@
 /**
- * Anchor-lock → dragCtx mirror (Phase 4c).
+ * Anchor-lock → dragCtx mirror.
  *
  * Watches ui.anchorLock, ui.lockMode, region.activeRegionId, warp.beatAnchors.
  *

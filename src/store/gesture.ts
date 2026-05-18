@@ -40,16 +40,9 @@ export interface GestureState {
     beatAnchorIds: ReadonlySet<number>
     sceneTimes: ReadonlySet<number>
   } | null
-  /** Currently-held modifier keys that affect the active drag.
-   *  alt — transient stretch-mode toggle during BPM edit (§6.2).
-   *  shift — transient anchor-lock mode toggle (§13).
-   *  Always defined (never null). */
-  modifierKeys: { alt: boolean; shift: boolean }
 }
 
 const EMPTY_HINTS: readonly number[] = Object.freeze([])
-
-const INITIAL_MODIFIER_KEYS = Object.freeze({ alt: false, shift: false })
 
 const initialState: GestureState = {
   hoveredAnchorId: null,
@@ -61,7 +54,6 @@ const initialState: GestureState = {
   dragTime: null,
   scrubTime: null,
   lassoSelection: null,
-  modifierKeys: INITIAL_MODIFIER_KEYS,
 }
 
 let state: GestureState = initialState
@@ -124,11 +116,6 @@ export const gesture = {
     sceneTimes: ReadonlySet<number>,
   ) {
     setState({ ...state, lassoSelection: { clipinIds, clipoutIds, origAnchorIds, beatAnchorIds, sceneTimes } })
-  },
-  setModifierKeys(keys: { alt: boolean; shift: boolean }) {
-    const cur = state.modifierKeys
-    if (cur.alt === keys.alt && cur.shift === keys.shift) return
-    setState({ ...state, modifierKeys: keys })
   },
   /** Clear every transient field at once. Called by the window pointer-up /
    *  blur listener and usable by any caller that knows a gesture is done. */

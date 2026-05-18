@@ -1,5 +1,5 @@
 /**
- * Phase 4c: globalLockModeMirrorMiddleware deleted.
+ * globalLockModeMirrorMiddleware deleted.
  *
  * globals.lockMode is now set by buildGraphFromSlice directly from ui.lockMode
  * at every pipeline invocation. No middleware is needed.

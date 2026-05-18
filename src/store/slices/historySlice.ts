@@ -7,9 +7,9 @@ import type { Anchor, Region } from '../../types'
  * Excluded on purpose: selection, playhead, active-region-id, view, UI layout,
  * and the internal globalMarkers cache.
  *
- * Phase 4c: the constraint graph is no longer snapshotted — it is derived on
- * demand from the slice via selectConstraintGraph. The slice IS the source of
- * truth for positions.
+ * The constraint graph is no longer snapshotted — it is derived on demand from
+ * the slice via selectConstraintGraph. The slice IS the source of truth for
+ * positions.
  */
 export interface HistoryEntry {
   // Warp anchors

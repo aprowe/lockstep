@@ -368,7 +368,7 @@ const importRef = useRef<HTMLInputElement>(null)
     [dispatch],
   )
 
-  /** Phase 2.5: single-entity anchor entity move — dispatches one SetValue op
+  /** Single-entity anchor entity move — dispatches one SetValue op
    *  so the resolver can propagate via lasso:main TranslateGroup. */
   const handleAnchorEntityMove = useCallback(
     (entityId: string, time: number) => dispatch(applyAnchorEntityMove({ entityId, time })),
@@ -383,8 +383,8 @@ const importRef = useRef<HTMLInputElement>(null)
     [dispatch],
   )
 
-  /** Phase 2.5: single-entity region body move — dispatches Move ops on the
-   *  primary clipin entity; resolver propagates to followers via lasso:main.
+  /** Single-entity region body move — dispatches Move ops on the primary
+   *  clipin entity; resolver propagates to followers via lasso:main.
    *  delta is the signed translate from the entity's position at drag start.
    *  Output-space drags are routed to commitClipoutPan (absolute beat times
    *  are recovered from the current clipout entity in the constraint graph). */

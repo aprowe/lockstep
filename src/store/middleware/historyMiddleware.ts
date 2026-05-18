@@ -44,8 +44,8 @@ export const historyMiddleware = createListenerMiddleware()
  * active-region-id, view and UI layout are excluded because they don't belong
  * in undo history.
  *
- * Phase 4c: applyOp is removed — the pipeline now writes slice diffs directly
- * via _syncAnchorPositions / _syncRegionPositions / _syncRegionMeta. We capture
+ * applyOp is removed — the pipeline now writes slice diffs directly via
+ * _syncAnchorPositions / _syncRegionPositions / _syncRegionMeta. We capture
  * snapshots on those slice-write actions instead.
  */
 const snapshotTriggers = isAnyOf(

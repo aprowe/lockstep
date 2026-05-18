@@ -307,8 +307,8 @@ const HANDLERS: HandlerEntry[] = [
 
   /** directed_pair (mirror_edge): a clip-edge write on `from` copies the
    *  same value to `to`'s matching field. When `fromEdge` is set, only the
-   *  specified edge write triggers the carry (needed for body-pan where both
-   *  edges move and two separate carry pairs exist — one per edge). */
+   *  specified edge write triggers propagation (needed for body-pan where both
+   *  edges move and two separate pairs exist — one per edge). */
   {
     kind:  ConstraintKind.DirectedPair,
     phase: Phase.Propose,

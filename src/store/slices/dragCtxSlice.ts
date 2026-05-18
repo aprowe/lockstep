@@ -11,7 +11,7 @@
  *
  * The mirror middlewares that maintain these fields in the constraint graph
  * (selectionGraphMirrorMiddleware, anchorLockMirrorMiddleware) now also
- * shadow-write to this slice. Similarly, the snap and carry dispatch sites in
+ * shadow-write to this slice. Similarly, the snap dispatch sites in
  * WarpView / CanvasTimeline dispatch to this slice in parallel.
  *
  * This slice is the source of truth for all drag transient state.

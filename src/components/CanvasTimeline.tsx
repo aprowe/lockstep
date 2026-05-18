@@ -84,7 +84,7 @@ export interface CanvasTimelineProps {
   onAnchorSelect?: (id: number, additive: boolean) => void
   onAnchorContextMenu?: (id: number, x: number, y: number) => void
   onAnchorsChange?: (next: Anchor[]) => void
-  /** Phase 2.5: single-entity anchor move (primary grabbed entity only).
+  /** Single-entity anchor move (primary grabbed entity only).
    *  The resolver propagates to other selected entities via lasso:main. */
   onAnchorEntityMove?: (entityId: string, time: number) => void
   /** Called at the start of each pointer-event intent batch to reset slice
@@ -124,7 +124,7 @@ export interface CanvasTimelineProps {
   onRegionContextMenu?: (id: string, x: number, y: number) => void
   onRegionResize?: (id: string, inPoint: number, outPoint: number) => void
   onRegionMove?: (id: string, inPoint: number, outPoint: number, altKey: boolean) => void
-  /** Phase 2.5: single-entity region body move (primary grabbed region only).
+  /** Single-entity region body move (primary grabbed region only).
    *  delta is the signed translate from the entity's position at drag start.
    *  The resolver propagates to other selected regions via lasso:main. */
   onRegionEntityMove?: (id: string, delta: number, isOutput: boolean, altKey: boolean) => void
@@ -1273,7 +1273,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
         case 'viewChange': p.onViewChange(i.view); break
         case 'anchorsChanged': p.onAnchorsChange?.(i.next); break
         case 'beatAnchorsChanged': p.onBeatAnchorsChange?.(i.next); break
-        // Phase 2.5: single-entity intents — route to constraint-graph dispatch.
+        // Single-entity intents — route to constraint-graph dispatch.
         case 'anchorEntityMove': p.onAnchorEntityMove?.(i.entityId, i.time); break
         case 'regionEntityMove':
           p.onRegionEntityMove?.(i.id, i.delta, i.isOutput, i.altKey)
@@ -1314,9 +1314,6 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
         case 'pubScrubTime': gesture.setScrubTime(i.time); break
         case 'pubLasso': gesture.setLassoSelection(i.clipinIds, i.clipoutIds, i.origAnchorIds, i.beatAnchorIds, i.sceneTimes); break
         case 'pubClearGesture': gesture.clearAll(); break
-        // pubLiveBeatAnchors: slice is updated on every pointerMove so the slice
-        // beat anchor state is already current; intent retained only to trigger a redraw.
-        case 'pubLiveBeatAnchors': break
         case 'dragStart': {
           dispatch(dragStart(snapshotPreDragState(store.getState())))
           // Activate the region being dragged so it becomes the active clip.
@@ -1334,7 +1331,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
         case 'dragCancel':
           dispatch(cancelDrag())
           break
-        case 'pubModifierKeys': gesture.setModifierKeys({ alt: i.alt, shift: i.shift }); break
+        case 'pubModifierKeys': break
         case 'pubHoveredAnchor': gesture.setHoveredAnchor(i.id); break
         case 'pubHoveredRegion': gesture.setHoveredRegion(i.id); break
         case 'pubHoveredScene': gesture.setHoveredScene(i.time); break

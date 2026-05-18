@@ -315,12 +315,7 @@ export function driveController(opts: DriverOptions): DriverHandle {
         case 'dragCancel':
           store.dispatch(cancelDrag())
           break
-        case 'pubLiveBeatAnchors':
-          // Canvas reads live beat-anchor positions from dragState directly;
-          // no store update needed here.
-          break
         case 'pubModifierKeys':
-          gesture.setModifierKeys({ alt: i.alt, shift: i.shift })
           break
         case 'pubHoveredAnchor':
           gesture.setHoveredAnchor(i.id)

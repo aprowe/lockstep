@@ -1,5 +1,5 @@
 /**
- * Selection → dragCtx mirror (Phase 4c).
+ * Selection → dragCtx mirror.
  *
  * Watches the four selection arrays/sets in slices:
  *   warp.selectedOrigIds     number[]   (anchor input-space selection)
