@@ -57,31 +57,19 @@ export function initAnchorPair(anchorInId: EntityId, anchorOutId: EntityId): Op[
         tag: `pair:${anchorInId}`,
       },
     },
-    // Translate-coupling: moving the orig anchor propagates the same delta
-    // to the beat partner. One-way (anchor-in → anchor-out); beat drags
-    // don't pull orig. Removed by `unlinkAnchor` when the pair diverges.
-    {
-      kind: OpKind.AddConstraint,
-      constraint: {
-        kind: ConstraintKind.DirectedPair,
-        from: anchorInId,
-        to:   anchorOutId,
-        mode: PairMode.Translate,
-        tag:  `pairlink:${anchorInId}`,
-      },
-    },
   ]
 }
 
 /** Remove the linked-pair marker for an anchor (equivalent to "diverge" for
- *  anchors).  Removes both the DeleteGroup pair marker AND the
- *  translate-coupling DirectedPair so the beat anchor stops tracking. */
+ *  anchors).  Removes the DeleteGroup pair marker so delete propagation
+ *  stops; beat-side tracking is then a no-op since orig drags don't
+ *  propagate to beat (pair-drag gestures move both partners explicitly
+ *  in the controller). */
 export function unlinkAnchor(anchorInId: EntityId): Op {
   return {
     kind: OpKind.RemoveConstraint,
     predicate: c =>
-      (c.kind === ConstraintKind.DeleteGroup && c.tag === `pair:${anchorInId}`) ||
-      (c.kind === ConstraintKind.DirectedPair && c.tag === `pairlink:${anchorInId}`),
+      c.kind === ConstraintKind.DeleteGroup && c.tag === `pair:${anchorInId}`,
   }
 }
 
