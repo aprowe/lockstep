@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { WarpData, Region } from '../types'
-import { startWarp, listenWarpProgress, pickExportFolder, saveToFolder, revealInFolder } from '../api/warp'
+import { startWarp, listenWarpProgress, saveOutput, pickExportFolder, saveToFolder, writeTextFile, revealInFolder } from '../api/warp'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
-import { setLastExportFolder } from '../store/slices/uiSlice'
-import { addJob as addJobAction, updateJob, removeJob } from '../store/slices/jobsSlice'
-import { cancelJobThunk } from '../store/thunks/jobsThunks'
+import { setLastExportFolder, setExportProgress, resetExportProgress } from '../store/slices/uiSlice'
 import { buildWarpRequest, type AudioMode } from '../utils/exportRequest'
 import { visibleSceneCuts } from '../utils/sceneFilter'
 import './ExportDialog.css'
@@ -44,10 +42,6 @@ interface ExportDialogProps {
    *  with a non-empty selection we auto-switch into 'selected' mode and
    *  pre-check those ids, so "export selected" is one click. */
   selectedClipIds?: readonly string[]
-  /** Open directly on the Log tab instead of Queue. */
-  openOnLogTab?: boolean
-  /** Pre-select this job id when opening on the Log tab. */
-  initialLogJobId?: string | null
 }
 
 type ExportMode = 'current' | 'all' | 'selected'
@@ -86,6 +80,29 @@ function applyPattern(pattern: string, opts: {
     .replace(/\{n\}/g, String(Math.max(1, opts.clipNumber)).padStart(2, '0'))
 }
 
+// ── Marker sidecar ────────────────────────────────────────────────────────────
+
+function buildMarkerJson(warpData: WarpData, opts: {
+  videoName: string
+  exportFolder: string | null
+}): string {
+  const { origAnchors, beatAnchors, bpm, minStretch, maxStretch, addToEnd, beatZeroTime } = warpData
+  return JSON.stringify({
+    videoName: opts.videoName,
+    exportFolder: opts.exportFolder,
+    origAnchors, beatAnchors, bpm, minStretch, maxStretch, addToEnd, beatZeroTime,
+  }, null, 2)
+}
+
+/** Given a saved video path like /foo/bar.mp4, writes /foo/bar.json */
+async function writeMarkerSidecar(videoPath: string, warpData: WarpData, opts: {
+  videoName: string
+  exportFolder: string | null
+}): Promise<void> {
+  const jsonPath = videoPath.replace(/\.[^.]+$/, '.json')
+  await writeTextFile(jsonPath, buildMarkerJson(warpData, opts))
+}
+
 /** Extract parent folder from a file path (works with / and \) */
 function parentFolder(filePath: string): string {
   const norm = filePath.replace(/\\/g, '/')
@@ -98,14 +115,11 @@ function parentFolder(filePath: string): string {
 export default function ExportDialog({
   open, onClose, warpData, videoPath, originalName, videoFps,
   loopBeats, addToEnd, trimToLoop, regions, activeRegionId,
-  selectedClipIds, openOnLogTab, initialLogJobId,
+  selectedClipIds,
 }: ExportDialogProps) {
-  const [activeTab, setActiveTab] = useState<'export' | 'log'>('export')
-  const [selectedLogJobId, setSelectedLogJobId] = useState<string | null>(null)
-
   const [fadeAtLoop, setFadeAtLoop] = useState(false)
   const [interpolateFrames, setInterpolateFrames] = useState(false)
-  const [interpMethod, setInterpMethod] = useState<InterpMethod>('rife')
+  const [interpMethod, setInterpMethod] = useState<InterpMethod>('minterpolate')
   const [interpFps, setInterpFps] = useState(() => Math.round(videoFps ?? 60))
   const [normalizeBpm, setNormalizeBpm] = useState(false)
   const [normBpmTarget, setNormBpmTarget] = useState(120)
@@ -119,7 +133,12 @@ export default function ExportDialog({
   const [currentJobIdx, setCurrentJobIdx] = useState(0)
   const [totalJobs, setTotalJobs] = useState(0)
   const [currentMessage, setCurrentMessage] = useState('')
+  const [logLines, setLogLines] = useState<string[]>([])
+  const [outputPaths, setOutputPaths] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [savedCount, setSavedCount] = useState(0)
+  const [savedFolder, setSavedFolder] = useState<string | null>(null)
   const unlistenRef = useRef<UnlistenFn | null>(null)
   const cancelRef = useRef(false)
   const logRef = useRef<HTMLDivElement>(null)
@@ -135,7 +154,6 @@ export default function ExportDialog({
 
   const reduxDispatch = useAppDispatch()
   const lastExportFolder = useAppSelector(s => s.ui.lastExportFolder)
-  const allJobs = useAppSelector(s => s.jobs.jobs)
   const detectedSceneCuts = useAppSelector(s => (videoPath ? s.scene?.cutsByPath?.[videoPath] ?? [] : []))
   const userSceneCuts = useAppSelector(s => (videoPath ? s.scene?.userCutsByPath?.[videoPath] ?? [] : []))
   const sceneMinGap = useAppSelector(s => (videoPath ? s.scene?.minGapByPath?.[videoPath] : undefined)) ?? 2
@@ -152,49 +170,66 @@ export default function ExportDialog({
   const [namePattern, setNamePattern] = useState('{stem}_clip{n}_{bpm}bpm_{beats}b')
   const baseName = originalName.replace(/\.[^.]+$/, '')  // stem of source video
 
-  // Auto-select the most recent job when the Log tab is shown and no job is selected
-  const selectedLogJob = allJobs.find(j => j.id === selectedLogJobId) ?? allJobs[0] ?? null
-
   useEffect(() => {
-    if (!open) return
-    // Always honour the caller's tab preference — right-click Export must land
-    // on the Export tab even if a job is still running in the background.
-    setActiveTab(openOnLogTab ? 'log' : 'export')
-    if (openOnLogTab && initialLogJobId) setSelectedLogJobId(initialLogJobId)
-
-    // Do not reset the rest of the state while a background export is running —
-    // the user may be reopening the dialog to see its progress.
-    if (status === 'processing') return
-    setStatus('idle')
-    setProgress(0)
-    setError(null)
-    setCurrentJobIdx(0)
-    setTotalJobs(0)
-    setCurrentMessage('')
-    cancelRef.current = false
-    // Prefer the timeline's clip selection when the dialog opens: switch
-    // into 'selected' mode and pre-check exactly those ids. Filter by the
-    // live regions list so stale ids can't end up in the checked set. If
-    // nothing is selected, fall back to the old default (every region
-    // checked, caller picks a mode).
-    const preSelected = (selectedClipIds ?? [])
-      .filter(id => regions.some(r => r.id === id))
-    if (preSelected.length > 0) {
-      setMode('selected')
-      setSelectedRegionIds(new Set(preSelected))
-    } else {
-      setSelectedRegionIds(new Set(regions.map(r => r.id)))
+    // Do not reset if a background export is in progress — the user may be
+    // reopening the dialog to see its progress.
+    if (open && status !== 'processing') {
+      setStatus('idle')
+      setProgress(0)
+      setError(null)
+      setOutputPaths([])
+      setSavedCount(0)
+      setSavedFolder(null)
+      setCurrentJobIdx(0)
+      setTotalJobs(0)
+      setCurrentMessage('')
+      setLogLines([])
+      cancelRef.current = false
+      // Prefer the timeline's clip selection when the dialog opens: switch
+      // into 'selected' mode and pre-check exactly those ids. Filter by the
+      // live regions list so stale ids can't end up in the checked set. If
+      // nothing is selected, fall back to the old default (every region
+      // checked, caller picks a mode).
+      const preSelected = (selectedClipIds ?? [])
+        .filter(id => regions.some(r => r.id === id))
+      if (preSelected.length > 0) {
+        setMode('selected')
+        setSelectedRegionIds(new Set(preSelected))
+      } else {
+        setSelectedRegionIds(new Set(regions.map(r => r.id)))
+      }
+      setInterpFps(Math.round(videoFps ?? 60))
     }
-    setInterpFps(Math.round(videoFps ?? 60))
   }, [open, regions, videoFps, selectedClipIds]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => () => { unlistenRef.current?.() }, [])
+
+  // Mirror local processing state into Redux so the top-right progress bar can
+  // render it while this dialog is closed.
+  useEffect(() => {
+    reduxDispatch(setExportProgress({
+      status,
+      progress,
+      label: currentJobLabel,
+      jobIdx: currentJobIdx,
+      totalJobs,
+      message: currentMessage,
+      error,
+    }))
+  }, [status, progress, currentJobLabel, currentJobIdx, totalJobs, currentMessage, error, reduxDispatch])
+
+  // Clear redux progress once the user dismisses the dialog after a finished run.
+  useEffect(() => {
+    if (!open && (status === 'done' || status === 'error' || status === 'idle')) {
+      reduxDispatch(resetExportProgress())
+    }
+  }, [open, status, reduxDispatch])
 
   // Auto-scroll the log to the latest line as it grows.
   useEffect(() => {
     const el = logRef.current
     if (el) el.scrollTop = el.scrollHeight
-  }, [selectedLogJob?.logs.length])
+  }, [logLines])
 
   useEffect(() => {
     if (!open) return
@@ -285,17 +320,17 @@ export default function ExportDialog({
     const jobs = buildJobs()
     setStatus('processing')
     setTotalJobs(jobs.length)
+    setOutputPaths([])
     setError(null)
+    setSavedFolder(destFolder)
+    setSavedCount(0)
+    setLogLines([])
     setCurrentMessage('')
     cancelRef.current = false
 
-    // Switch to Log tab immediately so the user can see progress
-    setActiveTab('log')
-
+    const results: string[] = []
+    let savedSoFar = 0
     let firstError: string | null = null
-    // Once a job errors we lock the log view on it — subsequent jobs starting
-    // should not override the selection so the operator can see the failure.
-    let erroredJobId: string | null = null
 
     for (let i = 0; i < jobs.length; i++) {
       if (cancelRef.current) break
@@ -304,6 +339,9 @@ export default function ExportDialog({
       setCurrentJobLabel(job.label)
       setProgress(0)
       setCurrentMessage('')
+      if (jobs.length > 1) {
+        setLogLines(prev => [...prev, `── ${job.label} (${i + 1}/${jobs.length}) ──`])
+      }
 
       try {
         const jobId = await startWarp(buildWarpRequest({
@@ -319,9 +357,6 @@ export default function ExportDialog({
           sceneCuts,
           audioMode,
         }))
-        reduxDispatch(addJobAction({ id: jobId, kind: 'warp', label: job.label }))
-        // Auto-select each new job unless a previous one errored (keep that visible).
-        if (!erroredJobId) setSelectedLogJobId(jobId)
 
         const outputPath = await new Promise<string>((resolve, reject) => {
           listenWarpProgress(payload => {
@@ -330,36 +365,45 @@ export default function ExportDialog({
             const msg = payload.message
             if (msg) {
               setCurrentMessage(msg)
-              reduxDispatch(updateJob({ id: jobId, progress: payload.percent, message: msg }))
+              // Dedupe consecutive duplicate messages — the backend can emit
+              // the same label many times per stage (e.g. per RIFE frame).
+              setLogLines(prev =>
+                prev.length > 0 && prev[prev.length - 1] === msg ? prev : [...prev, msg]
+              )
             }
             if (payload.status === 'done' && payload.output_path) {
               unlistenRef.current?.()
-              reduxDispatch(updateJob({ id: jobId, status: 'done', progress: 1 }))
               resolve(payload.output_path)
             }
             if (payload.status === 'error') {
               unlistenRef.current?.()
-              const errMsg = payload.error ?? 'Unknown error'
-              reduxDispatch(updateJob({ id: jobId, status: 'error', error: errMsg, message: errMsg }))
-              erroredJobId = jobId
-              setSelectedLogJobId(jobId)
-              reject(new Error(errMsg))
+              reject(new Error(payload.error ?? 'Unknown error'))
             }
           }).then(ul => { unlistenRef.current = ul })
         })
 
+        results.push(outputPath)
+        setOutputPaths([...results])
+
+        // Land the rendered file in the destination folder immediately, before
+        // moving on to the next render. Earlier behavior queued every clip and
+        // copied them only after the full batch finished, which delayed
+        // visibility (and lost everything if a later clip aborted the run).
         if (destFolder) {
           try {
             await saveToFolder({ source_path: outputPath, dest_folder: destFolder, file_name: getFileName(job, i) })
-            reduxDispatch(updateJob({ id: jobId, outputFolder: destFolder }))
+            savedSoFar += 1
+            setSavedCount(savedSoFar)
           } catch (e: any) {
             const msg = `${job.label} (save): ${e.message ?? String(e)}`
             if (!firstError) firstError = msg
+            setLogLines(prev => [...prev, `ERROR — ${msg}`])
           }
         }
       } catch (e: any) {
         const msg = `${job.label}: ${e.message ?? String(e)}`
         if (!firstError) firstError = msg
+        setLogLines(prev => [...prev, `ERROR — ${msg}`])
         // Continue with the remaining jobs — earlier successes stay saved.
       }
     }
@@ -374,6 +418,54 @@ export default function ExportDialog({
     }
   }
 
+  const handleSaveOne = async (idx: number) => {
+    const path = outputPaths[idx]
+    if (!path) return
+    setSaving(true)
+    try {
+      const jobs = buildJobs()
+      const fileName = getFileName(jobs[idx], idx)
+      let savedPath: string
+      if (destFolder) {
+        savedPath = await saveToFolder({ source_path: path, dest_folder: destFolder, file_name: fileName })
+      } else {
+        savedPath = await saveOutput({ source_path: path, suggested_name: fileName })
+      }
+      if (warpData) await writeMarkerSidecar(savedPath, warpData, { videoName: originalName, exportFolder: destFolder })
+      setSavedCount(prev => prev + 1)
+      setSavedFolder(parentFolder(savedPath))
+    } catch (e: any) {
+      if (!String(e).includes('cancelled')) setError(e.message ?? String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveAll = async () => {
+    setSaving(true)
+    try {
+      const jobs = buildJobs()
+      let lastFolder: string | null = null
+      for (let i = 0; i < outputPaths.length; i++) {
+        const fileName = getFileName(jobs[i], i)
+        let savedPath: string
+        if (destFolder) {
+          savedPath = await saveToFolder({ source_path: outputPaths[i], dest_folder: destFolder, file_name: fileName })
+        } else {
+          savedPath = await saveOutput({ source_path: outputPaths[i], suggested_name: fileName })
+        }
+        if (warpData) await writeMarkerSidecar(savedPath, warpData, { videoName: originalName, exportFolder: destFolder })
+        lastFolder = parentFolder(savedPath)
+      }
+      setSavedCount(outputPaths.length)
+      if (lastFolder) setSavedFolder(lastFolder)
+    } catch (e: any) {
+      if (!String(e).includes('cancelled')) setError(e.message ?? String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handlePickFolder = async () => {
     try {
       const folder = await pickExportFolder()
@@ -383,11 +475,15 @@ export default function ExportDialog({
     }
   }
 
-  // Close hides the dialog but leaves any in-flight processing running in the background.
+  // Close hides the dialog but leaves any in-flight processing running in the
+  // background (progress is mirrored to Redux and shown in the top-right bar).
   const handleClose = () => {
     onClose()
   }
 
+  const handleCancel = () => {
+    cancelRef.current = true
+  }
 
   const toggleRegion = (id: string) => {
     setSelectedRegionIds(prev => {
@@ -399,7 +495,7 @@ export default function ExportDialog({
   }
 
   // Keep the dialog mounted so processing survives close. Hide via CSS when
-  // !open; this preserves local state (listener refs, cancelRef).
+  // !open; this preserves local state (log lines, listener refs, cancelRef).
   const hasRegions = regions.length > 0
   const jobs = buildJobs()
   const previewName = jobs.length > 0 ? getFileName(jobs[0], 0) : ''
@@ -418,318 +514,302 @@ export default function ExportDialog({
       <div className="export-dialog">
 
         <div className="export-dialog__header">
-          <div className="export-dialog__tabs">
-            <button
-              type="button"
-              className={`export-dialog__tab${activeTab === 'export' ? ' export-dialog__tab--active' : ''}`}
-              onClick={() => {
-                setActiveTab('export')
-                if (status === 'done' || status === 'error') setStatus('idle')
-              }}
-            >
-              Export
-            </button>
-            <button
-              type="button"
-              className={`export-dialog__tab${activeTab === 'log' ? ' export-dialog__tab--active' : ''}`}
-              onClick={() => setActiveTab('log')}
-            >
-              Log
-            </button>
-          </div>
+          <span className="export-dialog__title">Export</span>
           <div className="export-dialog__header-actions">
+            {status === 'processing' && (
+              <button
+                className="export-dialog__close"
+                onClick={handleCancel}
+                title="Stop processing"
+              >
+                Cancel
+              </button>
+            )}
             <button className="export-dialog__close" onClick={handleClose} title="Close">
               ✕
             </button>
           </div>
         </div>
 
-        {activeTab === 'export' && (
-          <div className="export-dialog__body">
+        <div className="export-dialog__body">
 
-            {/* Clip mode selector */}
-            {hasRegions && (
-              <div className="export-dialog__modes">
+          {/* Clip mode selector */}
+          {hasRegions && status === 'idle' && (
+            <div className="export-dialog__modes">
+              <button
+                className={`export-dialog__mode${mode === 'current' ? ' export-dialog__mode--active' : ''}`}
+                onClick={() => setMode('current')}
+                title={activeRegion ? activeRegion.name : 'No Clip'}
+              >
+                {activeRegion ? activeRegion.name : 'No Clip'}
+              </button>
+              <button
+                className={`export-dialog__mode${mode === 'all' ? ' export-dialog__mode--active' : ''}`}
+                onClick={() => setMode('all')}
+                aria-label="All Clips"
+              >
+                All ({regions.length})
+              </button>
+              <button
+                className={`export-dialog__mode${mode === 'selected' ? ' export-dialog__mode--active' : ''}`}
+                onClick={() => setMode('selected')}
+              >
+                Select
+              </button>
+            </div>
+          )}
+
+          {/* Clip selector */}
+          {mode === 'selected' && status === 'idle' && (
+            <div className="export-dialog__clip-list">
+              {regions.map(r => (
+                <label key={r.id} className="export-dialog__clip-item">
+                  <input
+                    type="checkbox"
+                    checked={selectedRegionIds.has(r.id)}
+                    onChange={() => toggleRegion(r.id)}
+                  />
+                  <span className="export-dialog__clip-name">{r.name}</span>
+                  <span className="export-dialog__clip-bpm">{Math.round(r.bpm)}</span>
+                </label>
+              ))}
+            </div>
+          )}
+
+          {/* Output folder + name pattern */}
+          {status === 'idle' && (
+            <div className="export-dialog__output">
+              <div className="export-dialog__row">
+                <span className="export-dialog__row-label">Folder</span>
+                <input
+                  className="export-dialog__folder-input"
+                  value={destFolder ?? ''}
+                  onChange={e => reduxDispatch(setLastExportFolder(e.target.value || null))}
+                  placeholder="Choose folder…"
+                  spellCheck={false}
+                />
                 <button
-                  className={`export-dialog__mode${mode === 'current' ? ' export-dialog__mode--active' : ''}`}
-                  onClick={() => setMode('current')}
-                  title={activeRegion ? activeRegion.name : 'No Clip'}
-                >
-                  {activeRegion ? activeRegion.name : 'No Clip'}
-                </button>
-                <button
-                  className={`export-dialog__mode${mode === 'all' ? ' export-dialog__mode--active' : ''}`}
-                  onClick={() => setMode('all')}
-                  aria-label="All Clips"
-                >
-                  All ({regions.length})
-                </button>
-                <button
-                  className={`export-dialog__mode${mode === 'selected' ? ' export-dialog__mode--active' : ''}`}
-                  onClick={() => setMode('selected')}
-                >
-                  Select
-                </button>
+                  className="export-dialog__folder-browse"
+                  onClick={handlePickFolder}
+                  title="Browse…"
+                >…</button>
+                {lastExportFolder && (
+                  <button className="export-dialog__folder-clear" onClick={() => reduxDispatch(setLastExportFolder(null))} title="Reset to video folder">✕</button>
+                )}
               </div>
-            )}
-
-            {/* Clip selector */}
-            {mode === 'selected' && (
-              <div className="export-dialog__clip-list">
-                {regions.map(r => (
-                  <label key={r.id} className="export-dialog__clip-item">
-                    <input
-                      type="checkbox"
-                      checked={selectedRegionIds.has(r.id)}
-                      onChange={() => toggleRegion(r.id)}
-                    />
-                    <span className="export-dialog__clip-name">{r.name}</span>
-                    <span className="export-dialog__clip-bpm">{Math.round(r.bpm)}</span>
-                  </label>
+              <div className="export-dialog__row">
+                <span className="export-dialog__row-label">Name</span>
+                <input
+                  className="export-dialog__pattern"
+                  aria-label="Filename Pattern"
+                  value={namePattern}
+                  onChange={e => setNamePattern(e.target.value)}
+                  spellCheck={false}
+                />
+              </div>
+              <div className="export-dialog__preview">{previewName}</div>
+              <div className="export-dialog__tokens">
+                {['{name}', '{stem}', '{bpm}', '{beats}', '{in}', '{out}', '{n}'].map(t => (
+                  <button
+                    key={t}
+                    className="export-dialog__token"
+                    onClick={() => setNamePattern(p => p + t)}
+                  >{t}</button>
                 ))}
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Output folder + name pattern */}
-            {(
-              <div className="export-dialog__output">
-                <div className="export-dialog__row">
-                  <span className="export-dialog__row-label">Folder</span>
+          {/* Options */}
+          {status === 'idle' && (
+            <div className="export-dialog__options">
+              {addToEnd && (
+                <label className="export-dialog__check">
+                  <input type="checkbox" checked={fadeAtLoop} onChange={e => setFadeAtLoop(e.target.checked)} />
+                  Fade at loop
+                </label>
+              )}
+              <div className="export-dialog__audio">
+                <label className="export-dialog__check">
                   <input
-                    className="export-dialog__folder-input"
-                    value={destFolder ?? ''}
-                    onChange={e => reduxDispatch(setLastExportFolder(e.target.value || null))}
-                    placeholder="Choose folder…"
-                    spellCheck={false}
+                    type="checkbox"
+                    checked={includeAudio}
+                    onChange={e => setIncludeAudio(e.target.checked)}
                   />
-                  <button
-                    className="export-dialog__folder-browse"
-                    onClick={handlePickFolder}
-                    title="Browse…"
-                  >…</button>
-                  {lastExportFolder && (
-                    <button className="export-dialog__folder-clear" onClick={() => reduxDispatch(setLastExportFolder(null))} title="Reset to video folder">✕</button>
-                  )}
-                </div>
-                <div className="export-dialog__row">
-                  <span className="export-dialog__row-label">Name</span>
-                  <input
-                    className="export-dialog__pattern"
-                    aria-label="Filename Pattern"
-                    value={namePattern}
-                    onChange={e => setNamePattern(e.target.value)}
-                    spellCheck={false}
-                  />
-                </div>
-                <div className="export-dialog__preview">{previewName}</div>
-                <div className="export-dialog__tokens">
-                  {['{name}', '{stem}', '{bpm}', '{beats}', '{in}', '{out}', '{n}'].map(t => (
-                    <button
-                      key={t}
-                      className="export-dialog__token"
-                      onClick={() => setNamePattern(p => p + t)}
-                    >{t}</button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Options */}
-            {(
-              <div className="export-dialog__options">
-                {addToEnd && (
-                  <label className="export-dialog__check">
-                    <input type="checkbox" checked={fadeAtLoop} onChange={e => setFadeAtLoop(e.target.checked)} />
-                    Fade at loop
+                  Include Audio
+                </label>
+                {includeAudio && (
+                  <label
+                    className="export-dialog__check export-dialog__audio-sub"
+                    title="When on, audio pitches up/down with the video speed (asetrate). When off, atempo preserves pitch."
+                  >
+                    <input
+                      type="checkbox"
+                      checked={pitchAudio}
+                      onChange={e => setPitchAudio(e.target.checked)}
+                    />
+                    Pitch with speed
                   </label>
                 )}
-                <div className="export-dialog__audio">
-                  <label className="export-dialog__check">
-                    <input
-                      type="checkbox"
-                      checked={includeAudio}
-                      onChange={e => setIncludeAudio(e.target.checked)}
-                    />
-                    Include Audio
-                  </label>
-                  {includeAudio && (
-                    <label
-                      className="export-dialog__check export-dialog__audio-sub"
-                      title="When on, audio pitches up/down with the video speed (asetrate). When off, atempo preserves pitch."
-                    >
-                      <input
-                        type="checkbox"
-                        checked={pitchAudio}
-                        onChange={e => setPitchAudio(e.target.checked)}
-                      />
-                      Pitch with speed
-                    </label>
-                  )}
-                </div>
-                <div className="export-dialog__norm-row">
-                  <label className="export-dialog__check">
-                    <input type="checkbox" checked={normalizeBpm} onChange={e => setNormalizeBpm(e.target.checked)} />
-                    Normalize to
-                  </label>
-                  {normalizeBpm && (
-                    <input
-                      className="export-dialog__norm-bpm"
-                      type="number" min={1} max={999} step={1}
-                      value={normBpmTarget}
-                      onChange={e => setNormBpmTarget(Number(e.target.value))}
-                    />
-                  )}
-                  {normalizeBpm && <span className="export-dialog__norm-label">BPM</span>}
-                </div>
-                <div className="export-dialog__interp">
-                  <label className="export-dialog__check">
-                    <input
-                      type="checkbox"
-                      checked={interpolateFrames}
-                      onChange={e => setInterpolateFrames(e.target.checked)}
-                    />
-                    Interpolate Frames
-                  </label>
-                  {interpolateFrames && (
-                    <div className="export-dialog__interp-panel" aria-label="Interpolation Options">
-                      <label className="export-dialog__interp-field">
-                        <span className="export-dialog__interp-label">Method</span>
-                        <select
-                          className="export-dialog__interp-method"
-                          aria-label="Interpolation Method"
-                          value={interpMethod}
-                          onChange={e => setInterpMethod(e.target.value as InterpMethod)}
-                        >
-                          <option value="minterpolate">minterpolate</option>
-                          <option value="rife">RIFE</option>
-                        </select>
-                      </label>
-                      <label className="export-dialog__interp-field">
-                        <span className="export-dialog__interp-label">FPS</span>
-                        <input
-                          className="export-dialog__norm-bpm"
-                          aria-label="Target FPS"
-                          type="number" min={1} max={240} step={1}
-                          value={interpFps}
-                          onChange={e => setInterpFps(Number(e.target.value))}
-                        />
-                      </label>
-                    </div>
-                  )}
-                </div>
               </div>
-            )}
-
-          </div>
-        )}
-
-        {activeTab === 'log' && (
-          <div className="export-dialog__body">
-            {allJobs.length === 0 ? (
-              <div className="vj-empty-panel">No tasks yet</div>
-            ) : (
-              <>
-                <select
-                  className="export-dialog__job-select"
-                  value={selectedLogJob?.id ?? ''}
-                  onChange={e => setSelectedLogJobId(e.target.value)}
-                  aria-label="Select task"
-                >
-                  {allJobs.map(j => (
-                    <option key={j.id} value={j.id}>
-                      {j.label} — {j.status === 'running' ? `${Math.round(j.progress * 100)}%` : j.status}
-                    </option>
-                  ))}
-                </select>
-
-                {selectedLogJob && (
-                  <div className="export-dialog__log-detail">
-                    <div className="export-dialog__log-detail-head">
-                      <span className="export-dialog__log-detail-label">{selectedLogJob.label}</span>
-                      <span className={`export-dialog__log-detail-status export-dialog__log-detail-status--${selectedLogJob.status}`}>
-                        {selectedLogJob.status === 'running'
-                          ? `${Math.round(selectedLogJob.progress * 100)}%`
-                          : selectedLogJob.status}
-                      </span>
-                    </div>
-
-                    {selectedLogJob.status === 'running' && (
-                      <div className="export-dialog__progress">
-                        <div
-                          className="export-dialog__progress-fill"
-                          style={{ width: `${Math.max(2, Math.round(selectedLogJob.progress * 100))}%` }}
-                        />
-                      </div>
-                    )}
-
-                    {selectedLogJob.logs.length > 0 && (
-                      <div className="export-dialog__log" ref={logRef} aria-label="Export Log">
-                        {selectedLogJob.logs.map((line, i) => (
-                          <div key={i} className="export-dialog__log-line">{line}</div>
-                        ))}
-                      </div>
-                    )}
-
-                    {selectedLogJob.error && (
-                      <div className="export-dialog__error">{selectedLogJob.error}</div>
-                    )}
-
-                    <div className="export-dialog__log-actions">
-                      {selectedLogJob.outputFolder ? (
-                        <>
-                          <span className="export-dialog__saved-label">✓ Saved</span>
-                          <button
-                            type="button"
-                            className="export-dialog__open-folder"
-                            onClick={() => revealInFolder(selectedLogJob.outputFolder!)}
-                            title={selectedLogJob.outputFolder}
-                          >
-                            Show in Folder
-                          </button>
-                        </>
-                      ) : selectedLogJob.status === 'running' && destFolder ? (
-                        <button
-                          type="button"
-                          className="export-dialog__open-folder"
-                          onClick={() => revealInFolder(destFolder)}
-                          title={destFolder}
-                        >
-                          Show Folder
-                        </button>
-                      ) : selectedLogJob.status === 'done' && (
-                        <span className="export-dialog__saved-label export-dialog__saved-label--pending">Not saved</span>
-                      )}
-                      {selectedLogJob.status === 'running' ? (
-                        <button
-                          type="button"
-                          className="export-dialog__btn-secondary"
-                          onClick={() => reduxDispatch(cancelJobThunk(selectedLogJob.id))}
-                        >
-                          Cancel
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="export-dialog__btn-secondary"
-                          onClick={() => reduxDispatch(removeJob(selectedLogJob.id))}
-                        >
-                          Dismiss
-                        </button>
-                      )}
-                    </div>
+              <div className="export-dialog__norm-row">
+                <label className="export-dialog__check">
+                  <input type="checkbox" checked={normalizeBpm} onChange={e => setNormalizeBpm(e.target.checked)} />
+                  Normalize to
+                </label>
+                {normalizeBpm && (
+                  <input
+                    className="export-dialog__norm-bpm"
+                    type="number" min={1} max={999} step={1}
+                    value={normBpmTarget}
+                    onChange={e => setNormBpmTarget(Number(e.target.value))}
+                  />
+                )}
+                {normalizeBpm && <span className="export-dialog__norm-label">BPM</span>}
+              </div>
+              <div className="export-dialog__interp">
+                <label className="export-dialog__check">
+                  <input
+                    type="checkbox"
+                    checked={interpolateFrames}
+                    onChange={e => setInterpolateFrames(e.target.checked)}
+                  />
+                  Interpolate Frames
+                </label>
+                {interpolateFrames && (
+                  <div className="export-dialog__interp-panel" aria-label="Interpolation Options">
+                    <label className="export-dialog__interp-field">
+                      <span className="export-dialog__interp-label">Method</span>
+                      <select
+                        className="export-dialog__interp-method"
+                        aria-label="Interpolation Method"
+                        value={interpMethod}
+                        onChange={e => setInterpMethod(e.target.value as InterpMethod)}
+                      >
+                        <option value="minterpolate">minterpolate</option>
+                        <option value="rife">RIFE</option>
+                      </select>
+                    </label>
+                    <label className="export-dialog__interp-field">
+                      <span className="export-dialog__interp-label">FPS</span>
+                      <input
+                        className="export-dialog__norm-bpm"
+                        aria-label="Target FPS"
+                        type="number" min={1} max={240} step={1}
+                        value={interpFps}
+                        onChange={e => setInterpFps(Number(e.target.value))}
+                      />
+                    </label>
                   </div>
                 )}
-              </>
-            )}
-          </div>
-        )}
+              </div>
+            </div>
+          )}
 
-        {activeTab === 'export' && (
-          <div className="export-dialog__footer">
+          {/* Processing status */}
+          {(status === 'processing' || logLines.length > 0) && (
+            <div className="export-dialog__job-info">
+              {totalJobs > 1 ? `${currentJobLabel} (${currentJobIdx + 1}/${totalJobs})` : currentJobLabel}
+            </div>
+          )}
+
+          {/* Output log — persists after processing so user can review */}
+          {logLines.length > 0 && (
+            <div className="export-dialog__log" ref={logRef} aria-label="Export Log">
+              {logLines.map((line, i) => (
+                <div key={i} className="export-dialog__log-line">{line}</div>
+              ))}
+            </div>
+          )}
+
+        </div>
+
+        <div className="export-dialog__footer">
+          {status === 'error' && (
+            <span className="export-dialog__error" title={error ?? ''}>{error}</span>
+          )}
+
+          {status === 'processing' ? (
+            <div className="export-dialog__progress-wrap">
+              <div className="export-dialog__progress-text">
+                <span className="export-dialog__progress-pct">
+                  {Math.round(((currentJobIdx + progress) / Math.max(totalJobs, 1)) * 100)}%
+                </span>
+                {currentMessage && (
+                  <span className="export-dialog__progress-msg" title={currentMessage}>
+                    {currentMessage}
+                  </span>
+                )}
+                {savedFolder && (
+                  <button
+                    className="export-dialog__open-folder"
+                    onClick={() => revealInFolder(savedFolder)}
+                    title={savedFolder}
+                  >
+                    Show Folder
+                  </button>
+                )}
+              </div>
+              <div className="export-dialog__progress">
+                <div
+                  className="export-dialog__progress-fill"
+                  style={{ width: `${((currentJobIdx + progress) / Math.max(totalJobs, 1)) * 100}%` }}
+                />
+              </div>
+            </div>
+          ) : status === 'done' && outputPaths.length > 0 ? (
+            <div className="export-dialog__results">
+              {outputPaths.length === 1 ? (
+                <div className="export-dialog__results-row">
+                  <button className="export-dialog__save" onClick={() => handleSaveOne(0)} disabled={saving || savedCount > 0}>
+                    {saving ? '…' : savedCount > 0 ? '✓ Saved' : destFolder ? 'Save' : 'Save As…'}
+                  </button>
+                  {savedFolder && (
+                    <button
+                      className="export-dialog__open-folder"
+                      onClick={() => revealInFolder(savedFolder)}
+                      title={savedFolder}
+                    >
+                      Open Folder
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="export-dialog__results-row">
+                    <button className="export-dialog__save" onClick={handleSaveAll} disabled={saving || savedCount >= outputPaths.length}>
+                      {saving ? '…' : savedCount >= outputPaths.length ? `✓ All Saved` : `Save All (${outputPaths.length})`}
+                    </button>
+                    {savedFolder && (
+                      <button
+                        className="export-dialog__open-folder"
+                        onClick={() => revealInFolder(savedFolder)}
+                        title={savedFolder}
+                      >
+                        Open Folder
+                      </button>
+                    )}
+                  </div>
+                  <div className="export-dialog__result-list">
+                    {outputPaths.map((_, i) => (
+                      <button
+                        key={i}
+                        className="export-dialog__result-item"
+                        onClick={() => handleSaveOne(i)}
+                        disabled={saving}
+                      >
+                        {jobs[i]?.label ?? `Clip ${i + 1}`}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
             <button
               className="export-dialog__process"
               onClick={process}
-              disabled={!canProcess || status === 'processing' || (mode === 'selected' && selectedRegionIds.size === 0)}
+              disabled={!canProcess || (mode === 'selected' && selectedRegionIds.size === 0)}
             >
               {mode === 'all'
                 ? `Process ${regions.length}`
@@ -737,8 +817,8 @@ export default function ExportDialog({
                   ? `Process ${selectedRegionIds.size}`
                   : 'Process'}
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
       </div>
     </div>

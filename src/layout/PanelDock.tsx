@@ -18,7 +18,6 @@ import ScenesPanel from './panels/ScenesPanel'
 import MarkersPanel from './panels/MarkersPanel'
 import VideoInfoPanel from './panels/VideoInfoPanel'
 import AssistantPanelDock from './panels/AssistantPanel'
-import TasksPanel from './panels/TasksPanel'
 import CenterColumn from './CenterColumn'
 import DevRecorderPanel from '../components/DevRecorderPanel'
 
@@ -39,7 +38,6 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps>> =
   markers: () => <MarkersPanel />,
   'video-info': () => <VideoInfoPanel />,
   assistant: () => <AssistantPanelDock />,
-  tasks: () => <TasksPanel />,
   center: () => <CenterColumn />,
   ...(SHOW_THUMB_RECORDER ? { 'thumb-recorder': () => <DevRecorderPanel /> } : {}),
 }
@@ -52,14 +50,13 @@ const PANEL_TITLES: Record<string, string> = {
   markers: 'Anchors',
   'video-info': 'Video Info',
   assistant: 'Assistant',
-  tasks: 'Tasks',
   center: 'Player',
   ...(SHOW_THUMB_RECORDER ? { 'thumb-recorder': 'Thumb Recorder' } : {}),
 }
 
-const SIDE_PANEL_IDS = ['files', 'clips', 'clip-info', 'scenes', 'markers', 'video-info', 'assistant', 'tasks'] as const
+const SIDE_PANEL_IDS = ['files', 'clips', 'clip-info', 'scenes', 'markers', 'video-info', 'assistant'] as const
 
-// Bumped to v6 to add Assistant to the NE group alongside scenes/markers/tasks.
+// Bumped to v6 to add Assistant to the NE group alongside scenes/markers.
 const STORAGE_KEY = 'lockstep:panel-layout:v7'
 
 /**
@@ -103,11 +100,6 @@ function buildDefaultLayout(api: DockviewApi) {
   })
   api.addPanel({
     id: 'markers', component: 'markers', title: PANEL_TITLES.markers,
-    position: { referencePanel: 'scenes' },
-    inactive: true,
-  })
-  api.addPanel({
-    id: 'tasks', component: 'tasks', title: PANEL_TITLES.tasks,
     position: { referencePanel: 'scenes' },
     inactive: true,
   })

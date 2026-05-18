@@ -15,7 +15,6 @@ import sceneReducer from '../../src/store/slices/sceneSlice'
 import thumbnailsReducer from '../../src/store/slices/thumbnailsSlice'
 import settingsReducer from '../../src/store/slices/settingsSlice'
 import listsReducer from '../../src/store/slices/listsSlice'
-import jobsReducer from '../../src/store/slices/jobsSlice'
 import dragReducer from '../../src/store/slices/dragSlice'
 import dragCtxReducer from '../../src/store/slices/dragCtxSlice'
 import { persistenceMiddleware } from '../../src/store/middleware/persistenceMiddleware'
@@ -36,7 +35,6 @@ export function makeStore() {
       thumbnails: thumbnailsReducer,
       settings: settingsReducer,
       lists: listsReducer,
-      jobs: jobsReducer,
       drag: dragReducer,
       dragCtx: dragCtxReducer,
     },

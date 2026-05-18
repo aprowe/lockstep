@@ -103,7 +103,6 @@ fn run_warp(interp_fps: Option<u32>) -> PathBuf {
         &warp_opts(interp_fps),
         out.to_str().unwrap(),
         &|_p, _m| {},
-        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
     )
     .expect("remap_video");
     out
@@ -153,7 +152,6 @@ fn rife_method_produces_constant_target_fps_output() {
         &opts,
         out.to_str().unwrap(),
         &|_p, _m| {},
-        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
     )
     .expect("remap_video with RIFE");
 

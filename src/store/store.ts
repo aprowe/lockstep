@@ -8,7 +8,6 @@ import sceneReducer from './slices/sceneSlice'
 import thumbnailsReducer from './slices/thumbnailsSlice'
 import settingsReducer from './slices/settingsSlice'
 import listsReducer from './slices/listsSlice'
-import jobsReducer from './slices/jobsSlice'
 import dragReducer from './slices/dragSlice'
 import dragCtxReducer from './slices/dragCtxSlice'
 import { persistenceMiddleware } from './middleware/persistenceMiddleware'
@@ -28,7 +27,6 @@ export const store = configureStore({
     thumbnails: thumbnailsReducer,
     settings: settingsReducer,
     lists: listsReducer,
-    jobs: jobsReducer,
     drag: dragReducer,
     dragCtx: dragCtxReducer,
   },

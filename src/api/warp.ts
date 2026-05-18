@@ -46,13 +46,6 @@ export async function startWarp(req: WarpRequest): Promise<string> {
   return invoke<string>('start_warp', { req })
 }
 
-/** Asks the backend to abort the warp job with `job_id`. The worker checks
- *  the cancel flag at stage boundaries inside `remap_video`, so the actual
- *  termination may lag by up to one stage. */
-export async function cancelWarp(jobId: string): Promise<void> {
-  return invoke<void>('cancel_warp', { jobId })
-}
-
 /** Listen for warp progress events. Call the returned function to stop listening. */
 export function listenWarpProgress(
   cb: (payload: WarpProgressPayload) => void,

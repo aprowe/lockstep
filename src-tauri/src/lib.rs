@@ -44,7 +44,6 @@ pub fn run() {
         })
         .manage(thumbnails::ThumbnailsState::new())
         .manage(commands::SceneDetectionState::default())
-        .manage(commands::WarpJobsState::default())
         .invoke_handler(tauri::generate_handler![
             commands::open_video,
             commands::open_folder,
@@ -52,7 +51,6 @@ pub fn run() {
             commands::load_video,
             commands::analyze_anchors,
             commands::start_warp,
-            commands::cancel_warp,
             commands::start_diagnostic,
             commands::save_output,
             commands::pick_export_folder,

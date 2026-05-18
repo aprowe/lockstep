@@ -3,8 +3,6 @@
 //! and the legacy constant-fps `interpolate_video` helper which aren't part of
 //! the warp pipeline proper.
 
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use tempfile::TempDir;
 
 use crate::ffmpeg::{audio_sample_rate, video_duration};
@@ -14,21 +12,6 @@ use crate::pipeline::{
     segments::{concat_segments, encode_segments, plan_segments},
     time_map::build_time_map,
 };
-
-/// Sentinel error string the warp commands look for to distinguish a user
-/// cancel from a genuine pipeline failure. Kept as a single constant so the
-/// stage-boundary checks below can't drift apart from the matcher in
-/// `commands::start_warp`.
-pub const CANCELLED: &str = "cancelled";
-
-#[inline]
-fn check_cancel(flag: &AtomicBool) -> Result<(), String> {
-    if flag.load(Ordering::Relaxed) {
-        Err(CANCELLED.into())
-    } else {
-        Ok(())
-    }
-}
 
 // Backward-compat re-exports: callers (commands, cli, tests) import these via
 // `crate::processor::`. Keep the surface stable during refactors.
@@ -112,15 +95,12 @@ pub fn remap_video<F>(
     opts: &WarpOptions,
     output_path: &str,
     progress: &F,
-    cancel: Arc<AtomicBool>,
 ) -> Result<(), String>
 where
     F: Fn(f64, &str) + Send,
 {
     progress(0.0, &format!("Input: {input_path}"));
     progress(0.0, &format!("Output (temp): {output_path}"));
-
-    check_cancel(&cancel)?;
 
     // ── Stage 1: Time map ──
     let duration = video_duration(input_path)?;
@@ -168,8 +148,6 @@ where
         && matches!(opts.interp_method, InterpMethod::Rife)
         && opts.interp_fps.is_some();
 
-    check_cancel(&cancel)?;
-
     if use_rife {
         progress(0.05, "RIFE mode: skipping segment encode + concat");
         let fps = opts.interp_fps.unwrap();
@@ -201,14 +179,10 @@ where
             progress,
         )?;
 
-        check_cancel(&cancel)?;
-
         // ── Stage 3: Concat ──
         progress(0.82, &format!("Concat target: {output_path}"));
         concat_segments(&segment_files, tmp_path, output_path, progress)?;
     }
-
-    check_cancel(&cancel)?;
 
     // ── Stage 5: Post-processing ──
     let first_beat_time = opts.beat_times.iter().copied().reduce(f64::min).unwrap_or(0.0);
