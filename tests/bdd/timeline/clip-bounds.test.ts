@@ -2208,10 +2208,10 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
   // Fixture: { inBeatTime:0, outBeatTime:10, bpm:120, lockedBeats:20 }.
   // applyBeatsEdit({ newLockedBeats:10, stretch:false })
   // Grid model: length=10 stays; bpm = 60 × 10 / 10 = 60. lockedBeats becomes 10.
-  Scenario('Direct beats edit uses the grid model (length stays, BPM absorbs)', ({ Given, When, Then, And }) => {
+  Scenario('Direct beats edit changes length, BPM preserved (diverged: clipout only)', ({ Given, When, Then, And }) => {
     const store = makeStore()
 
-    Given('a region with BPM 120, lockedBeats 20, inBeatTime 0, outBeatTime 10', () => {
+    Given('a diverged region with BPM 120, lockedBeats 20, inBeatTime 0, outBeatTime 10', () => {
       store.dispatch(addRegion({
         id: 'r', name: 'r', inPoint: 5, outPoint: 15,
         bpm: 120, lockedBeats: 20,
@@ -2219,21 +2219,21 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
         inBeatTime: 0, outBeatTime: 10, defaultLinked: false,
       }))
     })
-    When('applyBeatsEdit is dispatched with newLockedBeats 10 and stretch false', () => {
-      store.dispatch(applyBeatsEdit({ id: 'r', newLockedBeats: 10, stretch: false }))
+    When('applyBeatsEdit is dispatched with newLockedBeats 10', () => {
+      store.dispatch(applyBeatsEdit({ id: 'r', newLockedBeats: 10 }))
     })
     Then('lockedBeats becomes 10', () => {
       expect(store.getState().region.regions[0].lockedBeats).toBe(10)
     })
-    And('BPM becomes 60', () => {
-      expect(store.getState().region.regions[0].bpm).toBeCloseTo(60, 6)
+    And('BPM is preserved (120)', () => {
+      expect(store.getState().region.regions[0].bpm).toBe(120)
     })
-    And('clipout length stays at 10', () => {
+    And('clipout length shrinks to 5 (10 beats × 60 / 120)', () => {
       const r = store.getState().region.regions[0]
       const len = r.outBeatTime - r.inBeatTime
-      expect(len).toBe(10)
+      expect(len).toBeCloseTo(5, 6)
     })
-    And('inPoint and outPoint stay unchanged', () => {
+    And('inPoint and outPoint stay unchanged (diverged region)', () => {
       const r = store.getState().region.regions[0]
       expect(r.inPoint).toBe(5)
       expect(r.outPoint).toBe(15)

@@ -309,16 +309,19 @@ describe('applyBpmEdit', () => {
 // ── applyBeatsEdit ───────────────────────────────────────────────────────────
 
 describe('applyBeatsEdit', () => {
-  it('grid mode: length stays, bpm recomputes from new lockedBeats', () => {
+  it('length changes to fit new beat count; bpm is preserved (diverged region: only clipout moves)', () => {
     const store = makeStore()
     seedRegion(store, makeRegion({
       inBeatTime: 0, outBeatTime: 10, bpm: 120, lockedBeats: 20,
+      // Explicit beat-space bounds → diverged.
+      defaultLinked: false,
     }))
+    // New 10 beats at 120 bpm = 5s length. outBeatTime: 0 → 5.
     store.dispatch(applyBeatsEdit({ id: 'r1', newLockedBeats: 10, stretch: false }))
     const r = activeRegion(store)!
     expect(r.lockedBeats).toBe(10)
-    expect(r.bpm).toBeCloseTo(60, 6)
-    expect(r.outBeatTime).toBe(10)
+    expect(r.bpm).toBe(120)
+    expect(r.outBeatTime).toBeCloseTo(5, 6)
   })
 
   it('stretch mode: length rescales, bpm stays', () => {
@@ -346,15 +349,22 @@ describe('applyBeatsEdit', () => {
     expect(after.lockedBeats).toBe(before.lockedBeats)
   })
 
-  it('default-linked region (no explicit inBeatTime/outBeatTime) falls back to inPoint/outPoint', () => {
+  it('default-linked region: BOTH clipin (outPoint) and clipout (outBeatTime) change to fit new beat count', () => {
     const store = makeStore()
     seedRegion(store, makeRegion({
-      inPoint: 0, outPoint: 10, bpm: 120, lockedBeats: 20,
+      inPoint: 0, outPoint: 10, inBeatTime: 0, outBeatTime: 10,
+      bpm: 120, lockedBeats: 20, defaultLinked: true,
     }))
+    // 10 beats × 60 / 120 = 5s length. inPoint stays at 0; outPoint and
+    // outBeatTime both move to 5.
     store.dispatch(applyBeatsEdit({ id: 'r1', newLockedBeats: 10, stretch: false }))
     const r = activeRegion(store)!
     expect(r.lockedBeats).toBe(10)
-    expect(r.bpm).toBeCloseTo(60, 6)
+    expect(r.bpm).toBe(120)
+    expect(r.outPoint).toBeCloseTo(5, 6)
+    expect(r.outBeatTime).toBeCloseTo(5, 6)
+    // defaultLinked preserved.
+    expect(r.defaultLinked).toBe(true)
   })
 
   it('stretch mode: inBeatTime defaults to inPoint when not set', () => {

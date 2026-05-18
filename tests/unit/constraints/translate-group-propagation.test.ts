@@ -77,10 +77,12 @@ describe('Phase 2.5 — TranslateGroup propagation via single-entity Move op', (
     expect(anchorTime(store, 'a1-in')).toBeCloseTo(11.0)
     expect(anchorTime(store, 'a2-in')).toBeCloseTo(12.0)
     expect(anchorTime(store, 'a3-in')).toBeCloseTo(13.0)
-    // Beat anchors NOT in the group — should stay unchanged
-    expect(anchorTime(store, 'a1-out')).toBeCloseTo(1.0)
-    expect(anchorTime(store, 'a2-out')).toBeCloseTo(2.0)
-    expect(anchorTime(store, 'a3-out')).toBeCloseTo(3.0)
+    // Linked pairs: each orig drag propagates to its beat partner via the
+    // pairlink:* DirectedPair installed by initAnchorPair. Default link
+    // semantics — anchor pairs added by addAnchor are linked.
+    expect(anchorTime(store, 'a1-out')).toBeCloseTo(11.0)
+    expect(anchorTime(store, 'a2-out')).toBeCloseTo(12.0)
+    expect(anchorTime(store, 'a3-out')).toBeCloseTo(13.0)
   })
 
   it('moving primary beat anchor propagates delta to all selected beat anchors', () => {
@@ -227,15 +229,18 @@ describe('Phase 2.5 — TranslateGroup propagation via single-entity Move op', (
     // Both graph entities should reflect the propagated delta.
     expect(anchorTime(store, 'a30-in')).toBeCloseTo(5.0)
     expect(anchorTime(store, 'a31-in')).toBeCloseTo(7.0)
-    // Beat anchors not selected — should not move.
-    expect(anchorTime(store, 'a30-out')).toBeCloseTo(2.0)
-    expect(anchorTime(store, 'a31-out')).toBeCloseTo(4.0)
+    // Linked pairs: beat partners follow via the pairlink:* DirectedPair.
+    expect(anchorTime(store, 'a30-out')).toBeCloseTo(5.0)
+    expect(anchorTime(store, 'a31-out')).toBeCloseTo(7.0)
 
     // Slice mirror should also reflect the propagated positions.
-    const warp = (store.getState() as { warp: { origAnchors: Array<{ id: number; time: number }> } }).warp
+    const warp = (store.getState() as { warp: { origAnchors: Array<{ id: number; time: number }>; beatAnchors: Array<{ id: number; time: number }> } }).warp
     const a30 = warp.origAnchors.find(a => a.id === 30)
     const a31 = warp.origAnchors.find(a => a.id === 31)
     expect(a30?.time).toBeCloseTo(5.0)
     expect(a31?.time).toBeCloseTo(7.0)
+    // Beat partners on slice too.
+    expect(warp.beatAnchors.find(a => a.id === 30)?.time).toBeCloseTo(5.0)
+    expect(warp.beatAnchors.find(a => a.id === 31)?.time).toBeCloseTo(7.0)
   })
 })

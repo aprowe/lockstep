@@ -48,6 +48,7 @@ export function initClip(clipInId: EntityId, clipOutId: EntityId): Op[] {
  *      thunks.  Remove it via `unlinkAnchor` to diverge beat from orig. */
 export function initAnchorPair(anchorInId: EntityId, anchorOutId: EntityId): Op[] {
   return [
+    // Delete-group: deleting either partner removes both.
     {
       kind: OpKind.AddConstraint,
       constraint: {
@@ -56,17 +57,31 @@ export function initAnchorPair(anchorInId: EntityId, anchorOutId: EntityId): Op[
         tag: `pair:${anchorInId}`,
       },
     },
+    // Translate-coupling: moving the orig anchor propagates the same delta
+    // to the beat partner. One-way (anchor-in → anchor-out); beat drags
+    // don't pull orig. Removed by `unlinkAnchor` when the pair diverges.
+    {
+      kind: OpKind.AddConstraint,
+      constraint: {
+        kind: ConstraintKind.DirectedPair,
+        from: anchorInId,
+        to:   anchorOutId,
+        mode: PairMode.Translate,
+        tag:  `pairlink:${anchorInId}`,
+      },
+    },
   ]
 }
 
 /** Remove the linked-pair marker for an anchor (equivalent to "diverge" for
- *  anchors).  Removing this DeleteGroup detaches beat-side tracking so the
- *  thunks treat the beat anchor as independently positioned. */
+ *  anchors).  Removes both the DeleteGroup pair marker AND the
+ *  translate-coupling DirectedPair so the beat anchor stops tracking. */
 export function unlinkAnchor(anchorInId: EntityId): Op {
   return {
     kind: OpKind.RemoveConstraint,
     predicate: c =>
-      c.kind === ConstraintKind.DeleteGroup && c.tag === `pair:${anchorInId}`,
+      (c.kind === ConstraintKind.DeleteGroup && c.tag === `pair:${anchorInId}`) ||
+      (c.kind === ConstraintKind.DirectedPair && c.tag === `pairlink:${anchorInId}`),
   }
 }
 

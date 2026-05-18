@@ -628,48 +628,55 @@ export const applyBpmEdit =
     dispatch(setGlobalBpmAction(payload.newBpm))
   }
 
-/** Direct beats edit with grid-vs-stretch branching. */
+/** Beats-count edit from the clip info panel.
+ *
+ *  Always changes LENGTH to accommodate the new beat count (preserves BPM).
+ *  - Default-linked region: BOTH clipin AND clipout grow/shrink. The clip
+ *    represents the same span in input and beat space (linked), so both
+ *    boundaries reflect the new length.
+ *  - Diverged region: only clipout changes. Clipin's input-space bounds
+ *    are independent of the beat count.
+ *
+ *  `payload.stretch` is currently ignored — kept on the signature for
+ *  back-compat with existing callers. */
 export const applyBeatsEdit =
   (payload: {
     id: string
     newLockedBeats: number
-    stretch: boolean
+    stretch?: boolean
     origAnchors?: readonly Anchor[]
     beatAnchors?: readonly Anchor[]
   }) =>
   (dispatch: AppDispatch, getState: () => RootState) => {
     const state = getState()
     const r = state.region.regions.find(rr => rr.id === payload.id)
-    if (!r) return
-    const { inBeatTime, outBeatTime } = effectiveBeatBounds(
-      r, payload.origAnchors ?? [], payload.beatAnchors ?? [],
-    )
+    if (!r || r.bpm <= 0) return
     const outId = regionOutId(payload.id)
-    if (payload.stretch) {
-      const newLength = (60 * payload.newLockedBeats) / r.bpm
-      dispatchPipelined(dispatch, getState, setRegionOutEdgeOp(payload.id, 'in', inBeatTime))
-      dispatchPipelined(dispatch, getState, setRegionOutEdgeOp(payload.id, 'out', inBeatTime + newLength))
-      // Override meta after SetEdge so the intended lockedBeats/bpm survive.
-      dispatchPipelined(dispatch, getState, { kind: OpKind.SetValue, id: outId, field: 'lockedBeats', value: payload.newLockedBeats })
-      dispatchPipelined(dispatch, getState, { kind: OpKind.SetValue, id: outId, field: 'bpm',         value: r.bpm })
-      dispatch(updateRegionLockedBeats({ id: payload.id, lockedBeats: payload.newLockedBeats }))
-      // Stretch mode commits explicit beat-space bounds — record in slice.
-      dispatch(_syncRegionPositions({
-        [payload.id]: {
-          inBeatTime,
-          outBeatTime:   inBeatTime + newLength,
-          defaultLinked: false,
-        },
-      }))
-    } else {
-      const length = outBeatTime - inBeatTime
-      const newBpm = (60 * payload.newLockedBeats) / length
-      // Grid model: length stays, bpm recomputes. Update meta directly.
-      dispatchPipelined(dispatch, getState, { kind: OpKind.SetValue, id: outId, field: 'lockedBeats', value: payload.newLockedBeats })
-      dispatchPipelined(dispatch, getState, { kind: OpKind.SetValue, id: outId, field: 'bpm',         value: newBpm })
-      dispatch(updateRegionLockedBeats({ id: payload.id, lockedBeats: payload.newLockedBeats }))
-      dispatch(updateRegionBpm({ id: payload.id, bpm: newBpm }))
+    const newLength = (60 * payload.newLockedBeats) / r.bpm
+    if (newLength <= 0) return
+
+    // Clipout: extend right edge from current in to in + newLength.
+    const clipoutInBeat = r.inBeatTime
+    dispatchPipelined(dispatch, getState,
+      setRegionOutEdgeOp(payload.id, 'out', clipoutInBeat + newLength))
+
+    if (r.defaultLinked) {
+      // Linked region: also extend clipin's right edge in input space so the
+      // pair stays aligned. The defaultlink DirectedPair (Translate) is for
+      // full-body translates only — it does NOT propagate single-edge writes
+      // — so we dispatch the clipin SetEdge explicitly here.
+      dispatchPipelined(dispatch, getState,
+        setRegionInEdgeOp(payload.id, 'out', r.inPoint + newLength))
     }
+
+    // Override meta after the SetEdge ops so bpmDerivedConstraint doesn't
+    // recompute lockedBeats from the new length / current bpm — we want the
+    // typed lockedBeats preserved exactly.
+    dispatchPipelined(dispatch, getState,
+      { kind: OpKind.SetValue, id: outId, field: 'lockedBeats', value: payload.newLockedBeats })
+    dispatchPipelined(dispatch, getState,
+      { kind: OpKind.SetValue, id: outId, field: 'bpm', value: r.bpm })
+    dispatch(updateRegionLockedBeats({ id: payload.id, lockedBeats: payload.newLockedBeats }))
   }
 
 // ─── Region create ───────────────────────────────────────────────────────────

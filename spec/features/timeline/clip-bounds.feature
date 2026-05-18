@@ -571,13 +571,13 @@ Feature: Clip Bounds
         And inPoint stays at 10 and outPoint stays at 20
         And inBeatTime stays at 5 and the region remains diverged
 
-    Scenario: Direct beats edit uses the grid model (length stays, BPM absorbs)
-        Given a region with BPM 120, lockedBeats 20, inBeatTime 0, outBeatTime 10
-        When applyBeatsEdit is dispatched with newLockedBeats 10 and stretch false
+    Scenario: Direct beats edit changes length, BPM preserved (diverged: clipout only)
+        Given a diverged region with BPM 120, lockedBeats 20, inBeatTime 0, outBeatTime 10
+        When applyBeatsEdit is dispatched with newLockedBeats 10
         Then lockedBeats becomes 10
-        And BPM becomes 60
-        And clipout length stays at 10
-        And inPoint and outPoint stay unchanged
+        And BPM is preserved (120)
+        And clipout length shrinks to 5 (10 beats × 60 / 120)
+        And inPoint and outPoint stay unchanged (diverged region)
 
     @todo @ignore
     Scenario: Stretch-mode beats edit follows the same linked/diverged rule

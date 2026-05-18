@@ -723,9 +723,10 @@ function snapIntentsFromDrag(d: DragState | null): Intent[] {
   if (d.kind === 'anchor') {
     if (d.isPair) {
       // Warp-line drag — both in and out anchors have SnapTargets.
+      // Pair drag installs only anchor-in snap; beat partner follows via
+      // the pairlink:* DirectedPair. snapEnd only needs to clear the orig.
       return [
-        { kind: 'snapEnd', entityId: anchorInId(d.id),  field: 'time' },
-        { kind: 'snapEnd', entityId: anchorOutId(d.id), field: 'time' },
+        { kind: 'snapEnd', entityId: anchorInId(d.id), field: 'time' },
       ]
     }
     // Single-space drag — one SnapTarget for the grabbed space.
@@ -895,15 +896,14 @@ export function createTimelineController(): Controller {
         dragState.isPair = true
         drag = dragState
         intents.push({ kind: 'dragStart' })
-        // Phase 7: install SnapTarget for both anchor partners in a warp-line drag.
-        // Warp-line drags always move the grid (anchor kind) — grid is set for the
-        // output anchor only if it's stable (closure check).
+        // Install SnapTarget on the ORIG anchor only. The beat partner follows
+        // via the `pairlink:*` DirectedPair (Translate) installed by
+        // initAnchorPair — so snap evaluates against input-space targets
+        // (anchor-in cohort, clipin cohort, scenes), and the beat anchor
+        // tracks whatever value the orig snaps to.
         if (snap.constraintGraph) {
           const pxPerUnit = W / viewSpanI
-          // Input: no grid. Output: grid when stable.
-          const warpLineOutGrid = computeGridForSnap(snap, anchorOutId(id), 'anchor')
           intents.push({ kind: 'snapStart', entityId: anchorInId(id), field: 'time', pxPerUnit, gestureRole: 'anchor' })
-          intents.push({ kind: 'snapStart', entityId: anchorOutId(id), field: 'time', pxPerUnit, grid: warpLineOutGrid, gestureRole: 'anchor' })
           snapInstalledForDrag = true
         }
         return intents
