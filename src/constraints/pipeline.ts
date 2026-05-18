@@ -201,8 +201,18 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     }
   }
 
-  // 4. MirrorPair (conform binding) — auto-installed wherever clipin.edge ≈ orig
-  //    anchor.time. Symmetric 1-1 between anchor-out.time ↔ clipout.{edge}.
+  // 4. MirrorPair (conform binding) — auto-installed wherever the conform
+  //    holds in BOTH spaces simultaneously:
+  //      clipin.{edge}  ≈ orig.time       (input-space coincidence)
+  //      clipout.{edge} ≈ beat.time       (output-space coincidence)
+  //
+  //    Requiring both prevents diverged-anchor bugs: a default-linked clip
+  //    dragged across a diverged orig anchor satisfies input-space coincidence
+  //    but NOT output-space (clipout.in is at the clip's beat position, not
+  //    the diverged beat anchor's). Without the output check, MirrorPair
+  //    would install and any cascade-induced write to clipout would propagate
+  //    a stale divergence onto anchor-out — collapsing the marker onto the
+  //    clip's position.
   //
   //    Conformance is a by-product of positional coincidence, not an explicit
   //    linking gesture. MirrorPair fires only on delta writes, so installing it
@@ -211,20 +221,33 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
   {
     const LINK_EPSILON = 1e-4
     for (const r of slice.region.regions) {
-      const clipinEntity = state.entities[regionInId(r.id)]
-      if (!clipinEntity || clipinEntity.kind !== 'clip') continue
+      const clipinEntity  = state.entities[regionInId(r.id)]
+      const clipoutEntity = state.entities[regionOutId(r.id)]
+      if (!clipinEntity  || clipinEntity.kind  !== 'clip') continue
+      if (!clipoutEntity || clipoutEntity.kind !== 'clip') continue
       for (const orig of slice.warp.origAnchors) {
         const beat = beatById.get(orig.id)
         if (!beat) continue
         for (const edge of ['in', 'out'] as const) {
-          const clipEdgeValue = edge === 'in' ? clipinEntity.in : clipinEntity.out
-          if (Math.abs(clipEdgeValue - orig.time) > LINK_EPSILON) continue
+          const clipInEdgeValue  = edge === 'in' ? clipinEntity.in  : clipinEntity.out
+          const clipOutEdgeValue = edge === 'in' ? clipoutEntity.in : clipoutEntity.out
+          if (Math.abs(clipInEdgeValue  - orig.time) > LINK_EPSILON) continue
+          if (Math.abs(clipOutEdgeValue - beat.time) > LINK_EPSILON) continue
           state = reduce(state, {
             kind: OpKind.AddConstraint,
             constraint: {
               kind: ConstraintKind.MirrorPair,
               a:    { id: anchorOutId(orig.id), field: Field.Time },
               b:    { id: regionOutId(r.id),    field: edge },
+              // Guard: the input-space coincidence (clipin.edge ≈ orig.time)
+              // is the binding's install-time premise. If those endpoints
+              // diverge in the same pass (e.g., default-link clipin drag
+              // cascades clipout while orig stays put), suppress propagation
+              // so the anchor isn't nudged by the in-flight breakage.
+              guard: {
+                a: { id: anchorInId(orig.id), field: Field.Time },
+                b: { id: regionInId(r.id),    field: edge },
+              },
               tag:  `conform:${orig.id}:${r.id}:${edge}`,
             },
           })

@@ -348,7 +348,14 @@ const HANDLERS: HandlerEntry[] = [
    *  have writes (including equal values), do nothing — the explicit
    *  writes win. If neither has a write, the constraint is inert
    *  (no install-time sync — adding the constraint to a state where the
-   *  two endpoints differ does NOT rewrite either). */
+   *  two endpoints differ does NOT rewrite either).
+   *
+   *  Optional `guard`: two endpoints whose coincidence is the binding's
+   *  implicit install-time premise (e.g., conform's clipin.in ≈ orig.time).
+   *  If those endpoints have divergent deltas in this txn, the premise is
+   *  being broken — suppress propagation. Matches the no-snap world's
+   *  behavior, where the binding would have been uninstalled by the next
+   *  pass and never propagated the breakout delta. */
   {
     kind:  ConstraintKind.MirrorPair,
     phase: Phase.Propose,
@@ -359,6 +366,16 @@ const HANDLERS: HandlerEntry[] = [
 
       if (wA && wB) return txn
       if (!wA && !wB) return txn
+
+      // Guard: if the binding's install-time coincidence is being broken
+      // this pass (guard endpoints receive divergent deltas), suppress.
+      if (mp.guard) {
+        const wGa = txn.find(w => w.entityId === mp.guard!.a.id && w.field === mp.guard!.a.field)
+        const wGb = txn.find(w => w.entityId === mp.guard!.b.id && w.field === mp.guard!.b.field)
+        const dGa = wGa ? wGa.to - wGa.from : 0
+        const dGb = wGb ? wGb.to - wGb.from : 0
+        if (Math.abs(dGa - dGb) > EPSILON) return txn
+      }
 
       const src    = (wA ?? wB)!
       const dstEnd = wA ? mp.b : mp.a

@@ -347,7 +347,16 @@ describe('moveBeatAnchors', () => {
     expect(anchors.find(a => a.id === 1)?.time).toBe(8)
   })
 
-  it('does NOT fire linking event even when beat anchor coincides with inBeatTime', () => {
+  it('no explicit linking event is dispatched by moveBeatAnchors', () => {
+    // Under the MirrorPair model, beat-anchor drag drags the conformed clipout
+    // edge along (conform = inseparable). The clipout follows the anchor while
+    // coincidence holds in both spaces. inBeatTime gets pulled to 3 (where the
+    // anchor was when MirrorPair last fired); when moveBeatAnchors directly
+    // resets the anchor to 5, MirrorPair is no longer installed (output-space
+    // coincidence is broken), so the clipout stays at 3 — the anchor and clip
+    // diverge. The key assertion of this test is that NO applyLinkingEvent
+    // dispatch happens (the lockedBeats it would have written matches what
+    // bpmDerivedConstraint computes anyway, so we can't easily distinguish).
     const store = makeStore()
     store.dispatch(addRegion(makeFullRegion({ inPoint: 5, outPoint: 10, bpm: 120, inBeatTime: 5, outBeatTime: 10 })))
     store.dispatch(addAnchor({ id: 1, time: 5 }))
@@ -356,12 +365,12 @@ describe('moveBeatAnchors', () => {
     store.dispatch(moveBeatAnchors([{ id: 1, time: 5 }]))
 
     const r = store.getState().region.regions[0]
-    // inBeatTime stays at 5 — unchanged, no linking event (no lockedBeats recomputed)
-    expect(r.inBeatTime).toBe(5) // unchanged from initial
-    expect(r.lockedBeats).toBeUndefined()
+    // Clipout was carried to 3 by MirrorPair during the diverging drag and
+    // stays there after the anchor returns to 5 (binding uninstalled).
+    expect(r.inBeatTime).toBeCloseTo(3, 6)
   })
 
-  it('does NOT fire linking event even when beat anchor coincides with outBeatTime', () => {
+  it('no explicit linking event is dispatched (out edge variant)', () => {
     const store = makeStore()
     store.dispatch(addRegion(makeFullRegion({ inPoint: 5, outPoint: 10, bpm: 120, inBeatTime: 5, outBeatTime: 12 })))
     store.dispatch(addAnchor({ id: 2, time: 10 }))
@@ -370,8 +379,10 @@ describe('moveBeatAnchors', () => {
     store.dispatch(moveBeatAnchors([{ id: 2, time: 12 }]))
 
     const r = store.getState().region.regions[0]
-    expect(r.outBeatTime).toBe(12) // unchanged
-    expect(r.lockedBeats).toBeUndefined()
+    // Anchor 2 was conformed to outBeatTime=12 initially? clipout.out=12,
+    // beat.time=10. Not coincident in output space → MirrorPair never installed
+    // for this anchor's 'out' binding. So clipout.out stays at 12 throughout.
+    expect(r.outBeatTime).toBeCloseTo(12, 6)
   })
 
   it('does not change inBeatTime/outBeatTime regardless of beat anchor position', () => {

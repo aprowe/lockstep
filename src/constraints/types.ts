@@ -368,12 +368,23 @@ export interface SnapRule {
  *  Use case: a conformed marker. While the input-space coincidence
  *  `clipin.edge ≈ anchor-in.time` holds, anchor-out.time and
  *  clipout.{edge} represent the same point in beat space — moving either
- *  one moves the other. */
+ *  one moves the other.
+ *
+ *  `guard` (optional): two endpoints whose coincidence is the *implicit
+ *  install-time premise* of this binding. Position-based install predicates
+ *  (like conform's `clipin.edge ≈ anchor-in.time`) can be in the process of
+ *  being broken DURING the same pipeline pass that fires the binding (snap
+ *  holds coincidence for many frames; the breakout frame cascades a large
+ *  delta through). The guard suppresses propagation when the guard endpoints
+ *  receive divergent deltas in the same txn — i.e., when the premise is
+ *  being violated *right now*. Without a guard, MirrorPair fires
+ *  unconditionally as long as it's installed. */
 export interface MirrorPair {
-  kind: typeof ConstraintKind.MirrorPair
-  a:    { id: EntityId; field: Field }
-  b:    { id: EntityId; field: Field }
-  tag?: string
+  kind:   typeof ConstraintKind.MirrorPair
+  a:      { id: EntityId; field: Field }
+  b:      { id: EntityId; field: Field }
+  guard?: { a: { id: EntityId; field: Field }; b: { id: EntityId; field: Field } }
+  tag?:   string
 }
 
 export type Constraint =
