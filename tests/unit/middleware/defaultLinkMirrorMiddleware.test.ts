@@ -55,7 +55,10 @@ function getConstraints(store: EnhancedStore): Constraint[] {
 }
 
 function getDefaultLink(store: EnhancedStore, regionId: string): Constraint | undefined {
-  const tag = `defaultlink:${regionInId(regionId)}`
+  // Default-link is now installed as TWO MirrorEdge DirectedPairs, one per
+  // edge (tags `defaultlink:{regionInId}:in` and `defaultlink:{regionInId}:out`).
+  // Tests assert presence/absence via the 'in' edge constraint.
+  const tag = `defaultlink:${regionInId(regionId)}:in`
   return getConstraints(store).find(
     c => c.kind === ConstraintKind.DirectedPair && c.tag === tag,
   )
@@ -93,8 +96,8 @@ describe('defaultLinkMirrorMiddleware', () => {
     expect(pair!.kind).toBe(ConstraintKind.DirectedPair)
     expect(pair!.from).toBe(regionInId('r1'))
     expect(pair!.to).toBe(regionOutId('r1'))
-    expect(pair!.mode).toBe(PairMode.Translate)
-    expect(pair!.tag).toBe(`defaultlink:${regionInId('r1')}`)
+    expect(pair!.mode).toBe(PairMode.MirrorEdge)
+    expect(pair!.tag).toBe(`defaultlink:${regionInId('r1')}:in`)
   })
 
   it('does NOT add DirectedPair when region is added with defaultLinked = false', () => {
@@ -210,7 +213,7 @@ describe('defaultLinkMirrorMiddleware', () => {
     const pair = getDefaultLink(store, 'r1')
     expect(pair!.from).toBe(regionInId('r1'))
     expect(pair!.to).toBe(regionOutId('r1'))
-    expect(pair!.mode).toBe(PairMode.Translate)
+    expect(pair!.mode).toBe(PairMode.MirrorEdge)
 
     // The entities in the graph reflect the current slice state.
     const graph = selectConstraintGraph(store.getState() as RootState)

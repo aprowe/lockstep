@@ -12,6 +12,7 @@
 
 import type {
   Clamp,
+  ConformVisual,
   Constraint,
   DirectedPair,
   Derived,
@@ -339,6 +340,61 @@ const HANDLERS: HandlerEntry[] = [
           to:       driver.to,
         },
       ])
+    },
+  },
+
+  /** conform_visual: one-way coincidence-triggered conform. If clipin's
+   *  proposed edge value (txn or state) coincides with anchor-in.time
+   *  (within CONFORM_EPSILON), write anchor-out.time into clipout's
+   *  matching edge. Anchor-side endpoints are never written from here —
+   *  the binding is one-way, so dragging the clipout does NOT propagate
+   *  back into the anchor (the nudge-bug class that symmetric MirrorPair
+   *  hit). When coincidence breaks the handler is silent and the clipout
+   *  resumes whatever the defaultlink cascade (or other writes) gave it. */
+  {
+    kind:  ConstraintKind.ConformVisual,
+    phase: Phase.Propose,
+    apply: (state, c: never, txn) => {
+      const cv = c as ConformVisual
+      const anchorIn  = state.entities[cv.anchorInId]
+      const anchorOut = state.entities[cv.anchorOutId]
+      const clipOut   = state.entities[cv.clipOutId]
+      if (!anchorIn  || anchorIn.kind  !== EntityKind.Anchor) return txn
+      if (!anchorOut || anchorOut.kind !== EntityKind.Anchor) return txn
+      if (!clipOut   || clipOut.kind   !== EntityKind.Clip)   return txn
+
+      const clipInEdgeField = cv.edge === 'in' ? Field.In : Field.Out
+      const clipInWrite     = txn.find(w => w.entityId === cv.clipId && w.field === clipInEdgeField)
+      // Gate firing on "clipin is being written this pass": otherwise a
+      // standalone clipout drag (no clipin write) where clipin happens to
+      // sit on an anchor would have its user-intended clipout write
+      // overridden by the conform write. The conform binding is meant to
+      // engage when the user moves clipin INTO coincidence, not to
+      // perpetually pull clipout toward the anchor when clipin is parked
+      // on it.
+      if (!clipInWrite) return txn
+      const anchorInTime = txn.find(w => w.entityId === cv.anchorInId && w.field === Field.Time)?.to
+                           ?? anchorIn.time
+      const clipInEdge   = clipInWrite.to
+
+      // Coincidence check (input space).
+      if (Math.abs(clipInEdge - anchorInTime) > CONFORM_EPSILON) return txn
+
+      // Coincident — write anchor-out.time to the clipout's matching edge.
+      const clipOutField    = cv.edge === 'in' ? Field.In : Field.Out
+      const anchorOutTime   = txn.find(w => w.entityId === cv.anchorOutId && w.field === Field.Time)?.to
+                              ?? anchorOut.time
+      const clipOutCurrent  = cv.edge === 'in' ? clipOut.in : clipOut.out
+      const clipOutInTxn    = txn.find(w => w.entityId === cv.clipOutId && w.field === clipOutField)
+      const clipOutEffective = clipOutInTxn?.to ?? clipOutCurrent
+      if (Math.abs(clipOutEffective - anchorOutTime) < EPSILON) return txn
+
+      return mergeWrites(txn, [{
+        entityId: cv.clipOutId,
+        field:    clipOutField,
+        from:     clipOutCurrent,
+        to:       anchorOutTime,
+      }])
     },
   },
 
@@ -672,6 +728,10 @@ export function bpmDerivedConstraint(
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
 const EPSILON = 1e-3
+/** Tolerance for "coincident" in the ConformVisual propose handler. Tighter
+ *  than EPSILON: coincidence is a meaningful position relationship, not
+ *  floating-point slop. */
+const CONFORM_EPSILON = 1e-6
 
 export function emptyState(): State {
   return {
@@ -842,6 +902,14 @@ function constraintEntities(constraint: Constraint): EntityId[] {
 
     case ConstraintKind.SingleOfKind:
       return constraint.activeId ? [constraint.activeId] : []
+
+    case ConstraintKind.ConformVisual:
+      return [
+        constraint.anchorInId,
+        constraint.anchorOutId,
+        constraint.clipId,
+        constraint.clipOutId,
+      ]
 
     case ConstraintKind.MirrorPair:
       return [constraint.a.id, constraint.b.id]

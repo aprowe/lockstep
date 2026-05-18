@@ -193,35 +193,11 @@ export const applyRegionEntityMove =
     // the clipout's beat-space anchoring; clipin moves don't drag it.
     dispatchPipelined(dispatch, getState, { kind: OpKind.Move, id: regionInId(id), delta: residual })
 
-    // Phase 4c linking detection: after the clipin move, check if the new inPoint
-    // or outPoint coincides with a diverged orig anchor. If so, fire applyLinkingEvent
-    // to commit the beat-space conform (analogous to the old linkingMirrorMiddleware).
-    const LINK_EPSILON = 1e-4
-    const postState = getState()
-    const postR = postState.region.regions.find(r => r.id === id)
-    if (postR) {
-      const origAnchors = postState.warp.origAnchors
-      const beatAnchors = postState.warp.beatAnchors
-      for (const edge of ['in', 'out'] as const) {
-        const edgeVal = edge === 'in' ? postR.inPoint : postR.outPoint
-        const match = origAnchors.find(a => Math.abs(a.time - edgeVal) <= LINK_EPSILON)
-        if (match) {
-          const beatAnchor = beatAnchors.find(a => a.id === match.id)
-          // Only fire for diverged anchors (beat time != orig time). Linked anchors
-          // would produce a no-op conform (inBeatTime would already equal inPoint).
-          if (beatAnchor && beatAnchor.linked === false) {
-            dispatch(applyLinkingEvent({
-              id,
-              edge,
-              side: 'input',
-              beatAnchorTime: beatAnchor.time,
-              origAnchors: [...origAnchors],
-              beatAnchors: [...beatAnchors],
-            }) as never)
-          }
-        }
-      }
-    }
+    // No linking-event commit during drag. ConformVisual now handles input-side
+    // conform transiently in the constraint pipeline — engages while clipin
+    // sits on the orig anchor, releases when clipin moves past. Permanently
+    // committing via applyLinkingEvent here would set defaultLinked=false and
+    // freeze inBeatTime at the beat anchor's time, breaking the release.
   }
 
 /**

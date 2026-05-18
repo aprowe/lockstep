@@ -111,7 +111,7 @@ export interface PipelineOutput {
  * Build a constraint State from (slice, dragCtx).
  *
  * Derives all constraints from slice state: anchor pairs, default-link
- * DirectedPairs, MirrorPair conform bindings, SnapRules, space cohorts,
+ * DirectedPairs, ConformVisual bindings, SnapRules, space cohorts,
  * twin cohorts, lasso TranslateGroup, anchorLock TranslateGroup/ScaleGroup,
  * carry pairs.
  */
@@ -185,39 +185,82 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     })
   }
 
-  // 3. Default-link DirectedPair (clipin → clipout) derived from region.defaultLinked.
+  // 3. Default-link (clipin → clipout): two MirrorEdges (per-edge value
+  //    mirror). For each clipin edge write, clipout's matching edge gets the
+  //    same value. Chosen over Translate (delta cascade) so the linked
+  //    invariant `clipout = clipin` is re-asserted every pipeline pass —
+  //    important for the conform "restore" behavior: when ConformVisual
+  //    transiently writes clipout to a beat anchor's time and the user then
+  //    drags clipin past coincidence, the next pass's MirrorEdge cascade
+  //    snaps clipout back to clipin's new value (not clipout's stale
+  //    conformed value + delta, which is what Translate would yield).
   for (const r of slice.region.regions) {
     if (r.defaultLinked) {
       state = reduce(state, {
         kind: OpKind.AddConstraint,
         constraint: {
-          kind: ConstraintKind.DirectedPair,
-          from: regionInId(r.id),
-          to:   regionOutId(r.id),
-          mode: PairMode.Translate,
-          tag:  `defaultlink:${regionInId(r.id)}`,
+          kind:     ConstraintKind.DirectedPair,
+          from:     regionInId(r.id),
+          to:       regionOutId(r.id),
+          mode:     PairMode.MirrorEdge,
+          fromEdge: 'in',
+          tag:      `defaultlink:${regionInId(r.id)}:in`,
+        },
+      })
+      state = reduce(state, {
+        kind: OpKind.AddConstraint,
+        constraint: {
+          kind:     ConstraintKind.DirectedPair,
+          from:     regionInId(r.id),
+          to:       regionOutId(r.id),
+          mode:     PairMode.MirrorEdge,
+          fromEdge: 'out',
+          tag:      `defaultlink:${regionInId(r.id)}:out`,
         },
       })
     }
   }
 
-  // 4. MirrorPair (conform binding) — auto-installed wherever the conform
-  //    holds in BOTH spaces simultaneously:
-  //      clipin.{edge}  ≈ orig.time       (input-space coincidence)
-  //      clipout.{edge} ≈ beat.time       (output-space coincidence)
+  // 4a. ConformVisual — auto-installed for every (region × anchor × edge)
+  //    combination. The handler checks coincidence DYNAMICALLY each pipeline
+  //    pass using txn-aware values: if `clipin.{edge}` (post-write) coincides
+  //    with `orig.time`, write `anchor-out.time` to clipout's matching edge.
+  //    One-way (anchor → clip). Re-evaluating per pass means the binding
+  //    naturally engages and releases as clipin moves into and out of
+  //    coincidence during a drag — no permanent commit, no stale install.
   //
-  //    Requiring both prevents diverged-anchor bugs: a default-linked clip
-  //    dragged across a diverged orig anchor satisfies input-space coincidence
-  //    but NOT output-space (clipout.in is at the clip's beat position, not
-  //    the diverged beat anchor's). Without the output check, MirrorPair
-  //    would install and any cascade-induced write to clipout would propagate
-  //    a stale divergence onto anchor-out — collapsing the marker onto the
-  //    clip's position.
+  //    Handles: visual conform during clipin drag (clipout snaps to the
+  //    paired beat anchor when clipin lands on its orig).
+  for (const r of slice.region.regions) {
+    for (const orig of slice.warp.origAnchors) {
+      const beat = beatById.get(orig.id)
+      if (!beat) continue
+      for (const edge of ['in', 'out'] as const) {
+        state = reduce(state, {
+          kind: OpKind.AddConstraint,
+          constraint: {
+            kind:        ConstraintKind.ConformVisual,
+            anchorInId:  anchorInId(orig.id),
+            anchorOutId: anchorOutId(orig.id),
+            clipId:      regionInId(r.id),
+            clipOutId:   regionOutId(r.id),
+            edge,
+          },
+        })
+      }
+    }
+  }
+
+  // 4b. MirrorPair (symmetric, dual-space install + guard) — installed wherever
+  //    conform is fully engaged in BOTH input and output spaces. This handles
+  //    the OTHER direction: drag clipout → anchor follows. ConformVisual only
+  //    handles anchor→clip; this is the symmetric clip→anchor.
   //
-  //    Conformance is a by-product of positional coincidence, not an explicit
-  //    linking gesture. MirrorPair fires only on delta writes, so installing it
-  //    does NOT rewrite stored clip bounds at coincidence time — the binding
-  //    only fires when one endpoint is actively being moved.
+  //    Dual-space install + guard together prevent the diverged-anchor nudge
+  //    bug: it only installs when output coincidence ALSO holds (linked anchor
+  //    on a default-linked clip, or post-linking-event conformance), so a
+  //    default-link clip drag across a diverged anchor (input coincides but
+  //    output doesn't) never triggers the symmetric write.
   {
     const LINK_EPSILON = 1e-4
     for (const r of slice.region.regions) {
@@ -239,11 +282,6 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
               kind: ConstraintKind.MirrorPair,
               a:    { id: anchorOutId(orig.id), field: Field.Time },
               b:    { id: regionOutId(r.id),    field: edge },
-              // Guard: the input-space coincidence (clipin.edge ≈ orig.time)
-              // is the binding's install-time premise. If those endpoints
-              // diverge in the same pass (e.g., default-link clipin drag
-              // cascades clipout while orig stays put), suppress propagation
-              // so the anchor isn't nudged by the in-flight breakage.
               guard: {
                 a: { id: anchorInId(orig.id), field: Field.Time },
                 b: { id: regionInId(r.id),    field: edge },

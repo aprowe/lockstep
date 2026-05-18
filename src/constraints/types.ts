@@ -70,6 +70,7 @@ export const ConstraintKind = {
   SingleOfKind:   'single_of_kind',
   DeleteGroup:    'delete_group',
   HighlightGroup: 'highlight_group',
+  ConformVisual:  'conform_visual',
   MirrorPair:     'mirror_pair',
   SnapCohort:     'snap_cohort',
   SnapRule:       'snap_rule',
@@ -358,6 +359,32 @@ export interface SnapRule {
   tag?:       string
 }
 
+/** One-way conform binding: when the clipin's edge value (txn-aware)
+ *  coincides with anchor-in.time, write `anchor-out.time` to the matching
+ *  clipout edge. Purely transient and one-way (anchor → clip): the handler
+ *  re-checks coincidence every pipeline pass, so it engages while the user
+ *  is on the conform position and disengages when they move past — without
+ *  ever writing back to the anchor side (which would cause the nudge-bug
+ *  class we hit with symmetric MirrorPair).
+ *
+ *  Use case: dragging clipin across a marker should visually show the
+ *  clipout edge snap to the paired beat anchor's time as clipin lands on
+ *  the orig anchor, then release when clipin moves past.
+ *
+ *  `clipId` is the clipin entity (input-side); `clipOutId` is the
+ *  beat-space clip that receives the write on coincidence.  When
+ *  coincidence is broken the handler is silent — the clipout's edge sticks
+ *  at its last value (which for a default-linked region is whatever the
+ *  defaultlink DirectedPair cascaded into it). */
+export interface ConformVisual {
+  kind:        typeof ConstraintKind.ConformVisual
+  anchorInId:  EntityId
+  anchorOutId: EntityId
+  clipId:      EntityId
+  clipOutId:   EntityId
+  edge:        'in' | 'out'
+}
+
 /** Symmetric 1-1 binding between two specific (entity, field) endpoints.
  *  When either endpoint's field is written in the txn, write the same value
  *  to the partner endpoint. No driver — symmetric. No re-sync on install:
@@ -394,6 +421,7 @@ export type Constraint =
   | SingleOfKind
   | DeleteGroup
   | HighlightGroup
+  | ConformVisual
   | MirrorPair
   | SnapCohort
   | SnapRule
