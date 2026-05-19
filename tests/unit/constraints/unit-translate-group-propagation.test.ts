@@ -79,12 +79,12 @@ describe('Phase 2.5 — TranslateGroup propagation via single-entity Move op', (
     expect(anchorTime(store, 'a1-in')).toBeCloseTo(11.0)
     expect(anchorTime(store, 'a2-in')).toBeCloseTo(12.0)
     expect(anchorTime(store, 'a3-in')).toBeCloseTo(13.0)
-    // Anchor drags are space-local: orig moves don't propagate to beat.
-    // Pair-drag gestures (warp connector) move both partners explicitly
-    // via two anchorEntityMove intents, not via a constraint.
-    expect(anchorTime(store, 'a1-out')).toBeCloseTo(1.0)
-    expect(anchorTime(store, 'a2-out')).toBeCloseTo(2.0)
-    expect(anchorTime(store, 'a3-out')).toBeCloseTo(3.0)
+    // Linked anchor pairs: the DirectedPair (orig → beat) propagates each
+    // orig move to its beat partner. All three pairs are linked, so beat
+    // sides advance by the same +10s.
+    expect(anchorTime(store, 'a1-out')).toBeCloseTo(11.0)
+    expect(anchorTime(store, 'a2-out')).toBeCloseTo(12.0)
+    expect(anchorTime(store, 'a3-out')).toBeCloseTo(13.0)
   })
 
   it('moving primary beat anchor propagates delta to all selected beat anchors', () => {
@@ -231,9 +231,10 @@ describe('Phase 2.5 — TranslateGroup propagation via single-entity Move op', (
     // Both graph entities should reflect the propagated delta.
     expect(anchorTime(store, 'a30-in')).toBeCloseTo(5.0)
     expect(anchorTime(store, 'a31-in')).toBeCloseTo(7.0)
-    // Beat anchors not selected — not affected by orig drag.
-    expect(anchorTime(store, 'a30-out')).toBeCloseTo(2.0)
-    expect(anchorTime(store, 'a31-out')).toBeCloseTo(4.0)
+    // Linked pairs: DirectedPair (orig → beat) carries each orig delta to
+    // its beat partner.
+    expect(anchorTime(store, 'a30-out')).toBeCloseTo(5.0)
+    expect(anchorTime(store, 'a31-out')).toBeCloseTo(7.0)
 
     // Slice mirror should also reflect the propagated positions.
     const warp = (store.getState() as { warp: { origAnchors: Array<{ id: number; time: number }> } }).warp

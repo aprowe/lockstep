@@ -1466,12 +1466,10 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
       expect(r.inPoint).toBe(10)
     })
     And('inBeatTime is set to 6', () => {
-      // New design: moveRegionBounds does NOT commit the beat-anchor's beat time.
-      // Default-linked region: inBeatTime follows inPoint = 10 (not 6).
-      // The coincidence between anchor and inPoint is visual-only;
-      // commitClipoutResize/Pan will carry the marker when the user moves the clipout.
+      // clipin.in lands on orig anchor (time=10) → ConformVisual writes
+      // clipout.in = beat anchor's time = 6.
       const r = store.getState().region.regions[0]
-      expect(r.inBeatTime).toBe(10) // follows inPoint (default-linked)
+      expect(r.inBeatTime).toBeCloseTo(6, 6)
     })
     And('lockedBeats recomputes', () => {
       // New design: no linking event means no lockedBeats recompute here.

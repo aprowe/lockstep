@@ -50,10 +50,15 @@ describe('Clipin drag onto diverged anchor: clipout conforms to beat anchor', ()
     // drag start (delta = 20 - 10 = 10 here).
     store.dispatch(applyRegionEntityMove({ id: 'r', delta: 10 }))
 
-    const post = store.getState().region.regions[0]
+    const s = store.getState()
+    const post = s.region.regions[0]
     expect(post.inPoint).toBeCloseTo(20, 6)   // clipin moved to 20
     // Conform via linking event: clipout.in should jump to beat=25.
     expect(post.inBeatTime).toBeCloseTo(25, 6)
+    // Anchors must not be tugged by the conform write — binding is one-way
+    // (anchor → clipout) during a clipin drag.
+    expect(s.warp.origAnchors[0].time, 'orig anchor').toBeCloseTo(20, 6)
+    expect(s.warp.beatAnchors[0].time, 'beat anchor').toBeCloseTo(25, 6)
   })
 
   it('inPoint passes the anchor: inPoint=22 → no conform (no coincidence)', () => {
@@ -61,10 +66,13 @@ describe('Clipin drag onto diverged anchor: clipout conforms to beat anchor', ()
     // Drag past the anchor (delta=12 → inPoint=22).
     store.dispatch(applyRegionEntityMove({ id: 'r', delta: 12 }))
 
-    const post = store.getState().region.regions[0]
+    const s = store.getState()
+    const post = s.region.regions[0]
     expect(post.inPoint).toBeCloseTo(22, 6)
     // No conform: inBeatTime cascades to inPoint via defaultlink → 22.
     expect(post.inBeatTime).toBeCloseTo(22, 6)
+    expect(s.warp.origAnchors[0].time, 'orig anchor').toBeCloseTo(20, 6)
+    expect(s.warp.beatAnchors[0].time, 'beat anchor').toBeCloseTo(25, 6)
   })
 
   it('sequential drag (default-linked): pre-anchor → on-anchor → past-anchor', () => {
@@ -75,22 +83,31 @@ describe('Clipin drag onto diverged anchor: clipout conforms to beat anchor', ()
 
     // Frame 1: drag to inPoint=15 (before anchor at 20). No conform.
     store.dispatch(applyRegionEntityMove({ id: 'r', delta: 5 }))
-    let r = store.getState().region.regions[0]
+    let s = store.getState()
+    let r = s.region.regions[0]
     expect(r.inPoint).toBeCloseTo(15, 6)
     expect(r.inBeatTime).toBeCloseTo(15, 6)        // cascade, no conform
+    expect(s.warp.origAnchors[0].time, 'frame1 orig').toBeCloseTo(20, 6)
+    expect(s.warp.beatAnchors[0].time, 'frame1 beat').toBeCloseTo(25, 6)
 
     // Frame 2: drag onto anchor at orig=20. Conform fires.
     store.dispatch(applyRegionEntityMove({ id: 'r', delta: 10 }))
-    r = store.getState().region.regions[0]
+    s = store.getState()
+    r = s.region.regions[0]
     expect(r.inPoint).toBeCloseTo(20, 6)
     expect(r.inBeatTime).toBeCloseTo(25, 6)        // ConformVisual → beat anchor's time
+    expect(s.warp.origAnchors[0].time, 'frame2 orig').toBeCloseTo(20, 6)
+    expect(s.warp.beatAnchors[0].time, 'frame2 beat').toBeCloseTo(25, 6)
 
     // Frame 3: drag past the anchor to inPoint=22. Conform releases.
     store.dispatch(applyRegionEntityMove({ id: 'r', delta: 12 }))
-    r = store.getState().region.regions[0]
+    s = store.getState()
+    r = s.region.regions[0]
     expect(r.inPoint).toBeCloseTo(22, 6)
     // Conform releases → defaultlink MirrorEdge cascade restores clipout to clipin.
     expect(r.inBeatTime).toBeCloseTo(22, 6)
+    expect(s.warp.origAnchors[0].time, 'frame3 orig').toBeCloseTo(20, 6)
+    expect(s.warp.beatAnchors[0].time, 'frame3 beat').toBeCloseTo(25, 6)
   })
 
   // Fixed by beginReplayFrame: at the start of each pointer-event frame,
@@ -124,23 +141,32 @@ describe('Clipin drag onto diverged anchor: clipout conforms to beat anchor', ()
 
     // Frame 1: drag to inPoint=15. No conform. clipout (diverged) unchanged.
     frame(5)
-    let r = store.getState().region.regions[0]
+    let s = store.getState()
+    let r = s.region.regions[0]
     expect(r.inPoint).toBeCloseTo(15, 6)
     expect(r.inBeatTime).toBeCloseTo(100, 6)       // diverged — clipout independent
+    expect(s.warp.origAnchors[0].time, 'frame1 orig').toBeCloseTo(20, 6)
+    expect(s.warp.beatAnchors[0].time, 'frame1 beat').toBeCloseTo(25, 6)
 
     // Frame 2: drag onto anchor at orig=20. ConformVisual fires (clipin write
     // coincides with orig) → writes clipout.in = beat anchor's time = 25.
     frame(10)
-    r = store.getState().region.regions[0]
+    s = store.getState()
+    r = s.region.regions[0]
     expect(r.inPoint).toBeCloseTo(20, 6)
     expect(r.inBeatTime).toBeCloseTo(25, 6)        // conform engaged
+    expect(s.warp.origAnchors[0].time, 'frame2 orig').toBeCloseTo(20, 6)
+    expect(s.warp.beatAnchors[0].time, 'frame2 beat').toBeCloseTo(25, 6)
 
     // Frame 3: drag past the anchor. beginReplayFrame resets slice clipout
     // back to preDrag (100). ConformVisual doesn't fire (clipin past orig)
     // → slice clipout stays at preDrag value.
     frame(12)
-    r = store.getState().region.regions[0]
+    s = store.getState()
+    r = s.region.regions[0]
     expect(r.inPoint).toBeCloseTo(22, 6)
     expect(r.inBeatTime).toBeCloseTo(100, 6)       // restored to pre-conform diverged value
+    expect(s.warp.origAnchors[0].time, 'frame3 orig').toBeCloseTo(20, 6)
+    expect(s.warp.beatAnchors[0].time, 'frame3 beat').toBeCloseTo(25, 6)
   })
 })

@@ -364,11 +364,18 @@ function handleAnchorMove(
     const origInputT = drag.space === 'input' ? drag.origTime : drag.partnerOrigTime
     const origBeatT  = drag.space === 'output' ? drag.origTime : drag.partnerOrigTime
 
-    if (drag.capturedSpaces.input) {
+    // For pair drags (warp-line) the partner is carried by the orig→beat
+    // DirectedPair installed by initAnchorPair — emit only the orig move.
+    // Snap on the orig field corrects the value pre-cascade so the beat
+    // partner ends up at the snapped position too.
+    const emitInput = drag.capturedSpaces.input
+    const emitBeat  = drag.capturedSpaces.beat && !drag.isPair
+
+    if (emitInput) {
       const newT = Math.max(0, origInputT + delta)
       intents.push({ kind: 'anchorEntityMove', entityId: anchorInId(drag.id), time: newT })
     }
-    if (drag.capturedSpaces.beat) {
+    if (emitBeat) {
       const newT = Math.max(0, origBeatT + delta)
       intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(drag.id), time: newT })
     }
@@ -1074,10 +1081,19 @@ export function createTimelineController(): Controller {
           const delta = finalT - d.origTime
           const finalInputT = Math.max(0, (d.space === 'input' ? d.origTime : d.partnerOrigTime) + delta)
           const finalBeatT  = Math.max(0, (d.space === 'output' ? d.origTime : d.partnerOrigTime) + delta)
-          if (d.capturedSpaces.input) {
+          // For pair drags (warp-line) emit only the orig — the lasso:main
+          // TranslateGroup (installed via dragStart for pair drags) carries
+          // the snapped delta to beat. Emitting an explicit beat with the
+          // raw cursor position would un-snap beat on commit (the second
+          // dispatch's raw delta diverges from the snapped orig delta,
+          // TranslateGroup bails on the divergence, and beat keeps the raw
+          // value).
+          const emitFinalInput = d.capturedSpaces.input
+          const emitFinalBeat  = d.capturedSpaces.beat && !d.isPair
+          if (emitFinalInput) {
             intents.push({ kind: 'anchorEntityMove', entityId: anchorInId(d.id), time: finalInputT })
           }
-          if (d.capturedSpaces.beat) {
+          if (emitFinalBeat) {
             intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(d.id), time: finalBeatT })
           }
           // Combined anchor+region drag: emit regionEntityMove for the PRIMARY

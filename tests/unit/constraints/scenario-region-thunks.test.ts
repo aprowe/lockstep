@@ -217,9 +217,7 @@ describe('moveRegionBounds', () => {
     expect(r.outPoint).toBe(20)
   })
 
-  it('region moved so in-edge lands on an input anchor → NO linking event (conform is visual-only)', () => {
-    // New design: moveRegionBounds never fires applyLinkingEvent.
-    // inBeatTime/outBeatTime stay default-linked (follow inPoint/outPoint).
+  it('region moved so in-edge lands on a diverged anchor → ConformVisual writes beat anchor time to clipout', () => {
     const store = makeStore()
     store.dispatch(addRegion(makeRegion('r', 10, 20)))
     store.dispatch(addAnchor({ id: 1, time: 8 }))
@@ -229,12 +227,13 @@ describe('moveRegionBounds', () => {
 
     const r = store.getState().region.regions[0]
     expect(r.inPoint).toBe(8)
-    // Default-linked: beat-space follows input bounds (no linking event commit)
-    expect(r.inBeatTime).toBe(8)   // follows inPoint
-    expect(r.outBeatTime).toBe(20) // follows outPoint
+    // clipin.in lands on orig=8 → ConformVisual writes clipout.in = beat=4.
+    expect(r.inBeatTime).toBeCloseTo(4, 6)
+    // out-edge unchanged → clipout.out stays linked at 20.
+    expect(r.outBeatTime).toBeCloseTo(20, 6)
   })
 
-  it('region moved so both edges land on input anchors → still NO linking event', () => {
+  it('region moved so both edges land on diverged anchors → both edges conform', () => {
     const store = makeStore()
     store.dispatch(addRegion(makeRegion('r', 10, 20)))
     store.dispatch(addAnchor({ id: 1, time: 8 }))
@@ -247,9 +246,9 @@ describe('moveRegionBounds', () => {
     const r = store.getState().region.regions[0]
     expect(r.inPoint).toBe(8)
     expect(r.outPoint).toBe(18)
-    // Default-linked: beat-space follows input bounds (visual conform only, no linking event)
-    expect(r.inBeatTime).toBe(8)   // follows inPoint
-    expect(r.outBeatTime).toBe(18) // follows outPoint
+    // Each edge lands on its respective anchor → conform to beat anchor times.
+    expect(r.inBeatTime).toBeCloseTo(3, 6)
+    expect(r.outBeatTime).toBeCloseTo(14, 6)
   })
 })
 

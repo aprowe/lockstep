@@ -647,12 +647,13 @@ describe('controller.pointerUp', () => {
     expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
   })
 
-  it('warp-line drag moves both paired anchors by the same delta and emits both commits', () => {
-    // Phase 2.5: pointerUp emits anchorEntityMove for both the input-space (a1-in)
-    // and output-space (a1-out) entities. Whole-array intents are no longer emitted.
+  it('warp-line drag moves both paired anchors by the same delta (orig commit only — beat carried by TranslateGroup)', () => {
+    // Pair drag emits only the ORIG anchorEntityMove at pointerUp; the
+    // lasso:main TranslateGroup installed at dragStart carries the snapped
+    // delta to the beat partner. Emitting an explicit beat would un-snap
+    // beat on commit (raw delta vs snapped orig delta diverge, the resolver
+    // bails on the divergence).
     const c = createTimelineController()
-    // Pair id 1: input @ t=10 (x=80), beat @ t=5. The warp track sits between
-    // markerin and markerout — pick its mid-y via buildLayout.
     const tracks = buildLayout(false, CANVAS_H)
     const warp = tracks.find(t => t.id === 'warp')!
     const warpY = warp.y + warp.h / 2
@@ -661,21 +662,17 @@ describe('controller.pointerUp', () => {
       beatAnchors: [{ id: 1, time: 5 }],
       hits: [pointHit(80, warpY, { kind: 'warp-line', id: 1 })],
     })
-    // Press at the warp-line hit (clientX=80, on the warp row)
     c.pointerDown(makePointerEvent({ clientX: 80, clientY: warpY }), snap)
-    // Move to clientX=400 → +40 view-time delta on BOTH partners.
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: warpY }), snap)
     const intents = c.pointerUp(snap)
     const inputCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
     const beatCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')
     expect(inputCommit).toBeDefined()
-    expect(beatCommit).toBeDefined()
     if (inputCommit?.kind === 'anchorEntityMove') {
       expect(inputCommit.time).toBeCloseTo(50)
     }
-    if (beatCommit?.kind === 'anchorEntityMove') {
-      expect(beatCommit.time).toBeCloseTo(45)
-    }
+    // No explicit beat commit — TranslateGroup propagates from the orig move.
+    expect(beatCommit).toBeUndefined()
     expect(intents.some(i => i.kind === 'anchorsChanged')).toBe(false)
     expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
   })

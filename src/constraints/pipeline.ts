@@ -185,7 +185,32 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     })
   }
 
-  // 3. Default-link (clipin → clipout): two MirrorEdges (per-edge value
+  // 3. Snap SnapTarget — installed BEFORE MirrorEdge / ConformVisual /
+  //    MirrorPair so the snap correction happens FIRST in each Propose pass.
+  //    Subsequent cascading constraints (MirrorEdge clipin→clipout,
+  //    MirrorPair clipout→anchor) then see the already-snapped value and
+  //    propagate it. Without this ordering, MirrorEdge would propagate the
+  //    pre-snap value to clipout, MirrorPair would propagate that stale
+  //    clipout to the anchor, and the anchor would be left at the pre-snap
+  //    value (the "anchors get lost during snap" bug).
+  if (dragCtx.snapInstall) {
+    const { entityId, field, threshold, grid, mode, targets } = dragCtx.snapInstall
+    state = reduce(state, {
+      kind: OpKind.AddConstraint,
+      constraint: {
+        kind:      ConstraintKind.SnapTarget,
+        id:        entityId,
+        field,
+        targets:   targets ?? [],
+        threshold,
+        grid,
+        mode,
+        tag:       `snap:${entityId}:${field}`,
+      },
+    })
+  }
+
+  // 3b. Default-link (clipin → clipout): two MirrorEdges (per-edge value
   //    mirror). For each clipin edge write, clipout's matching edge gets the
   //    same value. Chosen over Translate (delta cascade) so the linked
   //    invariant `clipout = clipin` is re-asserted every pipeline pass —
@@ -219,29 +244,6 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
         },
       })
     }
-  }
-
-  // 3b. Snap SnapTarget — installed EARLY so it restricts writes BEFORE
-  //    ConformVisual / MirrorPair propagate them. The pipeline iterates
-  //    constraints in install order; without this ordering, MirrorPair sees
-  //    the pre-snap clipout write and propagates it to the anchor, then
-  //    SnapTarget restricts the clipout — leaving the anchor at the pre-snap
-  //    value (the "anchors get lost during snap" bug).
-  if (dragCtx.snapInstall) {
-    const { entityId, field, threshold, grid, mode, targets } = dragCtx.snapInstall
-    state = reduce(state, {
-      kind: OpKind.AddConstraint,
-      constraint: {
-        kind:      ConstraintKind.SnapTarget,
-        id:        entityId,
-        field,
-        targets:   targets ?? [],
-        threshold,
-        grid,
-        mode,
-        tag:       `snap:${entityId}:${field}`,
-      },
-    })
   }
 
   // 4a. ConformVisual — auto-installed for every (region × anchor × edge)

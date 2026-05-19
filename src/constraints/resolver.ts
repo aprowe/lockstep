@@ -605,7 +605,11 @@ const HANDLERS: HandlerEntry[] = [
         })
         if (candidates.length === 0) return txn
         const shift = candidates[0].shift
-        if (Math.abs(shift) < EPSILON) return txn
+        // Skip only when shift is true floating-point noise. EPSILON (1e-3)
+        // creates a visible dead zone around the target — within 1e-3 of the
+        // target the snap wouldn't fire and the raw cursor value would be
+        // kept, causing a sub-unit wiggle at high zoom.
+        if (Math.abs(shift) < SNAP_NOOP_EPSILON) return txn
 
         const result = [...txn]
         result[inIdx]  = { ...inWrite,  to: inWrite.to  + shift }
@@ -623,7 +627,8 @@ const HANDLERS: HandlerEntry[] = [
       const candidates = evaluateSnap(state, snap, { kind: 'edge', value: write.to })
       if (candidates.length === 0) return txn
       const best = candidates[0]
-      if (Math.abs(best.shift) < EPSILON) return txn
+      // Same precision-tight no-op check as body mode above.
+      if (Math.abs(best.shift) < SNAP_NOOP_EPSILON) return txn
 
       const result = [...txn]
       result[writeIdx] = { ...write, to: best.value }
@@ -737,6 +742,12 @@ const EPSILON = 1e-3
  *  than EPSILON: coincidence is a meaningful position relationship, not
  *  floating-point slop. */
 const CONFORM_EPSILON = 1e-6
+/** Tolerance for "shift is true floating-point noise" in SnapTarget. Must be
+ *  tighter than CONFORM_EPSILON, because skipping a snap leaves the cursor
+ *  value in place — and that value still needs to pass CONFORM_EPSILON for
+ *  ConformVisual to engage. With EPSILON (1e-3) this created a visible dead
+ *  zone where snap wouldn't fire but conform would also miss. */
+const SNAP_NOOP_EPSILON = 1e-9
 
 export function emptyState(): State {
   return {

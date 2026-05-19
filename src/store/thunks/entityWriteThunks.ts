@@ -137,18 +137,24 @@ export const applyAnchorEntityMove =
 
     dispatchPipelinedReplay(dispatch, getState, { kind: OpKind.Move, id: entityId, delta })
 
-    // Re-link check: when a BEAT anchor (anchor-out) is moved to exactly its
-    // orig partner's time AND the pair is currently diverged, re-link it.
-    // The reverse (orig dragged onto beat) is impossible while linked because
-    // the pairlink propagation keeps them coupled; for a diverged pair, orig
-    // moves don't touch the beat side, so this check is one-directional.
+    // Link bookkeeping after a BEAT anchor drag:
+    //   - Re-link when beat lands on orig (within tolerance).
+    //   - Unlink when beat is dragged AWAY from orig (slice's linked flag
+    //     becomes the sole sentinel the pipeline uses to install the
+    //     orig→beat DirectedPair; without this step a subsequent orig drag
+    //     would propagate via the still-installed DirectedPair and pull the
+    //     diverged beat back, masking the user's unlink).
     if (beatMatch) {
       const post = getState()
       const beat = post.warp.beatAnchors.find(a => a.id === pairId)
       const orig = post.warp.origAnchors.find(a => a.id === pairId)
-      if (beat && orig && beat.linked === false &&
-          Math.abs(beat.time - orig.time) < 1e-6) {
-        dispatch(setAnchorLinked({ id: pairId, linked: true }))
+      if (beat && orig) {
+        const coincident = Math.abs(beat.time - orig.time) < 1e-6
+        if (coincident && beat.linked === false) {
+          dispatch(setAnchorLinked({ id: pairId, linked: true }))
+        } else if (!coincident && beat.linked !== false) {
+          dispatch(setAnchorLinked({ id: pairId, linked: false }))
+        }
       }
     }
   }
@@ -200,18 +206,14 @@ export const applyRegionEntityMove =
   }
 
 /**
- * Apply a moved orig anchor (drag commit on a single anchor). If the anchor is
- * linked, also move the beat side to match.
+ * Apply a moved orig anchor. The anchor-pair DirectedPair (installed by
+ * `initAnchorPair` in step 1 of `buildGraphFromSlice`) propagates the move
+ * to the beat side via the resolver when linked.
  */
 export const applyMoveOrigAnchor =
   (payload: { id: number; time: number }) =>
   (dispatch: AppDispatch, getState: () => RootState) => {
-    const { id, time } = payload
-    const state = getState()
-    dispatchPipelined(dispatch, getState, setAnchorOrigTimeOp(id, time))
-    if (isAnchorLinked(state, id)) {
-      dispatchPipelined(dispatch, getState, setAnchorBeatTimeOp(id, time))
-    }
+    dispatchPipelined(dispatch, getState, setAnchorOrigTimeOp(payload.id, payload.time))
   }
 
 /**
@@ -246,16 +248,13 @@ export const applyOrigAnchorsFromTimeline =
       dispatch(addAnchorAction({ id: a.id, time: a.time }))
       for (const op of addAnchorOps(a.id, a.time, a.time)) dispatchPipelined(dispatch, getState, op)
     }
-    // Move existing anchors.
-    const post = getState()
+    // Move existing anchors. Linked pairs propagate orig → beat via the
+    // DirectedPair installed by `initAnchorPair` — no explicit beat dispatch.
     for (const a of nextOrigAnchors) {
       if (!prevOrigById.has(a.id)) continue
       const prevT = prevOrigById.get(a.id)?.time
       if (prevT !== undefined && Math.abs(prevT - a.time) < 1e-12) continue
       dispatchPipelined(dispatch, getState, setAnchorOrigTimeOp(a.id, a.time))
-      if (isAnchorLinked(post, a.id)) {
-        dispatchPipelined(dispatch, getState, setAnchorBeatTimeOp(a.id, a.time))
-      }
     }
     // Reassert slice ordering to match the input (some callers expect this).
     dispatch(setOrigAnchorsAction([...nextOrigAnchors]))
@@ -412,24 +411,11 @@ export const applyUpdateRegionInOut =
       { inPoint: sliceR.inPoint, outPoint: sliceR.outPoint },
       { inPoint: payload.inPoint, outPoint: payload.outPoint },
     )
-    // Default-linked regions: the DirectedPair propagates clipin→clipout via
-    // the resolver automatically when defaultLinkMirrorMiddleware is active.
-    // For diverged regions, clipout has independent beat-space anchoring.
     if (next.inPoint !== sliceR.inPoint) {
       dispatchPipelined(dispatch, getState, setRegionInEdgeOp(payload.id, 'in', next.inPoint))
     }
     if (next.outPoint !== sliceR.outPoint) {
       dispatchPipelined(dispatch, getState, setRegionInEdgeOp(payload.id, 'out', next.outPoint))
-    }
-    // For default-linked regions, also explicitly update the clipout entity
-    // so selectActiveRegion returns the new beat-space bounds.
-    if (sliceR.defaultLinked) {
-      if (next.inPoint !== sliceR.inBeatTime) {
-        dispatchPipelined(dispatch, getState, setRegionOutEdgeOp(payload.id, 'in', next.inPoint))
-      }
-      if (next.outPoint !== sliceR.outBeatTime) {
-        dispatchPipelined(dispatch, getState, setRegionOutEdgeOp(payload.id, 'out', next.outPoint))
-      }
     }
   }
 

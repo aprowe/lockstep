@@ -43,12 +43,14 @@ export function initClip(clipInId: EntityId, clipOutId: EntityId): Op[] {
 
 /** Initial setup for an anchor pair:
  *    - delete-group binds them so deleting either deletes both.
- *    - The DeleteGroup tag `pair:{anchorInId}` also serves as the "linked"
- *      sentinel: its presence means the beat side tracks the orig side in the
- *      thunks.  Remove it via `unlinkAnchor` to diverge beat from orig. */
+ *    - directed translate (orig → beat): orig.time writes propagate to beat.
+ *      One-way — beat writes do NOT tug orig (beat moves are the unlink
+ *      gesture handled by `applyMoveBeatAnchor`).
+ *    - The shared tag `pair:{anchorInId}` is the "linked" sentinel: its
+ *      presence means the beat side tracks the orig side. `unlinkAnchor`
+ *      removes both constraints to diverge beat from orig. */
 export function initAnchorPair(anchorInId: EntityId, anchorOutId: EntityId): Op[] {
   return [
-    // Delete-group: deleting either partner removes both.
     {
       kind: OpKind.AddConstraint,
       constraint: {
@@ -57,19 +59,28 @@ export function initAnchorPair(anchorInId: EntityId, anchorOutId: EntityId): Op[
         tag: `pair:${anchorInId}`,
       },
     },
+    {
+      kind: OpKind.AddConstraint,
+      constraint: {
+        kind: ConstraintKind.DirectedPair,
+        from: anchorInId,
+        to:   anchorOutId,
+        mode: PairMode.Translate,
+        tag:  `pair:${anchorInId}`,
+      },
+    },
   ]
 }
 
 /** Remove the linked-pair marker for an anchor (equivalent to "diverge" for
- *  anchors).  Removes the DeleteGroup pair marker so delete propagation
- *  stops; beat-side tracking is then a no-op since orig drags don't
- *  propagate to beat (pair-drag gestures move both partners explicitly
- *  in the controller). */
+ *  anchors). Removes both the DeleteGroup and the orig→beat DirectedPair so
+ *  subsequent orig writes no longer drag the beat side. */
 export function unlinkAnchor(anchorInId: EntityId): Op {
   return {
     kind: OpKind.RemoveConstraint,
     predicate: c =>
-      c.kind === ConstraintKind.DeleteGroup && c.tag === `pair:${anchorInId}`,
+      (c.kind === ConstraintKind.DeleteGroup || c.kind === ConstraintKind.DirectedPair) &&
+      (c as { tag?: string }).tag === `pair:${anchorInId}`,
   }
 }
 
