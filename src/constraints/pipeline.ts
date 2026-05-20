@@ -10,6 +10,7 @@
 import { reduce, emptyState, bpmDerivedConstraint } from './resolver'
 import type { State, Op, EntityId } from './types'
 import { ConstraintKind, OpKind, PairMode } from './types'
+import { keyBy } from 'es-toolkit'
 import {
   anchorInId,
   anchorOutId,
@@ -167,9 +168,9 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
 
   // 1. Anchor pair markers (DeleteGroup + linked sentinel).
   //    A beat anchor with linked !== false is considered linked.
-  const beatById = new Map(slice.warp.beatAnchors.map(a => [a.id, a]))
+  const beatById = keyBy(slice.warp.beatAnchors, a => a.id)
   for (const a of slice.warp.origAnchors) {
-    const beat = beatById.get(a.id)
+    const beat = beatById[a.id]
     const isLinked = !beat || beat.linked !== false
     if (isLinked) {
       for (const op of initAnchorPair(anchorInId(a.id), anchorOutId(a.id))) {
@@ -411,41 +412,30 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
   //     clipout), with redirect handling user clipout drags.
   //
   //     See: docs/superpowers/specs/2026-05-20-conform-invariant-restructure-design.md
-  for (const r of slice.region.regions) {
-    for (const orig of slice.warp.origAnchors) {
-      const beat = beatById.get(orig.id)
-      if (!beat) continue
-      for (const edge of ['in', 'out'] as const) {
-        state = reduce(state, {
-          kind: OpKind.AddConstraint,
-          constraint: {
-            kind:        ConstraintKind.ConformRedirect,
-            anchorInId:  anchorInId(orig.id),
-            anchorOutId: anchorOutId(orig.id),
-            clipId:      regionInId(r.id),
-            clipOutId:   regionOutId(r.id),
-            edge,
-          },
-        })
-      }
-    }
-  }
-  for (const r of slice.region.regions) {
-    for (const orig of slice.warp.origAnchors) {
-      const beat = beatById.get(orig.id)
-      if (!beat) continue
-      for (const edge of ['in', 'out'] as const) {
-        state = reduce(state, {
-          kind: OpKind.AddConstraint,
-          constraint: {
-            kind:        ConstraintKind.ConformVisual,
-            anchorInId:  anchorInId(orig.id),
-            anchorOutId: anchorOutId(orig.id),
-            clipId:      regionInId(r.id),
-            clipOutId:   regionOutId(r.id),
-            edge,
-          },
-        })
+  // Install both ConformRedirect and ConformVisual for every
+  // (region × anchor-pair × edge). Order matters within each Propose
+  // iteration: Redirect runs first (rewrites user clipout writes →
+  // anchor.beat), then Visual asserts clipout = anchor.beat. Insertion
+  // order here = iteration order in the Propose loop, so we install
+  // all Redirects across regions/anchors first, then all Visuals.
+  const conformBindingFields = (r: PipelineSlice['region']['regions'][number], origId: number, edge: 'in' | 'out') => ({
+    anchorInId:  anchorInId(origId),
+    anchorOutId: anchorOutId(origId),
+    clipId:      regionInId(r.id),
+    clipOutId:   regionOutId(r.id),
+    edge,
+  })
+  const conformInstallKinds = [ConstraintKind.ConformRedirect, ConstraintKind.ConformVisual] as const
+  for (const kind of conformInstallKinds) {
+    for (const r of slice.region.regions) {
+      for (const orig of slice.warp.origAnchors) {
+        if (!beatById[orig.id]) continue
+        for (const edge of ['in', 'out'] as const) {
+          state = reduce(state, {
+            kind: OpKind.AddConstraint,
+            constraint: { kind, ...conformBindingFields(r, orig.id, edge) },
+          })
+        }
       }
     }
   }

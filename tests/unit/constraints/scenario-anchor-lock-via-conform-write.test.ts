@@ -66,7 +66,7 @@ describe('Anchor-lock follows clipout writes regardless of source', () => {
     // propagates to A3 via the lasso TranslateGroup.
     store.dispatch({ type: 'warp/setSelectedBeatIds', payload: [1, 3] })
     store.dispatch(beginDrag({
-      handle: { kind: 'anchor-drag', anchorId: 1, space: 'output' },
+      handle: { kind: 'anchor-drag', anchorId: 1, space: 'beat' },
       pxPerUnit: 100,
     }))
     store.dispatch(drag({ delta: 2, modifiers: { alt: false } }))
@@ -104,7 +104,7 @@ describe('Anchor-lock follows clipout writes regardless of source', () => {
     // writes clipout.in.
     const store2 = setupLockedTranslate()
     store2.dispatch(beginDrag({
-      handle: { kind: 'anchor-drag', anchorId: 1, space: 'output' },
+      handle: { kind: 'anchor-drag', anchorId: 1, space: 'beat' },
       pxPerUnit: 100,
     }))
     store2.dispatch(drag({ delta: 2, modifiers: { alt: false } }))
@@ -135,7 +135,7 @@ describe('Anchor-lock follows clipout writes regardless of source', () => {
     //   - With the fix: the lock group accepts the tagged driver write →
     //     A2 translates with clipout → 22.
     store.dispatch(beginDrag({
-      handle: { kind: 'anchor-drag', anchorId: 1, space: 'output' },
+      handle: { kind: 'anchor-drag', anchorId: 1, space: 'beat' },
       pxPerUnit: 100,
     }))
     store.dispatch(drag({ delta: 2, modifiers: { alt: false } }))

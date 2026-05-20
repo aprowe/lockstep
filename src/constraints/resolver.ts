@@ -37,6 +37,8 @@ import {
   Phase,
   PreserveMode,
 } from './types'
+import { edgeField, findWrite, findWriteIndex, hasWrite, txnValue } from './txn'
+import { mapValues } from 'es-toolkit'
 
 // ─── Top-level reducer ────────────────────────────────────────────────────
 
@@ -376,37 +378,36 @@ const HANDLERS: HandlerEntry[] = [
       if (!anchorOut || anchorOut.kind !== EntityKind.Anchor) return txn
       if (!clipOut   || clipOut.kind   !== EntityKind.Clip)   return txn
 
-      const clipInEdgeField = cv.edge === 'in' ? Field.In : Field.Out
-      const clipOutField    = cv.edge === 'in' ? Field.In : Field.Out
-      const clipInWrite     = txn.find(w => w.entityId === cv.clipId && w.field === clipInEdgeField)
-      const anchorInWrite   = txn.find(w => w.entityId === cv.anchorInId && w.field === Field.Time)
-      const anchorOutWrite  = txn.find(w => w.entityId === cv.anchorOutId && w.field === Field.Time)
-      const clipOutWrite    = txn.find(w => w.entityId === cv.clipOutId && w.field === clipOutField)
+      const edge = edgeField(cv.edge)
+      const clipIn = state.entities[cv.clipId]
+      if (!clipIn || clipIn.kind !== EntityKind.Clip) return txn
+      const clipInCurrent  = cv.edge === 'in' ? clipIn.in  : clipIn.out
+      const clipOutCurrent = cv.edge === 'in' ? clipOut.in : clipOut.out
 
       // Gate: fire whenever ANY input that could affect the answer has a
       // write this txn. Without this gate, ConformVisual would fire on
       // every empty-txn pass and clamp clipout to anchor.beat even when
       // no relevant write occurred.
-      if (!clipInWrite && !anchorInWrite && !anchorOutWrite && !clipOutWrite) return txn
-
-      const anchorInTime = anchorInWrite?.to ?? anchorIn.time
-      const clipInEdge   = clipInWrite?.to   ?? (cv.edge === 'in'
-                            ? (state.entities[cv.clipId] as { in: number } | undefined)?.in
-                            : (state.entities[cv.clipId] as { out: number } | undefined)?.out)
-      if (clipInEdge === undefined) return txn
+      const clipInEdge   = txnValue(txn, cv.clipId,      edge,        clipInCurrent)
+      const anchorInTime = txnValue(txn, cv.anchorInId,  Field.Time,  anchorIn.time)
+      const anchorOutTime = txnValue(txn, cv.anchorOutId, Field.Time, anchorOut.time)
+      const clipOutEffective = txnValue(txn, cv.clipOutId, edge, clipOutCurrent)
+      const anyWrite =
+        hasWrite(txn, cv.clipId, edge) ||
+        hasWrite(txn, cv.anchorInId,  Field.Time) ||
+        hasWrite(txn, cv.anchorOutId, Field.Time) ||
+        hasWrite(txn, cv.clipOutId,   edge)
+      if (!anyWrite) return txn
 
       // Coincidence check (input space, txn-aware).
       if (Math.abs(clipInEdge - anchorInTime) > CONFORM_EPSILON) return txn
 
       // Coincident — write anchor-out.time to the clipout's matching edge.
-      const anchorOutTime   = anchorOutWrite?.to ?? anchorOut.time
-      const clipOutCurrent  = cv.edge === 'in' ? clipOut.in : clipOut.out
-      const clipOutEffective = clipOutWrite?.to ?? clipOutCurrent
       if (Math.abs(clipOutEffective - anchorOutTime) < EPSILON) return txn
 
       return mergeWrites(txn, [{
         entityId: cv.clipOutId,
-        field:    clipOutField,
+        field:    edge,
         from:     clipOutCurrent,
         to:       anchorOutTime,
         seedTag:  'conform',
@@ -444,10 +445,8 @@ const HANDLERS: HandlerEntry[] = [
       if (!clipIn    || clipIn.kind    !== EntityKind.Clip)   return txn
       if (!clipOut   || clipOut.kind   !== EntityKind.Clip)   return txn
 
-      const clipOutField = cr.edge === 'in' ? Field.In : Field.Out
-      const clipOutIdx   = txn.findIndex(w =>
-        w.entityId === cr.clipOutId && w.field === clipOutField,
-      )
+      const edge         = edgeField(cr.edge)
+      const clipOutIdx   = findWriteIndex(txn, cr.clipOutId, edge)
       if (clipOutIdx < 0) return txn
       const clipOutWrite = txn[clipOutIdx]
 
@@ -455,14 +454,12 @@ const HANDLERS: HandlerEntry[] = [
       if (clipOutWrite.seedTag) return txn
 
       // Don't double-write anchor.beat if user is already moving it.
-      if (txn.some(w => w.entityId === cr.anchorOutId && w.field === Field.Time)) return txn
+      if (hasWrite(txn, cr.anchorOutId, Field.Time)) return txn
 
       // Coincidence check (input space, txn-aware).
-      const clipInEdgeField = cr.edge === 'in' ? Field.In : Field.Out
-      const clipInWrite     = txn.find(w => w.entityId === cr.clipId && w.field === clipInEdgeField)
-      const anchorInWrite   = txn.find(w => w.entityId === cr.anchorInId && w.field === Field.Time)
-      const clipInEdge      = clipInWrite?.to ?? (cr.edge === 'in' ? clipIn.in : clipIn.out)
-      const anchorInTime    = anchorInWrite?.to ?? anchorIn.time
+      const clipInCurrent = cr.edge === 'in' ? clipIn.in : clipIn.out
+      const clipInEdge    = txnValue(txn, cr.clipId,     edge,       clipInCurrent)
+      const anchorInTime  = txnValue(txn, cr.anchorInId, Field.Time, anchorIn.time)
       if (Math.abs(clipInEdge - anchorInTime) > CONFORM_EPSILON) return txn
 
       // Coincidence holds. Rewrite clipout write → anchor.beat write,
@@ -492,18 +489,18 @@ const HANDLERS: HandlerEntry[] = [
 
       let driverId: EntityId | undefined
       if (group.driver !== undefined) {
-        if (!txn.some(w => w.entityId === group.driver)) return txn
+        if (!hasWrite(txn, group.driver)) return txn
         driverId = group.driver
       } else {
-        driverId = group.ids.find(id => txn.some(w => w.entityId === id))
+        driverId = group.ids.find(id => hasWrite(txn, id))
         if (!driverId) return txn
       }
 
       const driver = state.entities[driverId]
       if (!driver || driver.kind !== EntityKind.Clip) return txn
 
-      const inWrite  = txn.find(w => w.entityId === driverId && w.field === Field.In)
-      const outWrite = txn.find(w => w.entityId === driverId && w.field === Field.Out)
+      const inWrite  = findWrite(txn, driverId, Field.In)
+      const outWrite = findWrite(txn, driverId, Field.Out)
       if (inWrite && outWrite)   return txn   // both edges moved → pan, not scale
       if (!inWrite && !outWrite) return txn   // neither edge moved
 
@@ -580,8 +577,8 @@ const HANDLERS: HandlerEntry[] = [
     apply: (state, c: never, txn) => {
       const preserve = c as PreserveLength
 
-      const inWrite  = txn.find(w => w.entityId === preserve.clipId && w.field === Field.In)
-      const outWrite = txn.find(w => w.entityId === preserve.clipId && w.field === Field.Out)
+      const inWrite  = findWrite(txn, preserve.clipId, Field.In)
+      const outWrite = findWrite(txn, preserve.clipId, Field.Out)
       if (!inWrite && !outWrite) return txn
 
       const clip = state.entities[preserve.clipId]
@@ -625,8 +622,8 @@ const HANDLERS: HandlerEntry[] = [
       const snap = c as SnapTarget
 
       if (snap.mode === 'body') {
-        const inIdx  = txn.findIndex(w => w.entityId === snap.id && w.field === Field.In)
-        const outIdx = txn.findIndex(w => w.entityId === snap.id && w.field === Field.Out)
+        const inIdx  = findWriteIndex(txn, snap.id, Field.In)
+        const outIdx = findWriteIndex(txn, snap.id, Field.Out)
         if (inIdx < 0 || outIdx < 0) return txn
         const inWrite  = txn[inIdx]
         const outWrite = txn[outIdx]
@@ -649,9 +646,7 @@ const HANDLERS: HandlerEntry[] = [
       }
 
       // Edge mode: snap only the dragged field.
-      const writeIdx = txn.findIndex(w =>
-        w.entityId === snap.id && w.field === snap.field,
-      )
+      const writeIdx = findWriteIndex(txn, snap.id, snap.field)
       if (writeIdx < 0) return txn
       const write = txn[writeIdx]
 
@@ -1019,8 +1014,8 @@ function findTranslateDelta(
     if (!entity) continue
 
     if (entity.kind === EntityKind.Anchor) {
-      const write = txn.find(w => w.entityId === id && w.field === Field.Time && isEligible(w, id))
-      if (!write) continue
+      const write = findWrite(txn, id, Field.Time)
+      if (!write || !isEligible(write, id)) continue
       const delta = write.to - write.from
       if (candidate === null) {
         candidate = delta
@@ -1030,8 +1025,10 @@ function findTranslateDelta(
       continue
     }
 
-    const inWrite  = txn.find(w => w.entityId === id && w.field === Field.In  && isEligible(w, id))
-    const outWrite = txn.find(w => w.entityId === id && w.field === Field.Out && isEligible(w, id))
+    const inMaybe  = findWrite(txn, id, Field.In)
+    const outMaybe = findWrite(txn, id, Field.Out)
+    const inWrite  = inMaybe  && isEligible(inMaybe,  id) ? inMaybe  : undefined
+    const outWrite = outMaybe && isEligible(outMaybe, id) ? outMaybe : undefined
     if (!inWrite && !outWrite) continue
     if (!inWrite || !outWrite)  return null   // partial = resize
 
@@ -1067,8 +1064,8 @@ function wasTranslateOp(
     if (!entity) continue
     if (entity.kind === EntityKind.Anchor) continue
 
-    const inWrite  = txn.find(w => w.entityId === id && w.field === Field.In)
-    const outWrite = txn.find(w => w.entityId === id && w.field === Field.Out)
+    const inWrite  = findWrite(txn, id, Field.In)
+    const outWrite = findWrite(txn, id, Field.Out)
     if (!inWrite && !outWrite) continue          // unaffected — skip
     if (!inWrite || !outWrite)  return false     // partial edge = resize
   }
@@ -1120,15 +1117,9 @@ function makeTranslateWrites(
 function mergeWrites(txn: Txn, additions: Write[]): Txn {
   const merged = [...txn]
   for (const addition of additions) {
-    const existing = merged.findIndex(w =>
-      w.entityId === addition.entityId &&
-      w.field    === addition.field,
-    )
-    if (existing >= 0) {
-      merged[existing] = addition
-    } else {
-      merged.push(addition)
-    }
+    const existing = findWriteIndex(merged, addition.entityId, addition.field)
+    if (existing >= 0) merged[existing] = addition
+    else               merged.push(addition)
   }
   return merged
 }
@@ -1139,15 +1130,9 @@ function upsertWrite(
   field: Field,
   to: number,
 ): Txn {
-  const existing = txn.findIndex(w =>
-    w.entityId === entityId &&
-    w.field    === field,
-  )
+  const existing = findWriteIndex(txn, entityId, field)
   if (existing < 0) return txn
-  return txn.map((write, i) => {
-    if (i !== existing) return write
-    return { ...write, to }
-  })
+  return txn.map((write, i) => (i === existing ? { ...write, to } : write))
 }
 
 function readField(entity: Entity, field: Field): number | undefined {
@@ -1180,22 +1165,12 @@ function clampValue(value: number, min?: number, max?: number): number {
 
 function clone(state: State): State {
   return {
-    entities: Object.fromEntries(
-      Object.entries(state.entities).map(([id, entity]) => [
-        id,
-        { ...entity } as Entity,
-      ]),
-    ),
-    constraints: state.constraints.map(constraint => ({
-      ...constraint,
-      ...('ids' in constraint ? { ids: [...constraint.ids] } : {}),
+    entities: mapValues(state.entities, e => ({ ...e } as Entity)),
+    constraints: state.constraints.map(c => ({
+      ...c,
+      ...('ids' in c ? { ids: [...c.ids] } : {}),
     } as Constraint)),
-    meta: Object.fromEntries(
-      Object.entries(state.meta).map(([id, meta]) => [
-        id,
-        { ...meta },
-      ]),
-    ),
+    meta: mapValues(state.meta, m => ({ ...m })),
     globals: { ...state.globals },
   }
 }
