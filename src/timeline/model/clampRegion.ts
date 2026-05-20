@@ -1,13 +1,13 @@
-export const MIN_REGION_LENGTH = 1
+export const MIN_REGION_LENGTH = 1;
 
 export interface RegionBoundsInput {
-  inPoint: number
-  outPoint: number
+    inPoint: number;
+    outPoint: number;
 }
 
 export interface ClampOptions {
-  /** Minimum allowed span (seconds). Defaults to MIN_REGION_LENGTH. */
-  minLength?: number
+    /** Minimum allowed span (seconds). Defaults to MIN_REGION_LENGTH. */
+    minLength?: number;
 }
 
 /**
@@ -20,25 +20,25 @@ export interface ClampOptions {
  * out moved.
  */
 export function clampRegionInOut(
-  current: RegionBoundsInput,
-  requested: RegionBoundsInput,
-  opts: ClampOptions = {},
+    current: RegionBoundsInput,
+    requested: RegionBoundsInput,
+    opts: ClampOptions = {},
 ): RegionBoundsInput {
-  const minLength = opts.minLength ?? MIN_REGION_LENGTH
-  let { inPoint: newIn, outPoint: newOut } = requested
-  const length = current.outPoint - current.inPoint
+    const minLength = opts.minLength ?? MIN_REGION_LENGTH;
+    let { inPoint: newIn, outPoint: newOut } = requested;
+    const length = current.outPoint - current.inPoint;
 
-  if (newIn > current.outPoint) {
-    newOut = newIn + length
-  } else if (newOut < current.inPoint) {
-    newIn = newOut - length
-  } else if (newOut - newIn < minLength) {
-    if (newIn !== current.inPoint) {
-      newIn = newOut - minLength
-    } else {
-      newOut = newIn + minLength
+    if (newIn > current.outPoint) {
+        newOut = newIn + length;
+    } else if (newOut < current.inPoint) {
+        newIn = newOut - length;
+    } else if (newOut - newIn < minLength) {
+        if (newIn !== current.inPoint) {
+            newIn = newOut - minLength;
+        } else {
+            newOut = newIn + minLength;
+        }
     }
-  }
 
-  return { inPoint: newIn, outPoint: newOut }
+    return { inPoint: newIn, outPoint: newOut };
 }

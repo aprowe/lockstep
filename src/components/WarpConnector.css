@@ -1,73 +1,74 @@
 .warp-connector-wrap {
-  --rail-w: calc(76px * var(--ui-scale));
-  display: grid;
-  grid-template-columns: var(--rail-w) 1fr;
-  width: 100%;
+    --rail-w: calc(76px * var(--ui-scale));
+    display: grid;
+    grid-template-columns: var(--rail-w) 1fr;
+    width: 100%;
 }
 
 .warp-connector__rail-cell {
-  grid-column: 1;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1);
-  padding: 0 var(--sp-3);
-  background: var(--bg-1);
-  border-right: 1px solid var(--border-hi);
-  font-family: var(--font-family);
-  font-size: calc(10px * var(--ui-scale));
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--fg-3);
-  white-space: nowrap;
-  overflow: hidden;
-  min-width: 0;
+    grid-column: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    padding: 0 var(--sp-3);
+    background: var(--bg-1);
+    border-right: 1px solid var(--border-hi);
+    font-family: var(--font-family);
+    font-size: calc(10px * var(--ui-scale));
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    white-space: nowrap;
+    overflow: hidden;
+    min-width: 0;
 }
 
 .warp-connector {
-  grid-column: 2;
-  position: relative;
-  width: 100%;
-  height: var(--sz-connector);
-  background: var(--bg-0);
-  overflow: hidden;
+    grid-column: 2;
+    position: relative;
+    width: 100%;
+    height: var(--sz-connector);
+    background: var(--bg-0);
+    overflow: hidden;
 }
 
 .warp-connector::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--out-of-range-fill, rgba(0, 0, 0, 0.45));
-  pointer-events: none;
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--out-of-range-fill, rgba(0, 0, 0, 0.45));
+    pointer-events: none;
 }
 
 .warp-connector--empty {
-  border-top: 1px dashed var(--bg-4);
-  border-bottom: 1px dashed var(--bg-4);
+    border-top: 1px dashed var(--bg-4);
+    border-bottom: 1px dashed var(--bg-4);
 }
 
 .warp-connector__svg {
-  display: block;
+    display: block;
 }
 
 .warp-connector__out-of-range {
-  position: absolute;
-  top: 0; bottom: 0;
-  background: var(--out-of-range-fill, rgba(0, 0, 0, 0.45));
-  pointer-events: none;
-  z-index: 1;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: var(--out-of-range-fill, rgba(0, 0, 0, 0.45));
+    pointer-events: none;
+    z-index: 1;
 }
 
 /* Out-of-range polygons rendered inside the SVG share the same token as
  * the rectangular overlay above, so the wash looks consistent across
  * straight-edged and slanted clip boundaries. */
 .warp-connector__out-of-range-poly {
-  fill: none;
+    fill: none;
 }
 
 .warp-connector__boundary-line {
-  stroke: var(--blue);
-  stroke-opacity: 0.65;
-  stroke-width: 1;
+    stroke: var(--blue);
+    stroke-opacity: 0.65;
+    stroke-width: 1;
 }
 
 /* Anchor connector lines — both states use the warp-space hue; the
@@ -75,27 +76,26 @@
  * automatically paired). Stroke-opacity carries the selection-vs-resting
  * alpha. */
 .warp-connector__line--linked {
-  stroke: var(--space-warp);
-  stroke-dasharray: 5 5;
+    stroke: var(--space-warp);
+    stroke-dasharray: 5 5;
 }
 .warp-connector__line--unlinked {
-  stroke: var(--space-warp);
+    stroke: var(--space-warp);
 }
 
 /* Region edge strokes on the warp row. Hue picks up --clip-h/s/l from the
  * parent <g class="clip-overlay--color-N">, so each region's edges match
  * its color identity on the Clip In / Clip Out bands. */
 .warp-connector__region-edge {
-  stroke: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.7);
-  stroke-width: 1;
-  fill: none;
+    stroke: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.7);
+    stroke-width: 1;
+    fill: none;
 }
 
 /* Whisper of region color between the two slanted edges (the body of the
  * warp polygon). Kept very low alpha so the warp band still reads as a
  * neutral gutter — just enough to tie the input clip to its output sibling. */
 .warp-connector__region-fill {
-  fill: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.05);
-  stroke: none;
+    fill: hsla(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%), 0.05);
+    stroke: none;
 }
-

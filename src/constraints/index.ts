@@ -9,13 +9,13 @@
  *   recipes.*          — high-level gestures (lasso, lockOn, snapToSiblings, ...).
  */
 
-export * from './types'
+export * from "./types";
 export {
-  reduce,
-  emptyState,
-  bpmDerivedConstraint,
-  findSnapCandidates,
-  readEntityField,
-} from './resolver'
-export { movementClosure } from './closure'
-export * as recipes from './recipes'
+    reduce,
+    emptyState,
+    bpmDerivedConstraint,
+    findSnapCandidates,
+    readEntityField,
+} from "./resolver";
+export { movementClosure } from "./closure";
+export * as recipes from "./recipes";

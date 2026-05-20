@@ -1,244 +1,252 @@
 /* ── Clip Sidebar ────────────────────────────────────────── */
 .cs-sidebar {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  font-family: var(--font-family);
-  background: var(--bg-3);
-  border-right: 1px solid var(--border);
-  overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    font-family: var(--font-family);
+    background: var(--bg-3);
+    border-right: 1px solid var(--border);
+    overflow: hidden;
 }
 
 /* ── Header ────────────────────────────────────────────── */
 .cs-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 7px var(--sp-4);
-  background: var(--bg-7);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px var(--sp-4);
+    background: var(--bg-7);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
 }
 
 .cs-header__label {
-  font-size: var(--t-sm);
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--fg-2);
+    font-size: var(--t-sm);
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg-2);
 }
 
 .cs-header__add {
-  width: var(--sz-btn-sm);
-  height: var(--sz-btn-sm);
-  background: none;
-  border: 1px solid var(--border-hi);
-  border-radius: 4px;
-  color: var(--fg-2);
-  font-size: var(--t-xl);
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  transition: color 0.1s, border-color 0.1s;
+    width: var(--sz-btn-sm);
+    height: var(--sz-btn-sm);
+    background: none;
+    border: 1px solid var(--border-hi);
+    border-radius: 4px;
+    color: var(--fg-2);
+    font-size: var(--t-xl);
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    transition:
+        color 0.1s,
+        border-color 0.1s;
 }
 
 .cs-header__add:hover {
-  color: var(--fg-1);
-  border-color: var(--fg-3);
+    color: var(--fg-1);
+    border-color: var(--fg-3);
 }
 
 /* ── List ──────────────────────────────────────────────── */
 .cs-list {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 /* ── Clip item ─────────────────────────────────────────── */
 .cs-item {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--sp-1);
-  padding: 7px var(--sp-3);
-  cursor: pointer;
-  border-bottom: 1px solid var(--bg-6);
-  transition: background 0.08s;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-1);
+    padding: 7px var(--sp-3);
+    cursor: pointer;
+    border-bottom: 1px solid var(--bg-6);
+    transition: background 0.08s;
 }
 
 .cs-item:hover {
-  background: var(--bg-5);
+    background: var(--bg-5);
 }
 
 .cs-item--active {
-  background: #2a2018;
-  border-left: 2px solid var(--accent-2);
-  padding-left: var(--sp-2);
+    background: #2a2018;
+    border-left: 2px solid var(--accent-2);
+    padding-left: var(--sp-2);
 }
 
 .cs-item--active:hover {
-  background: #2e2418;
+    background: #2e2418;
 }
 
 .cs-item__arrow {
-  font-size: var(--t-2xs);
-  color: var(--accent-2);
-  margin-top: 3px;
-  width: 10px;
-  flex-shrink: 0;
-  line-height: 1;
+    font-size: var(--t-2xs);
+    color: var(--accent-2);
+    margin-top: 3px;
+    width: 10px;
+    flex-shrink: 0;
+    line-height: 1;
 }
 
 .cs-item__info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-0);
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-0);
 }
 
 .cs-item__name {
-  font-size: var(--t-md);
-  color: var(--fg-1);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+    font-size: var(--t-md);
+    color: var(--fg-1);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .cs-item__range {
-  font-size: var(--t-sm);
-  color: var(--fg-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+    font-size: var(--t-sm);
+    color: var(--fg-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 /* ── Rename input ──────────────────────────────────────── */
 .cs-rename-input {
-  width: 100%;
-  background: var(--bg-2);
-  border: 1px solid var(--accent-2);
-  border-radius: 3px;
-  color: var(--fg-1);
-  font-family: inherit;
-  font-size: var(--t-md);
-  padding: 1px var(--sp-1);
-  outline: none;
+    width: 100%;
+    background: var(--bg-2);
+    border: 1px solid var(--accent-2);
+    border-radius: 3px;
+    color: var(--fg-1);
+    font-family: inherit;
+    font-size: var(--t-md);
+    padding: 1px var(--sp-1);
+    outline: none;
 }
 
 /* ── In/Out editor ─────────────────────────────────────── */
 .cs-inout {
-  flex-shrink: 0;
-  background: var(--bg-4);
+    flex-shrink: 0;
+    background: var(--bg-4);
 }
 
 .cs-inout__divider {
-  height: 1px;
-  background: var(--border);
+    height: 1px;
+    background: var(--border);
 }
 
 .cs-inout__row {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px var(--sp-4);
-  border-bottom: 1px solid var(--bg-6);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px var(--sp-4);
+    border-bottom: 1px solid var(--bg-6);
 }
 
 .cs-inout__label {
-  font-size: var(--t-sm);
-  color: var(--fg-3);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  width: 22px;
-  flex-shrink: 0;
+    font-size: var(--t-sm);
+    color: var(--fg-3);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    width: 22px;
+    flex-shrink: 0;
 }
 
 .cs-inout__time {
-  font-size: var(--t-base);
-  color: var(--fg-2);
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+    font-size: var(--t-base);
+    color: var(--fg-2);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .cs-inout__time--editable {
-  cursor: text;
-  border-radius: 3px;
-  padding: 1px var(--sp-1);
-  margin: -1px calc(-1 * var(--sp-1));
-  transition: background 0.1s;
+    cursor: text;
+    border-radius: 3px;
+    padding: 1px var(--sp-1);
+    margin: -1px calc(-1 * var(--sp-1));
+    transition: background 0.1s;
 }
-.cs-inout__time--editable:hover { background: var(--bg-6); }
+.cs-inout__time--editable:hover {
+    background: var(--bg-6);
+}
 
 .cs-inout__input {
-  flex: 1;
-  min-width: 0;
-  background: var(--bg-2);
-  border: 1px solid var(--accent-2);
-  border-radius: 3px;
-  color: var(--fg-1);
-  font-family: inherit;
-  font-size: var(--t-base);
-  padding: 1px var(--sp-1);
-  outline: none;
+    flex: 1;
+    min-width: 0;
+    background: var(--bg-2);
+    border: 1px solid var(--accent-2);
+    border-radius: 3px;
+    color: var(--fg-1);
+    font-family: inherit;
+    font-size: var(--t-base);
+    padding: 1px var(--sp-1);
+    outline: none;
 }
 
 .cs-inout__set {
-  background: none;
-  border: 1px solid var(--border-hi);
-  border-radius: 3px;
-  color: var(--fg-2);
-  font-family: inherit;
-  font-size: var(--t-sm);
-  padding: 2px var(--sp-2);
-  cursor: pointer;
-  transition: color 0.1s, border-color 0.1s;
-  flex-shrink: 0;
-  letter-spacing: 0.04em;
+    background: none;
+    border: 1px solid var(--border-hi);
+    border-radius: 3px;
+    color: var(--fg-2);
+    font-family: inherit;
+    font-size: var(--t-sm);
+    padding: 2px var(--sp-2);
+    cursor: pointer;
+    transition:
+        color 0.1s,
+        border-color 0.1s;
+    flex-shrink: 0;
+    letter-spacing: 0.04em;
 }
 
 .cs-inout__set:hover {
-  color: var(--fg-1);
-  border-color: var(--fg-3);
+    color: var(--fg-1);
+    border-color: var(--fg-3);
 }
 
 .cs-inout__actions {
-  display: flex;
-  gap: 5px;
-  padding: 7px var(--sp-4);
+    display: flex;
+    gap: 5px;
+    padding: 7px var(--sp-4);
 }
 
 .cs-inout__btn {
-  flex: 1;
-  background: none;
-  border: 1px solid var(--border-hi);
-  border-radius: 4px;
-  color: var(--fg-2);
-  font-family: inherit;
-  font-size: var(--t-sm);
-  letter-spacing: 0.04em;
-  padding: var(--sp-1) var(--sp-2);
-  cursor: pointer;
-  transition: color 0.1s, border-color 0.1s;
-  white-space: nowrap;
-  text-align: center;
+    flex: 1;
+    background: none;
+    border: 1px solid var(--border-hi);
+    border-radius: 4px;
+    color: var(--fg-2);
+    font-family: inherit;
+    font-size: var(--t-sm);
+    letter-spacing: 0.04em;
+    padding: var(--sp-1) var(--sp-2);
+    cursor: pointer;
+    transition:
+        color 0.1s,
+        border-color 0.1s;
+    white-space: nowrap;
+    text-align: center;
 }
 
 .cs-inout__btn:hover {
-  color: var(--fg-1);
-  border-color: var(--fg-3);
+    color: var(--fg-1);
+    border-color: var(--fg-3);
 }
 
 .cs-inout__btn--danger {
-  color: var(--fg-2);
+    color: var(--fg-2);
 }
 
 .cs-inout__btn--danger:hover {
-  color: var(--accent-2);
-  border-color: rgba(var(--accent-2-rgb), 0.5);
+    color: var(--accent-2);
+    border-color: rgba(var(--accent-2-rgb), 0.5);
 }

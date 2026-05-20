@@ -10,51 +10,48 @@ id: menubar
 name: Main menu bar
 
 groups:
-  - - File
-    - Edit
-    - View
+    - - File
+      - Edit
+      - View
 
 ---
-
 id: file-menu
 name: File menu
 
 groups:
-  - - Open Video
-    - Open Folder
-    - Open Recent
+    - - Open Video
+      - Open Folder
+      - Open Recent
 
-  - - Open Project
-    - Save Project As
+    - - Open Project
+      - Save Project As
 
-  - - Reset Project
+    - - Reset Project
 
-  - - Close Video
+    - - Close Video
 
 ---
-
 id: edit-menu
 name: Edit menu
 
 groups:
-  - - Undo
-    - Redo
+    - - Undo
+      - Redo
 
-  - - Select All
-    - Deselect
+    - - Select All
+      - Deselect
 
-  - - Settings…
+    - - Settings…
 
 ---
-
 id: view-menu
 name: View menu
 
 groups:
-  - - Increase UI Scale
-    - Decrease UI Scale
-    - Reset UI Scale
+    - - Increase UI Scale
+      - Decrease UI Scale
+      - Reset UI Scale
 
-  - - Keyboard Shortcuts…
+    - - Keyboard Shortcuts…
 
-  - - Reset Panel Layout
+    - - Reset Panel Layout

@@ -1,74 +1,77 @@
 .vinfo {
-  width: 100%;
-  height: 100%;
-  /* Match the Clip Info panel's surface (one shade lighter than --bg-1)
+    width: 100%;
+    height: 100%;
+    /* Match the Clip Info panel's surface (one shade lighter than --bg-1)
    * so the two info panels feel like siblings when tabbed together. */
-  background: var(--bg-3);
-  padding: var(--sp-3) var(--sp-4);
-  overflow-y: auto;
-  font-family: var(--font-family);
-  color: var(--fg-2);
-  font-size: var(--t-sm);
+    background: var(--bg-3);
+    padding: var(--sp-3) var(--sp-4);
+    overflow-y: auto;
+    font-family: var(--font-family);
+    color: var(--fg-2);
+    font-size: var(--t-sm);
 }
 
 .vinfo__name {
-  font-size: var(--t-md);
-  color: var(--fg-1);
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-bottom: 1px;
+    font-size: var(--t-md);
+    color: var(--fg-1);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 1px;
 }
 
 .vinfo__dir {
-  color: var(--fg-4);
-  font-size: var(--t-xs);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  direction: rtl;        /* keep the meaningful tail of long paths visible */
-  text-align: left;
-  margin-bottom: var(--sp-2);
+    color: var(--fg-4);
+    font-size: var(--t-xs);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    direction: rtl; /* keep the meaningful tail of long paths visible */
+    text-align: left;
+    margin-bottom: var(--sp-2);
 }
 
 .vinfo__reveal {
-  display: inline-block;
-  margin-bottom: var(--sp-3);
-  padding: 2px var(--sp-3);
-  background: var(--bg-3);
-  border: 1px solid var(--border);
-  border-radius: 2px;
-  color: var(--fg-2);
-  font-family: inherit;
-  font-size: var(--t-xs);
-  cursor: pointer;
-  transition: background 0.08s, color 0.08s, border-color 0.08s;
+    display: inline-block;
+    margin-bottom: var(--sp-3);
+    padding: 2px var(--sp-3);
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--fg-2);
+    font-family: inherit;
+    font-size: var(--t-xs);
+    cursor: pointer;
+    transition:
+        background 0.08s,
+        color 0.08s,
+        border-color 0.08s;
 }
 
 .vinfo__reveal:hover {
-  background: var(--bg-hover);
-  color: var(--fg-1);
-  border-color: var(--accent);
+    background: var(--bg-hover);
+    color: var(--fg-1);
+    border-color: var(--accent);
 }
 
 .vinfo__grid {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  column-gap: var(--sp-3);
-  row-gap: var(--sp-1);
-  align-items: baseline;
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    column-gap: var(--sp-3);
+    row-gap: var(--sp-1);
+    align-items: baseline;
 }
 
 .vinfo__label {
-  color: var(--fg-4);
-  font-size: var(--t-xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+    color: var(--fg-4);
+    font-size: var(--t-xs);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
 }
 
 .vinfo__value {
-  color: var(--fg-1);
-  font-variant-numeric: tabular-nums;
-  word-break: break-word;
+    color: var(--fg-1);
+    font-variant-numeric: tabular-nums;
+    word-break: break-word;
 }

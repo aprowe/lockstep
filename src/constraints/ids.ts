@@ -24,34 +24,34 @@
  * entities by prefix without ad-hoc string checks.
  */
 
-import type { EntityId } from './types'
+import type { EntityId } from "./types";
 
 // ── Anchors ──────────────────────────────────────────────────────────────────
 
 export function anchorInId(anchorId: number): EntityId {
-  return `a${anchorId}-in`
+    return `a${anchorId}-in`;
 }
 
 export function anchorOutId(anchorId: number): EntityId {
-  return `a${anchorId}-out`
+    return `a${anchorId}-out`;
 }
 
 // ── Regions / clips ──────────────────────────────────────────────────────────
 
 export function regionInId(regionId: string): EntityId {
-  return `${regionId}-in`
+    return `${regionId}-in`;
 }
 
 export function regionOutId(regionId: string): EntityId {
-  return `${regionId}-out`
+    return `${regionId}-out`;
 }
 
 // ── Parsing ──────────────────────────────────────────────────────────────────
 
-export type EntityKind = 'anchor-in' | 'anchor-out' | 'clip-in' | 'clip-out'
+export type EntityKind = "anchor-in" | "anchor-out" | "clip-in" | "clip-out";
 
-const ANCHOR_IN_RE  = /^a(\d+)-in$/
-const ANCHOR_OUT_RE = /^a(\d+)-out$/
+const ANCHOR_IN_RE = /^a(\d+)-in$/;
+const ANCHOR_OUT_RE = /^a(\d+)-out$/;
 
 /**
  * Parse a graph entity ID into its kind and source ID.
@@ -64,17 +64,25 @@ const ANCHOR_OUT_RE = /^a(\d+)-out$/
  * real region IDs start with `region_` — they can never match `a\d+`.
  */
 export function parseEntityId(id: EntityId): { kind: EntityKind; sourceId: string } | null {
-  let m: RegExpMatchArray | null
-  if ((m = id.match(ANCHOR_IN_RE)))  return { kind: 'anchor-in',  sourceId: m[1] }
-  if ((m = id.match(ANCHOR_OUT_RE))) return { kind: 'anchor-out', sourceId: m[1] }
-  if (id.endsWith('-in'))            return { kind: 'clip-in',    sourceId: id.slice(0, -3) }
-  if (id.endsWith('-out'))           return { kind: 'clip-out',   sourceId: id.slice(0, -4) }
-  return null
+    let m: RegExpMatchArray | null;
+    if ((m = id.match(ANCHOR_IN_RE))) return { kind: "anchor-in", sourceId: m[1] };
+    if ((m = id.match(ANCHOR_OUT_RE))) return { kind: "anchor-out", sourceId: m[1] };
+    if (id.endsWith("-in")) return { kind: "clip-in", sourceId: id.slice(0, -3) };
+    if (id.endsWith("-out")) return { kind: "clip-out", sourceId: id.slice(0, -4) };
+    return null;
 }
 
 // ── Kind predicates ──────────────────────────────────────────────────────────
 
-export function isAnchorIn (id: EntityId): boolean { return parseEntityId(id)?.kind === 'anchor-in'  }
-export function isAnchorOut(id: EntityId): boolean { return parseEntityId(id)?.kind === 'anchor-out' }
-export function isClipIn   (id: EntityId): boolean { return parseEntityId(id)?.kind === 'clip-in'    }
-export function isClipOut  (id: EntityId): boolean { return parseEntityId(id)?.kind === 'clip-out'   }
+export function isAnchorIn(id: EntityId): boolean {
+    return parseEntityId(id)?.kind === "anchor-in";
+}
+export function isAnchorOut(id: EntityId): boolean {
+    return parseEntityId(id)?.kind === "anchor-out";
+}
+export function isClipIn(id: EntityId): boolean {
+    return parseEntityId(id)?.kind === "clip-in";
+}
+export function isClipOut(id: EntityId): boolean {
+    return parseEntityId(id)?.kind === "clip-out";
+}

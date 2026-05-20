@@ -46,7 +46,7 @@ In scope:
 - **Drag lifecycle** — `beginDrag` / `drag` / `endDrag` intents driving
   a pipeline-owned gesture state.
 - **Entity-gesture profiles** — declarative `whileDragging` constraints
-  + procedural `onDrag` op translation per handle kind.
+    - procedural `onDrag` op translation per handle kind.
 - **Controller slim-down** — replace hit-aware intent variants
   (`anchorEntityMove`, `regionResize`, `regionEntityMove`, etc.) with a
   uniform `drag({ delta })` intent. Hit-test resolves to a `Handle`.
@@ -116,11 +116,11 @@ The unit of "what the user grabbed". A discriminated union keyed off
 
 ```ts
 type Handle =
-  | { kind: 'anchor-drag';    anchorId: number; space: 'input' | 'beat' }
-  | { kind: 'pair-drag';      pairId: number }
-  | { kind: 'clip-body';      clipId: string; space: 'input' | 'beat' }
-  | { kind: 'clip-in-edge';   clipId: string; space: 'input' | 'beat' }
-  | { kind: 'clip-out-edge';  clipId: string; space: 'input' | 'beat' }
+    | { kind: "anchor-drag"; anchorId: number; space: "input" | "beat" }
+    | { kind: "pair-drag"; pairId: number }
+    | { kind: "clip-body"; clipId: string; space: "input" | "beat" }
+    | { kind: "clip-in-edge"; clipId: string; space: "input" | "beat" }
+    | { kind: "clip-out-edge"; clipId: string; space: "input" | "beat" };
 ```
 
 The controller's hit-test returns a `Handle`. No other gesture state
@@ -132,16 +132,16 @@ A new slice (or sub-slice) holding the live gesture:
 
 ```ts
 type GestureState = {
-  activeHandle: Handle | null
-  // Delta is tracked here so the resolver / TSX never reads cumulative
-  // delta off the controller's mutable `drag` object.
-  cumulativeDelta: number
-  // Transient modifier-key state for the active drag. Piggy-backed on
-  // the `drag` intent — `drag({ delta, modifiers })` updates this and
-  // then runs the op translation. Used today by anchor-lock's alt-XOR
-  // toggle; shift/ctrl can be added when needed.
-  modifiers: { alt: boolean }
-}
+    activeHandle: Handle | null;
+    // Delta is tracked here so the resolver / TSX never reads cumulative
+    // delta off the controller's mutable `drag` object.
+    cumulativeDelta: number;
+    // Transient modifier-key state for the active drag. Piggy-backed on
+    // the `drag` intent — `drag({ delta, modifiers })` updates this and
+    // then runs the op translation. Used today by anchor-lock's alt-XOR
+    // toggle; shift/ctrl can be added when needed.
+    modifiers: { alt: boolean };
+};
 ```
 
 Replaces `dragCtxSlice`. The replay-model `drag.preDrag` slice stays
@@ -153,9 +153,9 @@ The per-handle-kind declaration:
 
 ```ts
 type GestureProfile = {
-  onDrag: (handle: Handle, delta: number, state: RootState) => Op[]
-  whileDragging: (handle: Handle, state: RootState) => Constraint[]
-}
+    onDrag: (handle: Handle, delta: number, state: RootState) => Op[];
+    whileDragging: (handle: Handle, state: RootState) => Constraint[];
+};
 ```
 
 - `onDrag` is procedural — translating a delta into ops legitimately
@@ -171,13 +171,13 @@ type GestureProfile = {
 
 ```ts
 // src/constraints/profiles/index.ts
-export const PROFILES: Record<Handle['kind'], GestureProfile> = {
-  'anchor-drag':    ANCHOR_DRAG,
-  'pair-drag':      PAIR_DRAG,
-  'clip-body':      CLIP_BODY_DRAG,
-  'clip-in-edge':   CLIP_EDGE_DRAG('in'),
-  'clip-out-edge':  CLIP_EDGE_DRAG('out'),
-}
+export const PROFILES: Record<Handle["kind"], GestureProfile> = {
+    "anchor-drag": ANCHOR_DRAG,
+    "pair-drag": PAIR_DRAG,
+    "clip-body": CLIP_BODY_DRAG,
+    "clip-in-edge": CLIP_EDGE_DRAG("in"),
+    "clip-out-edge": CLIP_EDGE_DRAG("out"),
+};
 ```
 
 One file per profile group in `src/constraints/profiles/`. Each profile
@@ -190,34 +190,34 @@ Three small thunks replace the per-intent zoo:
 
 ```ts
 // src/store/thunks/dragThunks.ts
-export const beginDrag = ({ handle }: { handle: Handle }) =>
-  (dispatch, getState) => {
-    dispatch(dragStart(snapshotPreDragState(getState())))
-    dispatch(setActiveHandle(handle))
-  }
+export const beginDrag =
+    ({ handle }: { handle: Handle }) =>
+    (dispatch, getState) => {
+        dispatch(dragStart(snapshotPreDragState(getState())));
+        dispatch(setActiveHandle(handle));
+    };
 
-export const drag = ({ delta, modifiers }: { delta: number; modifiers: { alt: boolean } }) =>
-  (dispatch, getState) => {
-    dispatch(setGestureModifiers(modifiers))   // updates gesture.modifiers
-    const handle = getState().gesture.activeHandle
-    if (!handle) return
-    const profile = PROFILES[handle.kind]
-    for (const op of profile.onDrag(handle, delta, getState())) {
-      dispatchPipelinedReplay(dispatch, getState, op)
-    }
-  }
+export const drag =
+    ({ delta, modifiers }: { delta: number; modifiers: { alt: boolean } }) =>
+    (dispatch, getState) => {
+        dispatch(setGestureModifiers(modifiers)); // updates gesture.modifiers
+        const handle = getState().gesture.activeHandle;
+        if (!handle) return;
+        const profile = PROFILES[handle.kind];
+        for (const op of profile.onDrag(handle, delta, getState())) {
+            dispatchPipelinedReplay(dispatch, getState, op);
+        }
+    };
 
-export const endDrag = () =>
-  (dispatch) => {
-    dispatch(setActiveHandle(null))
-    dispatch(dragEnd())
-  }
+export const endDrag = () => (dispatch) => {
+    dispatch(setActiveHandle(null));
+    dispatch(dragEnd());
+};
 
-export const cancelDrag = () =>
-  (dispatch) => {
-    dispatch(setActiveHandle(null))
-    dispatch(dragCancel())   // separate action — discards preDrag without commit
-  }
+export const cancelDrag = () => (dispatch) => {
+    dispatch(setActiveHandle(null));
+    dispatch(dragCancel()); // separate action — discards preDrag without commit
+};
 ```
 
 That's the entire dispatch layer for drag. No more `applyMoveOrigAnchor`,
@@ -257,25 +257,21 @@ a conditional segment of certain clipout drag profiles'
 
 ```ts
 const CLIPOUT_BODY_DRAG: GestureProfile = {
-  onDrag: (handle, delta) => [
-    { kind: OpKind.Move, id: regionOutId(handle.clipId), delta },
-  ],
-  whileDragging: (handle, slice) => {
-    const cs: Constraint[] = [
-      SnapTarget({ id: regionOutId(handle.clipId), mode: 'body' }),
-    ]
-    const lockActive = slice.ui.anchorLock !== slice.gesture.modifiers.alt   // XOR
-    if (lockActive) {
-      const inner = innerBeatAnchorIds(slice, handle.clipId)
-      const driver = regionOutId(handle.clipId)
-      cs.push(TranslateGroup({ ids: [driver, ...inner], driver, tag: 'lock' }))
-      if (slice.ui.lockMode === 'beats') {
-        cs.push(ScaleGroup({ ids: [driver, ...inner], driver, tag: 'lock' }))
-      }
-    }
-    return cs
-  },
-}
+    onDrag: (handle, delta) => [{ kind: OpKind.Move, id: regionOutId(handle.clipId), delta }],
+    whileDragging: (handle, slice) => {
+        const cs: Constraint[] = [SnapTarget({ id: regionOutId(handle.clipId), mode: "body" })];
+        const lockActive = slice.ui.anchorLock !== slice.gesture.modifiers.alt; // XOR
+        if (lockActive) {
+            const inner = innerBeatAnchorIds(slice, handle.clipId);
+            const driver = regionOutId(handle.clipId);
+            cs.push(TranslateGroup({ ids: [driver, ...inner], driver, tag: "lock" }));
+            if (slice.ui.lockMode === "beats") {
+                cs.push(ScaleGroup({ ids: [driver, ...inner], driver, tag: "lock" }));
+            }
+        }
+        return cs;
+    },
+};
 ```
 
 `innerBeatAnchorIds(slice, clipId)` is a pure helper — same logic as
@@ -324,7 +320,7 @@ explicit beat intent at pointerUp. No `dragCtxSlice`.
 2. `beginDrag` dispatched, gesture state set.
 3. **pointerMove** — `drag({ delta })` thunk looks up `CLIP_EDGE_DRAG('in')`.
    `onDrag` returns `[{ kind: OpKind.SetEdge, id: regionInId('r1'),
-   edge: 'in', value: preDrag.inPoint + delta }]`.
+edge: 'in', value: preDrag.inPoint + delta }]`.
 4. `whileDragging` returns `SnapTarget` on the clip's in edge.
 5. Pipeline: SetEdge → SnapTarget restricts → MirrorEdge propagates to
    clipout → slice updated.
@@ -386,7 +382,7 @@ explicit beat intent at pointerUp. No `dragCtxSlice`.
 - Thunks: `applyMoveOrigAnchor`, `applyMoveBeatAnchor`,
   `applyAnchorEntityMove`, `applyRegionEntityMove`,
   `applyUpdateRegionInOut`. Their behavior moves to profile `onDrag`
-  + the pipeline.
+    - the pipeline.
 - Link/unlink bookkeeping on beat drag — runs as a post-dispatch step
   inside the `drag` thunk (it's a small slice update, not constraint
   semantics — keeping it in the thunk preserves its existing tests

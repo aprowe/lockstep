@@ -26,23 +26,24 @@ principle wins.
    punches.
 3. **The default (resting) state is what users see 99% of the time. Make it
    the simplest, quietest version of the element.** Hover, active, and selected
-   states earn extra attention by *changing* — switching fills, adding outlines,
+   states earn extra attention by _changing_ — switching fills, adding outlines,
    thickening borders, scaling — never by piling decoration on top of the
    default. If the default already has a halo or accent ring, you have nowhere
    to escalate when state changes.
 4. **Flat state, never glowing state.** State on markers, regions, and any
-   element that lives *inside the timeline canvas* is communicated exclusively
+   element that lives _inside the timeline canvas_ is communicated exclusively
    by outline weight, outline color, fill color, and scale — never by halo or
-   `filter: drop-shadow`. `box-shadow` is reserved for flat *outline* rings
+   `filter: drop-shadow`. `box-shadow` is reserved for flat _outline_ rings
    (e.g. `box-shadow: 0 0 0 1px <color>` to add a hairline outside an existing
-   border), or for *inset* rings; never for blurred halos. A flat 2px outline
+   border), or for _inset_ rings; never for blurred halos. A flat 2px outline
    reads as state at any zoom level; a blurred halo washes out under busy
    backgrounds and competes with the saturated marker fills.
 
-   Floating chrome that lives *above* the canvas (context menus, dialogs,
-   dock-panel overlays) may use a soft drop shadow to communicate physical
-   elevation above the surface. That's layering, not state, and is the only
-   place blurred shadows are allowed.
+    Floating chrome that lives _above_ the canvas (context menus, dialogs,
+    dock-panel overlays) may use a soft drop shadow to communicate physical
+    elevation above the surface. That's layering, not state, and is the only
+    place blurred shadows are allowed.
+
 5. **Hit targets ≥ visible glyph.** A 9–10px diamond or circle gets a 12–24px
    transparent hit zone so dragging on a dense timeline still feels accurate.
 6. **Sentence case for UI text.** Tracked metadata (`MM:SS`, `BPM`, `FPS`) may
@@ -54,8 +55,8 @@ principle wins.
 
 Three palettes, each one a candidate for a new theme file under
 `src/themes/`. They map onto lockstep's existing token surface (see
-`src/themes/warm-dark.css` for the canonical token list — *do not invent new
-top-level tokens*; pick from the existing ones).
+`src/themes/warm-dark.css` for the canonical token list — _do not invent new
+top-level tokens_; pick from the existing ones).
 
 For each palette, only the values change. The token names below are the
 ones already in use.
@@ -65,50 +66,51 @@ ones already in use.
 Bitwig-leaning. Warm near-black surfaces, off-white text, warp orange against
 a magenta-ish playhead.
 
-| Token | Hex | Role |
-|---|---|---|
-| `--bg-0` | `#0E0E10` | App canvas / deepest layer |
-| `--bg-1` | `#131315` | Main app body |
-| `--bg-2` | `#1A1A1C` | Panels, tracks |
-| `--bg-3` | `#1F1F22` | Sidebars, list rows |
-| `--bg-4` | `#232326` | Ruler, in/out editor |
-| `--bg-hover` | `#2C2C30` | Generic hover surface |
-| `--border` | `#2C2C30` | Resting border |
-| `--border-hi` | `#3A3A3D` | Strong border / focus |
-| `--fg-1` | `#F2F2EC` | Primary text |
-| `--fg-2` | `#B5B5AC` | Secondary |
-| `--fg-3` | `#8A8A82` | Muted |
-| `--accent` | `#FFCB2D` | Primary brand (export, active rail) |
-| `--accent-2` | `#FF7A1A` | Warp / secondary |
-| `--scene-cut` | `hsl(48, 95%, 62%)` | Scene-cut diamond |
-| `--blue` | `#7AA5F2` | Anchor connector |
-| `--error` | `#FF5A78` | Destructive |
+| Token         | Hex                 | Role                                |
+| ------------- | ------------------- | ----------------------------------- |
+| `--bg-0`      | `#0E0E10`           | App canvas / deepest layer          |
+| `--bg-1`      | `#131315`           | Main app body                       |
+| `--bg-2`      | `#1A1A1C`           | Panels, tracks                      |
+| `--bg-3`      | `#1F1F22`           | Sidebars, list rows                 |
+| `--bg-4`      | `#232326`           | Ruler, in/out editor                |
+| `--bg-hover`  | `#2C2C30`           | Generic hover surface               |
+| `--border`    | `#2C2C30`           | Resting border                      |
+| `--border-hi` | `#3A3A3D`           | Strong border / focus               |
+| `--fg-1`      | `#F2F2EC`           | Primary text                        |
+| `--fg-2`      | `#B5B5AC`           | Secondary                           |
+| `--fg-3`      | `#8A8A82`           | Muted                               |
+| `--accent`    | `#FFCB2D`           | Primary brand (export, active rail) |
+| `--accent-2`  | `#FF7A1A`           | Warp / secondary                    |
+| `--scene-cut` | `hsl(48, 95%, 62%)` | Scene-cut diamond                   |
+| `--blue`      | `#7AA5F2`           | Anchor connector                    |
+| `--error`     | `#FF5A78`           | Destructive                         |
 
-Suggested *new* tokens this palette implies — none required, but if added give
+Suggested _new_ tokens this palette implies — none required, but if added give
 the playhead its own theme hook:
+
 - `--playhead: #C84BFF` — currently hardcoded as red `hsl(0, 90%, 65%)`.
 
 ### 2.2 Graphite Studio
 
 Ableton-leaning. Flat neutral grays, high-saturation accents, white playhead.
 
-| Token | Hex |
-|---|---|
-| `--bg-0` | `#1C1C1C` |
-| `--bg-1` | `#222` |
-| `--bg-2` | `#2A2A2A` |
-| `--bg-3` | `#303030` |
-| `--bg-hover` | `#3A3A3A` |
-| `--border` | `#3A3A3A` |
-| `--border-hi` | `#4A4A4A` |
-| `--fg-1` | `#E8E8E8` |
-| `--fg-2` | `#B8B8B8` |
-| `--fg-3` | `#909090` |
-| `--accent` | `#B6FF3D` |
-| `--accent-2` | `#00C2FF` |
+| Token         | Hex                               |
+| ------------- | --------------------------------- |
+| `--bg-0`      | `#1C1C1C`                         |
+| `--bg-1`      | `#222`                            |
+| `--bg-2`      | `#2A2A2A`                         |
+| `--bg-3`      | `#303030`                         |
+| `--bg-hover`  | `#3A3A3A`                         |
+| `--border`    | `#3A3A3A`                         |
+| `--border-hi` | `#4A4A4A`                         |
+| `--fg-1`      | `#E8E8E8`                         |
+| `--fg-2`      | `#B8B8B8`                         |
+| `--fg-3`      | `#909090`                         |
+| `--accent`    | `#B6FF3D`                         |
+| `--accent-2`  | `#00C2FF`                         |
 | `--scene-cut` | `hsl(351, 100%, 62%)` (`#FF3B5C`) |
-| `--blue` | `#00C2FF` |
-| `--error` | `#FF3B5C` |
+| `--blue`      | `#00C2FF`                         |
+| `--error`     | `#FF3B5C`                         |
 
 Suggested playhead: `#FFFFFF`.
 
@@ -116,23 +118,23 @@ Suggested playhead: `#FFFFFF`.
 
 Premiere/After Effects DNA. Slightly blue-tinted blacks, jewel-tone accents.
 
-| Token | Hex |
-|---|---|
-| `--bg-0` | `#131318` |
-| `--bg-1` | `#181820` |
-| `--bg-2` | `#1F1F22` |
-| `--bg-3` | `#252529` |
-| `--bg-hover` | `#2E2E33` |
-| `--border` | `#2E2E33` |
-| `--border-hi` | `#3E3E44` |
-| `--fg-1` | `#EDEDF0` |
-| `--fg-2` | `#B5B5BC` |
-| `--fg-3` | `#8E8E96` |
-| `--accent` | `#F5C518` |
-| `--accent-2` | `#5B8DEF` |
+| Token         | Hex                              |
+| ------------- | -------------------------------- |
+| `--bg-0`      | `#131318`                        |
+| `--bg-1`      | `#181820`                        |
+| `--bg-2`      | `#1F1F22`                        |
+| `--bg-3`      | `#252529`                        |
+| `--bg-hover`  | `#2E2E33`                        |
+| `--border`    | `#2E2E33`                        |
+| `--border-hi` | `#3E3E44`                        |
+| `--fg-1`      | `#EDEDF0`                        |
+| `--fg-2`      | `#B5B5BC`                        |
+| `--fg-3`      | `#8E8E96`                        |
+| `--accent`    | `#F5C518`                        |
+| `--accent-2`  | `#5B8DEF`                        |
 | `--scene-cut` | `hsl(338, 79%, 60%)` (`#E94B7A`) |
-| `--blue` | `#5B8DEF` |
-| `--error` | `#E94B7A` |
+| `--blue`      | `#5B8DEF`                        |
+| `--error`     | `#E94B7A`                        |
 
 Suggested playhead: `#F5C518`.
 
@@ -144,7 +146,7 @@ Lockstep already separates four accent roles, so map each palette accordingly:
   region selection outlines.
 - `--accent-2` — secondary. Used for the warp connector, anchor highlights.
 - `--scene-cut` — scene-cut diamonds (yellow by default). Should always read as
-  a *warning-ish* hue distinct from `--accent` and `--accent-2`.
+  a _warning-ish_ hue distinct from `--accent` and `--accent-2`.
 - The clip-region palette (`.clip-overlay--color-0..7` in `src/index.css`) is
   intentionally a separate hue ramp and stays scheme-independent — those eight
   hues distinguish regions from one another, not from the chrome.
@@ -183,10 +185,10 @@ color tracks the active theme.
 `--accent-2`.
 **Implementation:** `.thin-marker` in `src/components/thin/MarkersTrack.css`.
 
-| State | Visual |
-|---|---|
-| Default | Solid circle + 1.5px stem (no border ring) |
-| Hover | Brighter fill, 2px stem |
+| State    | Visual                                                    |
+| -------- | --------------------------------------------------------- |
+| Default  | Solid circle + 1.5px stem (no border ring)                |
+| Hover    | Brighter fill, 2px stem                                   |
 | Selected | Yellow fill (`hsl(48, 100%, 70%)`), 2px stem, 1.15× scale |
 
 ### 4.2 Scene cut — diamond
@@ -197,13 +199,13 @@ color tracks the active theme.
 `--scene-cut-bd`, `--scene-cut-active`, `--scene-cut-active-bd`).
 **Implementation:** `.scene-band__diamond` in `src/components/SceneRow.css`.
 
-| State | Visual |
-|---|---|
-| Default | Solid fill, 1px border |
-| Hover | Brighter fill |
+| State                  | Visual                                                                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------- |
+| Default                | Solid fill, 1px border                                                                      |
+| Hover                  | Brighter fill                                                                               |
 | Active (current scene) | Lifted fill (`--scene-cut-active`) + brighter border (`--scene-cut-active-bd`), 1.25× scale |
-| User-placed | Same hue + inset 1px hairline ring (subtle origin marker) |
-| Selected (lasso) | 1px cyan outline ring outside the diamond — coexists with active state |
+| User-placed            | Same hue + inset 1px hairline ring (subtle origin marker)                                   |
+| Selected (lasso)       | 1px cyan outline ring outside the diamond — coexists with active state                      |
 
 The faint horizontal wash behind the diamonds (`.scene-band__scanned`) marks
 spans that have been analyzed; keep it under 10% alpha so it never competes
@@ -219,11 +221,11 @@ with the diamonds.
 **Implementation:** `.thin-timeline__playhead*` in
 `src/components/thin/ThinTimeline.css`.
 
-| Variant | Visual |
-|---|---|
-| Thick (active timeline) | 2px solid line |
-| Thin (peer timelines) | 1px line at 0.85 alpha |
-| Hover (preview) | 1px line at `--fg-4` 0.5 alpha (separate `.thin-timeline__hover` element) |
+| Variant                 | Visual                                                                    |
+| ----------------------- | ------------------------------------------------------------------------- |
+| Thick (active timeline) | 2px solid line                                                            |
+| Thin (peer timelines)   | 1px line at 0.85 alpha                                                    |
+| Hover (preview)         | 1px line at `--fg-4` 0.5 alpha (separate `.thin-timeline__hover` element) |
 
 The chevron is a flat CSS triangle (border trick) — no drop-shadow filter.
 The 2px width on the active timeline (vs 1px on peers) is the only state
@@ -254,13 +256,13 @@ rows darken the lightness by 18% so the two bands stay distinguishable when
 both are filled.
 **Implementation:** `.thin-region` in `src/components/thin/RegionBand.css`.
 
-| State | Visual |
-|---|---|
-| Default | 0.78-alpha fill, 1px 0.95-alpha border |
-| Hover | `filter: brightness(1.15)` |
-| Active | 2px yellow border `hsl(48, 100%, 78%)` (thicker than default — no glow) |
-| Selected (lasso) | 2px `--accent` outline, inset offset |
-| Edge handle hover | Faint yellow wash + inset 1px ring |
+| State             | Visual                                                                  |
+| ----------------- | ----------------------------------------------------------------------- |
+| Default           | 0.78-alpha fill, 1px 0.95-alpha border                                  |
+| Hover             | `filter: brightness(1.15)`                                              |
+| Active            | 2px yellow border `hsl(48, 100%, 78%)` (thicker than default — no glow) |
+| Selected (lasso)  | 2px `--accent` outline, inset offset                                    |
+| Edge handle hover | Faint yellow wash + inset 1px ring                                      |
 
 Region labels are white, weight 600, with a layered text-shadow (1px halo +
 3px drop). The label hard-clips at the region edge — no ellipsis — so the
@@ -321,16 +323,17 @@ visible portion always reads as the start of the real name.
 
 Three orthogonal states, never collapsed into one:
 
-- **Active** — the *current* item (current scene, active region). Uses a
+- **Active** — the _current_ item (current scene, active region). Uses a
   brighter fill and a thicker (or differently-colored) border. No glow.
 - **Selected** — member of the lasso/list selection. Uses a flat 1–2px outer
   outline ring so it stacks on top of an active fill without sharing the
   same visual register.
 - **Hover** — transient. Brighten fill, ≤ 80ms transition. No outline change.
 
-A scene diamond can be selected *and* active simultaneously: the active fill
-+ active border live on the diamond itself, the selected ring sits outside
-it. They coexist because they live at different radii — no glow, no overlap.
+A scene diamond can be selected _and_ active simultaneously: the active fill
+
+- active border live on the diamond itself, the selected ring sits outside
+  it. They coexist because they live at different radii — no glow, no overlap.
 
 ### 5.6 Tooltips
 
@@ -354,14 +357,14 @@ it. They coexist because they live at different radii — no glow, no overlap.
 
 ## 7. States summary
 
-| State | Visual change |
-|---|---|
-| Default | Per §4 / §5 |
-| Hover | Background → `--bg-hover` (chrome) or `filter: brightness(1.15)` (regions); 80ms transition |
-| Active (pressed) | Slight scale-down (0.9–0.98), no transition |
-| Selected | Per-marker rule in §4 — usually an outer ring on top of any active fill |
-| Disabled | 40% opacity, `cursor: not-allowed` |
-| Focus (keyboard) | 1px outline at `--accent-2`, 1px offset |
+| State            | Visual change                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------- |
+| Default          | Per §4 / §5                                                                                 |
+| Hover            | Background → `--bg-hover` (chrome) or `filter: brightness(1.15)` (regions); 80ms transition |
+| Active (pressed) | Slight scale-down (0.9–0.98), no transition                                                 |
+| Selected         | Per-marker rule in §4 — usually an outer ring on top of any active fill                     |
+| Disabled         | 40% opacity, `cursor: not-allowed`                                                          |
+| Focus (keyboard) | 1px outline at `--accent-2`, 1px offset                                                     |
 
 ---
 

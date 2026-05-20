@@ -1,165 +1,177 @@
 .vf-sidebar {
-  flex-shrink: 0;
-  background: var(--bg-0);
-  border-right: 1px solid var(--bg-4);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+    flex-shrink: 0;
+    background: var(--bg-0);
+    border-right: 1px solid var(--bg-4);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 /* ── Header ─────────────────────────────────────────────── */
 .vf-sidebar__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--sp-4) var(--sp-5) var(--sp-3);
-  border-bottom: 1px solid var(--bg-4);
-  flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-4) var(--sp-5) var(--sp-3);
+    border-bottom: 1px solid var(--bg-4);
+    flex-shrink: 0;
 }
 
 .vf-sidebar__title {
-  font-family: var(--font-family);
-  font-size: var(--t-base);
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--fg-3);
+    font-family: var(--font-family);
+    font-size: var(--t-base);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--fg-3);
 }
 
 .vf-sidebar__open-btn {
-  width: var(--sz-btn-sm);
-  height: var(--sz-btn-sm);
-  background: none;
-  border: 1px solid var(--border-hi);
-  border-radius: 4px;
-  color: var(--fg-2);
-  font-size: 17px;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: border-color 0.15s, color 0.15s;
-  padding: 0;
+    width: var(--sz-btn-sm);
+    height: var(--sz-btn-sm);
+    background: none;
+    border: 1px solid var(--border-hi);
+    border-radius: 4px;
+    color: var(--fg-2);
+    font-size: 17px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+        border-color 0.15s,
+        color 0.15s;
+    padding: 0;
 }
 
 .vf-sidebar__open-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent);
 }
 
 .vf-sidebar__collapse-btn {
-  width: var(--sz-btn-sm);
-  height: var(--sz-btn-sm);
-  background: none;
-  border: none;
-  color: #6b5f52;
-  font-size: var(--t-xs);
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  margin-left: auto;
+    width: var(--sz-btn-sm);
+    height: var(--sz-btn-sm);
+    background: none;
+    border: none;
+    color: #6b5f52;
+    font-size: var(--t-xs);
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin-left: auto;
 }
 
-.vf-sidebar__collapse-btn:hover { color: var(--fg-2); }
+.vf-sidebar__collapse-btn:hover {
+    color: var(--fg-2);
+}
 
 /* ── Empty state ──────────────────────────────────────────── */
 /* Sit the call-to-action just below the header, not floating in the
  * middle of the panel — keeps it close to where the rest of the file
  * list will appear once a folder is opened. */
 .vf-sidebar__empty {
-  display: flex;
-  justify-content: center;
-  padding: var(--sp-4) var(--sp-5);
+    display: flex;
+    justify-content: center;
+    padding: var(--sp-4) var(--sp-5);
 }
 
 .vf-sidebar__open-folder-btn {
-  padding: var(--sp-3) var(--sp-6);
-  background: none;
-  border: 1px solid var(--border-hi);
-  border-radius: 5px;
-  color: var(--fg-3);
-  font-family: var(--font-family);
-  font-size: var(--t-base);
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
-  text-align: center;
-  width: 100%;
+    padding: var(--sp-3) var(--sp-6);
+    background: none;
+    border: 1px solid var(--border-hi);
+    border-radius: 5px;
+    color: var(--fg-3);
+    font-family: var(--font-family);
+    font-size: var(--t-base);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition:
+        border-color 0.15s,
+        color 0.15s;
+    text-align: center;
+    width: 100%;
 }
 
 .vf-sidebar__open-folder-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent);
 }
 
 /* ── File list ──────────────────────────────────────────── */
 .vf-sidebar__list {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 /* ── File entry ──────────────────────────────────────────── */
 .vf-entry {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: 7px var(--sp-4);
-  cursor: pointer;
-  border-bottom: 1px solid var(--bg-1);
-  transition: background 0.1s;
-  min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 7px var(--sp-4);
+    cursor: pointer;
+    border-bottom: 1px solid var(--bg-1);
+    transition: background 0.1s;
+    min-width: 0;
 }
 
-.vf-entry:hover { background: var(--bg-2); }
+.vf-entry:hover {
+    background: var(--bg-2);
+}
 
 .vf-entry--active {
-  background: #1f1a10;
-  border-left: 2px solid var(--accent);
-  padding-left: var(--sp-3);
+    background: #1f1a10;
+    border-left: 2px solid var(--accent);
+    padding-left: var(--sp-3);
 }
 
 .vf-entry__icon {
-  font-size: var(--t-2xs);
-  color: var(--fg-4);
-  flex-shrink: 0;
+    font-size: var(--t-2xs);
+    color: var(--fg-4);
+    flex-shrink: 0;
 }
 
-.vf-entry--active .vf-entry__icon { color: var(--accent); }
+.vf-entry--active .vf-entry__icon {
+    color: var(--accent);
+}
 
 .vf-entry__name {
-  font-family: var(--font-family);
-  font-size: var(--t-base);
-  color: var(--fg-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
+    font-family: var(--font-family);
+    font-size: var(--t-base);
+    color: var(--fg-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
-.vf-entry--active .vf-entry__name { color: var(--fg-1); }
+.vf-entry--active .vf-entry__name {
+    color: var(--fg-1);
+}
 
 .vf-entry__markers {
-  flex-shrink: 0;
-  margin-left: auto;
-  font-family: var(--font-family);
-  font-size: var(--t-xs);
-  color: var(--fg-4);
-  background: var(--bg-4);
-  border: 1px solid #2a2520;
-  border-radius: 3px;
-  padding: 1px var(--sp-1);
-  line-height: 1.4;
+    flex-shrink: 0;
+    margin-left: auto;
+    font-family: var(--font-family);
+    font-size: var(--t-xs);
+    color: var(--fg-4);
+    background: var(--bg-4);
+    border: 1px solid #2a2520;
+    border-radius: 3px;
+    padding: 1px var(--sp-1);
+    line-height: 1.4;
 }
 
 .vf-entry--active .vf-entry__markers {
-  color: #c2a855;
-  background: #231f14;
-  border-color: #3a3020;
+    color: #c2a855;
+    background: #231f14;
+    border-color: #3a3020;
 }

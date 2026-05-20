@@ -1,6 +1,6 @@
-import { type ReactNode } from 'react'
-import type { RowContext } from './ListPanel'
-import { IconTrash } from '../icons'
+import { type ReactNode } from "react";
+import type { RowContext } from "./ListPanel";
+import { IconTrash } from "../icons";
 
 /**
  * Boilerplate every list row shares: container with active/selected
@@ -13,83 +13,104 @@ import { IconTrash } from '../icons'
  */
 
 interface RowShellProps {
-  /** Class prefix for the row, e.g. 'clip-row'. Modifiers become
-   *  `${kind}--active`, `${kind}--selected`. */
-  kind: string
-  ctx: RowContext
-  children: ReactNode
+    /** Class prefix for the row, e.g. 'clip-row'. Modifiers become
+     *  `${kind}--active`, `${kind}--selected`. */
+    kind: string;
+    ctx: RowContext;
+    children: ReactNode;
 
-  /** Aria label for the per-row checkbox (defaults to "Select item"). */
-  checkboxLabel?: string
-  /** Aria label for the per-row trash button (defaults to "Delete item"). */
-  deleteLabel?: string
-  /** When omitted, no trash button renders — for rows like the Scenes
-   *  t=0 boundary that aren't deletable. */
-  onDelete?: () => void
+    /** Aria label for the per-row checkbox (defaults to "Select item"). */
+    checkboxLabel?: string;
+    /** Aria label for the per-row trash button (defaults to "Delete item"). */
+    deleteLabel?: string;
+    /** When omitted, no trash button renders — for rows like the Scenes
+     *  t=0 boundary that aren't deletable. */
+    onDelete?: () => void;
 
-  onDoubleClick?: () => void
-  onContextMenu?: (e: React.MouseEvent) => void
-  /** Optional override of the row's title attribute. */
-  title?: string
-  /** Extra classes appended after the kind modifiers. */
-  className?: string
+    onDoubleClick?: () => void;
+    onContextMenu?: (e: React.MouseEvent) => void;
+    /** Optional override of the row's title attribute. */
+    title?: string;
+    /** Extra classes appended after the kind modifiers. */
+    className?: string;
 }
 
 export default function RowShell({
-  kind, ctx, children,
-  checkboxLabel = 'Select item',
-  deleteLabel = 'Delete item',
-  onDelete, onDoubleClick, onContextMenu, title, className,
-}: RowShellProps) {
-  const {
-    isActive, isSelected, thumbnailMode, thumbnailSrc, multiSelectMode,
-    onRowClick, onRowMouseEnter, onRowMouseLeave, onToggleSelection,
-  } = ctx
-
-  const cls = [
     kind,
-    isActive && `${kind}--active`,
-    isSelected && `${kind}--selected`,
+    ctx,
+    children,
+    checkboxLabel = "Select item",
+    deleteLabel = "Delete item",
+    onDelete,
+    onDoubleClick,
+    onContextMenu,
+    title,
     className,
-  ].filter(Boolean).join(' ')
+}: RowShellProps) {
+    const {
+        isActive,
+        isSelected,
+        thumbnailMode,
+        thumbnailSrc,
+        multiSelectMode,
+        onRowClick,
+        onRowMouseEnter,
+        onRowMouseLeave,
+        onToggleSelection,
+    } = ctx;
 
-  return (
-    <div
-      className={cls}
-      onClick={onRowClick}
-      onDoubleClick={onDoubleClick}
-      onContextMenu={onContextMenu}
-      onMouseEnter={onRowMouseEnter}
-      onMouseLeave={onRowMouseLeave}
-      title={title}
-    >
-      {multiSelectMode && (
-        <input
-          type="checkbox"
-          className={`${kind}__check`}
-          checked={isSelected}
-          onChange={onToggleSelection}
-          onClick={e => e.stopPropagation()}
-          aria-label={checkboxLabel}
-        />
-      )}
-      {thumbnailMode !== 'none' && (
-        thumbnailSrc
-          ? <img className={`list-panel__row-thumb${thumbnailMode === 'large' ? ' list-panel__row-thumb--large' : ''}`} src={thumbnailSrc} alt="" draggable={false} />
-          : <div className={`list-panel__row-thumb list-panel__row-thumb--placeholder${thumbnailMode === 'large' ? ' list-panel__row-thumb--large' : ''}`} />
-      )}
-      {children}
-      {onDelete && (
-        <button
-          type="button"
-          className={`${kind}__del`}
-          title={deleteLabel}
-          aria-label={deleteLabel}
-          onClick={e => { e.stopPropagation(); onDelete() }}
+    const cls = [kind, isActive && `${kind}--active`, isSelected && `${kind}--selected`, className]
+        .filter(Boolean)
+        .join(" ");
+
+    return (
+        <div
+            className={cls}
+            onClick={onRowClick}
+            onDoubleClick={onDoubleClick}
+            onContextMenu={onContextMenu}
+            onMouseEnter={onRowMouseEnter}
+            onMouseLeave={onRowMouseLeave}
+            title={title}
         >
-          <IconTrash size={14} />
-        </button>
-      )}
-    </div>
-  )
+            {multiSelectMode && (
+                <input
+                    type="checkbox"
+                    className={`${kind}__check`}
+                    checked={isSelected}
+                    onChange={onToggleSelection}
+                    onClick={(e) => e.stopPropagation()}
+                    aria-label={checkboxLabel}
+                />
+            )}
+            {thumbnailMode !== "none" &&
+                (thumbnailSrc ? (
+                    <img
+                        className={`list-panel__row-thumb${thumbnailMode === "large" ? " list-panel__row-thumb--large" : ""}`}
+                        src={thumbnailSrc}
+                        alt=""
+                        draggable={false}
+                    />
+                ) : (
+                    <div
+                        className={`list-panel__row-thumb list-panel__row-thumb--placeholder${thumbnailMode === "large" ? " list-panel__row-thumb--large" : ""}`}
+                    />
+                ))}
+            {children}
+            {onDelete && (
+                <button
+                    type="button"
+                    className={`${kind}__del`}
+                    title={deleteLabel}
+                    aria-label={deleteLabel}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete();
+                    }}
+                >
+                    <IconTrash size={14} />
+                </button>
+            )}
+        </div>
+    );
 }

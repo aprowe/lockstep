@@ -20,29 +20,30 @@ install reads from gestureSlice (with legacy fallback). The original
 bug class (pair-drag lasso install/teardown smear across TSX +
 controller + thunks) is structurally fixed.
 
-| Task | Status | Commit |
-|---|---|---|
-| 1. Profile registry scaffold | ✅ | `eb58f05` |
-| 2. Gesture slice | ✅ | `bd336bd` |
-| 3. Drag thunks (beginDrag/drag/endDrag) | ✅ | `2d3458b` |
-| 4. buildGraphFromSlice gesture extension | ✅ | `67efe72` |
-| 5. PAIR_DRAG profile | ✅ | `a4cf76c` |
-| 6. Wire pair-drag through controller + CanvasTimeline | ✅ | `accc5ca` |
-| 7. ANCHOR_DRAG profile + wired for clean single-anchor case | ✅ | `8e34ade` |
-| 9. CLIP_BODY_DRAG profile + wired for clipin body (input space) | ✅ | `1ea4ed6` |
-| 10. CLIP_EDGE_DRAG profile + wired for clipin edge (input space) | ✅ | `f7fe92a` |
-| 11. Snap install moved to gestureSlice (with dragCtx fallback) | ✅ | `76c64eb` |
-| 8. Lasso TranslateGroup from selection slices directly | ✅ | `1019274` |
-| 12a. Anchor-lock segment in clip body / edge profiles | ✅ | `9888db7` |
-| 12b. Wire clipout body / edge drags through profiles | deferred (commitClipout* migration) |
-| 13. Dissolve dragCtxSlice | deferred (blocked on 12b — anchor-lock is the last primary consumer) |
-| 14. Controller cleanup pass | deferred (DragState fields used by legacy paths too) |
+| Task                                                             | Status                                                               | Commit    |
+| ---------------------------------------------------------------- | -------------------------------------------------------------------- | --------- |
+| 1. Profile registry scaffold                                     | ✅                                                                   | `eb58f05` |
+| 2. Gesture slice                                                 | ✅                                                                   | `bd336bd` |
+| 3. Drag thunks (beginDrag/drag/endDrag)                          | ✅                                                                   | `2d3458b` |
+| 4. buildGraphFromSlice gesture extension                         | ✅                                                                   | `67efe72` |
+| 5. PAIR_DRAG profile                                             | ✅                                                                   | `a4cf76c` |
+| 6. Wire pair-drag through controller + CanvasTimeline            | ✅                                                                   | `accc5ca` |
+| 7. ANCHOR_DRAG profile + wired for clean single-anchor case      | ✅                                                                   | `8e34ade` |
+| 9. CLIP_BODY_DRAG profile + wired for clipin body (input space)  | ✅                                                                   | `1ea4ed6` |
+| 10. CLIP_EDGE_DRAG profile + wired for clipin edge (input space) | ✅                                                                   | `f7fe92a` |
+| 11. Snap install moved to gestureSlice (with dragCtx fallback)   | ✅                                                                   | `76c64eb` |
+| 8. Lasso TranslateGroup from selection slices directly           | ✅                                                                   | `1019274` |
+| 12a. Anchor-lock segment in clip body / edge profiles            | ✅                                                                   | `9888db7` |
+| 12b. Wire clipout body / edge drags through profiles             | deferred (commitClipout\* migration)                                 |
+| 13. Dissolve dragCtxSlice                                        | deferred (blocked on 12b — anchor-lock is the last primary consumer) |
+| 14. Controller cleanup pass                                      | deferred (DragState fields used by legacy paths too)                 |
 
 **All 1583 tests pass.**
 
 ## Migration patterns established
 
 Each profile follows the same shape:
+
 1. Profile in `src/constraints/profiles/<name>.ts` — pure `onDrag`
    (returns ops) + `whileDragging` (returns constraints).
 2. Controller's pointerDown branch sets `drag.profileHandle` and emits
@@ -143,6 +144,7 @@ and don't try to fold it into ANCHOR_DRAG.
 ## File structure
 
 **New files:**
+
 - `src/constraints/profiles/types.ts` — `GestureProfile` and `Handle` types
 - `src/constraints/profiles/index.ts` — `PROFILES` registry, `lookupProfile`
 - `src/constraints/profiles/pair-drag.ts` — `PAIR_DRAG` profile
@@ -155,6 +157,7 @@ and don't try to fold it into ANCHOR_DRAG.
 - `tests/unit/profiles/` — per-profile unit tests
 
 **Modified files:**
+
 - `src/constraints/pipeline.ts` — `buildGraphFromSlice` reads `gesture.activeHandle`, injects `profile.whileDragging`; reads selection directly for lasso TranslateGroup
 - `src/constraints/pipelineDispatch.ts` — `extractDragCtxFromSlice` reads from `gesture` instead of `dragCtx`
 - `src/store/store.ts` — register `gesture` reducer; drop `dragCtx`, drop dragCtx mirror middleware, drop anchorLock mirror middleware
@@ -165,6 +168,7 @@ and don't try to fold it into ANCHOR_DRAG.
 - Various tests — adapt to new intent / thunk shape
 
 **Files dissolved:**
+
 - `src/store/slices/dragCtxSlice.ts`
 - `src/store/middleware/dragCtxMirrorMiddleware.ts`
 - `src/store/middleware/anchorLockMirrorMiddleware.ts`
@@ -180,6 +184,7 @@ Each task ends with a green-tests checkpoint. Run `rtk vitest run tests/` after 
 ### Task 1: Scaffolding — types and registry skeleton
 
 **Files:**
+
 - Create: `src/constraints/profiles/types.ts`
 - Create: `src/constraints/profiles/index.ts`
 - Test: `tests/unit/profiles/registry.test.ts`
@@ -188,20 +193,20 @@ Each task ends with a green-tests checkpoint. Run `rtk vitest run tests/` after 
 
 ```ts
 // tests/unit/profiles/registry.test.ts
-import { describe, it, expect } from 'vitest'
-import { PROFILES, lookupProfile } from '../../../src/constraints/profiles'
+import { describe, it, expect } from "vitest";
+import { PROFILES, lookupProfile } from "../../../src/constraints/profiles";
 
-describe('profile registry', () => {
-  it('exposes a PROFILES object keyed by handle kind', () => {
-    expect(PROFILES).toBeDefined()
-    expect(typeof PROFILES).toBe('object')
-  })
+describe("profile registry", () => {
+    it("exposes a PROFILES object keyed by handle kind", () => {
+        expect(PROFILES).toBeDefined();
+        expect(typeof PROFILES).toBe("object");
+    });
 
-  it('lookupProfile returns undefined for unknown handles', () => {
-    const result = lookupProfile({ kind: 'nonexistent' } as never)
-    expect(result).toBeUndefined()
-  })
-})
+    it("lookupProfile returns undefined for unknown handles", () => {
+        const result = lookupProfile({ kind: "nonexistent" } as never);
+        expect(result).toBeUndefined();
+    });
+});
 ```
 
 Run: `rtk vitest run tests/unit/profiles/registry.test.ts`
@@ -211,47 +216,50 @@ Expected: FAIL (module not found).
 
 ```ts
 // src/constraints/profiles/types.ts
-import type { Constraint, Op } from '../types'
+import type { Constraint, Op } from "../types";
 
 export type Handle =
-  | { kind: 'pair-drag';     pairId: number }
-  | { kind: 'anchor-drag';   anchorId: number; space: 'input' | 'beat' }
-  | { kind: 'clip-body';     clipId: string; space: 'input' | 'beat' }
-  | { kind: 'clip-in-edge';  clipId: string; space: 'input' | 'beat' }
-  | { kind: 'clip-out-edge'; clipId: string; space: 'input' | 'beat' }
+    | { kind: "pair-drag"; pairId: number }
+    | { kind: "anchor-drag"; anchorId: number; space: "input" | "beat" }
+    | { kind: "clip-body"; clipId: string; space: "input" | "beat" }
+    | { kind: "clip-in-edge"; clipId: string; space: "input" | "beat" }
+    | { kind: "clip-out-edge"; clipId: string; space: "input" | "beat" };
 
 export type ProfileContext = {
-  preDrag: {
-    origAnchors: ReadonlyArray<{ id: number; time: number }>
-    beatAnchors: ReadonlyArray<{ id: number; time: number; linked?: boolean }>
-    regions: ReadonlyArray<{
-      id: string; inPoint: number; outPoint: number
-      inBeatTime: number; outBeatTime: number
-      defaultLinked: boolean
-    }>
-  }
-  ui: { anchorLock: boolean; lockMode: 'bpm' | 'beats' }
-  modifiers: { alt: boolean }
-}
+    preDrag: {
+        origAnchors: ReadonlyArray<{ id: number; time: number }>;
+        beatAnchors: ReadonlyArray<{ id: number; time: number; linked?: boolean }>;
+        regions: ReadonlyArray<{
+            id: string;
+            inPoint: number;
+            outPoint: number;
+            inBeatTime: number;
+            outBeatTime: number;
+            defaultLinked: boolean;
+        }>;
+    };
+    ui: { anchorLock: boolean; lockMode: "bpm" | "beats" };
+    modifiers: { alt: boolean };
+};
 
 export type GestureProfile = {
-  onDrag: (handle: Handle, delta: number, ctx: ProfileContext) => Op[]
-  whileDragging: (handle: Handle, ctx: ProfileContext) => Constraint[]
-}
+    onDrag: (handle: Handle, delta: number, ctx: ProfileContext) => Op[];
+    whileDragging: (handle: Handle, ctx: ProfileContext) => Constraint[];
+};
 ```
 
 - [ ] **Step 1.3 — write registry shell**
 
 ```ts
 // src/constraints/profiles/index.ts
-import type { GestureProfile, Handle } from './types'
+import type { GestureProfile, Handle } from "./types";
 
-export type { Handle, GestureProfile, ProfileContext } from './types'
+export type { Handle, GestureProfile, ProfileContext } from "./types";
 
-export const PROFILES: Partial<Record<Handle['kind'], GestureProfile>> = {}
+export const PROFILES: Partial<Record<Handle["kind"], GestureProfile>> = {};
 
 export function lookupProfile(handle: Handle): GestureProfile | undefined {
-  return PROFILES[handle.kind]
+    return PROFILES[handle.kind];
 }
 ```
 
@@ -272,6 +280,7 @@ git commit -m "feat(profiles): scaffold gesture profile registry"
 ### Task 2: Gesture slice
 
 **Files:**
+
 - Create: `src/store/slices/gestureSlice.ts`
 - Modify: `src/store/store.ts`
 - Test: `tests/unit/slices/gestureSlice.test.ts`
@@ -280,41 +289,44 @@ git commit -m "feat(profiles): scaffold gesture profile registry"
 
 ```ts
 // tests/unit/slices/gestureSlice.test.ts
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from "vitest";
 import gestureReducer, {
-  setActiveHandle, setCumulativeDelta, setGestureModifiers, clearGesture,
-} from '../../../src/store/slices/gestureSlice'
+    setActiveHandle,
+    setCumulativeDelta,
+    setGestureModifiers,
+    clearGesture,
+} from "../../../src/store/slices/gestureSlice";
 
-describe('gestureSlice', () => {
-  it('starts with no active handle and default modifiers', () => {
-    const s = gestureReducer(undefined, { type: '@@INIT' })
-    expect(s.activeHandle).toBeNull()
-    expect(s.cumulativeDelta).toBe(0)
-    expect(s.modifiers).toEqual({ alt: false })
-  })
+describe("gestureSlice", () => {
+    it("starts with no active handle and default modifiers", () => {
+        const s = gestureReducer(undefined, { type: "@@INIT" });
+        expect(s.activeHandle).toBeNull();
+        expect(s.cumulativeDelta).toBe(0);
+        expect(s.modifiers).toEqual({ alt: false });
+    });
 
-  it('setActiveHandle records the handle', () => {
-    const s = gestureReducer(undefined, setActiveHandle({ kind: 'pair-drag', pairId: 1 }))
-    expect(s.activeHandle).toEqual({ kind: 'pair-drag', pairId: 1 })
-  })
+    it("setActiveHandle records the handle", () => {
+        const s = gestureReducer(undefined, setActiveHandle({ kind: "pair-drag", pairId: 1 }));
+        expect(s.activeHandle).toEqual({ kind: "pair-drag", pairId: 1 });
+    });
 
-  it('clearGesture resets to initial', () => {
-    let s = gestureReducer(undefined, setActiveHandle({ kind: 'pair-drag', pairId: 1 }))
-    s = gestureReducer(s, setCumulativeDelta(5))
-    s = gestureReducer(s, setGestureModifiers({ alt: true }))
-    s = gestureReducer(s, clearGesture())
-    expect(s.activeHandle).toBeNull()
-    expect(s.cumulativeDelta).toBe(0)
-    expect(s.modifiers).toEqual({ alt: false })
-  })
+    it("clearGesture resets to initial", () => {
+        let s = gestureReducer(undefined, setActiveHandle({ kind: "pair-drag", pairId: 1 }));
+        s = gestureReducer(s, setCumulativeDelta(5));
+        s = gestureReducer(s, setGestureModifiers({ alt: true }));
+        s = gestureReducer(s, clearGesture());
+        expect(s.activeHandle).toBeNull();
+        expect(s.cumulativeDelta).toBe(0);
+        expect(s.modifiers).toEqual({ alt: false });
+    });
 
-  it('setGestureModifiers updates only modifiers', () => {
-    let s = gestureReducer(undefined, setActiveHandle({ kind: 'pair-drag', pairId: 1 }))
-    s = gestureReducer(s, setGestureModifiers({ alt: true }))
-    expect(s.activeHandle).toEqual({ kind: 'pair-drag', pairId: 1 })
-    expect(s.modifiers.alt).toBe(true)
-  })
-})
+    it("setGestureModifiers updates only modifiers", () => {
+        let s = gestureReducer(undefined, setActiveHandle({ kind: "pair-drag", pairId: 1 }));
+        s = gestureReducer(s, setGestureModifiers({ alt: true }));
+        expect(s.activeHandle).toEqual({ kind: "pair-drag", pairId: 1 });
+        expect(s.modifiers.alt).toBe(true);
+    });
+});
 ```
 
 Run: `rtk vitest run tests/unit/slices/gestureSlice.test.ts`
@@ -324,44 +336,45 @@ Expected: FAIL.
 
 ```ts
 // src/store/slices/gestureSlice.ts
-import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import type { Handle } from '../../constraints/profiles/types'
+import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+import type { Handle } from "../../constraints/profiles/types";
 
 export interface GestureState {
-  activeHandle: Handle | null
-  cumulativeDelta: number
-  modifiers: { alt: boolean }
+    activeHandle: Handle | null;
+    cumulativeDelta: number;
+    modifiers: { alt: boolean };
 }
 
 const initialState: GestureState = {
-  activeHandle: null,
-  cumulativeDelta: 0,
-  modifiers: { alt: false },
-}
+    activeHandle: null,
+    cumulativeDelta: 0,
+    modifiers: { alt: false },
+};
 
 const gestureSlice = createSlice({
-  name: 'gesture',
-  initialState,
-  reducers: {
-    setActiveHandle(state, action: PayloadAction<Handle | null>) {
-      state.activeHandle = action.payload
+    name: "gesture",
+    initialState,
+    reducers: {
+        setActiveHandle(state, action: PayloadAction<Handle | null>) {
+            state.activeHandle = action.payload;
+        },
+        setCumulativeDelta(state, action: PayloadAction<number>) {
+            state.cumulativeDelta = action.payload;
+        },
+        setGestureModifiers(state, action: PayloadAction<{ alt: boolean }>) {
+            state.modifiers = action.payload;
+        },
+        clearGesture(state) {
+            state.activeHandle = null;
+            state.cumulativeDelta = 0;
+            state.modifiers = { alt: false };
+        },
     },
-    setCumulativeDelta(state, action: PayloadAction<number>) {
-      state.cumulativeDelta = action.payload
-    },
-    setGestureModifiers(state, action: PayloadAction<{ alt: boolean }>) {
-      state.modifiers = action.payload
-    },
-    clearGesture(state) {
-      state.activeHandle = null
-      state.cumulativeDelta = 0
-      state.modifiers = { alt: false }
-    },
-  },
-})
+});
 
-export const { setActiveHandle, setCumulativeDelta, setGestureModifiers, clearGesture } = gestureSlice.actions
-export default gestureSlice.reducer
+export const { setActiveHandle, setCumulativeDelta, setGestureModifiers, clearGesture } =
+    gestureSlice.actions;
+export default gestureSlice.reducer;
 ```
 
 - [ ] **Step 2.3 — register reducer in store**
@@ -385,6 +398,7 @@ git commit -m "feat(gesture): add gestureSlice (activeHandle, cumulativeDelta, m
 ### Task 3: Drag thunks
 
 **Files:**
+
 - Modify: `src/store/thunks/dragThunks.ts`
 - Test: `tests/unit/thunks/dragThunks.test.ts` (extend existing)
 
@@ -392,35 +406,39 @@ git commit -m "feat(gesture): add gestureSlice (activeHandle, cumulativeDelta, m
 
 ```ts
 // tests/unit/thunks/dragThunks.test.ts — add to existing file
-import { beginDrag, drag, endDrag, cancelDrag } from '../../../src/store/thunks/dragThunks'
+import { beginDrag, drag, endDrag, cancelDrag } from "../../../src/store/thunks/dragThunks";
 
-describe('drag lifecycle thunks', () => {
-  it('beginDrag snapshots preDrag and sets activeHandle', () => {
-    const store = makeStore()
-    store.dispatch(addAnchor({ id: 1, time: 5 }))
-    store.dispatch(beginDrag({ handle: { kind: 'anchor-drag', anchorId: 1, space: 'input' } }))
-    const s = store.getState()
-    expect(s.gesture.activeHandle).toEqual({ kind: 'anchor-drag', anchorId: 1, space: 'input' })
-    expect(s.drag.preDrag).toBeTruthy()
-    expect(s.drag.preDrag?.origAnchors[0].time).toBe(5)
-  })
+describe("drag lifecycle thunks", () => {
+    it("beginDrag snapshots preDrag and sets activeHandle", () => {
+        const store = makeStore();
+        store.dispatch(addAnchor({ id: 1, time: 5 }));
+        store.dispatch(beginDrag({ handle: { kind: "anchor-drag", anchorId: 1, space: "input" } }));
+        const s = store.getState();
+        expect(s.gesture.activeHandle).toEqual({
+            kind: "anchor-drag",
+            anchorId: 1,
+            space: "input",
+        });
+        expect(s.drag.preDrag).toBeTruthy();
+        expect(s.drag.preDrag?.origAnchors[0].time).toBe(5);
+    });
 
-  it('endDrag clears activeHandle and ends drag', () => {
-    const store = makeStore()
-    store.dispatch(addAnchor({ id: 1, time: 5 }))
-    store.dispatch(beginDrag({ handle: { kind: 'anchor-drag', anchorId: 1, space: 'input' } }))
-    store.dispatch(endDrag())
-    expect(store.getState().gesture.activeHandle).toBeNull()
-    expect(store.getState().drag.preDrag).toBeNull()
-  })
+    it("endDrag clears activeHandle and ends drag", () => {
+        const store = makeStore();
+        store.dispatch(addAnchor({ id: 1, time: 5 }));
+        store.dispatch(beginDrag({ handle: { kind: "anchor-drag", anchorId: 1, space: "input" } }));
+        store.dispatch(endDrag());
+        expect(store.getState().gesture.activeHandle).toBeNull();
+        expect(store.getState().drag.preDrag).toBeNull();
+    });
 
-  it('drag is a no-op when no activeHandle', () => {
-    const store = makeStore()
-    store.dispatch(drag({ delta: 5, modifiers: { alt: false } }))
-    // no-op; should not throw
-    expect(store.getState().gesture.cumulativeDelta).toBe(0)
-  })
-})
+    it("drag is a no-op when no activeHandle", () => {
+        const store = makeStore();
+        store.dispatch(drag({ delta: 5, modifiers: { alt: false } }));
+        // no-op; should not throw
+        expect(store.getState().gesture.cumulativeDelta).toBe(0);
+    });
+});
 ```
 
 - [ ] **Step 3.2 — implement thunks**
@@ -429,52 +447,57 @@ Read existing `src/store/thunks/dragThunks.ts` and extend with:
 
 ```ts
 import {
-  setActiveHandle, setCumulativeDelta, setGestureModifiers, clearGesture,
-} from '../slices/gestureSlice'
-import { dragStart, dragEnd } from '../slices/dragSlice'
-import type { Handle } from '../../constraints/profiles/types'
-import { lookupProfile } from '../../constraints/profiles'
-import { dispatchPipelinedReplay } from '../../constraints/pipelineDispatch'
+    setActiveHandle,
+    setCumulativeDelta,
+    setGestureModifiers,
+    clearGesture,
+} from "../slices/gestureSlice";
+import { dragStart, dragEnd } from "../slices/dragSlice";
+import type { Handle } from "../../constraints/profiles/types";
+import { lookupProfile } from "../../constraints/profiles";
+import { dispatchPipelinedReplay } from "../../constraints/pipelineDispatch";
 
-export const beginDrag = ({ handle }: { handle: Handle }) =>
-  (dispatch: AppDispatch, getState: () => RootState) => {
-    dispatch(dragStart(snapshotPreDragState(getState())))
-    dispatch(setActiveHandle(handle))
-    dispatch(setCumulativeDelta(0))
-    dispatch(setGestureModifiers({ alt: false }))
-  }
+export const beginDrag =
+    ({ handle }: { handle: Handle }) =>
+    (dispatch: AppDispatch, getState: () => RootState) => {
+        dispatch(dragStart(snapshotPreDragState(getState())));
+        dispatch(setActiveHandle(handle));
+        dispatch(setCumulativeDelta(0));
+        dispatch(setGestureModifiers({ alt: false }));
+    };
 
-export const drag = ({ delta, modifiers }: { delta: number; modifiers: { alt: boolean } }) =>
-  (dispatch: AppDispatch, getState: () => RootState) => {
-    const state = getState()
-    const handle = state.gesture.activeHandle
-    if (!handle) return
-    dispatch(setGestureModifiers(modifiers))
-    dispatch(setCumulativeDelta(delta))
-    const profile = lookupProfile(handle)
-    if (!profile) return
-    const ctx = profileContextFromState(getState())
-    for (const op of profile.onDrag(handle, delta, ctx)) {
-      dispatchPipelinedReplay(dispatch, getState, op)
-    }
-  }
+export const drag =
+    ({ delta, modifiers }: { delta: number; modifiers: { alt: boolean } }) =>
+    (dispatch: AppDispatch, getState: () => RootState) => {
+        const state = getState();
+        const handle = state.gesture.activeHandle;
+        if (!handle) return;
+        dispatch(setGestureModifiers(modifiers));
+        dispatch(setCumulativeDelta(delta));
+        const profile = lookupProfile(handle);
+        if (!profile) return;
+        const ctx = profileContextFromState(getState());
+        for (const op of profile.onDrag(handle, delta, ctx)) {
+            dispatchPipelinedReplay(dispatch, getState, op);
+        }
+    };
 
 export const endDrag = () => (dispatch: AppDispatch) => {
-  dispatch(clearGesture())
-  dispatch(dragEnd())
-}
+    dispatch(clearGesture());
+    dispatch(dragEnd());
+};
 
 export const cancelDrag = () => (dispatch: AppDispatch) => {
-  dispatch(clearGesture())
-  dispatch(_existingCancelDrag())   // whatever the existing cancel is named
-}
+    dispatch(clearGesture());
+    dispatch(_existingCancelDrag()); // whatever the existing cancel is named
+};
 
 function profileContextFromState(state: RootState): ProfileContext {
-  return {
-    preDrag: state.drag.preDrag ?? { origAnchors: [], beatAnchors: [], regions: [] },
-    ui: { anchorLock: state.ui.anchorLock ?? false, lockMode: state.ui.lockMode ?? 'bpm' },
-    modifiers: state.gesture.modifiers,
-  }
+    return {
+        preDrag: state.drag.preDrag ?? { origAnchors: [], beatAnchors: [], regions: [] },
+        ui: { anchorLock: state.ui.anchorLock ?? false, lockMode: state.ui.lockMode ?? "bpm" },
+        modifiers: state.gesture.modifiers,
+    };
 }
 ```
 
@@ -500,6 +523,7 @@ git commit -m "feat(drag): add beginDrag/drag/endDrag thunks (pure routers)"
 ### Task 4: buildGraphFromSlice gesture-scoped extension
 
 **Files:**
+
 - Modify: `src/constraints/pipeline.ts`
 - Modify: `src/constraints/pipelineDispatch.ts`
 - Test: `tests/unit/constraints/scenario-gesture-while-dragging.test.ts`
@@ -508,54 +532,58 @@ git commit -m "feat(drag): add beginDrag/drag/endDrag thunks (pure routers)"
 
 ```ts
 // tests/unit/constraints/scenario-gesture-while-dragging.test.ts
-import { describe, it, expect } from 'vitest'
-import { makeStore } from '../../helpers/setup'
-import { addAnchor } from '../../../src/store/slices/warpSlice'
-import { beginDrag, endDrag } from '../../../src/store/thunks/dragThunks'
-import { PROFILES } from '../../../src/constraints/profiles'
-import type { GestureProfile, Handle } from '../../../src/constraints/profiles/types'
-import { ConstraintKind } from '../../../src/constraints/types'
-import { buildGraphFromSlice, extractDragCtxFromSlice } from '../../../src/constraints/pipeline'
-import { extractSliceForPipeline } from '../../../src/constraints/pipelineDispatch'
+import { describe, it, expect } from "vitest";
+import { makeStore } from "../../helpers/setup";
+import { addAnchor } from "../../../src/store/slices/warpSlice";
+import { beginDrag, endDrag } from "../../../src/store/thunks/dragThunks";
+import { PROFILES } from "../../../src/constraints/profiles";
+import type { GestureProfile, Handle } from "../../../src/constraints/profiles/types";
+import { ConstraintKind } from "../../../src/constraints/types";
+import { buildGraphFromSlice, extractDragCtxFromSlice } from "../../../src/constraints/pipeline";
+import { extractSliceForPipeline } from "../../../src/constraints/pipelineDispatch";
 
-describe('gesture-scoped whileDragging extension', () => {
-  it('inserts constraints from profile.whileDragging when activeHandle is set', () => {
-    const TEST_HANDLE_KIND = 'test-handle' as const
-    const testProfile: GestureProfile = {
-      onDrag: () => [],
-      whileDragging: () => [
-        { kind: ConstraintKind.SnapCohort, tag: 'test-marker', ids: [] },
-      ],
-    }
-    ;(PROFILES as Record<string, GestureProfile>)[TEST_HANDLE_KIND] = testProfile
+describe("gesture-scoped whileDragging extension", () => {
+    it("inserts constraints from profile.whileDragging when activeHandle is set", () => {
+        const TEST_HANDLE_KIND = "test-handle" as const;
+        const testProfile: GestureProfile = {
+            onDrag: () => [],
+            whileDragging: () => [{ kind: ConstraintKind.SnapCohort, tag: "test-marker", ids: [] }],
+        };
+        (PROFILES as Record<string, GestureProfile>)[TEST_HANDLE_KIND] = testProfile;
 
-    const store = makeStore()
-    store.dispatch(addAnchor({ id: 1, time: 5 }))
-    store.dispatch(beginDrag({ handle: { kind: TEST_HANDLE_KIND, anchorId: 1 } as unknown as Handle }))
+        const store = makeStore();
+        store.dispatch(addAnchor({ id: 1, time: 5 }));
+        store.dispatch(
+            beginDrag({ handle: { kind: TEST_HANDLE_KIND, anchorId: 1 } as unknown as Handle }),
+        );
 
-    const state = store.getState()
-    const slice = extractSliceForPipeline(state)
-    const dragCtx = extractDragCtxFromSlice(state as never)
-    const graph = buildGraphFromSlice(slice, dragCtx)
+        const state = store.getState();
+        const slice = extractSliceForPipeline(state);
+        const dragCtx = extractDragCtxFromSlice(state as never);
+        const graph = buildGraphFromSlice(slice, dragCtx);
 
-    const hasMarker = graph.constraints.some(c =>
-      c.kind === ConstraintKind.SnapCohort && (c as { tag?: string }).tag === 'test-marker'
-    )
-    expect(hasMarker).toBe(true)
+        const hasMarker = graph.constraints.some(
+            (c) =>
+                c.kind === ConstraintKind.SnapCohort &&
+                (c as { tag?: string }).tag === "test-marker",
+        );
+        expect(hasMarker).toBe(true);
 
-    store.dispatch(endDrag())
-    const graphAfter = buildGraphFromSlice(
-      extractSliceForPipeline(store.getState()),
-      extractDragCtxFromSlice(store.getState() as never),
-    )
-    const stillHasMarker = graphAfter.constraints.some(c =>
-      c.kind === ConstraintKind.SnapCohort && (c as { tag?: string }).tag === 'test-marker'
-    )
-    expect(stillHasMarker).toBe(false)
+        store.dispatch(endDrag());
+        const graphAfter = buildGraphFromSlice(
+            extractSliceForPipeline(store.getState()),
+            extractDragCtxFromSlice(store.getState() as never),
+        );
+        const stillHasMarker = graphAfter.constraints.some(
+            (c) =>
+                c.kind === ConstraintKind.SnapCohort &&
+                (c as { tag?: string }).tag === "test-marker",
+        );
+        expect(stillHasMarker).toBe(false);
 
-    delete (PROFILES as Record<string, GestureProfile>)[TEST_HANDLE_KIND]
-  })
-})
+        delete (PROFILES as Record<string, GestureProfile>)[TEST_HANDLE_KIND];
+    });
+});
 ```
 
 Run: expected to FAIL (extension not implemented).
@@ -569,17 +597,19 @@ Concretely: `extractDragCtxFromSlice` reads `state.gesture` and merges it into t
 ```ts
 // after step 10
 if (dragCtx.activeHandle) {
-  const profile = lookupProfile(dragCtx.activeHandle)
-  if (profile) {
-    const ctx: ProfileContext = {
-      preDrag: { /* from slice */ },
-      ui: { anchorLock: slice.ui.anchorLock, lockMode: slice.ui.lockMode },
-      modifiers: dragCtx.modifiers,
+    const profile = lookupProfile(dragCtx.activeHandle);
+    if (profile) {
+        const ctx: ProfileContext = {
+            preDrag: {
+                /* from slice */
+            },
+            ui: { anchorLock: slice.ui.anchorLock, lockMode: slice.ui.lockMode },
+            modifiers: dragCtx.modifiers,
+        };
+        for (const c of profile.whileDragging(dragCtx.activeHandle, ctx)) {
+            state = reduce(state, { kind: OpKind.AddConstraint, constraint: c });
+        }
     }
-    for (const c of profile.whileDragging(dragCtx.activeHandle, ctx)) {
-      state = reduce(state, { kind: OpKind.AddConstraint, constraint: c })
-    }
-  }
 }
 ```
 
@@ -620,6 +650,7 @@ git commit -m "feat(pipeline): inject profile.whileDragging constraints from act
 ### Task 5: PAIR_DRAG profile
 
 **Files:**
+
 - Create: `src/constraints/profiles/pair-drag.ts`
 - Modify: `src/constraints/profiles/index.ts`
 - Test: `tests/unit/profiles/pair-drag.test.ts`
@@ -628,68 +659,68 @@ git commit -m "feat(pipeline): inject profile.whileDragging constraints from act
 
 ```ts
 // tests/unit/profiles/pair-drag.test.ts
-import { describe, it, expect } from 'vitest'
-import { PAIR_DRAG } from '../../../src/constraints/profiles/pair-drag'
-import { ConstraintKind, OpKind } from '../../../src/constraints/types'
+import { describe, it, expect } from "vitest";
+import { PAIR_DRAG } from "../../../src/constraints/profiles/pair-drag";
+import { ConstraintKind, OpKind } from "../../../src/constraints/types";
 
 const ctx = {
-  preDrag: { origAnchors: [{ id: 1, time: 5 }], beatAnchors: [{ id: 1, time: 10 }], regions: [] },
-  ui: { anchorLock: false, lockMode: 'bpm' as const },
-  modifiers: { alt: false },
-}
+    preDrag: { origAnchors: [{ id: 1, time: 5 }], beatAnchors: [{ id: 1, time: 10 }], regions: [] },
+    ui: { anchorLock: false, lockMode: "bpm" as const },
+    modifiers: { alt: false },
+};
 
-describe('PAIR_DRAG profile', () => {
-  it('onDrag emits a single Move op on the orig anchor', () => {
-    const ops = PAIR_DRAG.onDrag({ kind: 'pair-drag', pairId: 1 }, 3, ctx)
-    expect(ops).toHaveLength(1)
-    expect(ops[0]).toMatchObject({ kind: OpKind.Move, id: 'a1-in', delta: 3 })
-  })
+describe("PAIR_DRAG profile", () => {
+    it("onDrag emits a single Move op on the orig anchor", () => {
+        const ops = PAIR_DRAG.onDrag({ kind: "pair-drag", pairId: 1 }, 3, ctx);
+        expect(ops).toHaveLength(1);
+        expect(ops[0]).toMatchObject({ kind: OpKind.Move, id: "a1-in", delta: 3 });
+    });
 
-  it('whileDragging installs TranslateGroup over the pair + SnapTarget on orig', () => {
-    const cs = PAIR_DRAG.whileDragging({ kind: 'pair-drag', pairId: 1 }, ctx)
-    const tg = cs.find(c => c.kind === ConstraintKind.TranslateGroup)
-    expect(tg).toBeDefined()
-    expect((tg as { ids: string[] }).ids).toEqual(['a1-in', 'a1-out'])
-    expect(cs.find(c => c.kind === ConstraintKind.SnapTarget)).toBeDefined()
-  })
-})
+    it("whileDragging installs TranslateGroup over the pair + SnapTarget on orig", () => {
+        const cs = PAIR_DRAG.whileDragging({ kind: "pair-drag", pairId: 1 }, ctx);
+        const tg = cs.find((c) => c.kind === ConstraintKind.TranslateGroup);
+        expect(tg).toBeDefined();
+        expect((tg as { ids: string[] }).ids).toEqual(["a1-in", "a1-out"]);
+        expect(cs.find((c) => c.kind === ConstraintKind.SnapTarget)).toBeDefined();
+    });
+});
 ```
 
 - [ ] **Step 5.2 — implement profile**
 
 ```ts
 // src/constraints/profiles/pair-drag.ts
-import { ConstraintKind, OpKind } from '../types'
-import { anchorInId, anchorOutId } from '../ids'
-import type { GestureProfile, Handle } from './types'
+import { ConstraintKind, OpKind } from "../types";
+import { anchorInId, anchorOutId } from "../ids";
+import type { GestureProfile, Handle } from "./types";
 
 export const PAIR_DRAG: GestureProfile = {
-  onDrag: (handle, delta) => {
-    if (handle.kind !== 'pair-drag') return []
-    return [{ kind: OpKind.Move, id: anchorInId(handle.pairId), delta }]
-  },
-  whileDragging: (handle) => {
-    if (handle.kind !== 'pair-drag') return []
-    const orig = anchorInId(handle.pairId)
-    const beat = anchorOutId(handle.pairId)
-    return [
-      {
-        kind: ConstraintKind.TranslateGroup,
-        ids: [orig, beat],
-        tag: `gesture:pair:${handle.pairId}`,
-      },
-      {
-        kind: ConstraintKind.SnapTarget,
-        id: orig,
-        field: 'time',
-        threshold: 4,
-        targets: [],
-        mode: 'edge',
-        tag: `gesture:snap:${orig}`,
-      },
-    ]
-  },
-}
+    onDrag: (handle, delta) => {
+        if (handle.kind !== "pair-drag") return [];
+        return [{ kind: OpKind.Move, id: anchorInId(handle.pairId), delta }];
+    },
+    whileDragging: (handle) => {
+        if (handle.kind !== "pair-drag") return [];
+        const orig = anchorInId(handle.pairId);
+        const beat = anchorOutId(handle.pairId);
+        return [
+            {
+                kind: ConstraintKind.TranslateGroup,
+                ids: [orig, beat],
+                tag: `gesture:pair:${handle.pairId}`,
+            },
+            {
+                kind: ConstraintKind.SnapTarget,
+                id: orig,
+                field: "time",
+                threshold: 4,
+                targets: [],
+                mode: "edge",
+                tag: `gesture:snap:${orig}`,
+            },
+        ];
+    },
+};
 ```
 
 (Note: the SnapTarget's `targets` and `threshold` will be populated by the existing snap-rules machinery via `snapToSiblings`. For now, leave empty; Task 11 wires snap targets through the profile.)
@@ -698,11 +729,11 @@ export const PAIR_DRAG: GestureProfile = {
 
 ```ts
 // src/constraints/profiles/index.ts
-import { PAIR_DRAG } from './pair-drag'
+import { PAIR_DRAG } from "./pair-drag";
 
-export const PROFILES: Partial<Record<Handle['kind'], GestureProfile>> = {
-  'pair-drag': PAIR_DRAG,
-}
+export const PROFILES: Partial<Record<Handle["kind"], GestureProfile>> = {
+    "pair-drag": PAIR_DRAG,
+};
 ```
 
 - [ ] **Step 5.4 — run profile test**
@@ -722,6 +753,7 @@ git commit -m "feat(profiles): PAIR_DRAG — orig→beat TranslateGroup + snap"
 ### Task 6: Wire pair-drag through the controller and CanvasTimeline
 
 **Files:**
+
 - Modify: `src/timeline/controller.ts` — warp-line pointerDown branch emits `beginDrag` intent
 - Modify: `src/components/CanvasTimeline.tsx` — `applyIntents` dispatches `beginDrag`/`drag`/`endDrag`; remove `prePairDragLassoIdsRef`
 - Modify: `src/timeline/types.ts` — add `beginDrag` / `drag` / `endDrag` Intent variants
@@ -744,25 +776,28 @@ Locate the Intent type in `src/timeline/types.ts`. Add:
 Extend `tests/unit/timeline/controller.test.ts`:
 
 ```ts
-it('warp-line pointerDown emits beginDrag(pair-drag)', () => {
-  const c = createTimelineController()
-  const tracks = buildLayout(false, CANVAS_H)
-  const warp = tracks.find(t => t.id === 'warp')!
-  const warpY = warp.y + warp.h / 2
-  const snap = makeSnapshot({
-    anchors: [{ id: 1, time: 10 }],
-    beatAnchors: [{ id: 1, time: 5 }],
-    hits: [pointHit(80, warpY, { kind: 'warp-line', id: 1 })],
-  })
-  const intents = c.pointerDown(makePointerEvent({ clientX: 80, clientY: warpY }), snap)
-  const beginDragIntent = intents.find(i => i.kind === 'beginDrag')
-  expect(beginDragIntent).toBeDefined()
-  expect((beginDragIntent as { handle: Handle }).handle).toEqual({ kind: 'pair-drag', pairId: 1 })
-})
+it("warp-line pointerDown emits beginDrag(pair-drag)", () => {
+    const c = createTimelineController();
+    const tracks = buildLayout(false, CANVAS_H);
+    const warp = tracks.find((t) => t.id === "warp")!;
+    const warpY = warp.y + warp.h / 2;
+    const snap = makeSnapshot({
+        anchors: [{ id: 1, time: 10 }],
+        beatAnchors: [{ id: 1, time: 5 }],
+        hits: [pointHit(80, warpY, { kind: "warp-line", id: 1 })],
+    });
+    const intents = c.pointerDown(makePointerEvent({ clientX: 80, clientY: warpY }), snap);
+    const beginDragIntent = intents.find((i) => i.kind === "beginDrag");
+    expect(beginDragIntent).toBeDefined();
+    expect((beginDragIntent as { handle: Handle }).handle).toEqual({
+        kind: "pair-drag",
+        pairId: 1,
+    });
+});
 
-it('warp-line pointerMove emits drag intent with cumulative delta', () => {
-  // ...
-})
+it("warp-line pointerMove emits drag intent with cumulative delta", () => {
+    // ...
+});
 ```
 
 - [ ] **Step 6.3 — modify controller's warp-line branch**
@@ -770,27 +805,22 @@ it('warp-line pointerMove emits drag intent with cumulative delta', () => {
 Replace the existing warp-line pointerDown emission (lines ~704-744) with:
 
 ```ts
-if (hit && hit.kind === 'warp-line') {
-  const id = hit.id as number
-  const inAnchor = snap.anchors.find(a => a.id === id)
-  const beatAnchor = snap.beatAnchors.find(a => a.id === id)
-  if (inAnchor && beatAnchor) {
-    drag = buildAnchorDrag(
-      snap, id, 'input', inAnchor.time,
-      true, true,
-      e.clientX, e.clientY,
-      [
-        { kind: 'anchorSelect', id, additive: false },
-        { kind: 'beatAnchorSelect', id, additive: false },
-      ],
-    )
-    drag.capturedSpaces = { input: true, beat: true }
-    drag.partnerOrigTime = beatAnchor.time
-    drag.isPair = true
-    intents.push({ kind: 'beginDrag', handle: { kind: 'pair-drag', pairId: id } })
-    // snap install is now declared by PAIR_DRAG.whileDragging — no snapStart intent
-    return intents
-  }
+if (hit && hit.kind === "warp-line") {
+    const id = hit.id as number;
+    const inAnchor = snap.anchors.find((a) => a.id === id);
+    const beatAnchor = snap.beatAnchors.find((a) => a.id === id);
+    if (inAnchor && beatAnchor) {
+        drag = buildAnchorDrag(snap, id, "input", inAnchor.time, true, true, e.clientX, e.clientY, [
+            { kind: "anchorSelect", id, additive: false },
+            { kind: "beatAnchorSelect", id, additive: false },
+        ]);
+        drag.capturedSpaces = { input: true, beat: true };
+        drag.partnerOrigTime = beatAnchor.time;
+        drag.isPair = true;
+        intents.push({ kind: "beginDrag", handle: { kind: "pair-drag", pairId: id } });
+        // snap install is now declared by PAIR_DRAG.whileDragging — no snapStart intent
+        return intents;
+    }
 }
 ```
 
@@ -837,34 +867,40 @@ git commit -m "feat(controller): warp-line → beginDrag/drag/endDrag via PAIR_D
 Each follows the Task 5 + Task 6 pattern. For brevity in this plan: same TDD cadence — write failing profile test, implement profile, register, then write controller test, modify controller branch, wire CanvasTimeline. Each profile ends in a commit.
 
 **Task 7 — ANCHOR_DRAG**
+
 - Profile: `onDrag` returns `Move(anchorInId|anchorOutId, delta)` depending on space.
 - `whileDragging`: just `SnapTarget(anchor, 'time')`. Lasso TranslateGroup comes from selection (Task 8).
 - Wire regular anchor pointerDown branch (line 632 area).
 - Remove `applyMoveOrigAnchor`, `applyMoveBeatAnchor` thunks; tests update to use `beginDrag(anchor-drag) + drag + endDrag` sequence.
 
 **Task 8 — lasso TranslateGroup from selection (direct read)**
+
 - Modify `buildGraphFromSlice` to read `state.warp.selectedOrigIds + selectedBeatIds + lists.selection.clipin + clipout` directly and install `lasso:main` TranslateGroup.
 - Remove `dragCtx.lassoIds` field, `setLassoIds` action, the selectionGraphMirrorMiddleware's mirroring code.
 - Lasso entities are computed in `extractSliceForPipeline` if needed.
 
 **Task 9 — CLIP_BODY_DRAG**
+
 - Profile: `onDrag` returns `Move(regionInId|regionOutId, delta)`.
 - `whileDragging`: `SnapTarget(clip, 'in', mode: 'body')`.
 - Wire region body pointerDown branch (line 799 area).
 - Remove `applyRegionEntityMove` (clipin path only — clipout pan stays via `commitClipoutPan` for now).
 
 **Task 10 — CLIP_EDGE_DRAG**
+
 - Profile: `onDrag` returns `SetEdge(clipId, edge, preDrag.edge + delta)`.
 - `whileDragging`: `SnapTarget(clip, edge, mode: 'edge')`.
 - Wire region edge pointerDown branch (line 747 area).
 - Remove `applyUpdateRegionInOut`'s drag path (keep the API for non-drag callers like Set-In-Point if they exist; audit).
 
 **Task 11 — snap target rule wiring through profile**
+
 - Profile's `whileDragging` needs to produce the right SnapTarget targets. Currently `snapToSiblings` (in WarpView callback) does this. Move that logic into a helper called by profile `whileDragging`.
 - Remove `setSnapInstall`, `dragCtxSlice.snapInstall`, `dragCtxMirrorMiddleware` related pieces.
 - Remove WarpView's `onSnapStart`/`onSnapEnd` callbacks.
 
 **Task 12 — clipout body + edge profiles + anchor-lock**
+
 - `CLIPOUT_BODY_DRAG` and `CLIPOUT_EDGE_DRAG` profiles.
 - Anchor-lock segment: read `slice.ui.anchorLock XOR modifiers.alt`, conditionally inject TranslateGroup + ScaleGroup.
 - `innerBeatAnchorIds(slice, clipId)` helper extracted from `anchorLockMirrorMiddleware`.

@@ -1,25 +1,25 @@
-import type { RootState, AppDispatch } from '../store'
+import type { RootState, AppDispatch } from "../store";
 import {
-  addRegion as addRegionAction,
-  deleteRegion as deleteRegionAction,
-  setActiveRegionId as setActiveRegionIdAction,
-  updateRegionInOut as updateRegionInOutAction,
-  updateRegionBeatTimes as updateRegionBeatTimesAction,
-} from '../slices/regionSlice'
+    addRegion as addRegionAction,
+    deleteRegion as deleteRegionAction,
+    setActiveRegionId as setActiveRegionIdAction,
+    updateRegionInOut as updateRegionInOutAction,
+    updateRegionBeatTimes as updateRegionBeatTimesAction,
+} from "../slices/regionSlice";
 import {
-  setOrigAnchorsFromTimeline,
-  setBeatAnchorsFromTimeline,
-  removeAnchors as removeAnchorsAction,
-  setSelectedOrigIds as setSelectedOrigIdsAction,
-  setSelectedBeatIds as setSelectedBeatIdsAction,
-} from '../slices/warpSlice'
+    setOrigAnchorsFromTimeline,
+    setBeatAnchorsFromTimeline,
+    removeAnchors as removeAnchorsAction,
+    setSelectedOrigIds as setSelectedOrigIdsAction,
+    setSelectedBeatIds as setSelectedBeatIdsAction,
+} from "../slices/warpSlice";
 import {
-  deleteCut as deleteSceneCutAction,
-  setSelectedCutTimes as setSelectedSceneCutTimesAction,
-} from '../slices/sceneSlice'
-import { setListSelection } from '../slices/listsSlice'
-import { calcNewRegionBoundsUpToNext } from '../../timeline/model/newRegionBounds'
-import type { Anchor, Region } from '../../types'
+    deleteCut as deleteSceneCutAction,
+    setSelectedCutTimes as setSelectedSceneCutTimesAction,
+} from "../slices/sceneSlice";
+import { setListSelection } from "../slices/listsSlice";
+import { calcNewRegionBoundsUpToNext } from "../../timeline/model/newRegionBounds";
+import type { Anchor, Region } from "../../types";
 
 // ── moveAnchors ───────────────────────────────────────────────────────────────
 
@@ -27,11 +27,9 @@ import type { Anchor, Region } from '../../types'
  *  commits fire here. Coincidence detection still runs in the projector for
  *  rendering; no inBeatTime/outBeatTime is written until the user directly
  *  interacts with the clipout (resize or pan). */
-export const moveAnchors =
-  (nextOrigAnchors: Anchor[]) =>
-  (dispatch: AppDispatch) => {
-    dispatch(setOrigAnchorsFromTimeline(nextOrigAnchors))
-  }
+export const moveAnchors = (nextOrigAnchors: Anchor[]) => (dispatch: AppDispatch) => {
+    dispatch(setOrigAnchorsFromTimeline(nextOrigAnchors));
+};
 
 // ── moveBeatAnchors ───────────────────────────────────────────────────────────
 
@@ -39,20 +37,18 @@ export const moveAnchors =
  *  commits fire here. Coincidence detection still runs in the projector for
  *  rendering; no inBeatTime/outBeatTime is written until the user directly
  *  interacts with the clipout (resize or pan). */
-export const moveBeatAnchors =
-  (nextBeatAnchors: Anchor[]) =>
-  (dispatch: AppDispatch) => {
-    dispatch(setBeatAnchorsFromTimeline(nextBeatAnchors))
-  }
+export const moveBeatAnchors = (nextBeatAnchors: Anchor[]) => (dispatch: AppDispatch) => {
+    dispatch(setBeatAnchorsFromTimeline(nextBeatAnchors));
+};
 
 // ── moveRegionBounds ──────────────────────────────────────────────────────────
 
 interface MoveRegionBoundsPayload {
-  id: string
-  inPoint: number
-  outPoint: number
-  /** Optional — retained for call-site compatibility. */
-  altKey?: boolean
+    id: string;
+    inPoint: number;
+    outPoint: number;
+    /** Optional — retained for call-site compatibility. */
+    altKey?: boolean;
 }
 
 /**
@@ -65,13 +61,12 @@ interface MoveRegionBoundsPayload {
  * For clipin BODY (pan) drags use `panClipinBounds` so the clipout follows.
  */
 export const moveRegionBounds =
-  (payload: MoveRegionBoundsPayload) =>
-  (dispatch: AppDispatch, getState: () => RootState) => {
-    const state = getState()
-    const region = state.region.regions.find(r => r.id === payload.id)
-    if (!region) return
-    dispatch(updateRegionInOutAction(payload))
-  }
+    (payload: MoveRegionBoundsPayload) => (dispatch: AppDispatch, getState: () => RootState) => {
+        const state = getState();
+        const region = state.region.regions.find((r) => r.id === payload.id);
+        if (!region) return;
+        dispatch(updateRegionInOutAction(payload));
+    };
 
 /**
  * Pan a region's input-space bounds (body drag — length preserved).
@@ -87,55 +82,51 @@ export const moveRegionBounds =
  * propagates it automatically when the clipout entity moves.
  */
 export const panClipinBounds =
-  (payload: MoveRegionBoundsPayload) =>
-  (dispatch: AppDispatch, getState: () => RootState) => {
-    const state = getState()
-    const region = state.region.regions.find(r => r.id === payload.id)
-    if (!region) return
+    (payload: MoveRegionBoundsPayload) => (dispatch: AppDispatch, getState: () => RootState) => {
+        const state = getState();
+        const region = state.region.regions.find((r) => r.id === payload.id);
+        if (!region) return;
 
-    // Frame-to-frame delta for the region + beat-time updates (incremental).
-    const frameDelta = payload.inPoint - region.inPoint
+        // Frame-to-frame delta for the region + beat-time updates (incremental).
+        const frameDelta = payload.inPoint - region.inPoint;
 
-    dispatch(updateRegionInOutAction(payload))
+        dispatch(updateRegionInOutAction(payload));
 
-    // Only translate explicit beat-space bounds (diverged state).
-    // Default-linked regions stay linked and automatically track the new
-    // input position via the DirectedPair constraint.
-    if (!region.defaultLinked) {
-      dispatch(updateRegionBeatTimesAction({
-        id: payload.id,
-        inBeatTime:  region.inBeatTime  + frameDelta,
-        outBeatTime: region.outBeatTime + frameDelta,
-      }))
-    }
-  }
+        // Only translate explicit beat-space bounds (diverged state).
+        // Default-linked regions stay linked and automatically track the new
+        // input position via the DirectedPair constraint.
+        if (!region.defaultLinked) {
+            dispatch(
+                updateRegionBeatTimesAction({
+                    id: payload.id,
+                    inBeatTime: region.inBeatTime + frameDelta,
+                    outBeatTime: region.outBeatTime + frameDelta,
+                }),
+            );
+        }
+    };
 
 /** Build a fresh Region payload — mirrors the inline construction in CenterColumn.addRegion(). */
-function makeFreshRegion(
-  inPoint: number,
-  outPoint: number,
-  bpm: number,
-  regionCount: number,
-) {
-  const id = `region_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-  return {
-    id,
-    name: `Clip ${regionCount + 1}`,
-    inPoint,
-    outPoint,
-    inBeatTime:    inPoint,
-    outBeatTime:   outPoint,
-    defaultLinked: true,
-    bpm,
-    minStretch: 0.5,
-    maxStretch: 2.0,
-  }
+function makeFreshRegion(inPoint: number, outPoint: number, bpm: number, regionCount: number) {
+    const id = `region_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    return {
+        id,
+        name: `Clip ${regionCount + 1}`,
+        inPoint,
+        outPoint,
+        inBeatTime: inPoint,
+        outBeatTime: outPoint,
+        defaultLinked: true,
+        bpm,
+        minStretch: 0.5,
+        maxStretch: 2.0,
+    };
 }
 
 export interface PlayheadBoundsPayload {
-  playhead: number
-  viewSpan: number
-  duration: number
+    playhead: number;
+    viewSpan: number;
+    duration: number;
 }
 
 /**
@@ -149,33 +140,52 @@ export interface PlayheadBoundsPayload {
  *    Also fires input-side linking-event detection (§5a / §3.2).
  */
 export const setInPointToPlayhead =
-  ({ playhead, viewSpan, duration }: PlayheadBoundsPayload) =>
-  (dispatch: AppDispatch, getState: () => RootState) => {
-    const state = getState()
-    const activeRegion = state.region.activeRegionId
-      ? state.region.regions.find(r => r.id === state.region.activeRegionId)
-      : undefined
+    ({ playhead, viewSpan, duration }: PlayheadBoundsPayload) =>
+    (dispatch: AppDispatch, getState: () => RootState) => {
+        const state = getState();
+        const activeRegion = state.region.activeRegionId
+            ? state.region.regions.find((r) => r.id === state.region.activeRegionId)
+            : undefined;
 
-    if (!activeRegion) {
-      const region = makeFreshRegion(playhead, duration, state.warp.bpm ?? 120, state.region.regions.length)
-      dispatch(addRegionAction(region))
-      // addRegion slice action sets activeRegionId automatically
-      return
-    }
+        if (!activeRegion) {
+            const region = makeFreshRegion(
+                playhead,
+                duration,
+                state.warp.bpm ?? 120,
+                state.region.regions.length,
+            );
+            dispatch(addRegionAction(region));
+            // addRegion slice action sets activeRegionId automatically
+            return;
+        }
 
-    if (playhead > activeRegion.outPoint) {
-      const { inPoint, outPoint } = calcNewRegionBoundsUpToNext(
-        playhead, viewSpan, state.region.regions, duration,
-      )
-      const region = makeFreshRegion(inPoint, outPoint, state.warp.bpm ?? 120, state.region.regions.length)
-      dispatch(addRegionAction(region))
-      dispatch(setActiveRegionIdAction(region.id))
-      return
-    }
+        if (playhead > activeRegion.outPoint) {
+            const { inPoint, outPoint } = calcNewRegionBoundsUpToNext(
+                playhead,
+                viewSpan,
+                state.region.regions,
+                duration,
+            );
+            const region = makeFreshRegion(
+                inPoint,
+                outPoint,
+                state.warp.bpm ?? 120,
+                state.region.regions.length,
+            );
+            dispatch(addRegionAction(region));
+            dispatch(setActiveRegionIdAction(region.id));
+            return;
+        }
 
-    // Resize active region's in-edge to playhead, then detect input-side links.
-    dispatch(moveRegionBounds({ id: activeRegion.id, inPoint: playhead, outPoint: activeRegion.outPoint }))
-  }
+        // Resize active region's in-edge to playhead, then detect input-side links.
+        dispatch(
+            moveRegionBounds({
+                id: activeRegion.id,
+                inPoint: playhead,
+                outPoint: activeRegion.outPoint,
+            }),
+        );
+    };
 
 /**
  * Toolbar "Set Out Point" action.
@@ -188,33 +198,52 @@ export const setInPointToPlayhead =
  *    Also fires input-side linking-event detection (§5a / §3.2).
  */
 export const setOutPointToPlayhead =
-  ({ playhead, viewSpan, duration }: PlayheadBoundsPayload) =>
-  (dispatch: AppDispatch, getState: () => RootState) => {
-    const state = getState()
-    const activeRegion = state.region.activeRegionId
-      ? state.region.regions.find(r => r.id === state.region.activeRegionId)
-      : undefined
+    ({ playhead, viewSpan, duration }: PlayheadBoundsPayload) =>
+    (dispatch: AppDispatch, getState: () => RootState) => {
+        const state = getState();
+        const activeRegion = state.region.activeRegionId
+            ? state.region.regions.find((r) => r.id === state.region.activeRegionId)
+            : undefined;
 
-    if (!activeRegion) {
-      const region = makeFreshRegion(0, Math.max(playhead, 0.1), state.warp.bpm ?? 120, state.region.regions.length)
-      dispatch(addRegionAction(region))
-      // addRegion slice action sets activeRegionId automatically
-      return
-    }
+        if (!activeRegion) {
+            const region = makeFreshRegion(
+                0,
+                Math.max(playhead, 0.1),
+                state.warp.bpm ?? 120,
+                state.region.regions.length,
+            );
+            dispatch(addRegionAction(region));
+            // addRegion slice action sets activeRegionId automatically
+            return;
+        }
 
-    if (playhead < activeRegion.inPoint) {
-      const { inPoint, outPoint } = calcNewRegionBoundsUpToNext(
-        playhead, viewSpan, state.region.regions, duration,
-      )
-      const region = makeFreshRegion(inPoint, outPoint, state.warp.bpm ?? 120, state.region.regions.length)
-      dispatch(addRegionAction(region))
-      dispatch(setActiveRegionIdAction(region.id))
-      return
-    }
+        if (playhead < activeRegion.inPoint) {
+            const { inPoint, outPoint } = calcNewRegionBoundsUpToNext(
+                playhead,
+                viewSpan,
+                state.region.regions,
+                duration,
+            );
+            const region = makeFreshRegion(
+                inPoint,
+                outPoint,
+                state.warp.bpm ?? 120,
+                state.region.regions.length,
+            );
+            dispatch(addRegionAction(region));
+            dispatch(setActiveRegionIdAction(region.id));
+            return;
+        }
 
-    // Resize active region's out-edge to playhead, then detect input-side links.
-    dispatch(moveRegionBounds({ id: activeRegion.id, inPoint: activeRegion.inPoint, outPoint: playhead }))
-  }
+        // Resize active region's out-edge to playhead, then detect input-side links.
+        dispatch(
+            moveRegionBounds({
+                id: activeRegion.id,
+                inPoint: activeRegion.inPoint,
+                outPoint: playhead,
+            }),
+        );
+    };
 
 // ── deleteTimelineSelection ───────────────────────────────────────────────────
 
@@ -222,36 +251,36 @@ export const setOutPointToPlayhead =
  * Delete every selected entity on the timeline: clips, anchors, scene cuts.
  * Single dispatch surface so component handlers and test harnesses converge.
  */
-export const deleteTimelineSelection =
-  () =>
-  (dispatch: AppDispatch, getState: () => RootState) => {
-    const state = getState()
+export const deleteTimelineSelection = () => (dispatch: AppDispatch, getState: () => RootState) => {
+    const state = getState();
     // Delete uses the union of both clip spaces (any region selected in either space).
-    const clipIds = [...new Set([...state.lists.selection.clipin, ...state.lists.selection.clipout])]
+    const clipIds = [
+        ...new Set([...state.lists.selection.clipin, ...state.lists.selection.clipout]),
+    ];
     // Delete uses the union of both spaces (any selected anchor in either space).
-    const anchorIds = [...new Set([...state.warp.selectedOrigIds, ...state.warp.selectedBeatIds])]
-    const sceneCutTimes = state.scene.selectedCutTimes
-    const videoPath = state.video.video?.path ?? null
+    const anchorIds = [...new Set([...state.warp.selectedOrigIds, ...state.warp.selectedBeatIds])];
+    const sceneCutTimes = state.scene.selectedCutTimes;
+    const videoPath = state.video.video?.path ?? null;
 
     if (clipIds.length > 0) {
-      for (const id of clipIds) dispatch(deleteRegionAction(id))
-      dispatch(setListSelection({ list: 'clipin', ids: [] }))
-      dispatch(setListSelection({ list: 'clipout', ids: [] }))
+        for (const id of clipIds) dispatch(deleteRegionAction(id));
+        dispatch(setListSelection({ list: "clipin", ids: [] }));
+        dispatch(setListSelection({ list: "clipout", ids: [] }));
     }
     if (anchorIds.length > 0) {
-      dispatch(removeAnchorsAction([...anchorIds]))
-      dispatch(setSelectedOrigIdsAction([]))
-      dispatch(setSelectedBeatIdsAction([]))
+        dispatch(removeAnchorsAction([...anchorIds]));
+        dispatch(setSelectedOrigIdsAction([]));
+        dispatch(setSelectedBeatIdsAction([]));
     }
     if (sceneCutTimes.length > 0 && videoPath) {
-      for (const t of sceneCutTimes) {
-        dispatch(deleteSceneCutAction({ path: videoPath, cut: t }))
-      }
-      // deleteCut already drops matching entries from selectedCutTimes,
-      // but call setSelectedCutTimes([]) to be explicit and clear in one go.
-      dispatch(setSelectedSceneCutTimesAction([]))
+        for (const t of sceneCutTimes) {
+            dispatch(deleteSceneCutAction({ path: videoPath, cut: t }));
+        }
+        // deleteCut already drops matching entries from selectedCutTimes,
+        // but call setSelectedCutTimes([]) to be explicit and clear in one go.
+        dispatch(setSelectedSceneCutTimesAction([]));
     }
-  }
+};
 
 // ── deselectTimelineSelection ─────────────────────────────────────────────────
 
@@ -260,20 +289,19 @@ export const deleteTimelineSelection =
  * Corresponds to Cmd+D and empty-area click (Policy B).
  */
 export const deselectTimelineSelection =
-  () =>
-  (dispatch: AppDispatch, getState: () => RootState) => {
-    const state = getState()
-    if (state.lists.selection.clipin.length > 0) {
-      dispatch(setListSelection({ list: 'clipin', ids: [] }))
-    }
-    if (state.lists.selection.clipout.length > 0) {
-      dispatch(setListSelection({ list: 'clipout', ids: [] }))
-    }
-    if (state.warp.selectedOrigIds.length > 0 || state.warp.selectedBeatIds.length > 0) {
-      dispatch(setSelectedOrigIdsAction([]))
-      dispatch(setSelectedBeatIdsAction([]))
-    }
-    if (state.scene.selectedCutTimes.length > 0) {
-      dispatch(setSelectedSceneCutTimesAction([]))
-    }
-  }
+    () => (dispatch: AppDispatch, getState: () => RootState) => {
+        const state = getState();
+        if (state.lists.selection.clipin.length > 0) {
+            dispatch(setListSelection({ list: "clipin", ids: [] }));
+        }
+        if (state.lists.selection.clipout.length > 0) {
+            dispatch(setListSelection({ list: "clipout", ids: [] }));
+        }
+        if (state.warp.selectedOrigIds.length > 0 || state.warp.selectedBeatIds.length > 0) {
+            dispatch(setSelectedOrigIdsAction([]));
+            dispatch(setSelectedBeatIdsAction([]));
+        }
+        if (state.scene.selectedCutTimes.length > 0) {
+            dispatch(setSelectedSceneCutTimesAction([]));
+        }
+    };

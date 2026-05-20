@@ -1,21 +1,21 @@
 .warp-view {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  padding-bottom: var(--sp-6);
-  gap: 0;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding-bottom: var(--sp-6);
+    gap: 0;
 }
 
 .warp-view > .timeline {
-  flex: 1 1 0;
-  min-height: 0;
+    flex: 1 1 0;
+    min-height: 0;
 }
 
 .warp-view > .thin-timeline {
-  flex: 1 1 0;
-  min-height: 0;
+    flex: 1 1 0;
+    min-height: 0;
 }
 
 /* When the scenes row is expanded inside the top timeline, give the top
@@ -23,163 +23,163 @@
    burden is shared with the bottom timeline (beats/bars/speed) instead of
    being absorbed entirely by the source track. */
 .warp-view--scenes-expanded > .timeline:first-of-type {
-  flex-basis: calc(48px * var(--ui-scale));
+    flex-basis: calc(48px * var(--ui-scale));
 }
 
 .warp-view__scene-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-1);
-  width: 100%;
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-  text-align: left;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-1);
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    cursor: pointer;
+    text-align: left;
 }
 
 .warp-view__scene-toggle:hover {
-  color: var(--fg-1);
+    color: var(--fg-1);
 }
 
 .warp-view__scene-chevron {
-  font-size: calc(10px * var(--ui-scale));
-  color: var(--fg-3);
+    font-size: calc(10px * var(--ui-scale));
+    color: var(--fg-3);
 }
 
 .warp-view__collapse-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-1);
-  width: 100%;
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-  text-align: left;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-1);
+    width: 100%;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    cursor: pointer;
+    text-align: left;
 }
 
 .warp-view__collapse-toggle:hover {
-  color: var(--fg-1);
+    color: var(--fg-1);
 }
 
 .warp-view__collapse-chevron {
-  font-size: calc(10px * var(--ui-scale));
-  color: var(--fg-3);
+    font-size: calc(10px * var(--ui-scale));
+    color: var(--fg-3);
 }
 
 .warp-controls {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-5);
-  flex-wrap: wrap;
-  border-top: 1px solid var(--bg-4);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-5);
+    flex-wrap: wrap;
+    border-top: 1px solid var(--bg-4);
 }
 
 .warp-controls__divider {
-  width: 1px;
-  height: 20px;
-  background: var(--border);
-  margin: 0 var(--sp-1);
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+    margin: 0 var(--sp-1);
 }
 
 .stretch-input {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
 }
 
 .warp-controls__unit {
-  font-family: var(--font-family);
-  font-size: var(--t-lg);
-  color: var(--fg-3);
+    font-family: var(--font-family);
+    font-size: var(--t-lg);
+    color: var(--fg-3);
 }
 
 .warp-controls__label {
-  font-family: var(--font-family);
-  font-size: var(--t-md);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--fg-3);
+    font-family: var(--font-family);
+    font-size: var(--t-md);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--fg-3);
 }
 
 .warp-controls__bpm {
-  width: 64px;
-  background: var(--bg-4);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--fg-1);
-  font-family: var(--font-family);
-  font-size: calc(17px * var(--ui-scale));
-  padding: var(--sp-1) var(--sp-3);
-  text-align: right;
-  outline: none;
-  -moz-appearance: textfield;
+    width: 64px;
+    background: var(--bg-4);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--fg-1);
+    font-family: var(--font-family);
+    font-size: calc(17px * var(--ui-scale));
+    padding: var(--sp-1) var(--sp-3);
+    text-align: right;
+    outline: none;
+    -moz-appearance: textfield;
 }
 
 .warp-controls__bpm::-webkit-outer-spin-button,
 .warp-controls__bpm::-webkit-inner-spin-button {
-  -webkit-appearance: none;
+    -webkit-appearance: none;
 }
 
 .warp-controls__bpm:focus {
-  border-color: var(--fg-4);
+    border-color: var(--fg-4);
 }
 
 .warp-controls__action {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--fg-3);
-  font-family: var(--font-family);
-  font-size: var(--t-base);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: var(--sp-1) var(--sp-3);
-  cursor: pointer;
-  transition: color 0.1s, border-color 0.1s;
-  white-space: nowrap;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--fg-3);
+    font-family: var(--font-family);
+    font-size: var(--t-base);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: var(--sp-1) var(--sp-3);
+    cursor: pointer;
+    transition:
+        color 0.1s,
+        border-color 0.1s;
+    white-space: nowrap;
 }
 
 .warp-controls__action:hover:not(:disabled) {
-  color: var(--fg-1);
-  border-color: var(--fg-4);
+    color: var(--fg-1);
+    border-color: var(--fg-4);
 }
 
 .warp-controls__action:disabled {
-  opacity: 0.3;
-  cursor: default;
+    opacity: 0.3;
+    cursor: default;
 }
 
 .warp-controls__check {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  font-family: var(--font-family);
-  font-size: var(--t-base);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--fg-3);
-  cursor: pointer;
-  white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-family: var(--font-family);
+    font-size: var(--t-base);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    cursor: pointer;
+    white-space: nowrap;
 }
 
 .warp-controls__check input[type="checkbox"] {
-  accent-color: var(--accent-2);
-  width: 12px;
-  height: 12px;
-  cursor: pointer;
+    accent-color: var(--accent-2);
+    width: 12px;
+    height: 12px;
+    cursor: pointer;
 }
-
-

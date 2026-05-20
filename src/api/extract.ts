@@ -1,11 +1,11 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from "@tauri-apps/api/core";
 
 export interface ExtractedFrame {
-  /** Standard base64 (RFC 4648) of the JPEG bytes. Drop into a
-   *  `data:image/jpeg;base64,…` URL or an Anthropic vision content block. */
-  base64: string
-  mime_type: string
-  bytes: number
+    /** Standard base64 (RFC 4648) of the JPEG bytes. Drop into a
+     *  `data:image/jpeg;base64,…` URL or an Anthropic vision content block. */
+    base64: string;
+    mime_type: string;
+    bytes: number;
 }
 
 /**
@@ -17,11 +17,11 @@ export interface ExtractedFrame {
  * enough to keep API payloads quick.
  */
 export async function extractFrame(
-  path: string,
-  time: number,
-  maxWidth: number = 640,
+    path: string,
+    time: number,
+    maxWidth: number = 640,
 ): Promise<ExtractedFrame> {
-  return invoke<ExtractedFrame>('extract_frame', {
-    req: { path, time, max_width: maxWidth },
-  })
+    return invoke<ExtractedFrame>("extract_frame", {
+        req: { path, time, max_width: maxWidth },
+    });
 }

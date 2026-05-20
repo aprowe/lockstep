@@ -1,238 +1,252 @@
 /* ── Menu bar ──────────────────────────────────────────────── */
 .menubar {
-  height: var(--sz-menubar);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  background: var(--bg-2);
-  border-bottom: 1px solid var(--border);
-  font-family: var(--font-family);
-  font-size: var(--t-lg);
-  user-select: none;
-  -webkit-app-region: drag;
+    height: var(--sz-menubar);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-family);
+    font-size: var(--t-lg);
+    user-select: none;
+    -webkit-app-region: drag;
 }
 
 .menubar__menus {
-  display: flex;
-  align-items: stretch;
-  height: 100%;
-  -webkit-app-region: no-drag;
+    display: flex;
+    align-items: stretch;
+    height: 100%;
+    -webkit-app-region: no-drag;
 }
 
 .menubar__menus > div {
-  display: flex;
-  align-items: stretch;
+    display: flex;
+    align-items: stretch;
 }
 
 /* ── Top-level menu trigger ─────────────────────────────── */
 .menubar__trigger {
-  background: none;
-  border: none;
-  color: var(--fg-2);
-  font-family: inherit;
-  font-size: var(--t-lg);
-  padding: 0 var(--sp-5);
-  height: 100%;
-  cursor: pointer;
-  transition: background 0.1s, color 0.1s;
-  white-space: nowrap;
+    background: none;
+    border: none;
+    color: var(--fg-2);
+    font-family: inherit;
+    font-size: var(--t-lg);
+    padding: 0 var(--sp-5);
+    height: 100%;
+    cursor: pointer;
+    transition:
+        background 0.1s,
+        color 0.1s;
+    white-space: nowrap;
 }
 
 .menubar__trigger:hover,
 .menubar__trigger--open {
-  background: var(--bg-4);
-  color: var(--fg-1);
+    background: var(--bg-4);
+    color: var(--fg-1);
 }
 
 /* ── Brand trigger (wears the menubar__trigger hat too) ─── */
 .menubar__brand {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: 0 var(--sp-4) 0 var(--sp-3);
-  color: var(--fg-1);
-  font-family: var(--font-display, var(--font-family));
-  font-weight: 600;
-  letter-spacing: 0.02em;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 0 var(--sp-4) 0 var(--sp-3);
+    color: var(--fg-1);
+    font-family: var(--font-display, var(--font-family));
+    font-weight: 600;
+    letter-spacing: 0.02em;
 }
 
 .menubar__brand-mark {
-  color: #ffcb2d;
-  flex-shrink: 0;
+    color: #ffcb2d;
+    flex-shrink: 0;
 }
 
 .menubar__brand-name {
-  line-height: 1;
+    line-height: 1;
 }
 
 .menubar__dropdown--brand {
-  min-width: 200px;
+    min-width: 200px;
 }
 
 /* ── Dropdown panel ─────────────────────────────────────── */
 .menubar__dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  min-width: 280px;
-  white-space: nowrap;
-  background: var(--bg-3);
-  border: 1px solid var(--border-hi);
-  border-radius: 4px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-  z-index: 300;
-  padding: var(--sp-1) 0;
-  overflow: hidden;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 280px;
+    white-space: nowrap;
+    background: var(--bg-3);
+    border: 1px solid var(--border-hi);
+    border-radius: 4px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    z-index: 300;
+    padding: var(--sp-1) 0;
+    overflow: hidden;
 }
 
 /* ── Menu item ──────────────────────────────────────────── */
 .menubar__item {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  padding: 7px var(--sp-6);
-  background: none;
-  border: none;
-  color: var(--fg-2);
-  font-family: inherit;
-  font-size: var(--t-lg);
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.08s, color 0.08s;
-  gap: var(--sp-3);
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 7px var(--sp-6);
+    background: none;
+    border: none;
+    color: var(--fg-2);
+    font-family: inherit;
+    font-size: var(--t-lg);
+    text-align: left;
+    cursor: pointer;
+    transition:
+        background 0.08s,
+        color 0.08s;
+    gap: var(--sp-3);
 }
 
 .menubar__item:hover:not(:disabled) {
-  background: var(--bg-6);
-  color: var(--fg-1);
+    background: var(--bg-6);
+    color: var(--fg-1);
 }
 
 .menubar__item:disabled {
-  opacity: 0.35;
-  cursor: default;
+    opacity: 0.35;
+    cursor: default;
 }
 
 .menubar__item-label {
-  flex: 1;
+    flex: 1;
 }
 
 .menubar__item-check {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 12px;
-  flex-shrink: 0;
-  color: var(--accent);
-  font-size: var(--t-md);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    flex-shrink: 0;
+    color: var(--accent);
+    font-size: var(--t-md);
 }
 
 .menubar__item-shortcut {
-  color: var(--fg-3);
-  font-size: var(--t-md);
-  flex-shrink: 0;
+    color: var(--fg-3);
+    font-size: var(--t-md);
+    flex-shrink: 0;
 }
 
 /* ── Submenu ────────────────────────────────────────────── */
 .menubar__dropdown--sub {
-  top: -5px;
-  left: 100%;
+    top: -5px;
+    left: 100%;
 }
 
 .menubar__item-arrow {
-  color: var(--fg-3);
-  font-size: 9px;
-  flex-shrink: 0;
-  margin-left: auto;
+    color: var(--fg-3);
+    font-size: 9px;
+    flex-shrink: 0;
+    margin-left: auto;
 }
 
 .menubar__item--sub-open {
-  background: var(--bg-6);
-  color: var(--fg-1);
+    background: var(--bg-6);
+    color: var(--fg-1);
 }
 
 /* ── Separator ──────────────────────────────────────────── */
 .menubar__sep {
-  height: 1px;
-  background: var(--bg-4);
-  margin: var(--sp-1) var(--sp-3);
+    height: 1px;
+    background: var(--bg-4);
+    margin: var(--sp-1) var(--sp-3);
 }
 
 /* ── Right side: filename + close ───────────────────────── */
 .menubar__spacer {
-  flex: 1;
+    flex: 1;
 }
 
 .menubar__filename {
-  font-family: var(--font-family);
-  font-size: var(--t-lg);
-  color: var(--fg-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-  max-width: 300px;
-  padding-right: var(--sp-1);
-  -webkit-app-region: no-drag;
+    font-family: var(--font-family);
+    font-size: var(--t-lg);
+    color: var(--fg-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    max-width: 300px;
+    padding-right: var(--sp-1);
+    -webkit-app-region: no-drag;
 }
 
 .menubar__close {
-  background: none;
-  border: none;
-  color: var(--border-hi);
-  font-size: var(--t-md);
-  cursor: pointer;
-  padding: 2px var(--sp-2);
-  margin-right: var(--sp-3);
-  border-radius: 3px;
-  flex-shrink: 0;
-  transition: color 0.1s;
-  -webkit-app-region: no-drag;
+    background: none;
+    border: none;
+    color: var(--border-hi);
+    font-size: var(--t-md);
+    cursor: pointer;
+    padding: 2px var(--sp-2);
+    margin-right: var(--sp-3);
+    border-radius: 3px;
+    flex-shrink: 0;
+    transition: color 0.1s;
+    -webkit-app-region: no-drag;
 }
-.menubar__close:hover { color: var(--fg-2); }
+.menubar__close:hover {
+    color: var(--fg-2);
+}
 
 /* ── Right actions group (settings + export) ───────────────── */
 .menubar__right-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-right: var(--sp-3);
-  -webkit-app-region: no-drag;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-right: var(--sp-3);
+    -webkit-app-region: no-drag;
 }
 
 .menubar__settings-btn {
-  background: none;
-  border: 1px solid transparent;
-  color: var(--fg-3);
-  padding: 4px var(--sp-2);
-  border-radius: 4px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.1s, color 0.1s, border-color 0.1s;
+    background: none;
+    border: 1px solid transparent;
+    color: var(--fg-3);
+    padding: 4px var(--sp-2);
+    border-radius: 4px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+        background 0.1s,
+        color 0.1s,
+        border-color 0.1s;
 }
 .menubar__settings-btn:hover {
-  background: var(--bg-4);
-  color: var(--fg-1);
-  border-color: var(--border);
+    background: var(--bg-4);
+    color: var(--fg-1);
+    border-color: var(--border);
 }
 
 /* ── Export button (right side of menu bar) ──────────────── */
 .menubar__export-btn {
-  background: var(--accent);
-  border: none;
-  border-radius: 4px;
-  color: #000;
-  font-family: var(--font-family);
-  font-size: var(--t-md);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: var(--sp-1) var(--sp-6);
-  cursor: pointer;
-  transition: background 0.1s;
-  margin-right: var(--sp-3);
-  -webkit-app-region: no-drag;
+    background: var(--accent);
+    border: none;
+    border-radius: 4px;
+    color: #000;
+    font-family: var(--font-family);
+    font-size: var(--t-md);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: var(--sp-1) var(--sp-6);
+    cursor: pointer;
+    transition: background 0.1s;
+    margin-right: var(--sp-3);
+    -webkit-app-region: no-drag;
 }
-.menubar__export-btn:hover:not(:disabled) { background: var(--accent-hi); }
-.menubar__export-btn:disabled { opacity: 0.35; cursor: default; }
+.menubar__export-btn:hover:not(:disabled) {
+    background: var(--accent-hi);
+}
+.menubar__export-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}

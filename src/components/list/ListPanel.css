@@ -1,153 +1,155 @@
 .list-panel {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  height: 100%;
-  background: var(--bg-1);
-  outline: none;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    background: var(--bg-1);
+    outline: none;
 }
 
 .list-panel__header {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--sp-1) var(--sp-2);
-  border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-1) var(--sp-2);
+    border-bottom: 1px solid var(--border);
 }
 
 .list-panel__header-left {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-width: 0;
 }
 
 .list-panel__header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
 }
 
 /* Multi-select status — appears in the header when ≥2 rows are selected.
  * Stays visually flush with the header buttons on the right so the row
  * area below is undisturbed. */
 .list-panel__selection {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-1);
-  font-size: var(--t-sm);
-  color: var(--accent);
-  font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+    font-size: var(--t-sm);
+    color: var(--accent);
+    font-weight: 600;
 }
 
 .list-panel__selection-count {
-  padding: 0 var(--sp-1);
+    padding: 0 var(--sp-1);
 }
 
 .list-panel__subheader {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  padding: var(--sp-2);
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-2);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    padding: var(--sp-2);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-2);
 }
 
 /* Small chip below the filter tabs telling the user what the View / Clip
  * mode is currently scoped to — viewport range or active clip name. */
 .list-panel__filter-context {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-1) var(--sp-3);
-  font-size: var(--t-xs);
-  color: var(--fg-3);
-  font-variant-numeric: tabular-nums;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-1);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-1) var(--sp-3);
+    font-size: var(--t-xs);
+    color: var(--fg-3);
+    font-variant-numeric: tabular-nums;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-1);
 }
 
 .list-panel__filter-context-swatch {
-  width: 8px;
-  height: 12px;
-  border-radius: 2px;
-  background: hsl(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%));
+    width: 8px;
+    height: 12px;
+    border-radius: 2px;
+    background: hsl(var(--clip-h, 0), var(--clip-s, 70%), var(--clip-l, 50%));
 }
 
 .list-panel__filter-context-name {
-  color: var(--fg-2);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+    color: var(--fg-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .list-panel__rows {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .list-panel__empty {
-  padding: var(--sp-4);
-  color: var(--fg-4);
-  font-size: var(--t-sm);
-  font-style: italic;
-  text-align: center;
+    padding: var(--sp-4);
+    color: var(--fg-4);
+    font-size: var(--t-sm);
+    font-style: italic;
+    text-align: center;
 }
 
 /* Inline thumbnail rendered by the row in `always` mode — sized by the
  * caller, but a default min-height keeps the row tall enough that the
  * thumbnail isn't squashed when present. */
 .list-panel__rows > * {
-  min-height: var(--list-row-min-height, 0);
+    min-height: var(--list-row-min-height, 0);
 }
 
 .list-panel__row-thumb {
-  flex-shrink: 0;
-  display: block;
-  width: 64px;
-  height: 36px;
-  object-fit: cover;
-  background: var(--bg-2);
-  border-radius: 2px;
+    flex-shrink: 0;
+    display: block;
+    width: 64px;
+    height: 36px;
+    object-fit: cover;
+    background: var(--bg-2);
+    border-radius: 2px;
 }
 
 .list-panel__row-thumb--placeholder {
-  background:
-    repeating-linear-gradient(45deg, var(--bg-2) 0 4px, var(--bg-3) 4px 8px);
+    background: repeating-linear-gradient(45deg, var(--bg-2) 0 4px, var(--bg-3) 4px 8px);
 }
 
 .list-panel__row-thumb--large {
-  width: 96px;
-  height: 54px;
+    width: 96px;
+    height: 54px;
 }
 
 /* Generic small "+" button used by panels in their headerActions slot.
  * Sized to match the thumbnail-toggle so the right-aligned cluster stays
  * visually balanced. */
 .list-panel-add {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 3px;
-  color: var(--fg-3);
-  font-family: inherit;
-  font-size: var(--t-md);
-  line-height: 1;
-  cursor: pointer;
-  transition: background 0.08s, color 0.08s, border-color 0.08s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    color: var(--fg-3);
+    font-family: inherit;
+    font-size: var(--t-md);
+    line-height: 1;
+    cursor: pointer;
+    transition:
+        background 0.08s,
+        color 0.08s,
+        border-color 0.08s;
 }
 
 .list-panel-add:hover {
-  background: var(--bg-hover);
-  color: var(--fg-1);
-  border-color: var(--border);
+    background: var(--bg-hover);
+    color: var(--fg-1);
+    border-color: var(--border);
 }

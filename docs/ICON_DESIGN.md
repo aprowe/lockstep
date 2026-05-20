@@ -8,16 +8,16 @@ A design brief for every icon in the app — what it should look like and why. T
 
 Lockstep sits at the intersection of three domains: **time**, **music**, and **video**. Every icon draws from at most two of these. When an icon pulls from all three it gets crowded; the best icons are anchored to one.
 
-| Domain | Visual language |
-|---|---|
-| Time | Horizontal flow left → right. Vertical lines as moment markers. Arrows as movement through time. |
-| Music | Waves, pulses, evenly-spaced ticks. The beat grid. Rhythm implies regularity. |
-| Video | Rectangular frames. The filmstrip. Cuts and splices. |
+| Domain | Visual language                                                                                  |
+| ------ | ------------------------------------------------------------------------------------------------ |
+| Time   | Horizontal flow left → right. Vertical lines as moment markers. Arrows as movement through time. |
+| Music  | Waves, pulses, evenly-spaced ticks. The beat grid. Rhythm implies regularity.                    |
+| Video  | Rectangular frames. The filmstrip. Cuts and splices.                                             |
 
 A fourth domain cuts across all three:
 
-| Domain | Visual language |
-|---|---|
+| Domain | Visual language                                                                                            |
+| ------ | ---------------------------------------------------------------------------------------------------------- |
 | Action | The verb layer. Arrows for movement. Plus for creation. X for deletion. Lock for fixity. Arcs for cycling. |
 
 ---

@@ -1,75 +1,77 @@
 .about-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
 }
 
 .about-dialog {
-  position: relative;
-  background: var(--bg-3);
-  border: 1px solid var(--border-hi);
-  border-radius: 8px;
-  width: 320px;
-  padding: var(--sp-7) var(--sp-6) var(--sp-6);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sp-3);
-  font-family: var(--font-family);
-  text-align: center;
+    position: relative;
+    background: var(--bg-3);
+    border: 1px solid var(--border-hi);
+    border-radius: 8px;
+    width: 320px;
+    padding: var(--sp-7) var(--sp-6) var(--sp-6);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-3);
+    font-family: var(--font-family);
+    text-align: center;
 }
 
 .about-dialog__close {
-  position: absolute;
-  top: var(--sp-3);
-  right: var(--sp-3);
-  background: none;
-  border: none;
-  color: var(--fg-3);
-  font-size: var(--t-lg);
-  cursor: pointer;
-  padding: 2px var(--sp-2);
-  border-radius: 3px;
-  transition: color 0.1s;
+    position: absolute;
+    top: var(--sp-3);
+    right: var(--sp-3);
+    background: none;
+    border: none;
+    color: var(--fg-3);
+    font-size: var(--t-lg);
+    cursor: pointer;
+    padding: 2px var(--sp-2);
+    border-radius: 3px;
+    transition: color 0.1s;
 }
-.about-dialog__close:hover { color: var(--fg-2); }
+.about-dialog__close:hover {
+    color: var(--fg-2);
+}
 
 .about-dialog__mark {
-  color: #ffcb2d;
-  display: inline-flex;
+    color: #ffcb2d;
+    display: inline-flex;
 }
 
 .about-dialog__name {
-  font-family: var(--font-display, var(--font-family));
-  font-size: calc(20px * var(--ui-scale));
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--fg-1);
+    font-family: var(--font-display, var(--font-family));
+    font-size: calc(20px * var(--ui-scale));
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--fg-1);
 }
 
 .about-dialog__version {
-  font-size: var(--t-md);
-  color: var(--fg-3);
-  letter-spacing: 0.04em;
+    font-size: var(--t-md);
+    color: var(--fg-3);
+    letter-spacing: 0.04em;
 }
 
 .about-dialog__tag {
-  font-size: var(--t-md);
-  color: var(--fg-2);
-  margin-top: var(--sp-2);
+    font-size: var(--t-md);
+    color: var(--fg-2);
+    margin-top: var(--sp-2);
 }
 
 .about-dialog__link {
-  font-size: var(--t-md);
-  color: var(--accent);
-  text-decoration: none;
-  margin-top: var(--sp-1);
-  cursor: pointer;
+    font-size: var(--t-md);
+    color: var(--accent);
+    text-decoration: none;
+    margin-top: var(--sp-1);
+    cursor: pointer;
 }
 .about-dialog__link:hover {
-  text-decoration: underline;
+    text-decoration: underline;
 }

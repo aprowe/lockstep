@@ -36,6 +36,7 @@ correctness issues that the constraint system can solve more cleanly:
 ## Vision
 
 Both cases dissolve into the constraint resolver:
+
 - Case 1: lasso TranslateGroup is the single propagation mechanism for
   selection-driven coupling. Controller emits one Move/SetEdge on the
   primary; the resolver handles the rest.
@@ -138,21 +139,21 @@ already correct:
 
 ```ts
 // Excerpt from current pipeline.ts:
-if (Math.abs(clipInEdgeValue  - orig.time) > LINK_EPSILON) continue
-if (Math.abs(clipOutEdgeValue - beat.time) > LINK_EPSILON) continue
+if (Math.abs(clipInEdgeValue - orig.time) > LINK_EPSILON) continue;
+if (Math.abs(clipOutEdgeValue - beat.time) > LINK_EPSILON) continue;
 state = reduce(state, {
-  kind: OpKind.AddConstraint,
-  constraint: {
-    kind: ConstraintKind.MirrorPair,
-    a:    { id: anchorOutId(orig.id), field: Field.Time },
-    b:    { id: regionOutId(r.id),    field: edge },
-    guard: {
-      a: { id: anchorInId(orig.id), field: Field.Time },
-      b: { id: regionInId(r.id),    field: edge },
+    kind: OpKind.AddConstraint,
+    constraint: {
+        kind: ConstraintKind.MirrorPair,
+        a: { id: anchorOutId(orig.id), field: Field.Time },
+        b: { id: regionOutId(r.id), field: edge },
+        guard: {
+            a: { id: anchorInId(orig.id), field: Field.Time },
+            b: { id: regionInId(r.id), field: edge },
+        },
+        tag: `conform:${orig.id}:${r.id}:${edge}`,
     },
-    tag:  `conform:${orig.id}:${r.id}:${edge}`,
-  },
-})
+});
 ```
 
 For solo beat-anchor drag of a diverged pair (only beat coincides):
@@ -164,7 +165,7 @@ For pair-anchor drag (both spaces coincide): MirrorPair IS installed,
 the beat-anchor's Move op propagates to clipout edge via the handler.
 Correct.
 
-For diverged-pair beat drag that *happens* to also have input
+For diverged-pair beat drag that _happens_ to also have input
 coincidence: MirrorPair installed; the dual-space guard catches the
 divergence on the next pass (anchor-in moves alone vs anchor-out
 moving) and suppresses propagation. Correct.

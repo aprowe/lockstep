@@ -1,119 +1,121 @@
 .hk-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
 }
 
 .hk-dialog {
-  background: var(--bg-3);
-  border: 1px solid var(--border-hi);
-  border-radius: 8px;
-  width: 480px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  font-family: var(--font-family);
-  overflow: hidden;
+    background: var(--bg-3);
+    border: 1px solid var(--border-hi);
+    border-radius: 8px;
+    width: 480px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    font-family: var(--font-family);
+    overflow: hidden;
 }
 
 .hk-dialog__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--sp-6) var(--sp-7);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--sp-6) var(--sp-7);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
 }
 
 .hk-dialog__title {
-  font-size: calc(15px * var(--ui-scale));
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--fg-2);
+    font-size: calc(15px * var(--ui-scale));
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--fg-2);
 }
 
 .hk-dialog__close {
-  background: none;
-  border: none;
-  color: var(--fg-3);
-  font-size: var(--t-lg);
-  cursor: pointer;
-  padding: 2px var(--sp-2);
-  border-radius: 3px;
-  transition: color 0.1s;
+    background: none;
+    border: none;
+    color: var(--fg-3);
+    font-size: var(--t-lg);
+    cursor: pointer;
+    padding: 2px var(--sp-2);
+    border-radius: 3px;
+    transition: color 0.1s;
 }
-.hk-dialog__close:hover { color: var(--fg-2); }
+.hk-dialog__close:hover {
+    color: var(--fg-2);
+}
 
 .hk-dialog__body {
-  padding: var(--sp-5) var(--sp-7);
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-6);
-  overflow-y: auto;
-  flex: 1;
+    padding: var(--sp-5) var(--sp-7);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-6);
+    overflow-y: auto;
+    flex: 1;
 }
 
 .hk-group__title {
-  font-size: calc(10px * var(--ui-scale));
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--fg-3);
-  margin: 0 0 var(--sp-3);
-  padding-bottom: var(--sp-2);
-  border-bottom: 1px solid var(--border);
+    font-size: calc(10px * var(--ui-scale));
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    margin: 0 0 var(--sp-3);
+    padding-bottom: var(--sp-2);
+    border-bottom: 1px solid var(--border);
 }
 
 .hk-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
 }
 
 .hk-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-5);
-  padding: var(--sp-2) 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-5);
+    padding: var(--sp-2) 0;
 }
 
 .hk-row__label {
-  font-size: var(--t-md);
-  color: var(--fg-2);
+    font-size: var(--t-md);
+    color: var(--fg-2);
 }
 
 .hk-row__keys {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    white-space: nowrap;
 }
 
 .hk-row__plus {
-  font-size: var(--t-sm);
-  color: var(--fg-4);
-  margin: 0 1px;
+    font-size: var(--t-sm);
+    color: var(--fg-4);
+    margin: 0 1px;
 }
 
 .hk-kbd {
-  display: inline-block;
-  font-family: var(--font-family);
-  font-size: calc(11px * var(--ui-scale));
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-bottom-width: 2px;
-  border-radius: 3px;
-  padding: 1px 7px;
-  min-width: 22px;
-  text-align: center;
-  color: var(--fg-2);
+    display: inline-block;
+    font-family: var(--font-family);
+    font-size: calc(11px * var(--ui-scale));
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    padding: 1px 7px;
+    min-width: 22px;
+    text-align: center;
+    color: var(--fg-2);
 }

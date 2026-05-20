@@ -6,8 +6,8 @@
  * at every pipeline invocation, so no middleware behavior is needed.
  */
 
-import type { Middleware } from '@reduxjs/toolkit'
+import type { Middleware } from "@reduxjs/toolkit";
 
 export const globalLockModeMirrorMiddleware: Middleware = (_api) => (next) => (action) => {
-  return next(action)
-}
+    return next(action);
+};

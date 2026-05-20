@@ -1,16 +1,16 @@
-import { createListenerMiddleware } from '@reduxjs/toolkit'
-import type { RootState } from '../store'
-import { setPlayhead } from '../slices/warpSlice'
-import { setView } from '../slices/uiSlice'
-import { scrollViewToTime } from '../../utils/view'
+import { createListenerMiddleware } from "@reduxjs/toolkit";
+import type { RootState } from "../store";
+import { setPlayhead } from "../slices/warpSlice";
+import { setView } from "../slices/uiSlice";
+import { scrollViewToTime } from "../../utils/view";
 
-export const revealPlayheadMiddleware = createListenerMiddleware()
+export const revealPlayheadMiddleware = createListenerMiddleware();
 
 /** Last seen playhead value — used to distinguish deliberate seeks from
  *  small timeupdate drift. A continuous-playback timeupdate fires every
  *  ~50–250ms so the delta stays sub-second; deliberate seeks (list-row
  *  activation, toolbar nav, region zoom) jump by much more. */
-let prevPlayhead = 0
+let prevPlayhead = 0;
 
 /**
  * When the playhead moves to a position outside the current timeline view,
@@ -32,17 +32,17 @@ let prevPlayhead = 0
  * it.
  */
 revealPlayheadMiddleware.startListening({
-  actionCreator: setPlayhead,
-  effect: (action, { getState, dispatch }) => {
-    const state = getState() as RootState
-    const time = action.payload
-    const delta = Math.abs(time - prevPlayhead)
-    prevPlayhead = time
-    if (state.ui.playing) return
-    if (delta < 0.5) return
-    const duration = state.video.video?.duration ?? 0
-    if (duration <= 0) return
-    const next = scrollViewToTime(state.ui.view, time, duration)
-    if (next !== state.ui.view) dispatch(setView(next))
-  },
-})
+    actionCreator: setPlayhead,
+    effect: (action, { getState, dispatch }) => {
+        const state = getState() as RootState;
+        const time = action.payload;
+        const delta = Math.abs(time - prevPlayhead);
+        prevPlayhead = time;
+        if (state.ui.playing) return;
+        if (delta < 0.5) return;
+        const duration = state.video.video?.duration ?? 0;
+        if (duration <= 0) return;
+        const next = scrollViewToTime(state.ui.view, time, duration);
+        if (next !== state.ui.view) dispatch(setView(next));
+    },
+});

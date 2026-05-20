@@ -1,5 +1,5 @@
-import type { EntityId, State } from './types'
-import { ConstraintKind } from './types'
+import type { EntityId, State } from "./types";
+import { ConstraintKind } from "./types";
 
 /**
  * BFS the constraint graph from `seed` and return every entity that would
@@ -19,46 +19,46 @@ import { ConstraintKind } from './types'
  * propagate position writes.
  */
 export function movementClosure(state: State, seed: EntityId): Set<EntityId> {
-  const closure = new Set<EntityId>([seed])
-  const queue: EntityId[] = [seed]
+    const closure = new Set<EntityId>([seed]);
+    const queue: EntityId[] = [seed];
 
-  while (queue.length > 0) {
-    const id = queue.shift()!
-    for (const c of state.constraints) {
-      let followers: readonly EntityId[] = []
+    while (queue.length > 0) {
+        const id = queue.shift()!;
+        for (const c of state.constraints) {
+            let followers: readonly EntityId[] = [];
 
-      switch (c.kind) {
-        case ConstraintKind.TranslateGroup:
-          if (c.driver === undefined) {
-            if (c.ids.includes(id)) followers = c.ids
-          } else if (c.driver === id) {
-            followers = c.ids
-          }
-          break
+            switch (c.kind) {
+                case ConstraintKind.TranslateGroup:
+                    if (c.driver === undefined) {
+                        if (c.ids.includes(id)) followers = c.ids;
+                    } else if (c.driver === id) {
+                        followers = c.ids;
+                    }
+                    break;
 
-        case ConstraintKind.ScaleGroup:
-          if (c.driver === id) followers = c.ids
-          break
+                case ConstraintKind.ScaleGroup:
+                    if (c.driver === id) followers = c.ids;
+                    break;
 
-        case ConstraintKind.DirectedPair:
-          // mode (Translate / MirrorEdge) doesn't matter for reachability —
-          // both propagate writes from `from` to `to`.
-          if (c.from === id) followers = [c.to]
-          break
+                case ConstraintKind.DirectedPair:
+                    // mode (Translate / MirrorEdge) doesn't matter for reachability —
+                    // both propagate writes from `from` to `to`.
+                    if (c.from === id) followers = [c.to];
+                    break;
 
-        // ConformVisual + ConformRedirect: directional couplings handled
-        // elsewhere; not included in movement closure (they don't propagate
-        // a translate-shaped delta).
-      }
+                // ConformVisual + ConformRedirect: directional couplings handled
+                // elsewhere; not included in movement closure (they don't propagate
+                // a translate-shaped delta).
+            }
 
-      for (const f of followers) {
-        if (!closure.has(f)) {
-          closure.add(f)
-          queue.push(f)
+            for (const f of followers) {
+                if (!closure.has(f)) {
+                    closure.add(f);
+                    queue.push(f);
+                }
+            }
         }
-      }
     }
-  }
 
-  return closure
+    return closure;
 }

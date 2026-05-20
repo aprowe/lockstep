@@ -4,102 +4,100 @@
    the difference is the bg ramp lives in cool grey territory.
    ═══════════════════════════════════════════════════════════ */
 :root[data-theme="slate-light"] {
-  /* ── Backgrounds (deepest → brightest grey) ────────────── */
-  --bg-0:     #c8ccd2;
-  --bg-1:     #ced2d8;
-  --bg-2:     #d4d7dd;
-  --bg-3:     #d9dce2;
-  --bg-4:     #dee1e6;
-  --bg-5:     #e3e6ea;
-  --bg-6:     #e8ebef;
-  --bg-7:     #edeff2;
-  --bg-hover: #d4d7dd;
-  --bg-sel:   #f0e4c4;
-  --bg-inset: #b8bcc4;
+    /* ── Backgrounds (deepest → brightest grey) ────────────── */
+    --bg-0: #c8ccd2;
+    --bg-1: #ced2d8;
+    --bg-2: #d4d7dd;
+    --bg-3: #d9dce2;
+    --bg-4: #dee1e6;
+    --bg-5: #e3e6ea;
+    --bg-6: #e8ebef;
+    --bg-7: #edeff2;
+    --bg-hover: #d4d7dd;
+    --bg-sel: #f0e4c4;
+    --bg-inset: #b8bcc4;
 
-  /* ── Foreground (text) ──────────────────────────────────── */
-  --fg-1: #1d2025;
-  --fg-2: #3d4148;
-  --fg-3: #65696f;
-  --fg-4: #8a8e94;
-  --fg-5: #aaaeb4;
+    /* ── Foreground (text) ──────────────────────────────────── */
+    --fg-1: #1d2025;
+    --fg-2: #3d4148;
+    --fg-3: #65696f;
+    --fg-4: #8a8e94;
+    --fg-5: #aaaeb4;
 
-  /* ── Accent ─────────────────────────────────────────────── */
-  --accent:     #c46a05;   /* slightly toned amber for grey ground */
-  --accent-hi:  #e88f15;
-  --accent-2:   #d04c0c;
-  --accent-2hi: #ec6420;
+    /* ── Accent ─────────────────────────────────────────────── */
+    --accent: #c46a05; /* slightly toned amber for grey ground */
+    --accent-hi: #e88f15;
+    --accent-2: #d04c0c;
+    --accent-2hi: #ec6420;
 
-  /* ── Borders ────────────────────────────────────────────── */
-  --border:    #b8bcc4;
-  --border-hi: #9aa0a8;
+    /* ── Borders ────────────────────────────────────────────── */
+    --border: #b8bcc4;
+    --border-hi: #9aa0a8;
 
-  /* ── Special ────────────────────────────────────────────── */
-  --blue:       #1f5fd5;
-  --blue-light: #357de8;
-  --blue-soft:  #5b94ec;
-  --tan:        #946b30;
-  --tan-hi:     #b08642;
-  --error:      #c81e1e;
+    /* ── Special ────────────────────────────────────────────── */
+    --blue: #1f5fd5;
+    --blue-light: #357de8;
+    --blue-soft: #5b94ec;
+    --tan: #946b30;
+    --tan-hi: #b08642;
+    --error: #c81e1e;
 
-  /* ── Scene cuts ─────────────────────────────────────────── */
-  --scene-cut:           hsl(40, 80%, 45%);
-  --scene-cut-hi:        hsl(40, 90%, 52%);
-  --scene-cut-bd:        hsl(38, 85%, 33%);
-  --scene-cut-active:    hsl(40, 95%, 55%);
-  --scene-cut-active-bd: hsl(38, 90%, 40%);
-  --scene-cut-rgb:       194, 148, 26;
+    /* ── Scene cuts ─────────────────────────────────────────── */
+    --scene-cut: hsl(40, 80%, 45%);
+    --scene-cut-hi: hsl(40, 90%, 52%);
+    --scene-cut-bd: hsl(38, 85%, 33%);
+    --scene-cut-active: hsl(40, 95%, 55%);
+    --scene-cut-active-bd: hsl(38, 90%, 40%);
+    --scene-cut-rgb: 194, 148, 26;
 
-  /* ── Snap hints ─────────────────────────────────────────── */
-  --snap:        hsl(150, 60%, 35%);
-  --snap-active: hsl(40, 90%, 45%);
+    /* ── Snap hints ─────────────────────────────────────────── */
+    --snap: hsl(150, 60%, 35%);
+    --snap-active: hsl(40, 90%, 45%);
 
-  /* ── Timeline space hues ────────────────────────────────── */
-  --space-input:  hsl(200, 65%, 38%);
-  --space-warp:   hsl(28, 80%, 42%);
-  --space-output: hsl(280, 45%, 45%);
+    /* ── Timeline space hues ────────────────────────────────── */
+    --space-input: hsl(200, 65%, 38%);
+    --space-warp: hsl(28, 80%, 42%);
+    --space-output: hsl(280, 45%, 45%);
 
-  /* ── RGB channels for rgba() transparency ───────────────── */
-  --accent-rgb:   196, 106, 5;
-  --accent-2-rgb: 208, 76, 12;
-  --fg-1-rgb:     29, 32, 37;
-  --blue-rgb:     31, 95, 213;
-  --beat-rgb:     80, 55, 20;
+    /* ── RGB channels for rgba() transparency ───────────────── */
+    --accent-rgb: 196, 106, 5;
+    --accent-2-rgb: 208, 76, 12;
+    --fg-1-rgb: 29, 32, 37;
+    --blue-rgb: 31, 95, 213;
+    --beat-rgb: 80, 55, 20;
 
-  /* ── Playhead ───────────────────────────────────────────── */
-  --playhead:     #a821b6;
-  --playhead-rgb: 168, 33, 182;
+    /* ── Playhead ───────────────────────────────────────────── */
+    --playhead: #a821b6;
+    --playhead-rgb: 168, 33, 182;
 
-  /* ── Warp panel (a touch darker grey for separation) ──── */
-  --wp-bg:   #d8dbe1;
-  --wp-bg2:  #ced1d8;
-  --wp-bg3:  #d3d6dc;
-  --wp-foot: #c6c9d0;
-  --wp-bd:   #b8bcc4;
-  --wp-bd2:  #aab0b8;
-  --wp-bd3:  #9aa0a8;
-  --wp-bd4:  #80868f;
-  --wp-tx:   #1a1d24;
-  --wp-tx2:  #4b5563;
-  --wp-tx3:  #6b7280;
-  --wp-tx4:  #8a8e94;
-  --wp-tx5:  #b0b4ba;
+    /* ── Warp panel (a touch darker grey for separation) ──── */
+    --wp-bg: #d8dbe1;
+    --wp-bg2: #ced1d8;
+    --wp-bg3: #d3d6dc;
+    --wp-foot: #c6c9d0;
+    --wp-bd: #b8bcc4;
+    --wp-bd2: #aab0b8;
+    --wp-bd3: #9aa0a8;
+    --wp-bd4: #80868f;
+    --wp-tx: #1a1d24;
+    --wp-tx2: #4b5563;
+    --wp-tx3: #6b7280;
+    --wp-tx4: #8a8e94;
+    --wp-tx5: #b0b4ba;
 
-  /* ── Region overlay tweaks (same as paper-light) ──────── */
-  --region-fill-alpha: 0.55;
-  --region-label-color: #1a1a1c;
-  --region-label-shadow:
-    0 0 2px hsla(0, 0%, 100%, 0.85),
-    0 1px 2px hsla(0, 0%, 100%, 0.55);
-  --speed-label-shadow: none;
-  --out-of-range-fill: hsla(220, 8%, 35%, 0.15);
+    /* ── Region overlay tweaks (same as paper-light) ──────── */
+    --region-fill-alpha: 0.55;
+    --region-label-color: #1a1a1c;
+    --region-label-shadow: 0 0 2px hsla(0, 0%, 100%, 0.85), 0 1px 2px hsla(0, 0%, 100%, 0.55);
+    --speed-label-shadow: none;
+    --out-of-range-fill: hsla(220, 8%, 35%, 0.15);
 
-  /* Active-region selection border: deep amber reads better on grey ground
+    /* Active-region selection border: deep amber reads better on grey ground
    * than the dark-theme pastel yellow. */
-  --region-active-border: hsl(28, 90%, 38%);
-  --region-handle-bg:     hsla(28, 90%, 38%, 0.25);
-  --region-handle-border: hsla(28, 90%, 38%, 0.8);
+    --region-active-border: hsl(28, 90%, 38%);
+    --region-handle-bg: hsla(28, 90%, 38%, 0.25);
+    --region-handle-border: hsla(28, 90%, 38%, 0.8);
 
-  /* ── Font ───────────────────────────────────────────────── */
-  --font-family: ui-monospace, Consolas, monospace;
+    /* ── Font ───────────────────────────────────────────────── */
+    --font-family: ui-monospace, Consolas, monospace;
 }

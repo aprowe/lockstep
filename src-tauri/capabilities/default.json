@@ -1,21 +1,21 @@
 {
-  "$schema": "../node_modules/@tauri-apps/cli/schema/desktop-schema.json",
-  "identifier": "default",
-  "description": "Default permissions for Lockstep",
-  "windows": ["main"],
-  "permissions": [
-    "core:default",
-    "core:event:default",
-    "core:window:allow-minimize",
-    "core:window:allow-toggle-maximize",
-    "core:window:allow-close",
-    "core:window:allow-is-maximized",
-    "core:window:allow-start-dragging",
-    "dialog:allow-open",
-    "dialog:allow-save",
-    {
-      "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://github.com/aprowe/lockstep" }]
-    }
-  ]
+    "$schema": "../node_modules/@tauri-apps/cli/schema/desktop-schema.json",
+    "identifier": "default",
+    "description": "Default permissions for Lockstep",
+    "windows": ["main"],
+    "permissions": [
+        "core:default",
+        "core:event:default",
+        "core:window:allow-minimize",
+        "core:window:allow-toggle-maximize",
+        "core:window:allow-close",
+        "core:window:allow-is-maximized",
+        "core:window:allow-start-dragging",
+        "dialog:allow-open",
+        "dialog:allow-save",
+        {
+            "identifier": "opener:allow-open-url",
+            "allow": [{ "url": "https://github.com/aprowe/lockstep" }]
+        }
+    ]
 }

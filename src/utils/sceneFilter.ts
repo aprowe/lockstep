@@ -6,14 +6,14 @@
  * appears after a gap of at least `minGap` seconds. Pass-through if minGap ≤ 0.
  */
 export function filterCutsByMinGap(cuts: number[], minGap: number): number[] {
-  if (minGap <= 0 || cuts.length === 0) return cuts
-  const out: number[] = []
-  let prev = -Infinity
-  for (const t of cuts) {
-    if (t - prev >= minGap) out.push(t)
-    prev = t
-  }
-  return out
+    if (minGap <= 0 || cuts.length === 0) return cuts;
+    const out: number[] = [];
+    let prev = -Infinity;
+    for (const t of cuts) {
+        if (t - prev >= minGap) out.push(t);
+        prev = t;
+    }
+    return out;
 }
 
 /**
@@ -24,19 +24,15 @@ export function filterCutsByMinGap(cuts: number[], minGap: number): number[] {
  * pools are merged, sorted, and de-duped within 1ms (float drift) before
  * returning, so downstream code can treat the result as a clean number[].
  */
-export function visibleSceneCuts(
-  detected: number[],
-  user: number[],
-  minGap: number,
-): number[] {
-  const filtered = filterCutsByMinGap(detected, minGap)
-  if (user.length === 0) return filtered
-  const merged = [...filtered, ...user].sort((a, b) => a - b)
-  const out: number[] = []
-  for (const t of merged) {
-    if (out.length === 0 || Math.abs(out[out.length - 1] - t) >= 1e-3) {
-      out.push(t)
+export function visibleSceneCuts(detected: number[], user: number[], minGap: number): number[] {
+    const filtered = filterCutsByMinGap(detected, minGap);
+    if (user.length === 0) return filtered;
+    const merged = [...filtered, ...user].sort((a, b) => a - b);
+    const out: number[] = [];
+    for (const t of merged) {
+        if (out.length === 0 || Math.abs(out[out.length - 1] - t) >= 1e-3) {
+            out.push(t);
+        }
     }
-  }
-  return out
+    return out;
 }

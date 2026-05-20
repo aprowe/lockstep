@@ -4,13 +4,13 @@
  * know which extensions exist.
  */
 
-import { coreExtension } from './coreTools'
-import { geminiExtension } from './geminiTools'
-import { registerExtension } from './registry'
+import { coreExtension } from "./coreTools";
+import { geminiExtension } from "./geminiTools";
+import { registerExtension } from "./registry";
 
-registerExtension(coreExtension)
-registerExtension(geminiExtension)
+registerExtension(coreExtension);
+registerExtension(geminiExtension);
 
-export { runAssistant } from './runner'
-export { listAllTools, listExtensions } from './registry'
-export type { TranscriptEntry } from './types'
+export { runAssistant } from "./runner";
+export { listAllTools, listExtensions } from "./registry";
+export type { TranscriptEntry } from "./types";

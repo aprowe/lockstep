@@ -1,114 +1,114 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
+    push:
+        tags:
+            - "v*"
 
 permissions:
-  contents: write
+    contents: write
 
 jobs:
-  release:
-    permissions:
-      contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: windows-latest
-            target: x86_64-pc-windows-msvc
-          - platform: macos-latest
-            target: aarch64-apple-darwin
-    runs-on: ${{ matrix.platform }}
+    release:
+        permissions:
+            contents: write
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - platform: windows-latest
+                      target: x86_64-pc-windows-msvc
+                    - platform: macos-latest
+                      target: aarch64-apple-darwin
+        runs-on: ${{ matrix.platform }}
 
-    steps:
-      - uses: actions/checkout@v4
+        steps:
+            - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
 
-      - run: npm ci
+            - run: npm ci
 
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
+            - uses: dtolnay/rust-toolchain@stable
+              with:
+                  targets: ${{ matrix.target }}
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: "./src-tauri -> target"
-          key: ${{ matrix.target }}
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: "./src-tauri -> target"
+                  key: ${{ matrix.target }}
 
-      - name: Download FFmpeg binaries — Windows (BtbN static)
-        if: matrix.platform == 'windows-latest'
-        shell: bash
-        run: |
-          # BtbN builds are statically linked — they don't depend on MSVC
-          # runtime DLLs that fresh Windows machines may lack. The ffbinaries
-          # v6.1 Windows builds we used previously were dynamic and failed
-          # to launch on clean installs.
-          mkdir -p src-tauri/binaries
-          curl -L "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -o ffmpeg.zip
-          unzip ffmpeg.zip -d ffmpeg_out
-          FF_DIR=$(find ffmpeg_out -maxdepth 2 -type d -name bin | head -n1)
-          cp "$FF_DIR/ffmpeg.exe" src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
-          cp "$FF_DIR/ffprobe.exe" src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe
+            - name: Download FFmpeg binaries — Windows (BtbN static)
+              if: matrix.platform == 'windows-latest'
+              shell: bash
+              run: |
+                  # BtbN builds are statically linked — they don't depend on MSVC
+                  # runtime DLLs that fresh Windows machines may lack. The ffbinaries
+                  # v6.1 Windows builds we used previously were dynamic and failed
+                  # to launch on clean installs.
+                  mkdir -p src-tauri/binaries
+                  curl -L "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -o ffmpeg.zip
+                  unzip ffmpeg.zip -d ffmpeg_out
+                  FF_DIR=$(find ffmpeg_out -maxdepth 2 -type d -name bin | head -n1)
+                  cp "$FF_DIR/ffmpeg.exe" src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
+                  cp "$FF_DIR/ffprobe.exe" src-tauri/binaries/ffprobe-x86_64-pc-windows-msvc.exe
 
-      - name: Download rife-ncnn-vulkan — Windows
-        if: matrix.platform == 'windows-latest'
-        shell: bash
-        # The aprowe fork (tag 20260422) adds `-M manifest.json` batch mode
-        # which Lockstep's pipeline depends on. Upstream nihui builds don't
-        # support it; using them here would silently produce a broken bundle.
-        # Must stay in lockstep with scripts/setup-binaries.mjs RIFE_VERSION.
-        run: |
-          mkdir -p src-tauri/binaries
-          curl -L "https://github.com/aprowe/rife-ncnn-vulkan/releases/download/20260422/rife-ncnn-vulkan-20260422-windows.zip" -o rife.zip
-          unzip rife.zip -d rife_out
-          RIFE_DIR=$(find rife_out -maxdepth 1 -type d -name "rife-ncnn-vulkan-*" | head -n1)
-          cp "$RIFE_DIR/rife-ncnn-vulkan.exe" src-tauri/binaries/rife-ncnn-vulkan-x86_64-pc-windows-msvc.exe
-          mkdir -p src-tauri/binaries/rife-v4.6
-          cp "$RIFE_DIR/rife-v4.6/flownet.bin" src-tauri/binaries/rife-v4.6/
-          cp "$RIFE_DIR/rife-v4.6/flownet.param" src-tauri/binaries/rife-v4.6/
+            - name: Download rife-ncnn-vulkan — Windows
+              if: matrix.platform == 'windows-latest'
+              shell: bash
+              # The aprowe fork (tag 20260422) adds `-M manifest.json` batch mode
+              # which Lockstep's pipeline depends on. Upstream nihui builds don't
+              # support it; using them here would silently produce a broken bundle.
+              # Must stay in lockstep with scripts/setup-binaries.mjs RIFE_VERSION.
+              run: |
+                  mkdir -p src-tauri/binaries
+                  curl -L "https://github.com/aprowe/rife-ncnn-vulkan/releases/download/20260422/rife-ncnn-vulkan-20260422-windows.zip" -o rife.zip
+                  unzip rife.zip -d rife_out
+                  RIFE_DIR=$(find rife_out -maxdepth 1 -type d -name "rife-ncnn-vulkan-*" | head -n1)
+                  cp "$RIFE_DIR/rife-ncnn-vulkan.exe" src-tauri/binaries/rife-ncnn-vulkan-x86_64-pc-windows-msvc.exe
+                  mkdir -p src-tauri/binaries/rife-v4.6
+                  cp "$RIFE_DIR/rife-v4.6/flownet.bin" src-tauri/binaries/rife-v4.6/
+                  cp "$RIFE_DIR/rife-v4.6/flownet.param" src-tauri/binaries/rife-v4.6/
 
-      - name: Install FFmpeg — macOS (homebrew)
-        if: matrix.platform == 'macos-latest'
-        run: |
-          brew install ffmpeg
-          mkdir -p src-tauri/binaries
-          cp "$(brew --prefix)/bin/ffmpeg"  src-tauri/binaries/ffmpeg-${{ matrix.target }}
-          cp "$(brew --prefix)/bin/ffprobe" src-tauri/binaries/ffprobe-${{ matrix.target }}
-          chmod +x src-tauri/binaries/ffmpeg-${{ matrix.target }}
-          chmod +x src-tauri/binaries/ffprobe-${{ matrix.target }}
+            - name: Install FFmpeg — macOS (homebrew)
+              if: matrix.platform == 'macos-latest'
+              run: |
+                  brew install ffmpeg
+                  mkdir -p src-tauri/binaries
+                  cp "$(brew --prefix)/bin/ffmpeg"  src-tauri/binaries/ffmpeg-${{ matrix.target }}
+                  cp "$(brew --prefix)/bin/ffprobe" src-tauri/binaries/ffprobe-${{ matrix.target }}
+                  chmod +x src-tauri/binaries/ffmpeg-${{ matrix.target }}
+                  chmod +x src-tauri/binaries/ffprobe-${{ matrix.target }}
 
-      # TODO: aprowe/rife-ncnn-vulkan does not publish a macOS prebuilt
-      # (the fork's release CI only covers Windows + Ubuntu). Until we add a
-      # build-from-source step here, the macOS bundle ships the upstream
-      # nihui binary which lacks `-M manifest.json` batch mode — RIFE
-      # interpolation will fail at runtime on macOS.
-      - name: Download rife-ncnn-vulkan — macOS
-        if: matrix.platform == 'macos-latest'
-        run: |
-          mkdir -p src-tauri/binaries
-          curl -L "https://github.com/nihui/rife-ncnn-vulkan/releases/download/20221029/rife-ncnn-vulkan-20221029-macos.zip" -o rife.zip
-          unzip rife.zip -d rife_out
-          RIFE_DIR=$(find rife_out -maxdepth 1 -type d -name "rife-ncnn-vulkan-*" | head -n1)
-          cp "$RIFE_DIR/rife-ncnn-vulkan" src-tauri/binaries/rife-ncnn-vulkan-${{ matrix.target }}
-          chmod +x src-tauri/binaries/rife-ncnn-vulkan-${{ matrix.target }}
-          mkdir -p src-tauri/binaries/rife-v4.6
-          cp "$RIFE_DIR/rife-v4.6/flownet.bin"   src-tauri/binaries/rife-v4.6/
-          cp "$RIFE_DIR/rife-v4.6/flownet.param" src-tauri/binaries/rife-v4.6/
+            # TODO: aprowe/rife-ncnn-vulkan does not publish a macOS prebuilt
+            # (the fork's release CI only covers Windows + Ubuntu). Until we add a
+            # build-from-source step here, the macOS bundle ships the upstream
+            # nihui binary which lacks `-M manifest.json` batch mode — RIFE
+            # interpolation will fail at runtime on macOS.
+            - name: Download rife-ncnn-vulkan — macOS
+              if: matrix.platform == 'macos-latest'
+              run: |
+                  mkdir -p src-tauri/binaries
+                  curl -L "https://github.com/nihui/rife-ncnn-vulkan/releases/download/20221029/rife-ncnn-vulkan-20221029-macos.zip" -o rife.zip
+                  unzip rife.zip -d rife_out
+                  RIFE_DIR=$(find rife_out -maxdepth 1 -type d -name "rife-ncnn-vulkan-*" | head -n1)
+                  cp "$RIFE_DIR/rife-ncnn-vulkan" src-tauri/binaries/rife-ncnn-vulkan-${{ matrix.target }}
+                  chmod +x src-tauri/binaries/rife-ncnn-vulkan-${{ matrix.target }}
+                  mkdir -p src-tauri/binaries/rife-v4.6
+                  cp "$RIFE_DIR/rife-v4.6/flownet.bin"   src-tauri/binaries/rife-v4.6/
+                  cp "$RIFE_DIR/rife-v4.6/flownet.param" src-tauri/binaries/rife-v4.6/
 
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Lockstep ${{ github.ref_name }}"
-          releaseBody: |
-            See the assets below to download and install Lockstep.
-          releaseDraft: false
-          prerelease: false
-          args: --target ${{ matrix.target }}
+            - uses: tauri-apps/tauri-action@v0
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              with:
+                  tagName: ${{ github.ref_name }}
+                  releaseName: "Lockstep ${{ github.ref_name }}"
+                  releaseBody: |
+                      See the assets below to download and install Lockstep.
+                  releaseDraft: false
+                  prerelease: false
+                  args: --target ${{ matrix.target }}

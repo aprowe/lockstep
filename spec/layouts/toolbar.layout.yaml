@@ -18,26 +18,26 @@ name: Main toolbar
 # lives together, every "navigate to X" lives together, etc. (see commit
 # a67393e). The colored hue on each button still keys to its target item.
 groups:
-  - - New Scene
-    - Prev Scene
-    - Next Scene
+    - - New Scene
+      - Prev Scene
+      - Next Scene
 
-  - - Set In Region
-    - Set Out Region
-    - New Region
-    - Jump to Region Start
-    - Jump to Region End
+    - - Set In Region
+      - Set Out Region
+      - New Region
+      - Jump to Region Start
+      - Jump to Region End
 
-  - - New Marker
-    - Prev Marker
-    - Next Marker
+    - - New Marker
+      - Prev Marker
+      - Next Marker
 
-  - - Play
-    - Prev Frame
-    - Next Frame
-    - { id: playback-loop-mode, label: Playback Loop Mode }
-    - Play Time
-    - Frame Count
-    - Beat Count (clip based)
+    - - Play
+      - Prev Frame
+      - Next Frame
+      - { id: playback-loop-mode, label: Playback Loop Mode }
+      - Play Time
+      - Frame Count
+      - Beat Count (clip based)
 
-  - - Speed
+    - - Speed

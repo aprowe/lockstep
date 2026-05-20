@@ -17,31 +17,35 @@
  *                  buildGraphFromSlice) supply the actual snap targets.
  */
 
-import { Field, OpKind } from '../types'
-import { anchorInId, anchorOutId } from '../ids'
-import { buildGestureSnapTarget } from './snap'
-import type { GestureProfile } from './types'
+import { Field, OpKind } from "../types";
+import { anchorInId, anchorOutId } from "../ids";
+import { buildGestureSnapTarget } from "./snap";
+import type { GestureProfile } from "./types";
 
-function entityForHandle(handle: { kind: 'anchor-drag'; anchorId: number; space: 'input' | 'beat' }): string {
-  return handle.space === 'input' ? anchorInId(handle.anchorId) : anchorOutId(handle.anchorId)
+function entityForHandle(handle: {
+    kind: "anchor-drag";
+    anchorId: number;
+    space: "input" | "beat";
+}): string {
+    return handle.space === "input" ? anchorInId(handle.anchorId) : anchorOutId(handle.anchorId);
 }
 
 export const ANCHOR_DRAG: GestureProfile = {
-  onDrag: (handle, delta) => {
-    if (handle.kind !== 'anchor-drag') return []
-    return [{ kind: OpKind.Move, id: entityForHandle(handle), delta }]
-  },
-  whileDragging: (handle, ctx, state) => {
-    if (handle.kind !== 'anchor-drag') return []
-    const snap = buildGestureSnapTarget({
-      draggedId: entityForHandle(handle),
-      field: Field.Time,
-      state,
-      pxPerUnit: ctx.pxPerUnit,
-      grid: ctx.grid,
-      gestureRole: 'anchor',
-      tag: `gesture:snap:${entityForHandle(handle)}`,
-    })
-    return snap ? [snap] : []
-  },
-}
+    onDrag: (handle, delta) => {
+        if (handle.kind !== "anchor-drag") return [];
+        return [{ kind: OpKind.Move, id: entityForHandle(handle), delta }];
+    },
+    whileDragging: (handle, ctx, state) => {
+        if (handle.kind !== "anchor-drag") return [];
+        const snap = buildGestureSnapTarget({
+            draggedId: entityForHandle(handle),
+            field: Field.Time,
+            state,
+            pxPerUnit: ctx.pxPerUnit,
+            grid: ctx.grid,
+            gestureRole: "anchor",
+            tag: `gesture:snap:${entityForHandle(handle)}`,
+        });
+        return snap ? [snap] : [];
+    },
+};

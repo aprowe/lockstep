@@ -1,11 +1,11 @@
-import type { Anchor } from '../types'
+import type { Anchor } from "../types";
 
 /** Synthetic id used for the clip-in boundary anchor. */
-export const CLIP_IN_BOUNDARY_ID = -9998
+export const CLIP_IN_BOUNDARY_ID = -9998;
 /** Synthetic id used for the clip-out boundary anchor. */
-export const CLIP_OUT_BOUNDARY_ID = -9999
+export const CLIP_OUT_BOUNDARY_ID = -9999;
 /** Tolerance for merging a real anchor at the boundary with the synthetic one. */
-export const BOUNDARY_EPS = 0.01
+export const BOUNDARY_EPS = 0.01;
 
 /**
  * Augment a sorted anchor array with synthetic boundary anchors at `clipIn`
@@ -16,19 +16,22 @@ export const BOUNDARY_EPS = 0.01
  * `clipOut` are undefined, returns the input as-is.
  */
 export function augmentBoundaryAnchors(
-  sorted: Anchor[],
-  clipIn?: number,
-  clipOut?: number,
+    sorted: Anchor[],
+    clipIn?: number,
+    clipOut?: number,
 ): Anchor[] {
-  if (clipIn === undefined && clipOut === undefined) return sorted
-  const aug = [...sorted]
-  if (clipIn !== undefined && (aug.length === 0 || aug[0].time - clipIn > BOUNDARY_EPS)) {
-    aug.unshift({ id: CLIP_IN_BOUNDARY_ID, time: clipIn })
-  }
-  if (clipOut !== undefined && (aug.length === 0 || clipOut - aug[aug.length - 1].time > BOUNDARY_EPS)) {
-    aug.push({ id: CLIP_OUT_BOUNDARY_ID, time: clipOut })
-  }
-  return aug
+    if (clipIn === undefined && clipOut === undefined) return sorted;
+    const aug = [...sorted];
+    if (clipIn !== undefined && (aug.length === 0 || aug[0].time - clipIn > BOUNDARY_EPS)) {
+        aug.unshift({ id: CLIP_IN_BOUNDARY_ID, time: clipIn });
+    }
+    if (
+        clipOut !== undefined &&
+        (aug.length === 0 || clipOut - aug[aug.length - 1].time > BOUNDARY_EPS)
+    ) {
+        aug.push({ id: CLIP_OUT_BOUNDARY_ID, time: clipOut });
+    }
+    return aug;
 }
 
 /**
@@ -39,23 +42,26 @@ export function augmentBoundaryAnchors(
  * matched per index).
  */
 export function augmentBoundaryAnchorsPaired(
-  orig: Anchor[],
-  beat: Anchor[],
-  clipIn?: number,
-  clipOut?: number,
-  clipInBeatTime?: number,
-  clipOutBeatTime?: number,
+    orig: Anchor[],
+    beat: Anchor[],
+    clipIn?: number,
+    clipOut?: number,
+    clipInBeatTime?: number,
+    clipOutBeatTime?: number,
 ): { orig: Anchor[]; beat: Anchor[] } {
-  if (clipIn === undefined && clipOut === undefined) return { orig, beat }
-  const augOrig = [...orig]
-  const augBeat = [...beat]
-  if (clipIn !== undefined && (augOrig.length === 0 || augOrig[0].time - clipIn > BOUNDARY_EPS)) {
-    augOrig.unshift({ id: CLIP_IN_BOUNDARY_ID, time: clipIn })
-    augBeat.unshift({ id: CLIP_IN_BOUNDARY_ID, time: clipInBeatTime ?? clipIn })
-  }
-  if (clipOut !== undefined && (augOrig.length === 0 || clipOut - augOrig[augOrig.length - 1].time > BOUNDARY_EPS)) {
-    augOrig.push({ id: CLIP_OUT_BOUNDARY_ID, time: clipOut })
-    augBeat.push({ id: CLIP_OUT_BOUNDARY_ID, time: clipOutBeatTime ?? clipOut })
-  }
-  return { orig: augOrig, beat: augBeat }
+    if (clipIn === undefined && clipOut === undefined) return { orig, beat };
+    const augOrig = [...orig];
+    const augBeat = [...beat];
+    if (clipIn !== undefined && (augOrig.length === 0 || augOrig[0].time - clipIn > BOUNDARY_EPS)) {
+        augOrig.unshift({ id: CLIP_IN_BOUNDARY_ID, time: clipIn });
+        augBeat.unshift({ id: CLIP_IN_BOUNDARY_ID, time: clipInBeatTime ?? clipIn });
+    }
+    if (
+        clipOut !== undefined &&
+        (augOrig.length === 0 || clipOut - augOrig[augOrig.length - 1].time > BOUNDARY_EPS)
+    ) {
+        augOrig.push({ id: CLIP_OUT_BOUNDARY_ID, time: clipOut });
+        augBeat.push({ id: CLIP_OUT_BOUNDARY_ID, time: clipOutBeatTime ?? clipOut });
+    }
+    return { orig: augOrig, beat: augBeat };
 }

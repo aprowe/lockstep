@@ -20,35 +20,35 @@
  * continues to emit snapStart/snapEnd intents for pair drags.
  */
 
-import { ConstraintKind, Field, OpKind, type Constraint } from '../types'
-import { anchorInId, anchorOutId } from '../ids'
-import { buildGestureSnapTarget } from './snap'
-import type { GestureProfile } from './types'
+import { ConstraintKind, Field, OpKind, type Constraint } from "../types";
+import { anchorInId, anchorOutId } from "../ids";
+import { buildGestureSnapTarget } from "./snap";
+import type { GestureProfile } from "./types";
 
 export const PAIR_DRAG: GestureProfile = {
-  onDrag: (handle, delta) => {
-    if (handle.kind !== 'pair-drag') return []
-    return [{ kind: OpKind.Move, id: anchorInId(handle.pairId), delta }]
-  },
-  whileDragging: (handle, ctx, state) => {
-    if (handle.kind !== 'pair-drag') return []
-    const cs: Constraint[] = [
-      {
-        kind: ConstraintKind.TranslateGroup,
-        ids:  [anchorInId(handle.pairId), anchorOutId(handle.pairId)],
-        tag:  `gesture:pair:${handle.pairId}`,
-      },
-    ]
-    const snap = buildGestureSnapTarget({
-      draggedId: anchorInId(handle.pairId),
-      field: Field.Time,
-      state,
-      pxPerUnit: ctx.pxPerUnit,
-      grid: ctx.grid,
-      gestureRole: 'anchor',
-      tag: `gesture:snap:${anchorInId(handle.pairId)}`,
-    })
-    if (snap) cs.push(snap)
-    return cs
-  },
-}
+    onDrag: (handle, delta) => {
+        if (handle.kind !== "pair-drag") return [];
+        return [{ kind: OpKind.Move, id: anchorInId(handle.pairId), delta }];
+    },
+    whileDragging: (handle, ctx, state) => {
+        if (handle.kind !== "pair-drag") return [];
+        const cs: Constraint[] = [
+            {
+                kind: ConstraintKind.TranslateGroup,
+                ids: [anchorInId(handle.pairId), anchorOutId(handle.pairId)],
+                tag: `gesture:pair:${handle.pairId}`,
+            },
+        ];
+        const snap = buildGestureSnapTarget({
+            draggedId: anchorInId(handle.pairId),
+            field: Field.Time,
+            state,
+            pxPerUnit: ctx.pxPerUnit,
+            grid: ctx.grid,
+            gestureRole: "anchor",
+            tag: `gesture:snap:${anchorInId(handle.pairId)}`,
+        });
+        if (snap) cs.push(snap);
+        return cs;
+    },
+};

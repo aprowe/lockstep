@@ -5,15 +5,12 @@
  * via the dock harness.
  */
 
-import { describe, expect, it } from 'vitest'
-import uiReducer, {
-  type PlaybackLoopMode,
-} from '../../src/store/slices/uiSlice'
+import { describe, expect, it } from "vitest";
+import uiReducer, { type PlaybackLoopMode } from "../../src/store/slices/uiSlice";
 
-describe('uiSlice playback loop mode', () => {
-  it('defaults to continue (preserves prior behavior)', () => {
-    const state = uiReducer(undefined, { type: '@@INIT' })
-    expect(state.playbackLoopMode).toBe('continue' satisfies PlaybackLoopMode)
-  })
-
-})
+describe("uiSlice playback loop mode", () => {
+    it("defaults to continue (preserves prior behavior)", () => {
+        const state = uiReducer(undefined, { type: "@@INIT" });
+        expect(state.playbackLoopMode).toBe("continue" satisfies PlaybackLoopMode);
+    });
+});

@@ -1,7 +1,7 @@
-import { useMemo } from 'react'
-import { useAppSelector } from '../../store/hooks'
-import { selectActiveRegion } from '../../store/selectors'
-import type { ListFilterMode } from '../../store/slices/listsSlice'
+import { useMemo } from "react";
+import { useAppSelector } from "../../store/hooks";
+import { selectActiveRegion } from "../../store/selectors";
+import type { ListFilterMode } from "../../store/slices/listsSlice";
 
 /**
  * Closed-interval window. Markers / scenes / clips all reduce to "does
@@ -9,17 +9,17 @@ import type { ListFilterMode } from '../../store/slices/listsSlice'
  * inconsistent `> vs >=` choices the per-panel filters used to make.
  */
 export interface ItemRange {
-  start: number
-  end: number
+    start: number;
+    end: number;
 }
 
 interface UseFilteredItemsOpts<T> {
-  items: T[]
-  filterMode: ListFilterMode
-  /** Source-time range for one item. For points (markers, scene starts)
-   *  return `{ start: t, end: t }`; for spans (clips, scene boundaries)
-   *  return `{ start: in, end: out }`. */
-  getRange: (item: T) => ItemRange
+    items: T[];
+    filterMode: ListFilterMode;
+    /** Source-time range for one item. For points (markers, scene starts)
+     *  return `{ start: t, end: t }`; for spans (clips, scene boundaries)
+     *  return `{ start: in, end: out }`. */
+    getRange: (item: T) => ItemRange;
 }
 
 /**
@@ -36,23 +36,22 @@ interface UseFilteredItemsOpts<T> {
  * have to thread them in — keeps the per-panel adapter focused on its
  * own data shape.
  */
-export function useFilteredItems<T>({
-  items, filterMode, getRange,
-}: UseFilteredItemsOpts<T>): T[] {
-  const view = useAppSelector(s => s.ui.view)
-  const activeRegion = useAppSelector(selectActiveRegion)
+export function useFilteredItems<T>({ items, filterMode, getRange }: UseFilteredItemsOpts<T>): T[] {
+    const view = useAppSelector((s) => s.ui.view);
+    const activeRegion = useAppSelector(selectActiveRegion);
 
-  return useMemo(() => {
-    if (filterMode === 'global') return items
-    const window = filterMode === 'viewport'
-      ? { start: view.start, end: view.end }
-      : activeRegion
-        ? { start: activeRegion.inPoint, end: activeRegion.outPoint }
-        : null
-    if (!window) return []
-    return items.filter(item => {
-      const r = getRange(item)
-      return r.end >= window.start && r.start <= window.end
-    })
-  }, [items, filterMode, view.start, view.end, activeRegion, getRange])
+    return useMemo(() => {
+        if (filterMode === "global") return items;
+        const window =
+            filterMode === "viewport"
+                ? { start: view.start, end: view.end }
+                : activeRegion
+                  ? { start: activeRegion.inPoint, end: activeRegion.outPoint }
+                  : null;
+        if (!window) return [];
+        return items.filter((item) => {
+            const r = getRange(item);
+            return r.end >= window.start && r.start <= window.end;
+        });
+    }, [items, filterMode, view.start, view.end, activeRegion, getRange]);
 }

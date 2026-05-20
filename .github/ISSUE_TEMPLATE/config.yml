@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Codebase tour
-    url: https://github.com/aprowe/lockstep/blob/main/CLAUDE.md
-    about: Architecture, command surface, and the warp pipeline.
+    - name: Codebase tour
+      url: https://github.com/aprowe/lockstep/blob/main/CLAUDE.md
+      about: Architecture, command surface, and the warp pipeline.

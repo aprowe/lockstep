@@ -1,5 +1,5 @@
-import { assertLayoutMatches } from '../helpers/runLayout'
-import { renderToolbar } from '../harnesses/toolbar'
+import { assertLayoutMatches } from "../helpers/runLayout";
+import { renderToolbar } from "../harnesses/toolbar";
 
-const { container } = renderToolbar()
-assertLayoutMatches('main-toolbar', container)
+const { container } = renderToolbar();
+assertLayoutMatches("main-toolbar", container);

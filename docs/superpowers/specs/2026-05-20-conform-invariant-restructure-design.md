@@ -16,7 +16,7 @@ The current implementation expresses this with two constraints:
 
 - `ConformVisual` — one-way write `anchor.beat → clipout.edge` when coincidence
   holds. Gated on the txn containing a write to `clipin.edge` or `anchor.orig`.
-- `MirrorPair` — *symmetric* binding `anchor.beat ↔ clipout.edge`, installed
+- `MirrorPair` — _symmetric_ binding `anchor.beat ↔ clipout.edge`, installed
   whenever dual coincidence (input AND output) holds at pre-drag time.
 
 `MirrorPair`'s symmetric coupling was added so the user could "drag clipout
@@ -30,7 +30,7 @@ solve the structural issue, and each new gesture risks re-introducing the bug.
 
 Replace the symmetric coupling with a strictly directed derivation so the
 invariant holds by construction, with no handle-specific skips. Preserve the
-"drag clipout = drag anchor" QoL by *redirecting* the user's clipout write
+"drag clipout = drag anchor" QoL by _redirecting_ the user's clipout write
 into an anchor.beat write at the constraint level.
 
 ## Architecture
@@ -42,9 +42,9 @@ Three constraint-pipeline changes:
 - Delete the `MirrorPair` constraint kind, its resolver handler, and its
   install site in `pipeline.ts` step 12.
 - Delete the three drag-handle skip predicates introduced earlier:
-  - `draggedClipinRegionId` (step 12)
-  - `draggedPairId` (step 12)
-  - `conformSkipPairId` (step 4a — ConformVisual install)
+    - `draggedClipinRegionId` (step 12)
+    - `draggedPairId` (step 12)
+    - `conformSkipPairId` (step 4a — ConformVisual install)
 - Delete `findSnapCandidates`'s related test fixtures and any
   MirrorPair-specific unit tests; port surviving behaviors to the new model.
 
@@ -54,7 +54,7 @@ Three constraint-pipeline changes:
 coincidence holds. Its txn gate is currently:
 
 ```ts
-if (!clipInWrite && !anchorInWrite) return txn
+if (!clipInWrite && !anchorInWrite) return txn;
 ```
 
 Expand to fire whenever any of these are written this txn:
@@ -75,12 +75,14 @@ A pure Propose-phase rule that detects user-driven clipout writes while
 conform holds and redirects them to anchor.beat with the same delta.
 
 **Trigger conditions** (all must hold in the txn):
+
 - A write exists on `clipout.edge` (entity = `regionOutId(r.id)`, field = `in` or `out`).
 - Input coincidence holds at the post-write state: `|clipin.edge - anchor.orig| < CONFORM_EPSILON`.
 - No write on `anchor.beat` exists in the txn (don't double-write if user
   also grabbed the anchor directly).
 
 **Effect:**
+
 - Compute `delta = clipoutWrite.to - clipoutWrite.from`.
 - Remove the clipout write from the txn (let `ConformVisual` re-add it).
 - Add a write on `anchor.beat`: `{ to: anchor.beat.time + delta }`.
@@ -104,18 +106,18 @@ insertion order in `buildGraphFromSlice` must be:
 Concrete trace — user drags `clipout.in` by +0.5 while conformed
 (clipin.in=10 on orig=10, clipout.in=15 on beat=15):
 
-| Step | Txn after |
-|------|-----------|
-| User write | `[clipout.in: 15 → 15.5]` |
-| Default-link | `[clipout.in: 15 → 15.5]` (clipin unchanged, no cascade) |
+| Step                 | Txn after                                                       |
+| -------------------- | --------------------------------------------------------------- |
+| User write           | `[clipout.in: 15 → 15.5]`                                       |
+| Default-link         | `[clipout.in: 15 → 15.5]` (clipin unchanged, no cascade)        |
 | SnapTarget (clipout) | `[clipout.in: 15 → 15.5]` (no nearby target; suppose unsnapped) |
-| ConformRedirect | `[anchor.beat: 15 → 15.5]` |
-| ConformVisual | `[anchor.beat: 15 → 15.5, clipout.in: 15 → 15.5]` |
-| Fixed point | converged |
+| ConformRedirect      | `[anchor.beat: 15 → 15.5]`                                      |
+| ConformVisual        | `[anchor.beat: 15 → 15.5, clipout.in: 15 → 15.5]`               |
+| Fixed point          | converged                                                       |
 
 ### Provenance: distinguishing seed writes from cascade writes
 
-ConformRedirect must not redirect *every* clipout write — only ones that
+ConformRedirect must not redirect _every_ clipout write — only ones that
 originated from a user gesture. A default-link cascade write on clipout
 (produced when clipin moves and `defaultLinked` is true) would otherwise
 be redirected to anchor.beat, recreating the contamination bug at a new
@@ -133,26 +135,26 @@ Trace — user drags clipin.in by +0.3 from 10 (already on orig=10) toward
 a diverged anchor (orig=10, beat=15, clipin.in=10, clipout.in=15 from
 prior conform):
 
-| Step | Txn after |
-|------|-----------|
-| User write | `[clipin.in: 10 → 10.3 (seed)]` |
-| Default-link | `[..., clipout.in: 15 → 10.3 (tag=defaultlink)]` |
-| SnapTarget (clipin) snaps to orig=10 | `[clipin.in: 10 → 10, clipout.in: 15 → 10.3 (tag=defaultlink)]` |
-| ConformRedirect | *skips* (clipout write tagged defaultlink) |
-| ConformVisual | `[..., clipout.in: 15 → 15]` (writes anchor.beat=15 → clipout=15) |
-| Fixed point | converged: clipin=10, clipout=15, anchor untouched ✓ |
+| Step                                 | Txn after                                                         |
+| ------------------------------------ | ----------------------------------------------------------------- |
+| User write                           | `[clipin.in: 10 → 10.3 (seed)]`                                   |
+| Default-link                         | `[..., clipout.in: 15 → 10.3 (tag=defaultlink)]`                  |
+| SnapTarget (clipin) snaps to orig=10 | `[clipin.in: 10 → 10, clipout.in: 15 → 10.3 (tag=defaultlink)]`   |
+| ConformRedirect                      | _skips_ (clipout write tagged defaultlink)                        |
+| ConformVisual                        | `[..., clipout.in: 15 → 15]` (writes anchor.beat=15 → clipout=15) |
+| Fixed point                          | converged: clipin=10, clipout=15, anchor untouched ✓              |
 
 The default-link cascade is overridden by ConformVisual without ever
 touching anchor.beat.
 
-| Step | Txn after (with seedTag) |
-|------|---------------------------|
-| User write | `[clipin.in: 10→10.3 (seed)]` |
-| Default-link | `[clipin.in: 10→10.3, clipout.in: 15→10.3 (tag=defaultlink)]` |
-| SnapTarget (clipin) | `[clipin.in: 10→10, clipout.in: 15→10.3 (tag=defaultlink)]` |
-| ConformRedirect | skips (clipout write tagged defaultlink) |
-| ConformVisual | `[..., clipout.in: 15→15]` (writes anchor.beat=15 → clipout = 15) |
-| Fixed point | converged: clipin=10, clipout=15, anchor stays (10, 15) |
+| Step                | Txn after (with seedTag)                                          |
+| ------------------- | ----------------------------------------------------------------- |
+| User write          | `[clipin.in: 10→10.3 (seed)]`                                     |
+| Default-link        | `[clipin.in: 10→10.3, clipout.in: 15→10.3 (tag=defaultlink)]`     |
+| SnapTarget (clipin) | `[clipin.in: 10→10, clipout.in: 15→10.3 (tag=defaultlink)]`       |
+| ConformRedirect     | skips (clipout write tagged defaultlink)                          |
+| ConformVisual       | `[..., clipout.in: 15→15]` (writes anchor.beat=15 → clipout = 15) |
+| Fixed point         | converged: clipin=10, clipout=15, anchor stays (10, 15)           |
 
 Anchor untouched. Default-link cascade overridden by ConformVisual. ✓
 
@@ -161,6 +163,7 @@ This resolves the order-of-operations / provenance question.
 ## Components
 
 ### `src/constraints/types.ts`
+
 - Add optional `seedTag?: string` to `Write` (or whatever the existing
   write-record type is named). Document: "Provenance marker for writes
   produced by cascade rules. Seed writes (from user gestures) have no tag."
@@ -171,16 +174,18 @@ This resolves the order-of-operations / provenance question.
   Keeping it separate from ConformVisual keeps phase logic legible.
 
 ### `src/constraints/resolver.ts`
+
 - Remove the `MirrorPair` handler (~lines 406-450).
 - Modify the `DirectedPair` MirrorEdge mode handler to stamp `seedTag:
-  'defaultlink'` on its cascade writes.
+'defaultlink'` on its cascade writes.
 - Modify the `ConformVisual` handler:
-  - Expand the txn gate to include `anchor.beat` and `clipout.edge` writes.
-  - Keep the existing no-op convergence check.
+    - Expand the txn gate to include `anchor.beat` and `clipout.edge` writes.
+    - Keep the existing no-op convergence check.
 - Add the `ConformRedirect` handler (Propose phase). Logic per the spec
   above. Skip writes with `seedTag === 'defaultlink'`.
 
 ### `src/constraints/pipeline.ts`
+
 - Step 4a (ConformVisual install): delete `conformSkipPairId` and its
   block. Restore the simple per-(region × anchor × edge) install loop.
 - Step 4b (formerly MirrorPair install at step 12): delete entirely.
@@ -191,14 +196,15 @@ This resolves the order-of-operations / provenance question.
   intended Propose iteration order.
 
 ### Tests
+
 - **Delete** `tests/unit/constraints/scenario-snap-conformed-clipout-anchor-stays-aligned.test.ts`'s
   MirrorPair-specific assertions; rewrite as behavioral (clipout stays = anchor.beat at every frame).
 - **Keep** all three "diverged anchor stays put" scenarios — they should pass
   unchanged under the new model.
 - **Add** scenarios for the redirect:
-  - "drag clipout while conformed: anchor.beat moves by the same delta"
-  - "drag clipout while conformed and snap: anchor.beat absorbs the snapped value"
-  - "lasso clipin + clipout (no anchor), drag clipin: clipout follows clipin via default-link when conform breaks; clipout stays = anchor.beat while conform holds"
+    - "drag clipout while conformed: anchor.beat moves by the same delta"
+    - "drag clipout while conformed and snap: anchor.beat absorbs the snapped value"
+    - "lasso clipin + clipout (no anchor), drag clipin: clipout follows clipin via default-link when conform breaks; clipout stays = anchor.beat while conform holds"
 - **Verify** the existing `scenario-conform-anchor-onto-clipin` and
   `scenario-drag-anchor-onto-clipin-via-profile` still pass.
 
@@ -236,7 +242,7 @@ by step 3 (ConformRedirect routing user clipout writes away from clipout).
 - **Conform on derived entities.** Scene markers, BPM-derived endpoints, etc.
   remain outside the conform invariant.
 - **Multi-anchor conform.** If two anchors coincide with the same clipin edge,
-  the *first* anchor by id wins (ConformVisual fires per anchor; the last
+  the _first_ anchor by id wins (ConformVisual fires per anchor; the last
   write wins). No tie-breaking design needed yet — surface a bug if it
   comes up.
 

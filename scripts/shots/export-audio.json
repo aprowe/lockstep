@@ -1,35 +1,43 @@
 [
-  {
-    "name": "01-export-dialog-audio",
-    "seed": {
-      "video": { "duration": 32, "name": "beach.mp4" },
-      "bpm": 120,
-      "anchors": [[2.1, 2.0], [5.85, 6.0], [9.7, 10.0]],
-      "regions": [
-        { "name": "Intro", "inPoint": 0, "outPoint": 8 },
-        { "name": "Verse", "inPoint": 8, "outPoint": 20, "bpm": 120 }
-      ],
-      "view": { "start": 0, "end": 32 },
-      "activeRegion": "Verse",
-      "exportOpen": true
+    {
+        "name": "01-export-dialog-audio",
+        "seed": {
+            "video": { "duration": 32, "name": "beach.mp4" },
+            "bpm": 120,
+            "anchors": [
+                [2.1, 2.0],
+                [5.85, 6.0],
+                [9.7, 10.0]
+            ],
+            "regions": [
+                { "name": "Intro", "inPoint": 0, "outPoint": 8 },
+                { "name": "Verse", "inPoint": 8, "outPoint": 20, "bpm": 120 }
+            ],
+            "view": { "start": 0, "end": 32 },
+            "activeRegion": "Verse",
+            "exportOpen": true
+        },
+        "selector": ".export-dialog"
     },
-    "selector": ".export-dialog"
-  },
-  {
-    "name": "02-export-dialog-audio-pitched",
-    "seed": {
-      "video": { "duration": 32, "name": "beach.mp4" },
-      "bpm": 120,
-      "anchors": [[2.1, 2.0], [5.85, 6.0], [9.7, 10.0]],
-      "regions": [
-        { "name": "Intro", "inPoint": 0, "outPoint": 8 },
-        { "name": "Verse", "inPoint": 8, "outPoint": 20, "bpm": 120 }
-      ],
-      "view": { "start": 0, "end": 32 },
-      "activeRegion": "Verse",
-      "exportOpen": true
-    },
-    "evaluate": "document.querySelector('.export-dialog__audio-sub input[type=checkbox]').click()",
-    "selector": ".export-dialog"
-  }
+    {
+        "name": "02-export-dialog-audio-pitched",
+        "seed": {
+            "video": { "duration": 32, "name": "beach.mp4" },
+            "bpm": 120,
+            "anchors": [
+                [2.1, 2.0],
+                [5.85, 6.0],
+                [9.7, 10.0]
+            ],
+            "regions": [
+                { "name": "Intro", "inPoint": 0, "outPoint": 8 },
+                { "name": "Verse", "inPoint": 8, "outPoint": 20, "bpm": 120 }
+            ],
+            "view": { "start": 0, "end": 32 },
+            "activeRegion": "Verse",
+            "exportOpen": true
+        },
+        "evaluate": "document.querySelector('.export-dialog__audio-sub input[type=checkbox]').click()",
+        "selector": ".export-dialog"
+    }
 ]

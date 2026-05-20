@@ -72,87 +72,87 @@
    ═══════════════════════════════════════════════════════════ */
 :root,
 :root[data-theme="warm-dark"] {
-  /* ── Backgrounds ────────────────────────────────────────── */
-  --bg-0:     #0d0b09;
-  --bg-1:     #100e0c;
-  --bg-2:     #171410;
-  --bg-3:     #1b1814;
-  --bg-4:     #1c1915;
-  --bg-5:     #201d18;
-  --bg-6:     #231f18;
-  --bg-7:     #252018;
-  --bg-hover: #2a2418;
-  --bg-sel:   #261f15;
-  --bg-inset: #131110;
+    /* ── Backgrounds ────────────────────────────────────────── */
+    --bg-0: #0d0b09;
+    --bg-1: #100e0c;
+    --bg-2: #171410;
+    --bg-3: #1b1814;
+    --bg-4: #1c1915;
+    --bg-5: #201d18;
+    --bg-6: #231f18;
+    --bg-7: #252018;
+    --bg-hover: #2a2418;
+    --bg-sel: #261f15;
+    --bg-inset: #131110;
 
-  /* ── Foreground (text) ──────────────────────────────────── */
-  --fg-1: #e2dbd2;
-  --fg-2: #c2b8ae;
-  --fg-3: #a09488;
-  --fg-4: #7a6e62;
-  --fg-5: #5a4e42;
+    /* ── Foreground (text) ──────────────────────────────────── */
+    --fg-1: #e2dbd2;
+    --fg-2: #c2b8ae;
+    --fg-3: #a09488;
+    --fg-4: #7a6e62;
+    --fg-5: #5a4e42;
 
-  /* ── Accent ─────────────────────────────────────────────── */
-  --accent:     #f59e0b;
-  --accent-hi:  #fbbf24;
-  --accent-2:   #e07540;
-  --accent-2hi: #f0875a;
+    /* ── Accent ─────────────────────────────────────────────── */
+    --accent: #f59e0b;
+    --accent-hi: #fbbf24;
+    --accent-2: #e07540;
+    --accent-2hi: #f0875a;
 
-  /* ── Borders ────────────────────────────────────────────── */
-  --border:    #2c2720;
-  --border-hi: #38312a;
+    /* ── Borders ────────────────────────────────────────────── */
+    --border: #2c2720;
+    --border-hi: #38312a;
 
-  /* ── Special ────────────────────────────────────────────── */
-  --blue:       #60a5fa;
-  --blue-light: #93c5fd;
-  --blue-soft:  #7ab8e0;
-  --tan:        #c2a870;
-  --tan-hi:     #e0c888;
-  --error:      #ef4444;
+    /* ── Special ────────────────────────────────────────────── */
+    --blue: #60a5fa;
+    --blue-light: #93c5fd;
+    --blue-soft: #7ab8e0;
+    --tan: #c2a870;
+    --tan-hi: #e0c888;
+    --error: #ef4444;
 
-  /* ── Scene cuts ─────────────────────────────────────────── */
-  --scene-cut:           hsl(48, 95%, 62%);
-  --scene-cut-hi:        hsl(48, 100%, 72%);
-  --scene-cut-bd:        hsl(40, 90%, 45%);
-  --scene-cut-active:    hsl(48, 100%, 78%);
-  --scene-cut-active-bd: hsl(48, 100%, 88%);
-  --scene-cut-rgb:       240, 200, 50;
+    /* ── Scene cuts ─────────────────────────────────────────── */
+    --scene-cut: hsl(48, 95%, 62%);
+    --scene-cut-hi: hsl(48, 100%, 72%);
+    --scene-cut-bd: hsl(40, 90%, 45%);
+    --scene-cut-active: hsl(48, 100%, 78%);
+    --scene-cut-active-bd: hsl(48, 100%, 88%);
+    --scene-cut-rgb: 240, 200, 50;
 
-  /* ── Snap hints ─────────────────────────────────────────── */
-  --snap:        hsl(140, 80%, 65%);
-  --snap-active: hsl(50, 100%, 60%);
+    /* ── Snap hints ─────────────────────────────────────────── */
+    --snap: hsl(140, 80%, 65%);
+    --snap-active: hsl(50, 100%, 60%);
 
-  /* ── Timeline space hues ────────────────────────────────── */
-  --space-input:  hsl(195, 75%, 55%);
-  --space-warp:   hsl(32, 90%, 55%);
-  --space-output: hsl(280, 55%, 60%);
+    /* ── Timeline space hues ────────────────────────────────── */
+    --space-input: hsl(195, 75%, 55%);
+    --space-warp: hsl(32, 90%, 55%);
+    --space-output: hsl(280, 55%, 60%);
 
-  /* ── RGB channels for rgba() transparency ───────────────── */
-  --accent-rgb:   245, 158, 11;
-  --accent-2-rgb: 224, 117, 64;
-  --fg-1-rgb:     226, 219, 210;
-  --blue-rgb:     96, 165, 250;
-  --beat-rgb:     255, 240, 220;
+    /* ── RGB channels for rgba() transparency ───────────────── */
+    --accent-rgb: 245, 158, 11;
+    --accent-2-rgb: 224, 117, 64;
+    --fg-1-rgb: 226, 219, 210;
+    --blue-rgb: 96, 165, 250;
+    --beat-rgb: 255, 240, 220;
 
-  /* ── Playhead (red — preserved historical accent) ──────── */
-  --playhead:     hsl(0, 90%, 65%);
-  --playhead-rgb: 240, 92, 92;
+    /* ── Playhead (red — preserved historical accent) ──────── */
+    --playhead: hsl(0, 90%, 65%);
+    --playhead-rgb: 240, 92, 92;
 
-  /* ── Warp panel (cool dark — separate palette) ──────────── */
-  --wp-bg:   #13151c;
-  --wp-bg2:  #1c1e26;
-  --wp-bg3:  #1a1c24;
-  --wp-foot: #0d0f14;
-  --wp-bd:   #1e2028;
-  --wp-bd2:  #1a1c22;
-  --wp-bd3:  #2a2c36;
-  --wp-bd4:  #363944;
-  --wp-tx:   #e5e7eb;
-  --wp-tx2:  #9ca3af;
-  --wp-tx3:  #6b7280;
-  --wp-tx4:  #4b5563;
-  --wp-tx5:  #3a3d4a;
+    /* ── Warp panel (cool dark — separate palette) ──────────── */
+    --wp-bg: #13151c;
+    --wp-bg2: #1c1e26;
+    --wp-bg3: #1a1c24;
+    --wp-foot: #0d0f14;
+    --wp-bd: #1e2028;
+    --wp-bd2: #1a1c22;
+    --wp-bd3: #2a2c36;
+    --wp-bd4: #363944;
+    --wp-tx: #e5e7eb;
+    --wp-tx2: #9ca3af;
+    --wp-tx3: #6b7280;
+    --wp-tx4: #4b5563;
+    --wp-tx5: #3a3d4a;
 
-  /* ── Font ───────────────────────────────────────────────── */
-  --font-family: ui-monospace, Consolas, monospace;
+    /* ── Font ───────────────────────────────────────────────── */
+    --font-family: ui-monospace, Consolas, monospace;
 }

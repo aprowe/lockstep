@@ -1,12 +1,12 @@
 .scene-band {
-  position: relative;
-  width: 100%;
-  height: calc(18px * var(--ui-scale));
-  background: var(--bg-0);
-  border-bottom: 1px solid #000;
-  overflow: hidden;
-  transition: height 0.15s;
-  cursor: copy;
+    position: relative;
+    width: 100%;
+    height: calc(18px * var(--ui-scale));
+    background: var(--bg-0);
+    border-bottom: 1px solid #000;
+    overflow: hidden;
+    transition: height 0.15s;
+    cursor: copy;
 }
 
 /* "This slice has been scanned" indicator — a thin 2px progress strip at
@@ -14,110 +14,116 @@
  * reads like any other lane by default; the strip is the only sign of
  * scan progress. */
 .scene-band__scanned {
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 2px;
-  background: rgba(var(--accent-rgb), 0.45);
-  pointer-events: none;
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 2px;
+    background: rgba(var(--accent-rgb), 0.45);
+    pointer-events: none;
 }
 
 .scene-band--expanded {
-  height: calc(66px * var(--ui-scale));
+    height: calc(66px * var(--ui-scale));
 }
 
 .scene-band__marker {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  transform: translateX(-50%);
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    transform: translateX(-50%);
 }
 
 .scene-band__diamond {
-  width: 11px;
-  height: 11px;
-  padding: 0;
-  transform: rotate(45deg);
-  background: var(--scene-cut);
-  border: 1px solid var(--scene-cut-bd);
-  flex-shrink: 0;
-  cursor: pointer;
-  transition: background 0.08s, box-shadow 0.08s, transform 0.08s;
+    width: 11px;
+    height: 11px;
+    padding: 0;
+    transform: rotate(45deg);
+    background: var(--scene-cut);
+    border: 1px solid var(--scene-cut-bd);
+    flex-shrink: 0;
+    cursor: pointer;
+    transition:
+        background 0.08s,
+        box-shadow 0.08s,
+        transform 0.08s;
 }
 .scene-band__diamond:hover {
-  background: var(--scene-cut-hi);
+    background: var(--scene-cut-hi);
 }
 .scene-band__diamond:active {
-  transform: rotate(45deg) scale(0.9);
+    transform: rotate(45deg) scale(0.9);
 }
 .scene-band__diamond--active {
-  background: var(--scene-cut-active);
-  border-color: var(--scene-cut-active-bd);
-  transform: rotate(45deg) scale(1.25);
+    background: var(--scene-cut-active);
+    border-color: var(--scene-cut-active-bd);
+    transform: rotate(45deg) scale(1.25);
 }
 /* Lasso / list selection — flat outline ring so it stacks cleanly on top
  * of the per-scene fill without sharing the same visual register. */
 .scene-band__diamond--selected {
-  border-color: hsl(195, 100%, 80%);
-  box-shadow: 0 0 0 1px hsl(195, 100%, 75%);
+    border-color: hsl(195, 100%, 80%);
+    box-shadow: 0 0 0 1px hsl(195, 100%, 75%);
 }
 
 /* User-placed cuts — same hue as detected, just a hairline inset ring
  * to mark them. Subtle on purpose: the operator who placed them knows
  * they're there, and a noisy color shift would dominate the timeline. */
 .scene-band__diamond--user {
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
 .scene-band__label {
-  font-family: var(--font-family);
-  font-size: calc(9px * var(--ui-scale));
-  color: var(--fg-2);
-  letter-spacing: 0.05em;
+    font-family: var(--font-family);
+    font-size: calc(9px * var(--ui-scale));
+    color: var(--fg-2);
+    letter-spacing: 0.05em;
 }
 
 /* ── Expanded mode: inline thumbnails ───────────────────── */
 .scene-band__thumb-btn {
-  width: calc(56px * var(--ui-scale));
-  aspect-ratio: 16 / 9;
-  padding: 0;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: 2px;
-  overflow: hidden;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: border-color 0.08s, transform 0.08s, z-index 0s;
+    width: calc(56px * var(--ui-scale));
+    aspect-ratio: 16 / 9;
+    padding: 0;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition:
+        border-color 0.08s,
+        transform 0.08s,
+        z-index 0s;
 }
 .scene-band__thumb-btn:hover {
-  border-color: var(--fg-3);
+    border-color: var(--fg-3);
 }
 .scene-band__thumb-btn--active {
-  border-color: var(--scene-cut-active);
-  border-width: 2px;
+    border-color: var(--scene-cut-active);
+    border-width: 2px;
 }
 .scene-band__thumb-btn--active:hover {
-  border-color: var(--scene-cut-active-bd);
+    border-color: var(--scene-cut-active-bd);
 }
 
 .scene-band__thumb-img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
-  pointer-events: none;
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    pointer-events: none;
 }
 .scene-band__thumb-img--placeholder {
-  background: repeating-linear-gradient(
-    45deg,
-    var(--bg-3),
-    var(--bg-3) 3px,
-    var(--bg-2) 3px,
-    var(--bg-2) 6px
-  );
+    background: repeating-linear-gradient(
+        45deg,
+        var(--bg-3),
+        var(--bg-3) 3px,
+        var(--bg-2) 3px,
+        var(--bg-2) 6px
+    );
 }

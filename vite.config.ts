@@ -1,20 +1,20 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
 export default defineConfig({
-  plugins: [react()],
-  clearScreen: false,
-  server: {
-    port: 5175,
-    strictPort: true,
-    watch: {
-      ignored: ['**/src-tauri/**'],
+    plugins: [react()],
+    clearScreen: false,
+    server: {
+        port: 5175,
+        strictPort: true,
+        watch: {
+            ignored: ["**/src-tauri/**"],
+        },
     },
-  },
-  envPrefix: ['VITE_', 'TAURI_'],
-  build: {
-    target: 'chrome105',
-    minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
-    sourcemap: !!process.env.TAURI_DEBUG,
-  },
-})
+    envPrefix: ["VITE_", "TAURI_"],
+    build: {
+        target: "chrome105",
+        minify: !process.env.TAURI_DEBUG ? "esbuild" : false,
+        sourcemap: !!process.env.TAURI_DEBUG,
+    },
+});

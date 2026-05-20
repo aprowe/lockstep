@@ -1,30 +1,32 @@
 .winctl {
-  display: inline-flex;
-  align-items: stretch;
-  height: 100%;
-  -webkit-app-region: no-drag;
+    display: inline-flex;
+    align-items: stretch;
+    height: 100%;
+    -webkit-app-region: no-drag;
 }
 
 .winctl__btn {
-  width: 46px;
-  height: 100%;
-  background: none;
-  border: none;
-  color: var(--fg-2);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  transition: background 0.1s, color 0.1s;
+    width: 46px;
+    height: 100%;
+    background: none;
+    border: none;
+    color: var(--fg-2);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    transition:
+        background 0.1s,
+        color 0.1s;
 }
 
 .winctl__btn:hover {
-  background: var(--bg-4);
-  color: var(--fg-1);
+    background: var(--bg-4);
+    color: var(--fg-1);
 }
 
 .winctl__btn--close:hover {
-  background: #e81123;
-  color: #fff;
+    background: #e81123;
+    color: #fff;
 }

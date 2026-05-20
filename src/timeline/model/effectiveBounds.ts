@@ -9,16 +9,16 @@
  */
 
 export interface EffectiveBeatBounds {
-  inBeatTime: number
-  outBeatTime: number
+    inBeatTime: number;
+    outBeatTime: number;
 }
 
 export function effectiveBeatBounds(
-  region: { inBeatTime: number; outBeatTime: number },
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _origAnchors?: readonly unknown[],
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _beatAnchors?: readonly unknown[],
+    region: { inBeatTime: number; outBeatTime: number },
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _origAnchors?: readonly unknown[],
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _beatAnchors?: readonly unknown[],
 ): EffectiveBeatBounds {
-  return { inBeatTime: region.inBeatTime, outBeatTime: region.outBeatTime }
+    return { inBeatTime: region.inBeatTime, outBeatTime: region.outBeatTime };
 }

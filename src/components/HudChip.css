@@ -1,50 +1,68 @@
 .hud-chip {
-  position: absolute;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-4);
-  padding: var(--sp-2) var(--sp-6);
-  background: var(--bg-4);
-  border-radius: 999px;
-  border: 1px solid rgba(var(--accent-rgb), 0.35);
-  pointer-events: none;
-  white-space: nowrap;
-  opacity: 0;
-  transition: opacity 0.6s ease;
+    position: absolute;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+    padding: var(--sp-2) var(--sp-6);
+    background: var(--bg-4);
+    border-radius: 999px;
+    border: 1px solid rgba(var(--accent-rgb), 0.35);
+    pointer-events: none;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.6s ease;
 }
 
 .hud-chip--visible {
-  opacity: 1;
-  transition: opacity 0.05s ease;
+    opacity: 1;
+    transition: opacity 0.05s ease;
 }
 
 .hud-chip__title {
-  font-family: var(--font-family);
-  font-size: var(--t-base);
-  letter-spacing: 0.04em;
-  color: var(--fg-3);
+    font-family: var(--font-family);
+    font-size: var(--t-base);
+    letter-spacing: 0.04em;
+    color: var(--fg-3);
 }
 
 .hud-chip__label {
-  font-family: var(--font-family);
-  font-size: var(--t-lg);
-  letter-spacing: 0.04em;
-  color: var(--fg-1);
-  font-weight: 600;
+    font-family: var(--font-family);
+    font-size: var(--t-lg);
+    letter-spacing: 0.04em;
+    color: var(--fg-1);
+    font-weight: 600;
 }
 
 /* Corners — absolute inside a positioned ancestor */
-.hud-chip--top-center   { top: var(--sp-2); left: 50%; transform: translateX(-50%); }
-.hud-chip--top-right    { top: var(--sp-2); right: var(--sp-3); }
-.hud-chip--top-left     { top: var(--sp-2); left:  var(--sp-3); }
-.hud-chip--bottom-right { bottom: var(--sp-2); right: var(--sp-3); }
-.hud-chip--bottom-left  { bottom: var(--sp-2); left:  var(--sp-3); }
+.hud-chip--top-center {
+    top: var(--sp-2);
+    left: 50%;
+    transform: translateX(-50%);
+}
+.hud-chip--top-right {
+    top: var(--sp-2);
+    right: var(--sp-3);
+}
+.hud-chip--top-left {
+    top: var(--sp-2);
+    left: var(--sp-3);
+}
+.hud-chip--bottom-right {
+    bottom: var(--sp-2);
+    right: var(--sp-3);
+}
+.hud-chip--bottom-left {
+    bottom: var(--sp-2);
+    left: var(--sp-3);
+}
 
 /* Fixed — viewport-anchored (same corners, position: fixed) */
-.hud-chip--fixed { position: fixed; }
+.hud-chip--fixed {
+    position: fixed;
+}
 
 /* top-center fixed: just below the menubar */
 .hud-chip--fixed.hud-chip--top-center {
-  top: calc(var(--sz-menubar) + var(--sp-2));
+    top: calc(var(--sz-menubar) + var(--sp-2));
 }

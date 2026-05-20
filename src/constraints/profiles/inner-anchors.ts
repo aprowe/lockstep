@@ -9,24 +9,24 @@
  * `anchorLockMirrorMiddleware`.
  */
 
-import { anchorOutId } from '../ids'
-import type { EntityId } from '../types'
+import { anchorOutId } from "../ids";
+import type { EntityId } from "../types";
 
-const EPSILON = 1e-9
+const EPSILON = 1e-9;
 
 export function innerBeatAnchorIds(
-  beatAnchors: ReadonlyArray<{ id: number; time: number }>,
-  clipoutInBeat: number,
-  clipoutOutBeat: number,
+    beatAnchors: ReadonlyArray<{ id: number; time: number }>,
+    clipoutInBeat: number,
+    clipoutOutBeat: number,
 ): EntityId[] {
-  const lo = Math.min(clipoutInBeat, clipoutOutBeat)
-  const hi = Math.max(clipoutInBeat, clipoutOutBeat)
-  const inner: EntityId[] = []
-  for (const a of beatAnchors) {
-    if (a.time > lo + EPSILON && a.time < hi - EPSILON) {
-      inner.push(anchorOutId(a.id))
+    const lo = Math.min(clipoutInBeat, clipoutOutBeat);
+    const hi = Math.max(clipoutInBeat, clipoutOutBeat);
+    const inner: EntityId[] = [];
+    for (const a of beatAnchors) {
+        if (a.time > lo + EPSILON && a.time < hi - EPSILON) {
+            inner.push(anchorOutId(a.id));
+        }
     }
-  }
-  inner.sort()
-  return inner
+    inner.sort();
+    return inner;
 }

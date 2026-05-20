@@ -135,13 +135,13 @@ src-tauri/src/                  # Rust backend
 
 All IPC uses `invoke()` on the frontend and `#[tauri::command]` on the backend. Full list:
 
-| Surface | Commands |
-|---|---|
-| **File / folder** | `open_video`, `load_video`, `open_folder`, `list_folder_videos`, `reveal_in_folder`, `show_in_folder` |
-| **Warp / export** | `analyze_anchors`, `start_warp`, `start_diagnostic`, `save_output`, `pick_export_folder`, `save_to_folder` |
-| **Frame extract** | `extract_frame` |
-| **Scenes** | `start_scene_detection`, `cancel_scene_detection` |
-| **Thumbnails** | `set_thumbnail_priority`, `get_thumbnail_queue_stats`, `get_thumbnail_path`, `clear_thumbnails`, `clear_all_thumbnails` |
+| Surface             | Commands                                                                                                                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **File / folder**   | `open_video`, `load_video`, `open_folder`, `list_folder_videos`, `reveal_in_folder`, `show_in_folder`                                                                                                                                      |
+| **Warp / export**   | `analyze_anchors`, `start_warp`, `start_diagnostic`, `save_output`, `pick_export_folder`, `save_to_folder`                                                                                                                                 |
+| **Frame extract**   | `extract_frame`                                                                                                                                                                                                                            |
+| **Scenes**          | `start_scene_detection`, `cancel_scene_detection`                                                                                                                                                                                          |
+| **Thumbnails**      | `set_thumbnail_priority`, `get_thumbnail_queue_stats`, `get_thumbnail_path`, `clear_thumbnails`, `clear_all_thumbnails`                                                                                                                    |
 | **Sidecar / state** | `save_video_state`, `load_video_state`, `list_saved_hashes`, `get_file_hash`, `check_video_sidecar`, `write_video_sidecar`, `delete_video_sidecar`, `open_json_file`, `read_json_sidecar_for_video`, `load_llc_project`, `write_text_file` |
 
 Progress events fire on a per-job channel:
@@ -248,11 +248,11 @@ Drag-and-drop comes through `getCurrentWebview().onDragDropEvent`: a video file 
 
 Three flows, cleanly separated:
 
-| Purpose | Where | How |
-|---|---|---|
-| **Docs** | `docs/screenshots/` (committed) | `npm run screenshots` runs `tests/screenshots/app.shot.ts` |
+| Purpose     | Where                                 | How                                                                                                                       |
+| ----------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Docs**    | `docs/screenshots/` (committed)       | `npm run screenshots` runs `tests/screenshots/app.shot.ts`                                                                |
 | **PR (CI)** | `tests/screenshots/out/` (gitignored) | comment `/screenshot …` on a PR — `.github/workflows/screenshot.yml` runs `scripts/screenshot.ts` and posts inline images |
-| **Local** | `tests/screenshots/out/` (gitignored) | `scripts/screenshot-local.ts` mirrors the CI flow via local `gh` |
+| **Local**   | `tests/screenshots/out/` (gitignored) | `scripts/screenshot-local.ts` mirrors the CI flow via local `gh`                                                          |
 
 Full reference: `tests/screenshots/README.md`.
 

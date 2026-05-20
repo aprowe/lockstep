@@ -1,0 +1,27 @@
+# Build outputs
+dist/
+build/
+src-tauri/target/
+src-tauri/target-test/
+
+# Dependencies
+node_modules/
+
+# Generated artifacts
+spec/generated/
+docs/screenshots/
+tests/screenshots/out/
+
+# Lockfiles
+package-lock.json
+*.lock
+
+# Legacy quarantined tests (frozen pending review — see folder for details)
+tests/_legacy-removed-task13/
+tests/_legacy-removed-conform-restructure/
+
+# Rust files — handled by rustfmt, not prettier
+*.rs
+
+# JSON snapshots — formatting churn would be noisy
+spec/generated/

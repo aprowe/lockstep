@@ -4,17 +4,17 @@ Source of truth for this doc: `thumbnail-cache-2026-04-21T07-51-52.json`, a reco
 
 ## Optimized parameters
 
-| Param          | Value   | What it means                                                  |
-|----------------|---------|----------------------------------------------------------------|
-| `cacheSize`    | 99      | (Sandbox constraint — maps to `max_cached_frames` in prod.)    |
-| `reqRadius`    | 3       | **Hard requirement**: frames within ±3 of playhead MUST be cached. |
-| `wDist`        | **0.0** | Distance-to-playhead weight in the soft score.                 |
-| `distFalloff`  | 89      | (Unused — `wDist` is 0.)                                       |
-| `wRec`         | 0.12    | Recency weight.                                                |
-| `recTau`       | 99 s    | Recency decay constant (seconds).                              |
-| `wMark`        | 0.39    | Marker weight.                                                 |
-| `markRadius`   | 72      | Gaussian-ish falloff around each marker.                       |
-| `markMode`     | `add`   | Marker contribution added to base score.                       |
+| Param         | Value   | What it means                                                      |
+| ------------- | ------- | ------------------------------------------------------------------ |
+| `cacheSize`   | 99      | (Sandbox constraint — maps to `max_cached_frames` in prod.)        |
+| `reqRadius`   | 3       | **Hard requirement**: frames within ±3 of playhead MUST be cached. |
+| `wDist`       | **0.0** | Distance-to-playhead weight in the soft score.                     |
+| `distFalloff` | 89      | (Unused — `wDist` is 0.)                                           |
+| `wRec`        | 0.12    | Recency weight.                                                    |
+| `recTau`      | 99 s    | Recency decay constant (seconds).                                  |
+| `wMark`       | 0.39    | Marker weight.                                                     |
+| `markRadius`  | 72      | Gaussian-ish falloff around each marker.                           |
+| `markMode`    | `add`   | Marker contribution added to base score.                           |
 
 ### Scoring formula (from the sandbox)
 
@@ -48,13 +48,13 @@ Cache membership: all frames in `[playhead - reqRadius, playhead + reqRadius]`
 
 ### Gaps vs the optimized algorithm
 
-| Sandbox                                    | lockstep today                                 |
-|--------------------------------------------|------------------------------------------------|
-| Scoring = distance + recency + marker      | Scoring = distance only                        |
+| Sandbox                                    | lockstep today                                  |
+| ------------------------------------------ | ----------------------------------------------- |
+| Scoring = distance + recency + marker      | Scoring = distance only                         |
 | `reqRadius` (hard mandatory window)        | `PLAYHEAD_WINDOW=15` (only a CPU-priority hint) |
-| Candidate set = whole timeline, top-K wins | Candidate set = narrow window around playhead  |
+| Candidate set = whole timeline, top-K wins | Candidate set = narrow window around playhead   |
 | Marker neighborhoods prefetched            | Markers ignored                                 |
-| Eviction = lowest score                    | Eviction = oldest LRU touch                    |
+| Eviction = lowest score                    | Eviction = oldest LRU touch                     |
 
 The window-based candidate set is the biggest limitation: no amount of marker scoring helps if frames around a marker at playhead+1500 never enter the candidate list.
 
@@ -113,7 +113,7 @@ Keep `visible_scene_frames` sorted at the API boundary so the `binary_search` is
 
 **Cache-budget degradation.** If the viewport is huge and shows more visible scenes than `max_cached_frames`, not all can be cached — that's physically unavoidable. The scale-invariant proximity term means the ones nearest the viewport center fill first, and the cache fills with a reasonable subset rather than a random slice. The UI shows placeholders for the rest until the user scrolls/zooms to bring them into "near center" range.
 
-**Why no hard requirement.** A hard set that can't fit forces the cache to grow beyond capacity or to silently drop entries — inconsistent. A dominating soft weight guarantees the same outcome when slots exist *and* degrades predictably when they don't.
+**Why no hard requirement.** A hard set that can't fit forces the cache to grow beyond capacity or to silently drop entries — inconsistent. A dominating soft weight guarantees the same outcome when slots exist _and_ degrades predictably when they don't.
 
 ```rust
 const W_USER_MARK: f64  = 0.39;
@@ -139,7 +139,7 @@ fn frame_score(ctx: &PriorityContext, frame: i64, age_secs: f64) -> f64 {
 
 1. Cap the candidate set at `max_cached_frames * 3` (score first, truncate).
 2. Precompute nearest-user-marker and nearest-scene-marker distance per candidate with a single sweep — scoring becomes `O(N_cands + N_markers)` instead of `O(N_cands * N_markers)`.
-3. Exclude scene-marker neighborhoods from the *candidate union* entirely; only score them if they're already cached (so an activated scene keeps its slot) or inside the user-marker / required / playhead-distance union. The `W_SCENE_MARK * 0.02` contribution alone doesn't justify adding 43k candidate frames.
+3. Exclude scene-marker neighborhoods from the _candidate union_ entirely; only score them if they're already cached (so an activated scene keeps its slot) or inside the user-marker / required / playhead-distance union. The `W_SCENE_MARK * 0.02` contribution alone doesn't justify adding 43k candidate frames.
 
 Request wiring: `PriorityRequest` already carries `marker_frames` and `scene_frames` separately — no frontend change.
 
@@ -178,10 +178,10 @@ fn frame_score(ctx: &PriorityContext, frame: i64, age_secs: f64) -> f64 {
 The candidate set is the union of:
 
 - **Required frames** (must be extracted if not already cached):
-  - `[playhead - REQ_RADIUS, playhead + REQ_RADIUS]` — playback needs this window.
-  - `visible_scene_frames` — each is a single frame currently rendered in the scene strip.
+    - `[playhead - REQ_RADIUS, playhead + REQ_RADIUS]` — playback needs this window.
+    - `visible_scene_frames` — each is a single frame currently rendered in the scene strip.
 - **Soft-score neighborhoods** (to enlarge the eviction pool):
-  - `[m - MARK_RADIUS * 2, m + MARK_RADIUS * 2]` around each **user** marker.
+    - `[m - MARK_RADIUS * 2, m + MARK_RADIUS * 2]` around each **user** marker.
 - Everything currently cached (so the scorer can decide what to keep vs evict).
 
 Scene markers **are not** expanded into neighborhoods. 500 × 144 frames would blow up the candidate set. The visible ones are in via `visible_scene_frames`; the rest only influence scoring if a frame is already in the union for another reason.
@@ -249,7 +249,7 @@ fn pick_next(st: &VideoState) -> Option<i64> {
 
 ### 4. Rework eviction
 
-Swap LRU-by-counter for LRU-by-score. An already-cached frame whose score has dropped below the cutoff gets evicted — *unless* it's in the required window.
+Swap LRU-by-counter for LRU-by-score. An already-cached frame whose score has dropped below the cutoff gets evicted — _unless_ it's in the required window.
 
 ```rust
 fn evict_overflow(st: &mut VideoState) {
@@ -328,11 +328,11 @@ Consider adding `tauri-plugin-store` keys so these are tweakable in dev without 
 - [ ] Split `pick_next` into required-first, top-K-second.
 - [ ] Swap `u64` touch counter for `Instant`-based recency.
 - [ ] Update tests in `thumbnails.rs`:
-  - `playhead_window_is_highest_priority` — still valid; assert playhead is picked first.
-  - `evict_overflow_drops_oldest_touched_first` — rewrite: evicted frame should be the lowest-scoring non-required, not just oldest.
-  - `evict_overflow_tiebreak_drops_farther` — subsumed by score-based ranking.
-  - Add: `required_window_is_never_evicted` (cache full, required frames preserved).
-  - Add: `marker_neighborhood_enters_candidates` (distant marker → frames near it show up in candidates).
+    - `playhead_window_is_highest_priority` — still valid; assert playhead is picked first.
+    - `evict_overflow_drops_oldest_touched_first` — rewrite: evicted frame should be the lowest-scoring non-required, not just oldest.
+    - `evict_overflow_tiebreak_drops_farther` — subsumed by score-based ranking.
+    - Add: `required_window_is_never_evicted` (cache full, required frames preserved).
+    - Add: `marker_neighborhood_enters_candidates` (distant marker → frames near it show up in candidates).
 - [ ] `tier_name` / `QueueTierStats` in `get_thumbnail_queue_stats` — update bucket definitions so the UI isn't lying. Probably: `required`, `marker`, `recent`, `cold`.
 - [ ] Consider raising `MAX_WORKERS` from 3 if the new candidate set is much larger. Or leave it — more workers = more disk/ffmpeg contention.
 

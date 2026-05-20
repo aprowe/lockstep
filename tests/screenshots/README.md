@@ -35,10 +35,8 @@ The default mock returns empty/null for the commands the app calls at startup. T
 
 ```ts
 await mockTauri(page, {
-  list_folder_videos: () => [
-    { name: 'clip1.mp4', path: '/fake/clip1.mp4' },
-  ],
-})
+    list_folder_videos: () => [{ name: "clip1.mp4", path: "/fake/clip1.mp4" }],
+});
 ```
 
 Unhandled commands log a warning and return `null` — check the page console output if a screenshot looks broken.
@@ -122,17 +120,17 @@ gh workflow run screenshot.yml \
 
 Step fields (see `scripts/screenshot.ts` for the source of truth):
 
-| field      | type                                  | notes                                              |
-|------------|---------------------------------------|----------------------------------------------------|
-| `name`     | string (required)                     | `[\w.-]+` — becomes the PNG filename               |
-| `url`      | string                                | Path on the dev server. Default `/`                |
-| `seed`     | `SeedState` (see `state.ts`)          | Dispatched into the Redux store                    |
-| `evaluate` | string of JS                          | Run with `new Function(code)()` in the page        |
-| `selector` | CSS selector                          | If set, screenshots that element instead of page   |
-| `clip`     | `{x,y,width,height}`                  | Clip rectangle for full-page shots                 |
-| `fullPage` | bool                                  | Whole scroll height                                |
-| `viewport` | `{width,height}`                      | Default `1440x900`, dpr 2                          |
-| `waitMs`   | number                                | Extra settle time after networkidle                |
+| field      | type                         | notes                                            |
+| ---------- | ---------------------------- | ------------------------------------------------ |
+| `name`     | string (required)            | `[\w.-]+` — becomes the PNG filename             |
+| `url`      | string                       | Path on the dev server. Default `/`              |
+| `seed`     | `SeedState` (see `state.ts`) | Dispatched into the Redux store                  |
+| `evaluate` | string of JS                 | Run with `new Function(code)()` in the page      |
+| `selector` | CSS selector                 | If set, screenshots that element instead of page |
+| `clip`     | `{x,y,width,height}`         | Clip rectangle for full-page shots               |
+| `fullPage` | bool                         | Whole scroll height                              |
+| `viewport` | `{width,height}`             | Default `1440x900`, dpr 2                        |
+| `waitMs`   | number                       | Extra settle time after networkidle              |
 
 Output is uploaded as a workflow artifact and committed to a long-lived
 `screenshots` branch under `pr-<N>/<run_id>/`, then referenced via
