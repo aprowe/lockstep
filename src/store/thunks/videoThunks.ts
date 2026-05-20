@@ -195,7 +195,7 @@ export const resetVideoDataThunk = createAsyncThunk(
         dispatch(setGlobalMarkers(null));
 
         const _emptyState: SavedVideoState = {
-            version: 2,
+            version: 1,
             defaultRegion: {
                 origAnchors: [],
                 beatAnchors: [],

@@ -139,7 +139,7 @@ export interface SelectionState {
  * Read/written by the persistence middleware via the Tauri sidecar commands.
  */
 export interface SavedVideoState {
-    version: 2 | 3;
+    version: 1;
     /** Relative path from the JSON file to the video. Lets a project JSON resolve
      *  its video when opened from a different location than where it was saved. */
     videoPath?: string;

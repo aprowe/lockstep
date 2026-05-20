@@ -128,7 +128,7 @@ persistenceMiddleware.startListening({
         const videoFilename = vid.path.replace(/\\/g, "/").split("/").pop() ?? "";
 
         const savedState: SavedVideoState = {
-            version: 2,
+            version: 1,
             videoPath: videoFilename,
             defaultRegion: {
                 origAnchors: matOrigAnchors,

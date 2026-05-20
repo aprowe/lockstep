@@ -73,7 +73,7 @@ export function makeSavedState(
     overrides: Partial<SavedVideoState["defaultRegion"]> = {},
 ): SavedVideoState {
     return {
-        version: 2,
+        version: 1,
         defaultRegion: {
             origAnchors: [
                 { id: 1, time: 5 },
