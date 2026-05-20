@@ -9,7 +9,7 @@
 
 import { reduce, emptyState, bpmDerivedConstraint } from './resolver'
 import type { State, Op, EntityId } from './types'
-import { ConstraintKind, Field, OpKind, PairMode } from './types'
+import { ConstraintKind, OpKind, PairMode } from './types'
 import {
   anchorInId,
   anchorOutId,
@@ -226,67 +226,12 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     }
   }
 
-  // 4a. ConformVisual — auto-installed for every (region × anchor × edge)
-  //    combination. The handler checks coincidence DYNAMICALLY each pipeline
-  //    pass using txn-aware values: if `clipin.{edge}` (post-write) coincides
-  //    with `orig.time`, write `anchor-out.time` to clipout's matching edge.
-  //    One-way (anchor → clip). Re-evaluating per pass means the binding
-  //    naturally engages and releases as clipin moves into and out of
-  //    coincidence during a drag — no permanent commit, no stale install.
-  //
-  //    Handles: visual conform during clipin drag (clipout snaps to the
-  //    paired beat anchor when clipin lands on its orig).
-  //
-  //    Skipped for the active pair-drag's anchor: when the user grabs the
-  //    warp connector, conform must not pull the clip with the moving pair.
-  //    Also skipped when an anchor-drag is active AND the partner side is
-  //    in the lasso (both sides move via TranslateGroup → equivalent to a
-  //    pair-drag). A single-side anchor drag (partner not lassoed) still
-  //    engages conform when the orig lands on a clip edge.
-  let conformSkipPairId: number | null = null
-  if (dragCtx.activeHandle) {
-    if (dragCtx.activeHandle.kind === 'pair-drag') {
-      conformSkipPairId = dragCtx.activeHandle.pairId
-    } else if (dragCtx.activeHandle.kind === 'anchor-drag') {
-      const id = dragCtx.activeHandle.anchorId
-      const origSel = slice.selection?.orig ?? []
-      const beatSel = slice.selection?.beat ?? []
-      // Anchor is "effectively a pair" when both sides are lassoed (the
-      // lasso TranslateGroup will translate both spaces together).
-      if (origSel.includes(id) && beatSel.includes(id)) {
-        conformSkipPairId = id
-      }
-    }
-  }
-  for (const r of slice.region.regions) {
-    for (const orig of slice.warp.origAnchors) {
-      if (orig.id === conformSkipPairId) continue
-      const beat = beatById.get(orig.id)
-      if (!beat) continue
-      for (const edge of ['in', 'out'] as const) {
-        state = reduce(state, {
-          kind: OpKind.AddConstraint,
-          constraint: {
-            kind:        ConstraintKind.ConformVisual,
-            anchorInId:  anchorInId(orig.id),
-            anchorOutId: anchorOutId(orig.id),
-            clipId:      regionInId(r.id),
-            clipOutId:   regionOutId(r.id),
-            edge,
-          },
-        })
-      }
-    }
-  }
-
-  // 4b. MirrorPair — INSTALLATION moved to after step 11 (gesture-scoped
-  //     SnapTarget) so that in each Propose iteration, SnapTarget fires
-  //     first (restricts the drag value to the snap target) and MirrorPair
-  //     fires second (propagates the snap-restricted value to the conformed
-  //     beat anchor). Order matters because Propose iterates state.constraints
-  //     in insertion order, and a MirrorPair that propagates an unsnapped
-  //     value short-circuits before snap fires would desync the anchor from
-  //     the clipout edge.
+  // 4. ConformVisual + ConformRedirect — INSTALLED AFTER STEP 11 below so
+  //    they fire AFTER SnapTarget in each Propose fixed-point iteration.
+  //    Insertion order matters: SnapTarget restricts the seed write first,
+  //    ConformRedirect rewrites user clipout writes into anchor.beat writes,
+  //    then ConformVisual asserts clipout = anchor.beat.
+  //    See block after step 11 for the install loop.
 
   // 5. SnapRule constraints — derived from SNAP_RULES table.
   for (const spec of SNAP_RULES) {
@@ -446,75 +391,61 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     }
   }
 
-  // 12. MirrorPair (formerly step 4b) — installed LAST so that during a
-  //     conformed clipout drag, snap restricts the drag value FIRST
-  //     (SnapTarget from step 11) and MirrorPair THEN propagates the
-  //     snap-restricted value to the beat anchor. Order is enforced by
-  //     state.constraints insertion order, which the Propose phase walks
-  //     for each fixed-point iteration.
+  // 12. ConformRedirect + ConformVisual — installed LAST so that within
+  //     each Propose fixed-point iteration, the rule order is:
+  //       (a) Default-link (step 3b)         — clipin → clipout cascade
+  //       (b) ... other Propose rules ...
+  //       (c) SnapTarget (step 11, gesture)  — restricts seed write
+  //       (d) ConformRedirect (this step)    — rewrites user clipout
+  //                                            writes as anchor.beat writes
+  //       (e) ConformVisual (this step)      — asserts clipout = anchor.beat
   //
-  //     Installed wherever conform is fully engaged in BOTH input and
-  //     output spaces. Dual-space install + guard prevents the
-  //     diverged-anchor nudge bug: only installs when output coincidence
-  //     ALSO holds, so a default-link clip drag across a diverged anchor
-  //     (input coincides but output doesn't) never triggers the symmetric
-  //     write.
-  {
-    const LINK_EPSILON = 1e-4
-    // When the active drag is a clipin (input-space) handle on a region, the
-    // clipout writes flow ONE WAY via default-link (clipin → clipout) and
-    // ConformVisual (anchor → clipout). Installing the SYMMETRIC MirrorPair
-    // would let the propose-value of clipin contaminate the beat anchor via
-    // clipout (the default-link cascade writes clipout = clipin, MirrorPair
-    // then propagates that to anchor.beat). Skip MirrorPair install for the
-    // dragged region's clipin handles to keep the diverged anchor pinned.
-    const activeInputHandle = dragCtx.activeHandle
-    const draggedClipinRegionId =
-      activeInputHandle &&
-      (activeInputHandle.kind === 'clip-in-edge' ||
-       activeInputHandle.kind === 'clip-out-edge' ||
-       activeInputHandle.kind === 'clip-body') &&
-      activeInputHandle.space === 'input'
-        ? activeInputHandle.clipId
-        : null
-    // When the active drag is a pair-drag on the warp connector, the user is
-    // intentionally moving the anchor relationship as a unit. The clip must
-    // not follow: skip MirrorPair install for that anchor entirely.
-    const draggedPairId =
-      activeInputHandle && activeInputHandle.kind === 'pair-drag'
-        ? activeInputHandle.pairId
-        : activeInputHandle && activeInputHandle.kind === 'anchor-drag'
-        ? activeInputHandle.anchorId
-        : null
-    for (const r of slice.region.regions) {
-      if (r.id === draggedClipinRegionId) continue
-      const clipinEntity  = state.entities[regionInId(r.id)]
-      const clipoutEntity = state.entities[regionOutId(r.id)]
-      if (!clipinEntity  || clipinEntity.kind  !== 'clip') continue
-      if (!clipoutEntity || clipoutEntity.kind !== 'clip') continue
-      for (const orig of slice.warp.origAnchors) {
-        if (orig.id === draggedPairId) continue
-        const beat = beatById.get(orig.id)
-        if (!beat) continue
-        for (const edge of ['in', 'out'] as const) {
-          const clipInEdgeValue  = edge === 'in' ? clipinEntity.in  : clipinEntity.out
-          const clipOutEdgeValue = edge === 'in' ? clipoutEntity.in : clipoutEntity.out
-          if (Math.abs(clipInEdgeValue  - orig.time) > LINK_EPSILON) continue
-          if (Math.abs(clipOutEdgeValue - beat.time) > LINK_EPSILON) continue
-          state = reduce(state, {
-            kind: OpKind.AddConstraint,
-            constraint: {
-              kind: ConstraintKind.MirrorPair,
-              a:    { id: anchorOutId(orig.id), field: Field.Time },
-              b:    { id: regionOutId(r.id),    field: edge },
-              guard: {
-                a: { id: anchorInId(orig.id), field: Field.Time },
-                b: { id: regionInId(r.id),    field: edge },
-              },
-              tag:  `conform:${orig.id}:${r.id}:${edge}`,
-            },
-          })
-        }
+  //     Order matters because state.constraints iterates by insertion order
+  //     within each Propose pass. ConformRedirect must see the snapped
+  //     value (so the anchor.beat write carries the snapped value, not the
+  //     raw cursor). ConformVisual must run after ConformRedirect so the
+  //     clipout it writes reflects the redirected anchor.beat.
+  //
+  //     Both rules fan out per (region × anchor × edge). MirrorPair was
+  //     deleted — the conform coupling is now strictly directed (anchor →
+  //     clipout), with redirect handling user clipout drags.
+  //
+  //     See: docs/superpowers/specs/2026-05-20-conform-invariant-restructure-design.md
+  for (const r of slice.region.regions) {
+    for (const orig of slice.warp.origAnchors) {
+      const beat = beatById.get(orig.id)
+      if (!beat) continue
+      for (const edge of ['in', 'out'] as const) {
+        state = reduce(state, {
+          kind: OpKind.AddConstraint,
+          constraint: {
+            kind:        ConstraintKind.ConformRedirect,
+            anchorInId:  anchorInId(orig.id),
+            anchorOutId: anchorOutId(orig.id),
+            clipId:      regionInId(r.id),
+            clipOutId:   regionOutId(r.id),
+            edge,
+          },
+        })
+      }
+    }
+  }
+  for (const r of slice.region.regions) {
+    for (const orig of slice.warp.origAnchors) {
+      const beat = beatById.get(orig.id)
+      if (!beat) continue
+      for (const edge of ['in', 'out'] as const) {
+        state = reduce(state, {
+          kind: OpKind.AddConstraint,
+          constraint: {
+            kind:        ConstraintKind.ConformVisual,
+            anchorInId:  anchorInId(orig.id),
+            anchorOutId: anchorOutId(orig.id),
+            clipId:      regionInId(r.id),
+            clipOutId:   regionOutId(r.id),
+            edge,
+          },
+        })
       }
     }
   }

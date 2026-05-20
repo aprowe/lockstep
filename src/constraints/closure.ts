@@ -46,11 +46,9 @@ export function movementClosure(state: State, seed: EntityId): Set<EntityId> {
           if (c.from === id) followers = [c.to]
           break
 
-        case ConstraintKind.MirrorPair:
-          // Symmetric — writes flow in both directions between a and b.
-          if      (c.a.id === id) followers = [c.b.id]
-          else if (c.b.id === id) followers = [c.a.id]
-          break
+        // ConformVisual + ConformRedirect: directional couplings handled
+        // elsewhere; not included in movement closure (they don't propagate
+        // a translate-shaped delta).
       }
 
       for (const f of followers) {

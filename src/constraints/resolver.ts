@@ -12,13 +12,13 @@
 
 import type {
   Clamp,
+  ConformRedirect,
   ConformVisual,
   Constraint,
   DirectedPair,
   Derived,
   Entity,
   EntityId,
-  MirrorPair,
   Op,
   PreserveLength,
   ScaleGroup,
@@ -282,12 +282,18 @@ const HANDLERS: HandlerEntry[] = [
     apply: (state, c: never, txn) => {
       const group    = c as TranslateGroup
       const seedIds  = group.driver !== undefined ? [group.driver] : group.ids
-      const delta    = findTranslateDelta(state, seedIds, txn)
+      const delta    = findTranslateDelta(state, seedIds, txn, group.driver)
       if (delta === null) return txn
-      const followers = group.driver !== undefined
-        ? group.ids.filter(id => id !== group.driver)
-        : group.ids
-      return mergeWrites(txn, makeTranslateWrites(state, followers, delta))
+      // Followers = group ids minus the driver (if set) AND minus any
+      // entity that ALREADY has a seed write in this txn. Tagging the
+      // seed entity with our 'translategroup' tag would clobber the seed
+      // status and break the next Propose iteration's delta computation.
+      const hasSeedWrite = (id: EntityId): boolean =>
+        txn.some(w => w.entityId === id && !w.seedTag)
+      const followers = group.ids.filter(id =>
+        id !== group.driver && !hasSeedWrite(id),
+      )
+      return mergeWrites(txn, makeTranslateWrites(state, followers, delta, 'translategroup'))
     },
   },
 
@@ -299,9 +305,9 @@ const HANDLERS: HandlerEntry[] = [
     apply: (state, c: never, txn) => {
       const pair = c as DirectedPair
       if (pair.mode !== PairMode.Translate) return txn
-      const delta = findTranslateDelta(state, [pair.from], txn)
+      const delta = findTranslateDelta(state, [pair.from], txn, pair.from)
       if (delta === null) return txn
-      return mergeWrites(txn, makeTranslateWrites(state, [pair.to], delta))
+      return mergeWrites(txn, makeTranslateWrites(state, [pair.to], delta, 'directedpair-translate'))
     },
   },
 
@@ -332,25 +338,32 @@ const HANDLERS: HandlerEntry[] = [
         : driver.field
       const from = readField(target, targetField) ?? 0
 
+      // Tag default-link MirrorEdge cascade writes so ConformRedirect can
+      // distinguish them from user-seeded clipout writes. Any non-empty
+      // seedTag marks "this is a derived cascade, not user intent."
+      const isDefaultLink = pair.tag?.startsWith('defaultlink:') ?? false
+
       return mergeWrites(txn, [
         {
           entityId: pair.to,
           field:    targetField,
           from,
           to:       driver.to,
+          ...(isDefaultLink ? { seedTag: 'defaultlink' } : {}),
         },
       ])
     },
   },
 
-  /** conform_visual: one-way coincidence-triggered conform. If clipin's
-   *  proposed edge value (txn or state) coincides with anchor-in.time
-   *  (within CONFORM_EPSILON), write anchor-out.time into clipout's
-   *  matching edge. Anchor-side endpoints are never written from here —
-   *  the binding is one-way, so dragging the clipout does NOT propagate
-   *  back into the anchor (the nudge-bug class that symmetric MirrorPair
-   *  hit). When coincidence breaks the handler is silent and the clipout
-   *  resumes whatever the defaultlink cascade (or other writes) gave it. */
+  /** conform_visual: one-way coincidence-triggered conform asserting the
+   *  invariant "when anchor.orig coincides with clipin.edge, clipout.edge =
+   *  anchor.beat". Fires on ANY relevant write — clipin.edge, anchor.orig,
+   *  anchor.beat, or clipout.edge — so the invariant holds at every fixed-
+   *  point pass regardless of which entity the user is dragging. The output
+   *  is one-way: anchor-side endpoints are never written here. User clipout
+   *  drags are redirected to anchor.beat by ConformRedirect (which runs
+   *  before this rule), so by the time this fires, the only clipout write
+   *  it might override is a default-link cascade. */
   {
     kind:  ConstraintKind.ConformVisual,
     phase: Phase.Propose,
@@ -364,17 +377,17 @@ const HANDLERS: HandlerEntry[] = [
       if (!clipOut   || clipOut.kind   !== EntityKind.Clip)   return txn
 
       const clipInEdgeField = cv.edge === 'in' ? Field.In : Field.Out
+      const clipOutField    = cv.edge === 'in' ? Field.In : Field.Out
       const clipInWrite     = txn.find(w => w.entityId === cv.clipId && w.field === clipInEdgeField)
       const anchorInWrite   = txn.find(w => w.entityId === cv.anchorInId && w.field === Field.Time)
-      // Gate firing on "one of the input-space endpoints is being written":
-      //   - clipin write → user is dragging clipin (visual conform engages
-      //     when clipin lands on the anchor).
-      //   - anchor-in write → user is dragging the orig anchor onto a
-      //     clipin edge (the symmetric gesture).
-      // Without this gate, a standalone clipout drag (neither input-side
-      // endpoint writes) where clipin happens to sit on an anchor would have
-      // its user-intended clipout write overridden by the conform write.
-      if (!clipInWrite && !anchorInWrite) return txn
+      const anchorOutWrite  = txn.find(w => w.entityId === cv.anchorOutId && w.field === Field.Time)
+      const clipOutWrite    = txn.find(w => w.entityId === cv.clipOutId && w.field === clipOutField)
+
+      // Gate: fire whenever ANY input that could affect the answer has a
+      // write this txn. Without this gate, ConformVisual would fire on
+      // every empty-txn pass and clamp clipout to anchor.beat even when
+      // no relevant write occurred.
+      if (!clipInWrite && !anchorInWrite && !anchorOutWrite && !clipOutWrite) return txn
 
       const anchorInTime = anchorInWrite?.to ?? anchorIn.time
       const clipInEdge   = clipInWrite?.to   ?? (cv.edge === 'in'
@@ -382,16 +395,13 @@ const HANDLERS: HandlerEntry[] = [
                             : (state.entities[cv.clipId] as { out: number } | undefined)?.out)
       if (clipInEdge === undefined) return txn
 
-      // Coincidence check (input space).
+      // Coincidence check (input space, txn-aware).
       if (Math.abs(clipInEdge - anchorInTime) > CONFORM_EPSILON) return txn
 
       // Coincident — write anchor-out.time to the clipout's matching edge.
-      const clipOutField    = cv.edge === 'in' ? Field.In : Field.Out
-      const anchorOutTime   = txn.find(w => w.entityId === cv.anchorOutId && w.field === Field.Time)?.to
-                              ?? anchorOut.time
+      const anchorOutTime   = anchorOutWrite?.to ?? anchorOut.time
       const clipOutCurrent  = cv.edge === 'in' ? clipOut.in : clipOut.out
-      const clipOutInTxn    = txn.find(w => w.entityId === cv.clipOutId && w.field === clipOutField)
-      const clipOutEffective = clipOutInTxn?.to ?? clipOutCurrent
+      const clipOutEffective = clipOutWrite?.to ?? clipOutCurrent
       if (Math.abs(clipOutEffective - anchorOutTime) < EPSILON) return txn
 
       return mergeWrites(txn, [{
@@ -399,52 +409,73 @@ const HANDLERS: HandlerEntry[] = [
         field:    clipOutField,
         from:     clipOutCurrent,
         to:       anchorOutTime,
+        seedTag:  'conform',
       }])
     },
   },
 
-  /** mirror_pair: symmetric 1-1 binding between (a.id, a.field) and
-   *  (b.id, b.field). Exactly-one-endpoint-written propagates to the
-   *  partner. If both already have writes (including equal values), no-op.
-   *  If neither has a write, no-op (no install-time sync).
+  /** conform_redirect: when a user gesture has written clipout.edge
+   *  directly AND input coincidence (clipin.edge ≈ anchor.orig) holds,
+   *  rewrite the clipout write as an anchor.beat write with the same
+   *  delta. ConformVisual then asserts clipout = anchor.beat on a later
+   *  pass.
    *
-   *  Optional `guard`: two endpoints whose coincidence is the binding's
-   *  implicit install-time premise (e.g., conform's clipin.in ≈ orig.time).
-   *  If those endpoints have divergent deltas in this txn, the premise is
-   *  being broken — suppress propagation. */
+   *  This implements "drag clipout = drag anchor.beat" while keeping the
+   *  conform invariant strictly directed (anchor → clipout, never the
+   *  reverse). Replaces the symmetric MirrorPair that previously coupled
+   *  these endpoints — symmetric coupling let raw cursor values leak
+   *  through the default-link cascade into the anchor.
+   *
+   *  Skipped when:
+   *   - clipout write is tagged (seedTag set) — it's a cascade, not user
+   *     intent. ConformVisual handles overriding cascades.
+   *   - anchor.beat already has a write — user is moving anchor directly. */
   {
-    kind:  ConstraintKind.MirrorPair,
+    kind:  ConstraintKind.ConformRedirect,
     phase: Phase.Propose,
     apply: (state, c: never, txn) => {
-      const mp = c as MirrorPair
-      const wA = txn.find(w => w.entityId === mp.a.id && w.field === mp.a.field)
-      const wB = txn.find(w => w.entityId === mp.b.id && w.field === mp.b.field)
+      const cr = c as ConformRedirect
+      const anchorIn  = state.entities[cr.anchorInId]
+      const anchorOut = state.entities[cr.anchorOutId]
+      const clipIn    = state.entities[cr.clipId]
+      const clipOut   = state.entities[cr.clipOutId]
+      if (!anchorIn  || anchorIn.kind  !== EntityKind.Anchor) return txn
+      if (!anchorOut || anchorOut.kind !== EntityKind.Anchor) return txn
+      if (!clipIn    || clipIn.kind    !== EntityKind.Clip)   return txn
+      if (!clipOut   || clipOut.kind   !== EntityKind.Clip)   return txn
 
-      if (wA && wB) return txn
-      if (!wA && !wB) return txn
+      const clipOutField = cr.edge === 'in' ? Field.In : Field.Out
+      const clipOutIdx   = txn.findIndex(w =>
+        w.entityId === cr.clipOutId && w.field === clipOutField,
+      )
+      if (clipOutIdx < 0) return txn
+      const clipOutWrite = txn[clipOutIdx]
 
-      // Guard: if the binding's install-time coincidence is being broken
-      // this pass (guard endpoints receive divergent deltas), suppress.
-      if (mp.guard) {
-        const wGa = txn.find(w => w.entityId === mp.guard!.a.id && w.field === mp.guard!.a.field)
-        const wGb = txn.find(w => w.entityId === mp.guard!.b.id && w.field === mp.guard!.b.field)
-        const dGa = wGa ? wGa.to - wGa.from : 0
-        const dGb = wGb ? wGb.to - wGb.from : 0
-        if (Math.abs(dGa - dGb) > EPSILON) return txn
-      }
+      // Skip cascade writes (only redirect user intent).
+      if (clipOutWrite.seedTag) return txn
 
-      const src    = (wA ?? wB)!
-      const dstEnd = wA ? mp.b : mp.a
-      const dstEnt = state.entities[dstEnd.id]
-      if (!dstEnt) return txn
-      const from = readField(dstEnt, dstEnd.field) ?? 0
-      if (Math.abs(from - src.to) < EPSILON) return txn
+      // Don't double-write anchor.beat if user is already moving it.
+      if (txn.some(w => w.entityId === cr.anchorOutId && w.field === Field.Time)) return txn
 
-      return mergeWrites(txn, [{
-        entityId: dstEnd.id,
-        field:    dstEnd.field,
-        from,
-        to:       src.to,
+      // Coincidence check (input space, txn-aware).
+      const clipInEdgeField = cr.edge === 'in' ? Field.In : Field.Out
+      const clipInWrite     = txn.find(w => w.entityId === cr.clipId && w.field === clipInEdgeField)
+      const anchorInWrite   = txn.find(w => w.entityId === cr.anchorInId && w.field === Field.Time)
+      const clipInEdge      = clipInWrite?.to ?? (cr.edge === 'in' ? clipIn.in : clipIn.out)
+      const anchorInTime    = anchorInWrite?.to ?? anchorIn.time
+      if (Math.abs(clipInEdge - anchorInTime) > CONFORM_EPSILON) return txn
+
+      // Coincidence holds. Rewrite clipout write → anchor.beat write,
+      // preserving delta. Drop the clipout write (ConformVisual will
+      // re-add it from the new anchor.beat value on the next pass).
+      const delta       = clipOutWrite.to - clipOutWrite.from
+      const newAnchorTo = anchorOut.time + delta
+      const filtered    = txn.filter((_, i) => i !== clipOutIdx)
+      return mergeWrites(filtered, [{
+        entityId: cr.anchorOutId,
+        field:    Field.Time,
+        from:     anchorOut.time,
+        to:       newAnchorTo,
       }])
     },
   },
@@ -931,15 +962,13 @@ function constraintEntities(constraint: Constraint): EntityId[] {
       return constraint.activeId ? [constraint.activeId] : []
 
     case ConstraintKind.ConformVisual:
+    case ConstraintKind.ConformRedirect:
       return [
         constraint.anchorInId,
         constraint.anchorOutId,
         constraint.clipId,
         constraint.clipOutId,
       ]
-
-    case ConstraintKind.MirrorPair:
-      return [constraint.a.id, constraint.b.id]
 
     // SnapCohort and SnapRule are metadata constraints — they don't bind to
     // specific entities for dependency-tracking purposes; the dependency tracker
@@ -964,8 +993,25 @@ function findTranslateDelta(
   state: State,
   ids: EntityId[],
   txn: Txn,
+  driver?: EntityId,
 ): number | null {
 
+  // SEED writes (no seedTag) are the user-originated writes. Cascade
+  // writes (default-link, prior TranslateGroup passes, ConformVisual, etc.)
+  // are tagged. We normally only consider seed writes for delta — cascade
+  // writes can carry stale values during a Propose iteration (e.g., after
+  // SnapTarget restricts the driver, the prior cascade's follower writes
+  // are still in the txn but need re-derivation).
+  //
+  // EXCEPTION: when this group has a `driver`, the driver's write counts
+  // even if it's tagged. A "lock" group with driver=clipout needs to fire
+  // when clipout was written by ConformVisual (user dragged the anchor and
+  // conform wrote clipout = anchor.beat). The driver is by definition the
+  // single source of truth for the group's delta, so accepting any write
+  // on it doesn't admit the stale-write hazard the seed filter exists to
+  // prevent.
+  const isEligible = (w: Write, id: EntityId): boolean =>
+    !w.seedTag || (driver !== undefined && id === driver)
   let candidate: number | null = null
 
   for (const id of ids) {
@@ -973,7 +1019,7 @@ function findTranslateDelta(
     if (!entity) continue
 
     if (entity.kind === EntityKind.Anchor) {
-      const write = txn.find(w => w.entityId === id && w.field === Field.Time)
+      const write = txn.find(w => w.entityId === id && w.field === Field.Time && isEligible(w, id))
       if (!write) continue
       const delta = write.to - write.from
       if (candidate === null) {
@@ -984,8 +1030,8 @@ function findTranslateDelta(
       continue
     }
 
-    const inWrite  = txn.find(w => w.entityId === id && w.field === Field.In)
-    const outWrite = txn.find(w => w.entityId === id && w.field === Field.Out)
+    const inWrite  = txn.find(w => w.entityId === id && w.field === Field.In  && isEligible(w, id))
+    const outWrite = txn.find(w => w.entityId === id && w.field === Field.Out && isEligible(w, id))
     if (!inWrite && !outWrite) continue
     if (!inWrite || !outWrite)  return null   // partial = resize
 
@@ -1033,6 +1079,7 @@ function makeTranslateWrites(
   state: State,
   ids: EntityId[],
   delta: number,
+  seedTag?: string,
 ): Write[] {
 
   const writes: Write[] = []
@@ -1047,6 +1094,7 @@ function makeTranslateWrites(
         field:    Field.Time,
         from:     entity.time,
         to:       entity.time + delta,
+        ...(seedTag ? { seedTag } : {}),
       })
     } else {
       writes.push({
@@ -1054,12 +1102,14 @@ function makeTranslateWrites(
         field:    Field.In,
         from:     entity.in,
         to:       entity.in + delta,
+        ...(seedTag ? { seedTag } : {}),
       })
       writes.push({
         entityId: id,
         field:    Field.Out,
         from:     entity.out,
         to:       entity.out + delta,
+        ...(seedTag ? { seedTag } : {}),
       })
     }
   }

@@ -71,7 +71,7 @@ export const ConstraintKind = {
   DeleteGroup:    'delete_group',
   HighlightGroup: 'highlight_group',
   ConformVisual:  'conform_visual',
-  MirrorPair:     'mirror_pair',
+  ConformRedirect:'conform_redirect',
   SnapCohort:     'snap_cohort',
   SnapRule:       'snap_rule',
 } as const
@@ -385,29 +385,31 @@ export interface ConformVisual {
   edge:        'in' | 'out'
 }
 
-/** Symmetric 1-1 binding between two specific (entity, field) endpoints.
- *  When either endpoint's field is written in the txn, write the same value
- *  to the partner endpoint. No driver — symmetric. No re-sync on install:
- *  the binding only fires on writes that are already in flight (delta-based
- *  by way of mergeWrites short-circuiting), so adding a MirrorPair to a
- *  graph where the two endpoints differ is a no-op until something moves.
+/** ConformRedirect — Propose-phase rule that routes user-seeded clipout
+ *  writes into anchor.beat writes while input coincidence holds.
  *
- *  Use case: a conformed marker. While the input-space coincidence
- *  `clipin.edge ≈ anchor-in.time` holds, anchor-out.time and
- *  clipout.{edge} represent the same point in beat space — moving either
- *  one moves the other.
+ *  Same fan-out shape as ConformVisual (per region × anchor × edge), but
+ *  fires in the opposite direction: when a user gesture has written
+ *  clipout.edge directly (no seedTag = user intent, not a cascade), and
+ *  the input-space coincidence `clipin.edge ≈ anchor.orig` still holds,
+ *  the write is rewritten as an anchor.beat write with the same delta. On
+ *  the next pass, ConformVisual writes clipout = anchor.beat, asserting
+ *  the invariant.
  *
- *  `guard` (optional): two endpoints whose coincidence is the binding's
- *  implicit install-time premise. If guard endpoints receive divergent
- *  deltas in the same txn, the binding suppresses propagation — matches the
- *  no-snap world's behavior where coincidence would be uninstalled by the
- *  next pass anyway. */
-export interface MirrorPair {
-  kind:   typeof ConstraintKind.MirrorPair
-  a:      { id: EntityId; field: Field }
-  b:      { id: EntityId; field: Field }
-  guard?: { a: { id: EntityId; field: Field }; b: { id: EntityId; field: Field } }
-  tag?:   string
+ *  Skipped when:
+ *   - the clipout write is tagged (seedTag set) — it's a cascade, not user
+ *     intent; let ConformVisual handle clipout from anchor.beat.
+ *   - anchor.beat already has a write — the user is moving anchor directly
+ *     (don't double-write).
+ *
+ *  See: docs/superpowers/specs/2026-05-20-conform-invariant-restructure-design.md */
+export interface ConformRedirect {
+  kind:        typeof ConstraintKind.ConformRedirect
+  anchorInId:  EntityId
+  anchorOutId: EntityId
+  clipId:      EntityId
+  clipOutId:   EntityId
+  edge:        'in' | 'out'
 }
 
 export type Constraint =
@@ -422,7 +424,7 @@ export type Constraint =
   | DeleteGroup
   | HighlightGroup
   | ConformVisual
-  | MirrorPair
+  | ConformRedirect
   | SnapCohort
   | SnapRule
 
@@ -436,6 +438,13 @@ export interface Write {
   field:    Field
   from:     number
   to:       number
+  /** Provenance marker for writes produced by cascade rules. Seed writes
+   *  (originating from a user gesture's op) have no tag. Cascade-rule
+   *  writes (e.g., default-link MirrorEdge) stamp themselves so downstream
+   *  rules — notably ConformRedirect — can distinguish user intent from
+   *  derived propagation.
+   *  See: docs/superpowers/specs/2026-05-20-conform-invariant-restructure-design.md */
+  seedTag?: string
 }
 
 export type Txn = Write[]

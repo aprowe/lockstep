@@ -18,5 +18,5 @@
     "resolveJsonModule": true
   },
   "include": ["src", "tests"],
-  "exclude": ["tests/_legacy-removed-task13"]
+  "exclude": ["tests/_legacy-removed-task13", "tests/_legacy-removed-conform-restructure"]
 }

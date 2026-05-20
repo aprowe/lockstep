@@ -346,16 +346,12 @@ describe('moveBeatAnchors', () => {
     expect(anchors.find(a => a.id === 1)?.time).toBe(8)
   })
 
-  it('no explicit linking event is dispatched by moveBeatAnchors', () => {
-    // Under the MirrorPair model, beat-anchor drag drags the conformed clipout
-    // edge along (conform = inseparable). The clipout follows the anchor while
-    // coincidence holds in both spaces. inBeatTime gets pulled to 3 (where the
-    // anchor was when MirrorPair last fired); when moveBeatAnchors directly
-    // resets the anchor to 5, MirrorPair is no longer installed (output-space
-    // coincidence is broken), so the clipout stays at 3 — the anchor and clip
-    // diverge. The key assertion of this test is that NO applyLinkingEvent
-    // dispatch happens (the lockedBeats it would have written matches what
-    // bpmDerivedConstraint computes anyway, so we can't easily distinguish).
+  it('clipout strictly follows anchor.beat while coincidence holds', () => {
+    // Under the new strict-derivation model: ConformVisual writes
+    // clipout.edge = anchor.beat every pipeline pass while input
+    // coincidence holds. There's no "sticky" MirrorPair release. Beat
+    // anchor moves to 3 → clipout follows to 3. Beat anchor returns to 5
+    // → clipout follows back to 5.
     const store = makeStore()
     store.dispatch(addRegion(makeFullRegion({ inPoint: 5, outPoint: 10, bpm: 120, inBeatTime: 5, outBeatTime: 10 })))
     store.dispatch(addAnchor({ id: 1, time: 5 }))
@@ -364,9 +360,7 @@ describe('moveBeatAnchors', () => {
     store.dispatch(moveBeatAnchors([{ id: 1, time: 5 }]))
 
     const r = store.getState().region.regions[0]
-    // Clipout was carried to 3 by MirrorPair during the diverging drag and
-    // stays there after the anchor returns to 5 (binding uninstalled).
-    expect(r.inBeatTime).toBeCloseTo(3, 6)
+    expect(r.inBeatTime).toBeCloseTo(5, 6)
   })
 
   it('no explicit linking event is dispatched (out edge variant)', () => {
