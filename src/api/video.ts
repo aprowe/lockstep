@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import type { VideoInfo } from '../types'
 
-interface RawVideoInfo {
+export interface RawVideoInfo {
   path: string
   original_name: string
   duration: number
@@ -24,7 +24,7 @@ export interface VideoEntry {
   name: string
 }
 
-function rawToVideoInfo(raw: RawVideoInfo): VideoInfo {
+export function rawToVideoInfo(raw: RawVideoInfo): VideoInfo {
   return {
     path: raw.path,
     originalName: raw.original_name,

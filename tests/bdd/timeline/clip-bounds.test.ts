@@ -2171,7 +2171,7 @@ describeFeature(feature, ({ Scenario, ScenarioOutline, BeforeEachScenario }) => 
     })
   })
 
-  // @behavior clip-bounds::e9c981c6
+  // @behavior clip-bounds::5a81fd24
   // Fixture: { inBeatTime:0, outBeatTime:10, bpm:120, lockedBeats:20 }.
   // applyBeatsEdit({ newLockedBeats:10, stretch:false })
   // Grid model: length=10 stays; bpm = 60 × 10 / 10 = 60. lockedBeats becomes 10.

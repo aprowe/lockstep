@@ -22,6 +22,7 @@ name: File menu
 groups:
   - - Open Video
     - Open Folder
+    - Open Recent
 
   - - Open Project
     - Save Project As

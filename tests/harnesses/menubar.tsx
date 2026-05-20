@@ -36,6 +36,9 @@ function defaultDeps() {
     visiblePanelIds: new Set<string>(),
     showShortcuts: noop,
     saveProjectAs: noop,
+    recentFiles: [],
+    openRecentFile: (_path: string) => {},
+    clearRecentFiles: noop,
   }
 }
 

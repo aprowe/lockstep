@@ -5,7 +5,6 @@ pub mod pipeline;
 pub mod processor;
 pub mod rife;
 pub mod scene;
-mod storage;
 pub mod thumbnails;
 pub mod video;
 
@@ -32,7 +31,7 @@ pub fn run() {
             use tauri::Manager;
             if let Ok(dir) = app.path().app_log_dir() {
                 log::info!(
-                    "lockstep starting (v{}) — logs at {}",
+                    "lockstep starting (v{}) â€” logs at {}",
                     env!("CARGO_PKG_VERSION"),
                     dir.display()
                 );
@@ -65,10 +64,9 @@ pub fn run() {
             commands::load_llc_project,
             commands::start_scene_detection,
             commands::cancel_scene_detection,
-            storage::save_video_state,
-            storage::load_video_state,
-            storage::list_saved_hashes,
-            storage::get_file_hash,
+            commands::get_recent_files,
+            commands::add_recent_file,
+            commands::clear_recent_files,
             thumbnails::set_thumbnail_priority,
             thumbnails::get_thumbnail_path,
             thumbnails::get_thumbnail_queue_stats,

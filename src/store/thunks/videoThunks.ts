@@ -2,7 +2,6 @@ import { createAsyncThunk } from '@reduxjs/toolkit'
 import type { RootState } from '../store'
 import type { SavedVideoState, Region } from '../../types'
 import { openVideo, openFolder, loadVideoFromPath, listFolderVideos } from '../../api/video'
-import { saveVideoState, loadVideoState, getFileHash } from '../../api/storage'
 import { checkVideoSidecar, deleteVideoSidecar, openJsonFile as openJsonFileApi, readJsonSidecarForVideo, loadLlcProject } from '../../api/warp'
 import { setVideo, clearVideo, setFolderVideos, setMarkerCount, setClipCount, setMarkersLoaded, setDetectingBpm } from '../slices/videoSlice'
 import { loadAnchors, clearAnchors, setBpm, setMinStretch, setMaxStretch, setGlobalMarkers, setPlayhead, bumpAnchorIdCounter } from '../slices/warpSlice'
@@ -13,23 +12,12 @@ import type { HistoryEntry } from '../slices/historySlice'
 import { snapshotFromState } from '../middleware/historyMiddleware'
 import { setView } from '../slices/uiSlice'
 
-/** Load markers from sidecar or internal storage for a video */
-async function loadMarkersForVideo(videoPath: string, fileHash: string) {
-  let state: SavedVideoState | null = null
-
-  // Prefer sidecar (portable)
+async function loadMarkersForVideo(videoPath: string): Promise<SavedVideoState | null> {
   try {
     const content = await checkVideoSidecar(videoPath)
-    if (content) state = JSON.parse(content) as SavedVideoState
+    if (content) return JSON.parse(content) as SavedVideoState
   } catch { /* sidecar unreadable */ }
-
-  // Fall back to internal hash-based storage
-  if (!state) {
-    try { state = await loadVideoState(fileHash) }
-    catch { /* no internal state */ }
-  }
-
-  return state
+  return null
 }
 
 export const openFileThunk = createAsyncThunk(
@@ -47,7 +35,7 @@ export const openFileThunk = createAsyncThunk(
       dispatch(setActiveRegionId(null))
       dispatch(setMarkersLoaded(false))
 
-      const state = await loadMarkersForVideo(info.path, info.fileHash)
+      const state = await loadMarkersForVideo(info.path)
       applyLoadedState(dispatch, getState, state, info.path, preLoadEntry)
     } catch (e: any) {
       console.error('Failed to open file:', e)
@@ -72,8 +60,8 @@ export const openFolderThunk = createAsyncThunk(
       // Load marker and clip counts for sidebar badges
       for (const entry of entries) {
         try {
-          const hash = await getFileHash(entry.path)
-          const state = await loadVideoState(hash)
+          const content = await checkVideoSidecar(entry.path)
+          const state: SavedVideoState | null = content ? JSON.parse(content) : null
           const count = state?.defaultRegion?.origAnchors?.length ?? 0
           dispatch({ type: 'video/updateMarkerCount', payload: { path: entry.path, count } })
           const clipCount = state?.regions?.length ?? 0
@@ -101,8 +89,8 @@ export const loadFolderFromPathThunk = createAsyncThunk(
       dispatch(setClipCount({}))
       for (const entry of entries) {
         try {
-          const hash = await getFileHash(entry.path)
-          const state = await loadVideoState(hash)
+          const content = await checkVideoSidecar(entry.path)
+          const state: SavedVideoState | null = content ? JSON.parse(content) : null
           const count = state?.defaultRegion?.origAnchors?.length ?? 0
           dispatch({ type: 'video/updateMarkerCount', payload: { path: entry.path, count } })
           const clipCount = state?.regions?.length ?? 0
@@ -128,7 +116,7 @@ export const selectVideoThunk = createAsyncThunk(
       dispatch(setActiveRegionId(null))
       dispatch(setMarkersLoaded(false))
 
-      const state = await loadMarkersForVideo(info.path, info.fileHash)
+      const state = await loadMarkersForVideo(info.path)
       applyLoadedState(dispatch, getState, state, info.path, preLoadEntry)
     } catch (e: any) {
       console.error('Failed to select video:', e)
@@ -164,33 +152,29 @@ export const resetVideoDataThunk = createAsyncThunk(
       version: 2,
       defaultRegion: {
         origAnchors: [], beatAnchors: [], bpm: 120,
-        minStretch: 0.5, maxStretch: 2.0, beatZeroAnchorTime: null,
+        minStretch: 0.5, maxStretch: 2.0,
       },
       regions: [],
     }
-    try { await saveVideoState(vid.fileHash, emptyState) } catch {}
     try { await deleteVideoSidecar(vid.path) } catch {}
   },
 )
 
+/** Open a standalone sidecar JSON file. Backend handles the file picker,
+ *  video resolution, and parsing — the thunk receives structured data only. */
 export const openJsonFileThunk = createAsyncThunk(
   'video/openJsonFile',
   async (_, { dispatch, getState }) => {
     try {
       const preLoadEntry: HistoryEntry = snapshotFromState(getState() as RootState)
-      const { jsonContent, videoPath: video_path } = await openJsonFileApi()
-      // Load the video first
-      const info = await loadVideoFromPath(video_path)
+      const { videoInfo: info, savedState } = await openJsonFileApi()
       dispatch(setVideo(info))
       dispatch(setView({ start: 0, end: info.duration }))
       dispatch(clearAnchors())
       dispatch(setPlayhead(0))
       dispatch(setActiveRegionId(null))
       dispatch(setMarkersLoaded(false))
-
-      // The sidecar will be auto-detected by loadMarkersForVideo
-      const state = await loadMarkersForVideo(info.path, info.fileHash)
-      applyLoadedState(dispatch, getState, state, info.path, preLoadEntry)
+      applyLoadedState(dispatch, getState, savedState, info.path, preLoadEntry)
     } catch (e: any) {
       console.error('Failed to open JSON file:', e)
     }
@@ -220,7 +204,7 @@ export const openLlcProjectThunk = createAsyncThunk(
       // Apply any pre-existing sidecar state first (so the user keeps their
       // anchors / default-region settings), then override regions with the
       // .llc segments.
-      const savedState = await loadMarkersForVideo(info.path, info.fileHash)
+      const savedState = await loadMarkersForVideo(info.path)
       applyLoadedState(dispatch, getState, savedState, info.path, preLoadEntry)
 
       const bpm = (getState() as RootState).warp.bpm

@@ -80,7 +80,6 @@ export function makeSavedState(
       bpm: 140,
       minStretch: 0.5,
       maxStretch: 2.0,
-      beatZeroAnchorTime: null,
       ...overrides,
     },
     regions: [],

@@ -117,6 +117,8 @@ export interface SelectionState {
 /** Persisted per-video state */
 export interface SavedVideoState {
   version: 2 | 3
+  /** Relative path from the JSON file to the video — used when loading an exported JSON from a different location. */
+  videoPath?: string
   defaultRegion: {
     origAnchors: Anchor[]
     beatAnchors: Anchor[]

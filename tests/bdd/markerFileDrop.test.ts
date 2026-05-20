@@ -12,11 +12,6 @@ vi.mock('../../src/api/video', () => ({
   listFolderVideos: vi.fn(),
 }))
 
-vi.mock('../../src/api/storage', () => ({
-  saveVideoState: vi.fn(),
-  loadVideoState: vi.fn(),
-  getFileHash: vi.fn(),
-}))
 
 vi.mock('../../src/api/warp', () => ({
   checkVideoSidecar: vi.fn(),
@@ -31,7 +26,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 import * as videoApi from '../../src/api/video'
-import * as storageApi from '../../src/api/storage'
 import * as warpApi from '../../src/api/warp'
 
 const feature = await loadFeature('./spec/features/drop-marker-file.feature')
@@ -42,7 +36,6 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
   BeforeEachScenario(() => {
     vi.clearAllMocks()
     store = makeStore()
-    vi.mocked(storageApi.loadVideoState).mockResolvedValue(null)
   })
 
   // @behavior drop-a-matching-marker-file-onto-a-loaded-clip::535b7e93
@@ -109,11 +102,7 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
       vi.spyOn(console, 'error').mockImplementation(() => {})
       store.dispatch(addAnchor({ id: 77, time: 15 }))
       stateBefore = store.getState()
-      vi.mocked(warpApi.openJsonFile).mockResolvedValue({
-        jsonContent: '{}',
-        videoPath: '/videos/missing.mp4',
-      })
-      vi.mocked(videoApi.loadVideoFromPath).mockRejectedValue(new Error('File not found'))
+      vi.mocked(warpApi.openJsonFile).mockRejectedValue(new Error('File not found'))
     })
     When('the app tries to resolve the sibling', async () => {
       try {
@@ -181,7 +170,6 @@ describe('marker file drop — no sidecar found', () => {
 
     vi.mocked(videoApi.loadVideoFromPath).mockResolvedValue(makeVideoInfo())
     vi.mocked(warpApi.checkVideoSidecar).mockResolvedValue(null)
-    vi.mocked(storageApi.loadVideoState).mockResolvedValue(null)
 
     await store.dispatch(selectVideoThunk('/videos/concert.mp4'))
 

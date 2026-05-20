@@ -10,11 +10,6 @@ vi.mock('../../src/api/video', () => ({
   listFolderVideos: vi.fn(),
 }))
 
-vi.mock('../../src/api/storage', () => ({
-  saveVideoState: vi.fn(),
-  loadVideoState: vi.fn(),
-  getFileHash: vi.fn(),
-}))
 
 vi.mock('../../src/api/warp', () => ({
   checkVideoSidecar: vi.fn(),
@@ -29,7 +24,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 import * as videoApi from '../../src/api/video'
-import * as storageApi from '../../src/api/storage'
 import * as warpApi from '../../src/api/warp'
 
 const feature = await loadFeature('./spec/features/video-loading.feature')
@@ -41,7 +35,6 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
     vi.clearAllMocks()
     store = makeStore()
     vi.mocked(warpApi.checkVideoSidecar).mockResolvedValue(null)
-    vi.mocked(storageApi.loadVideoState).mockResolvedValue(null)
   })
 
   // @behavior video-loading::90289e16

@@ -37,6 +37,10 @@
             {
               "id": "open-folder",
               "label": "Open Folder"
+            },
+            {
+              "id": "open-recent",
+              "label": "Open Recent"
             }
           ]
         },

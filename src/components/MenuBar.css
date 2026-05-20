@@ -132,6 +132,24 @@
   flex-shrink: 0;
 }
 
+/* ── Submenu ────────────────────────────────────────────── */
+.menubar__dropdown--sub {
+  top: -5px;
+  left: 100%;
+}
+
+.menubar__item-arrow {
+  color: var(--fg-3);
+  font-size: 9px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.menubar__item--sub-open {
+  background: var(--bg-6);
+  color: var(--fg-1);
+}
+
 /* ── Separator ──────────────────────────────────────────── */
 .menubar__sep {
   height: 1px;

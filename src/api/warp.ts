@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { rawToVideoInfo, type RawVideoInfo } from './video'
+import type { VideoInfo, SavedVideoState } from '../types'
 
 export interface WarpRequest {
   path: string
@@ -117,21 +119,28 @@ export async function deleteVideoSidecar(videoPath: string): Promise<void> {
   return invoke('delete_video_sidecar', { videoPath })
 }
 
-export interface JsonFileResult {
-  jsonContent: string
-  videoPath: string
+export interface OpenJsonResult {
+  videoInfo: VideoInfo
+  savedState: SavedVideoState
 }
 
-/** Opens a native JSON file picker, returns the JSON content and path to sibling video. */
-export async function openJsonFile(): Promise<JsonFileResult> {
-  const raw = await invoke<{ json_content: string; video_path: string }>('open_json_file')
-  return { jsonContent: raw.json_content, videoPath: raw.video_path }
+/** Opens a native JSON file picker; backend resolves the sibling video and
+ *  returns structured data — the frontend never sees a file path or raw JSON. */
+export async function openJsonFile(): Promise<OpenJsonResult> {
+  const raw = await invoke<{ video_info: RawVideoInfo; saved_state: SavedVideoState }>(
+    'open_json_file',
+  )
+  return { videoInfo: rawToVideoInfo(raw.video_info), savedState: raw.saved_state }
 }
 
-/** Reads a .json sidecar at the given path and finds the sibling video. */
-export async function readJsonSidecarForVideo(jsonPath: string): Promise<JsonFileResult> {
-  const raw = await invoke<{ json_content: string; video_path: string }>('read_json_sidecar_for_video', { jsonPath })
-  return { jsonContent: raw.json_content, videoPath: raw.video_path }
+/** Reads a .json sidecar at the given path; backend resolves the sibling video
+ *  and returns structured data ready for dispatch. */
+export async function readJsonSidecarForVideo(jsonPath: string): Promise<OpenJsonResult> {
+  const raw = await invoke<{ video_info: RawVideoInfo; saved_state: SavedVideoState }>(
+    'read_json_sidecar_for_video',
+    { jsonPath },
+  )
+  return { videoInfo: rawToVideoInfo(raw.video_info), savedState: raw.saved_state }
 }
 
 // ── LosslessCut (.llc) project import ────────────────────────────────────────
@@ -150,7 +159,8 @@ export interface LlcProject {
 /** Parse a LosslessCut .llc project file (JSON5) and resolve its referenced video. */
 export async function loadLlcProject(llcPath: string): Promise<LlcProject> {
   const raw = await invoke<{ video_path: string; cut_segments: LlcSegment[] }>(
-    'load_llc_project', { llcPath },
+    'load_llc_project',
+    { llcPath },
   )
   return { videoPath: raw.video_path, cutSegments: raw.cut_segments }
 }

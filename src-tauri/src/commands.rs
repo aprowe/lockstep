@@ -319,6 +319,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
     Ok(job_id)
 }
 
+
 // ── Save Output ──────────────────────────────────────────────────────────────
 
 #[derive(serde::Deserialize)]
@@ -548,13 +549,49 @@ mod base64_tests {
     }
 }
 
-// ── Video Sidecar (<video_stem>.json next to source video) ───────────────────
+fn find_video_for_json(json_path: &std::path::Path, content: &str) -> Result<std::path::PathBuf, String> {
+    let parent = json_path.parent().unwrap_or(std::path::Path::new("."));
+    let video_exts = ["mp4", "mov", "avi", "mkv", "webm", "m4v"];
 
-/// Returns the JSON content of `<video_stem>.json` if it exists next to the video, or null.
+    // Check embedded relative path first (written by the persistence layer)
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(content) {
+        if let Some(rel) = v["videoPath"].as_str() {
+            let candidate = parent.join(rel);
+            if candidate.exists() {
+                return Ok(candidate);
+            }
+        }
+    }
+
+    // For `video.mp4.json` the stem is `video.mp4` — check it directly first
+    let stem = json_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+    let direct = parent.join(stem);
+    if direct.exists() {
+        return Ok(direct);
+    }
+
+    // Fall back to stem+extension matching (e.g. a plain `video.json`)
+    for ext in &video_exts {
+        let candidate = parent.join(format!("{stem}.{ext}"));
+        if candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+
+    Err(format!("No video file found for '{stem}'"))
+}
+
+// ── Video Sidecar (<video_filename>.json next to source video) ────────────────
+
+fn sidecar_path(video_path: &std::path::Path) -> std::path::PathBuf {
+    let filename = video_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    video_path.with_file_name(format!("{filename}.json"))
+}
+
+/// Returns the JSON content of `<video_filename>.json` if it exists next to the video, or null.
 #[tauri::command]
 pub async fn check_video_sidecar(video_path: String) -> Result<Option<String>, String> {
-    let path = std::path::Path::new(&video_path);
-    let sidecar = path.with_extension("json");
+    let sidecar = sidecar_path(std::path::Path::new(&video_path));
     if sidecar.exists() {
         let content = std::fs::read_to_string(&sidecar).map_err(|e| e.to_string())?;
         Ok(Some(content))
@@ -563,19 +600,17 @@ pub async fn check_video_sidecar(video_path: String) -> Result<Option<String>, S
     }
 }
 
-/// Writes JSON content to `<video_stem>.json` next to the source video.
+/// Writes JSON content to `<video_filename>.json` next to the source video.
 #[tauri::command]
 pub async fn write_video_sidecar(video_path: String, content: String) -> Result<(), String> {
-    let path = std::path::Path::new(&video_path);
-    let sidecar = path.with_extension("json");
+    let sidecar = sidecar_path(std::path::Path::new(&video_path));
     std::fs::write(&sidecar, &content).map_err(|e| e.to_string())
 }
 
-/// Deletes `<video_stem>.json` next to the source video, if it exists.
+/// Deletes `<video_filename>.json` next to the source video, if it exists.
 #[tauri::command]
 pub async fn delete_video_sidecar(video_path: String) -> Result<(), String> {
-    let path = std::path::Path::new(&video_path);
-    let sidecar = path.with_extension("json");
+    let sidecar = sidecar_path(std::path::Path::new(&video_path));
     if sidecar.exists() {
         std::fs::remove_file(&sidecar).map_err(|e| e.to_string())?;
     }
@@ -583,14 +618,16 @@ pub async fn delete_video_sidecar(video_path: String) -> Result<(), String> {
 }
 
 #[derive(serde::Serialize)]
-pub struct JsonFileResult {
-    pub json_content: String,
-    pub video_path: String,
+pub struct OpenJsonResult {
+    pub video_info: VideoInfo,
+    pub saved_state: serde_json::Value,
 }
 
-/// Opens a native JSON file picker, reads the file, and finds the sibling video by stem.
+/// Opens a native JSON file picker, resolves the sibling video, and returns
+/// VideoInfo plus the parsed saved state — the frontend receives structured
+/// data and never touches file paths or raw JSON strings.
 #[tauri::command]
-pub async fn open_json_file(app: AppHandle) -> Result<JsonFileResult, String> {
+pub async fn open_json_file(app: AppHandle) -> Result<OpenJsonResult, String> {
     use tauri_plugin_dialog::DialogExt;
 
     let file = app
@@ -605,27 +642,11 @@ pub async fn open_json_file(app: AppHandle) -> Result<JsonFileResult, String> {
     };
 
     let content = std::fs::read_to_string(&json_path).map_err(|e| e.to_string())?;
-
-    let video_exts = ["mp4", "mov", "avi", "mkv", "webm", "m4v"];
-    let stem = json_path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("");
-    let parent = json_path
-        .parent()
-        .unwrap_or(std::path::Path::new("."));
-
-    for ext in &video_exts {
-        let candidate = parent.join(format!("{stem}.{ext}"));
-        if candidate.exists() {
-            return Ok(JsonFileResult {
-                json_content: content,
-                video_path: candidate.to_string_lossy().to_string(),
-            });
-        }
-    }
-
-    Err(format!("No video file found for '{stem}' in the same folder"))
+    let video = find_video_for_json(&json_path, &content)?;
+    let video_info = get_video_info(&video.to_string_lossy())?;
+    let saved_state: serde_json::Value =
+        serde_json::from_str(&content).map_err(|e| format!("Invalid JSON: {e}"))?;
+    Ok(OpenJsonResult { video_info, saved_state })
 }
 
 // ── Reveal in OS file manager ─────────────────────────────────────────────────
@@ -695,27 +716,17 @@ pub async fn show_in_folder(path: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Reads the JSON sidecar at the given path directly (e.g. drag-dropped .json file).
+/// Reads the JSON sidecar at the given path (e.g. drag-dropped .json file),
+/// resolves the sibling video, and returns VideoInfo plus the parsed saved state.
 #[tauri::command]
-pub async fn read_json_sidecar_for_video(json_path: String) -> Result<JsonFileResult, String> {
+pub async fn read_json_sidecar_for_video(json_path: String) -> Result<OpenJsonResult, String> {
     let path = std::path::Path::new(&json_path);
     let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-
-    let video_exts = ["mp4", "mov", "avi", "mkv", "webm", "m4v"];
-    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-    let parent = path.parent().unwrap_or(std::path::Path::new("."));
-
-    for ext in &video_exts {
-        let candidate = parent.join(format!("{stem}.{ext}"));
-        if candidate.exists() {
-            return Ok(JsonFileResult {
-                json_content: content,
-                video_path: candidate.to_string_lossy().to_string(),
-            });
-        }
-    }
-
-    Err(format!("No video file found for '{stem}' in the same folder"))
+    let video = find_video_for_json(path, &content)?;
+    let video_info = get_video_info(&video.to_string_lossy())?;
+    let saved_state: serde_json::Value =
+        serde_json::from_str(&content).map_err(|e| format!("Invalid JSON: {e}"))?;
+    Ok(OpenJsonResult { video_info, saved_state })
 }
 
 // ── LosslessCut (.llc) project import ─────────────────────────────────────────
@@ -949,3 +960,40 @@ pub async fn cancel_scene_detection(
     state.cancel.store(true, Ordering::Relaxed);
     Ok(())
 }
+
+// ── Recent Files ──────────────────────────────────────────────────────────────
+
+fn recent_files_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.join("recent_files.json"))
+}
+
+#[tauri::command]
+pub async fn get_recent_files(app: AppHandle) -> Result<Vec<String>, String> {
+    let path = recent_files_path(&app)?;
+    if !path.exists() { return Ok(vec![]); }
+    let json = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    serde_json::from_str(&json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn add_recent_file(app: AppHandle, path: String) -> Result<(), String> {
+    let file = recent_files_path(&app)?;
+    let mut files: Vec<String> = if file.exists() {
+        let json = std::fs::read_to_string(&file).map_err(|e| e.to_string())?;
+        serde_json::from_str(&json).unwrap_or_default()
+    } else { vec![] };
+    files.retain(|p| p != &path);
+    files.insert(0, path);
+    files.truncate(10);
+    let json = serde_json::to_string(&files).map_err(|e| e.to_string())?;
+    std::fs::write(&file, json).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn clear_recent_files(app: AppHandle) -> Result<(), String> {
+    let file = recent_files_path(&app)?;
+    std::fs::write(&file, "[]").map_err(|e| e.to_string())
+}
+

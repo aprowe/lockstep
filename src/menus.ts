@@ -7,7 +7,7 @@
  * Layout specs: layouts/menubar.layout.yaml
  */
 
-import type { MenuDef } from './components/MenuBar'
+import type { MenuDef, MenuEntry } from './components/MenuBar'
 import type { VideoInfo } from './types'
 
 interface FileMenuDeps {
@@ -19,14 +19,29 @@ interface FileMenuDeps {
   resetVideoData: () => void
   closeVideo: () => void
   saveProjectAs: () => void
+  recentFiles: string[]
+  openRecentFile: (path: string) => void
+  clearRecentFiles: () => void
 }
 
 export function buildFileMenu(d: FileMenuDeps): MenuDef {
+  const recentItems: MenuEntry[] = d.recentFiles.length > 0
+    ? [
+        ...d.recentFiles.map(path => ({
+          label: path.replace(/\\/g, '/').split('/').pop() ?? path,
+          action: () => d.openRecentFile(path),
+        })),
+        { separator: true as const },
+        { label: 'Clear Recent Files', action: d.clearRecentFiles },
+      ]
+    : [{ label: 'No Recent Files', disabled: true }]
+
   return {
     label: 'File',
     items: [
       { label: 'Open Video',      shortcut: 'Ctrl+O',       action: d.openFile },
       { label: 'Open Folder',     shortcut: 'Ctrl+Shift+O', action: d.openFolder },
+      { label: 'Open Recent',                                submenu: recentItems },
       { separator: true },
       { label: 'Open Project',                               action: d.openJsonFile },
       { label: 'Save Project As', shortcut: 'Ctrl+E',       action: d.saveProjectAs, disabled: !d.video || d.anchorCount === 0 },

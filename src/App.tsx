@@ -9,6 +9,7 @@ import Toolbar from './components/Toolbar'
 import MenuBar from './components/MenuBar'
 import type { MenuDef, MenuEntry } from './components/MenuBar'
 import { buildFileMenu, buildEditMenu, buildViewMenu } from './menus'
+import { getRecentFiles, addRecentFile, clearRecentFiles as clearRecentFilesApi } from './api/recentFiles'
 import { stepUiScale, resetUiScale, getUiScale, UI_SCALE_STEP } from './uiScale'
 import HudChip from './components/HudChip'
 import { useTransientChip } from './utils/useTransientChip'
@@ -60,9 +61,6 @@ import {
   selectAll as selectAllWarp,
   deselectAll as deselectAllWarp,
   setPlayhead as setPlayheadAction,
-  setLoopBeats as setLoopBeatsAction,
-  setTrimToLoop as setTrimToLoopAction,
-  setAddToEnd as setAddToEndAction,
   newAnchorId,
   setBeatAnchorsFromTimeline,
 } from './store/slices/warpSlice'
@@ -117,9 +115,6 @@ export default function App() {
   const resetVideoData = () => dispatch(resetVideoDataThunk())
   const openJsonFile = () => dispatch(openJsonFileThunk())
   const setDetectingBpm = (v: boolean) => dispatch(setDetectingBpmAction(v))
-  const setLoopBeats = (v: number | null) => dispatch(setLoopBeatsAction(v))
-  const setTrimToLoop = (v: boolean) => dispatch(setTrimToLoopAction(v))
-  const setAddToEnd = (v: boolean) => dispatch(setAddToEndAction(v))
   const addRegion = (inPoint: number, outPoint: number) => {
     const id = `region_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
     const name = `Clip ${regions.length + 1}`
@@ -168,11 +163,19 @@ export default function App() {
   const [aboutOpen, setAboutOpen] = useState(false)
   const [hotkeysOpen, setHotkeysOpen] = useState(false)
   const [uiScale, setUiScaleState] = useState(getUiScale)
+  const [recentFiles, setRecentFiles] = useState<string[]>([])
   useEffect(() => {
     const handler = (e: Event) => setUiScaleState((e as CustomEvent<number>).detail)
     window.addEventListener('ui-scale-change', handler)
     return () => window.removeEventListener('ui-scale-change', handler)
   }, [])
+
+  useEffect(() => { getRecentFiles().then(setRecentFiles) }, [])
+
+  useEffect(() => {
+    if (!video?.path) return
+    addRecentFile(video.path).then(() => getRecentFiles().then(setRecentFiles))
+  }, [video?.path])
   const uiScaleLabel = `${Math.round(uiScale * 100)}%`
   const uiScaleChipVisible = useTransientChip(uiScaleLabel)
 
@@ -248,13 +251,13 @@ export default function App() {
             await dispatch(openLlcProjectThunk(firstLlc))
             return
           }
-          // If a .json sidecar is dropped, find its sibling video and load both
+          // If a .json sidecar is dropped, resolve video + state on the backend
           const firstJson = paths.find(hasJsonExt)
           if (firstJson) {
             try {
               const { readJsonSidecarForVideo } = await import('./api/warp')
-              const { videoPath } = await readJsonSidecarForVideo(firstJson)
-              await selectVideo(videoPath)
+              const { videoInfo } = await readJsonSidecarForVideo(firstJson)
+              await selectVideo(videoInfo.path)
             } catch (err: any) {
               if (!String(err).includes('cancelled')) console.error('JSON drop failed:', err)
             }
@@ -318,10 +321,17 @@ export default function App() {
 
   const anchorCount = warpData?.origAnchors.length ?? 0
 
+  const clearRecents = useCallback(() => {
+    clearRecentFilesApi().then(() => setRecentFiles([]))
+  }, [])
+
   const fileMenu: MenuDef = useMemo(() => buildFileMenu({
     video, anchorCount, openFile, openFolder, openJsonFile, resetVideoData, closeVideo,
     saveProjectAs: () => { /* TODO: save project state to a new JSON location */ },
-  }), [openFile, openFolder, openJsonFile, resetVideoData, closeVideo, video, anchorCount])
+    recentFiles,
+    openRecentFile: selectVideo,
+    clearRecentFiles: clearRecents,
+  }), [openFile, openFolder, openJsonFile, resetVideoData, closeVideo, video, anchorCount, recentFiles, selectVideo, clearRecents])
 
   const editMenu: MenuDef = useMemo(() => buildEditMenu({
     video, anchorCount,

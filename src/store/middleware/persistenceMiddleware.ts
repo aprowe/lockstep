@@ -1,7 +1,6 @@
 import { createListenerMiddleware, isAnyOf } from '@reduxjs/toolkit'
 import type { RootState } from '../store'
 import type { Anchor, SavedVideoState } from '../../types'
-import { saveVideoState } from '../../api/storage'
 import { writeVideoSidecar } from '../../api/warp'
 import { updateMarkerCount, updateClipCount } from '../slices/videoSlice'
 import { dragEnd } from '../slices/dragSlice'
@@ -97,8 +96,11 @@ persistenceMiddleware.startListening({
       typeof threshold === 'number' ||
       typeof minGap === 'number'
 
+    const videoFilename = vid.path.replace(/\\/g, '/').split('/').pop() ?? ''
+
     const savedState: SavedVideoState = {
       version: 2,
+      videoPath: videoFilename,
       defaultRegion: {
         origAnchors: matOrigAnchors,
         beatAnchors: matBeatAnchors,
@@ -119,12 +121,6 @@ persistenceMiddleware.startListening({
         : {}),
     }
 
-    // Save to internal hash-based storage
-    try {
-      await saveVideoState(vid.fileHash, savedState)
-    } catch { /* best effort */ }
-
-    // Write sidecar next to source video (portable project file)
     try {
       await writeVideoSidecar(vid.path, JSON.stringify(savedState, null, 2))
     } catch { /* read-only location — best effort */ }

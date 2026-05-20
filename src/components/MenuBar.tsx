@@ -11,6 +11,8 @@ interface MenuItem {
   /** When defined, renders a checkbox-like ✓ in front of the label.
    *  Used by toggleable items (e.g. show/hide a dock panel). */
   checked?: boolean
+  /** Nested submenu — renders a ▶ and opens on hover. */
+  submenu?: MenuEntry[]
   separator?: false
 }
 
@@ -43,6 +45,7 @@ const BRAND_IDX = -1
 
 export default function MenuBar({ menus, brandMenu, rightContent }: MenuBarProps) {
   const [openIdx, setOpenIdx] = useState<number | null>(null)
+  const [openSubmenuIdx, setOpenSubmenuIdx] = useState<number | null>(null)
   const barRef = useRef<HTMLDivElement>(null)
 
   // Close dropdown when clicking outside
@@ -53,6 +56,11 @@ export default function MenuBar({ menus, brandMenu, rightContent }: MenuBarProps
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
+  }, [openIdx])
+
+  // Reset submenu when top-level menu closes
+  useEffect(() => {
+    if (openIdx === null) setOpenSubmenuIdx(null)
   }, [openIdx])
 
   // Register keyboard shortcuts
@@ -155,6 +163,49 @@ export default function MenuBar({ menus, brandMenu, rightContent }: MenuBarProps
                     return <div key={j} data-layout-sep className="menubar__sep" />
                   }
                   const mi = item as MenuItem
+                  const hasSubmenu = !!mi.submenu?.length
+                  if (hasSubmenu) {
+                    return (
+                      <div
+                        key={j}
+                        style={{ position: 'relative' }}
+                        onMouseEnter={() => setOpenSubmenuIdx(j)}
+                        onMouseLeave={() => setOpenSubmenuIdx(null)}
+                      >
+                        <button
+                          data-layout-id={slugify(mi.label)}
+                          className={`menubar__item${openSubmenuIdx === j ? ' menubar__item--sub-open' : ''}`}
+                          disabled={mi.disabled}
+                        >
+                          <span className="menubar__item-label">{mi.label}</span>
+                          <span className="menubar__item-arrow">▶</span>
+                        </button>
+                        {openSubmenuIdx === j && (
+                          <div className="menubar__dropdown menubar__dropdown--sub">
+                            {mi.submenu!.map((subItem, k) => {
+                              if ('separator' in subItem && subItem.separator) {
+                                return <div key={k} className="menubar__sep" />
+                              }
+                              const smi = subItem as MenuItem
+                              return (
+                                <button
+                                  key={k}
+                                  className="menubar__item"
+                                  disabled={smi.disabled}
+                                  onClick={() => { smi.action?.(); setOpenIdx(null) }}
+                                >
+                                  <span className="menubar__item-label">{smi.label}</span>
+                                  {smi.shortcut && (
+                                    <span className="menubar__item-shortcut">{formatShortcut(smi.shortcut)}</span>
+                                  )}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }
                   return (
                     <button
                       key={j}
