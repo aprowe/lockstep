@@ -22,6 +22,7 @@ import {
   lockOn,
 } from './recipes'
 import { SNAP_RULES } from './snap-rules'
+import { lookupProfile } from './profiles'
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -77,6 +78,10 @@ export interface DragCtx {
     innerAnchorOutIds: EntityId[]
     lockMode: 'bpm' | 'beats'
   }
+  /** Active gesture handle — drives profile.whileDragging constraint injection. */
+  activeHandle?: import('./profiles/types').Handle | null
+  /** Modifier-key state for the active gesture (alt for anchor-lock XOR). */
+  modifiers?: { alt: boolean }
 }
 
 export interface PipelineInput {
@@ -420,6 +425,28 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     }
   }
 
+  // 11. Gesture-scoped constraints — declared by the active drag handle's
+  //     GestureProfile.whileDragging. These exist exactly for the
+  //     pipeline-cycles where state.gesture.activeHandle points at them;
+  //     no install/teardown ops to leak.
+  if (dragCtx.activeHandle) {
+    const profile = lookupProfile(dragCtx.activeHandle)
+    if (profile) {
+      const ctx = {
+        preDrag: {
+          origAnchors: slice.warp.origAnchors,
+          beatAnchors: slice.warp.beatAnchors,
+          regions:     slice.region.regions,
+        },
+        ui: { anchorLock: false, lockMode: slice.ui.lockMode },
+        modifiers: dragCtx.modifiers ?? { alt: false },
+      }
+      for (const constraint of profile.whileDragging(dragCtx.activeHandle, ctx)) {
+        state = reduce(state, { kind: OpKind.AddConstraint, constraint })
+      }
+    }
+  }
+
   return state
 }
 
@@ -542,15 +569,26 @@ export function extractDragCtxFromSlice(state: {
       lockMode:            'bpm' | 'beats'
     } | null
   }
+  gesture?: {
+    activeHandle: import('./profiles/types').Handle | null
+    modifiers:    { alt: boolean }
+  }
 }): DragCtx {
   const dc = state.dragCtx
+  const g  = state.gesture
   if (!dc) {
-    return { lassoIds: [] }
+    return {
+      lassoIds: [],
+      activeHandle: g?.activeHandle ?? null,
+      modifiers:    g?.modifiers    ?? { alt: false },
+    }
   }
   return {
-    lassoIds:    dc.lassoIds,
-    snapInstall: dc.snapInstall ?? undefined,
-    anchorLock:  dc.anchorLock ?? undefined,
+    lassoIds:     dc.lassoIds,
+    snapInstall:  dc.snapInstall ?? undefined,
+    anchorLock:   dc.anchorLock  ?? undefined,
+    activeHandle: g?.activeHandle ?? null,
+    modifiers:    g?.modifiers    ?? { alt: false },
   }
 }
 

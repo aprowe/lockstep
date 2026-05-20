@@ -10,6 +10,7 @@ import settingsReducer from './slices/settingsSlice'
 import listsReducer from './slices/listsSlice'
 import dragReducer from './slices/dragSlice'
 import dragCtxReducer from './slices/dragCtxSlice'
+import gestureReducer from './slices/gestureSlice'
 import { persistenceMiddleware } from './middleware/persistenceMiddleware'
 import { historyMiddleware } from './middleware/historyMiddleware'
 import { revealPlayheadMiddleware } from './middleware/revealPlayheadMiddleware'
@@ -29,6 +30,7 @@ export const store = configureStore({
     lists: listsReducer,
     drag: dragReducer,
     dragCtx: dragCtxReducer,
+    gesture: gestureReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

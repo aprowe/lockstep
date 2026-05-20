@@ -18,6 +18,7 @@ import settingsReducer from '../../src/store/slices/settingsSlice'
 import listsReducer from '../../src/store/slices/listsSlice'
 import dragReducer from '../../src/store/slices/dragSlice'
 import dragCtxReducer from '../../src/store/slices/dragCtxSlice'
+import gestureReducer from '../../src/store/slices/gestureSlice'
 import { persistenceMiddleware } from '../../src/store/middleware/persistenceMiddleware'
 import { historyMiddleware } from '../../src/store/middleware/historyMiddleware'
 import { selectionGraphMirrorMiddleware } from '../../src/store/middleware/selectionGraphMirrorMiddleware'
@@ -38,6 +39,7 @@ export function makeStore() {
       lists: listsReducer,
       drag: dragReducer,
       dragCtx: dragCtxReducer,
+      gesture: gestureReducer,
     },
     middleware: (getDefault) =>
       getDefault({

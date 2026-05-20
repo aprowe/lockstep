@@ -3,7 +3,9 @@ import { makeStore } from '../../helpers/setup'
 import { addRegion } from '../../../src/store/slices/regionSlice'
 import { addAnchor, moveBeatAnchor } from '../../../src/store/slices/warpSlice'
 import { dragStart } from '../../../src/store/slices/dragSlice'
-import { cancelDrag, snapshotPreDragState } from '../../../src/store/thunks/dragThunks'
+import {
+  beginDrag, drag, endDrag, cancelDrag, snapshotPreDragState,
+} from '../../../src/store/thunks/dragThunks'
 import { moveRegionBounds } from '../../../src/store/thunks/regionThunks'
 import type { Region } from '../../../src/types'
 
@@ -83,5 +85,63 @@ describe('cancelDrag rollback', () => {
 
     expect(store.getState().region.regions).toEqual(regionsBefore)
     expect(store.getState().drag.active).toBe(false)
+  })
+})
+
+describe('drag lifecycle thunks (beginDrag / drag / endDrag)', () => {
+  it('beginDrag snapshots preDrag and sets activeHandle', () => {
+    const store = makeStore()
+    store.dispatch(addAnchor({ id: 1, time: 5 }))
+
+    store.dispatch(beginDrag({ handle: { kind: 'anchor-drag', anchorId: 1, space: 'input' } }))
+
+    const s = store.getState()
+    expect(s.gesture.activeHandle).toEqual({ kind: 'anchor-drag', anchorId: 1, space: 'input' })
+    expect(s.gesture.cumulativeDelta).toBe(0)
+    expect(s.gesture.modifiers).toEqual({ alt: false })
+    expect(s.drag.active).toBe(true)
+    expect(s.drag.preDrag).toBeTruthy()
+    expect(s.drag.preDrag?.origAnchors[0].time).toBe(5)
+  })
+
+  it('endDrag clears activeHandle and ends drag', () => {
+    const store = makeStore()
+    store.dispatch(addAnchor({ id: 1, time: 5 }))
+    store.dispatch(beginDrag({ handle: { kind: 'anchor-drag', anchorId: 1, space: 'input' } }))
+
+    store.dispatch(endDrag())
+
+    expect(store.getState().gesture.activeHandle).toBeNull()
+    expect(store.getState().drag.active).toBe(false)
+    expect(store.getState().drag.preDrag).toBeNull()
+  })
+
+  it('drag is a no-op when no activeHandle is set', () => {
+    const store = makeStore()
+    expect(() => store.dispatch(drag({ delta: 5, modifiers: { alt: false } }))).not.toThrow()
+    expect(store.getState().gesture.cumulativeDelta).toBe(0)
+  })
+
+  it('drag updates cumulativeDelta and modifiers when active', () => {
+    const store = makeStore()
+    store.dispatch(addAnchor({ id: 1, time: 5 }))
+    store.dispatch(beginDrag({ handle: { kind: 'anchor-drag', anchorId: 1, space: 'input' } }))
+
+    store.dispatch(drag({ delta: 3, modifiers: { alt: true } }))
+
+    const s = store.getState()
+    expect(s.gesture.cumulativeDelta).toBe(3)
+    expect(s.gesture.modifiers.alt).toBe(true)
+  })
+
+  it('cancelDrag also clears gesture state', () => {
+    const store = makeStore()
+    store.dispatch(addAnchor({ id: 1, time: 5 }))
+    store.dispatch(beginDrag({ handle: { kind: 'anchor-drag', anchorId: 1, space: 'input' } }))
+
+    store.dispatch(cancelDrag())
+
+    expect(store.getState().gesture.activeHandle).toBeNull()
+    expect(store.getState().drag.preDrag).toBeNull()
   })
 })
