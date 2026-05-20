@@ -15,9 +15,11 @@
  */
 
 import js from "@eslint/js";
+import globals from "globals";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
+import unusedImports from "eslint-plugin-unused-imports";
 import prettierConfig from "eslint-config-prettier";
 
 export default tseslint.config(
@@ -49,14 +51,25 @@ export default tseslint.config(
         languageOptions: {
             ecmaVersion: 2022,
             sourceType: "module",
+            globals: {
+                ...globals.browser,
+                ...globals.node,
+            },
+        },
+        plugins: {
+            "unused-imports": unusedImports,
         },
         rules: {
-            // TypeScript already enforces unused locals via tsconfig; let it.
-            // Keep ESLint quiet so noise doesn't drown the genuine warnings.
-            "@typescript-eslint/no-unused-vars": [
+            // Unused imports: auto-fix removable. The companion rule below
+            // (no-unused-vars) handles non-import unused identifiers.
+            "@typescript-eslint/no-unused-vars": "off",
+            "unused-imports/no-unused-imports": "warn",
+            "unused-imports/no-unused-vars": [
                 "warn",
                 {
+                    args: "after-used",
                     argsIgnorePattern: "^_",
+                    vars: "all",
                     varsIgnorePattern: "^_",
                     caughtErrorsIgnorePattern: "^_",
                 },
@@ -82,6 +95,13 @@ export default tseslint.config(
     },
 
     // React-specific rules for source files.
+    //
+    // We enable the two classic react-hooks rules explicitly rather than
+    // spreading `reactHooks.configs.recommended.rules`. The v7 recommended
+    // set also turns on a battery of React-Compiler-strict checks (refs,
+    // set-state-in-effect, purity, immutability, etc.) that would gate CI
+    // on patterns this codebase wasn't designed around. The compiler rules
+    // can be opted into later if/when we adopt the React Compiler.
     {
         files: ["src/**/*.{ts,tsx}"],
         plugins: {
@@ -89,7 +109,8 @@ export default tseslint.config(
             "react-refresh": reactRefresh,
         },
         rules: {
-            ...reactHooks.configs.recommended.rules,
+            "react-hooks/rules-of-hooks": "error",
+            "react-hooks/exhaustive-deps": "warn",
             "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
         },
     },

@@ -10,7 +10,7 @@ import {
     resetBeatLinks,
     setBeatAnchorsFromTimeline,
 } from "../../store/slices/warpSlice";
-import { selectActiveRegion, selectSelectedIdsUnion, selectWarpData } from "../../store/selectors";
+import { selectActiveRegion, selectSelectedIdsUnion } from "../../store/selectors";
 import { useDockBridge } from "../DockContext";
 import { snapAllToBeat } from "../../utils/quantize";
 import { useGesture } from "../../store/gesture";
@@ -22,7 +22,6 @@ export default function MarkersPanel() {
     const origAnchors = useAppSelector((s) => s.warp.origAnchors);
     const beatAnchors = useAppSelector((s) => s.warp.beatAnchors);
     const warpBpm = useAppSelector((s) => s.warp.bpm);
-    const warpData = useAppSelector(selectWarpData);
     const beatZeroId = useAppSelector((s) => s.warp.beatZeroId);
     const gridDiv = useAppSelector((s) => s.ui.gridDiv);
     const activeRegion = useAppSelector(selectActiveRegion);
@@ -117,7 +116,7 @@ export default function MarkersPanel() {
                 }),
             ),
         );
-    }, [dispatch, warpBpm, gridDiv, warpData, beatAnchors, selectedAnchorIdSet]);
+    }, [dispatch, warpBpm, gridDiv, beatAnchors, selectedAnchorIdSet, beatZeroId]);
 
     const onReset = useCallback(() => {
         dispatch(resetBeatLinks([...selectedAnchorIdSet]));

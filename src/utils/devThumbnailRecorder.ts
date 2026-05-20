@@ -54,7 +54,7 @@ let _startTime = 0;
 let _entries: RecordEntry[] = [];
 let _timings: number[] = [];
 let _pushCount = 0;
-let _listeners: Set<() => void> = new Set();
+const _listeners: Set<() => void> = new Set();
 
 let _snapshot: RecorderStats = {
     recording: false,

@@ -133,7 +133,8 @@ export default forwardRef<VideoPlayerHandle, VideoPlayerProps>(function VideoPla
         toggle() {
             const v = videoRef.current;
             if (!v) return;
-            playingRef.current ? v.pause() : v.play();
+            if (playingRef.current) v.pause();
+            else void v.play();
         },
         setPlaybackRate(rate: number) {
             if (videoRef.current) videoRef.current.playbackRate = rate;

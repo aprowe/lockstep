@@ -1,11 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import VideoPlayer from "./components/VideoPlayer";
 import type { VideoPlayerHandle } from "./components/VideoPlayer";
-import Filmstrip from "./components/Filmstrip";
-import WarpView from "./components/WarpView";
 import ExportProgressBar from "./components/ExportProgressBar";
 import ExportDialog from "./components/ExportDialog";
-import Toolbar from "./components/Toolbar";
 import MenuBar from "./components/MenuBar";
 import type { MenuDef, MenuEntry } from "./components/MenuBar";
 import { buildFileMenu, buildEditMenu, buildViewMenu } from "./menus";
@@ -17,13 +13,8 @@ import {
 import { stepUiScale, resetUiScale, getUiScale, UI_SCALE_STEP } from "./uiScale";
 import HudChip from "./components/HudChip";
 import { useTransientChip } from "./utils/useTransientChip";
-import { calcZoomToRegion } from "./utils/view";
-import {
-    calcNewRegionBoundsFromScenes,
-    calcNewRegionBoundsUpToNext,
-} from "./timeline/model/newRegionBounds";
-import { findPreviousTarget } from "./utils/navigation";
-import type { View } from "./types";
+
+
 import PanelDock, { PANEL_LIST, type PanelDockHandle } from "./layout/PanelDock";
 import { DockBridgeProvider } from "./layout/DockContext";
 import ContextMenu from "./components/ContextMenu";
@@ -33,10 +24,8 @@ import SettingsDialog from "./components/SettingsDialog";
 import AboutDialog from "./components/AboutDialog";
 import HotkeySheet from "./components/HotkeySheet";
 import { IconSettings, IconDropVideo } from "./components/icons";
-import { snapAllToBeat } from "./utils/quantize";
 import { undo as undoAction, redo as redoAction } from "./store/slices/historySlice";
 import {
-    setRegions as setRegionsAction,
     addRegion as addRegionAction,
     deleteRegion as deleteRegionAction,
     setActiveRegionId as setActiveRegionIdAction,
@@ -54,37 +43,18 @@ import {
     openJsonFileThunk,
 } from "./store/thunks/videoThunks";
 import { ensureSceneListener } from "./store/thunks/sceneThunks";
-import {
-    setMinGap as setSceneMinGapAction,
-    addCut as addSceneCutAction,
-    deleteCut as deleteSceneCutAction,
-} from "./store/slices/sceneSlice";
+
+
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setDetectingBpm as setDetectingBpmAction } from "./store/slices/videoSlice";
 import {
-    setOrigAnchorsFromTimeline,
-    removeAnchors,
-    resetBeatLinks,
-    clearAnchors,
-    loadAnchors,
     setBpm as setBpmAction,
-    setBeatZeroId,
     selectAll as selectAllWarp,
     deselectAll as deselectAllWarp,
-    setPlayhead as setPlayheadAction,
-    newAnchorId,
-    setBeatAnchorsFromTimeline,
 } from "./store/slices/warpSlice";
 import { selectWarpData, selectActiveRegion as selectActiveRegionRedux } from "./store/selectors";
-import { store } from "./store/store";
 import {
-    setTimelineHeight as setTimelineHeightAction,
-    setSidebarWidth as setSidebarWidthAction,
-    setRightWidth as setRightWidthAction,
-    setGridDiv as setGridDivAction,
-    setPlaying as setPlayingAction,
     setExportOpen as setExportOpenAction,
-    setView as setViewAction,
 } from "./store/slices/uiSlice";
 import "./App.css";
 
@@ -106,24 +76,33 @@ export default function App() {
 
     // ── Redux state ─────────────────────────────────────────────────────────
     const video = useAppSelector((s) => s.video.video);
-    const folderVideos = useAppSelector((s) => s.video.folderVideos);
-    const detectingBpm = useAppSelector((s) => s.video.detectingBpm);
+    const _folderVideos = useAppSelector((s) => s.video.folderVideos);
+    const _detectingBpm = useAppSelector((s) => s.video.detectingBpm);
     const regions = useAppSelector((s) => s.region.regions);
     const activeRegionId = useAppSelector((s) => s.region.activeRegionId);
     const activeRegion = useAppSelector(selectActiveRegionRedux);
-    const view = useAppSelector((s) => s.ui.view);
-    const videoPath = video?.path ?? null;
+    const _view = useAppSelector((s) => s.ui.view);
+    const _videoPath = video?.path ?? null;
 
     // ── Dispatch helpers ────────────────────────────────────────────────────
-    const openFile = () => dispatch(openFileThunk());
-    const openFolder = () => dispatch(openFolderThunk());
-    const loadFolderFromPath = (p: string) => dispatch(loadFolderFromPathThunk(p));
-    const selectVideo = (p: string) => dispatch(selectVideoThunk(p));
-    const closeVideo = () => dispatch(closeVideoThunk());
-    const resetVideoData = () => dispatch(resetVideoDataThunk());
-    const openJsonFile = () => dispatch(openJsonFileThunk());
-    const setDetectingBpm = (v: boolean) => dispatch(setDetectingBpmAction(v));
-    const addRegion = (inPoint: number, outPoint: number) => {
+    // Wrapped in useCallback so they're referentially stable across renders.
+    // The downstream useMemo / useCallback hooks that depend on these would
+    // otherwise recompute every render, defeating their memoization.
+    const openFile = useCallback(() => dispatch(openFileThunk()), [dispatch]);
+    const openFolder = useCallback(() => dispatch(openFolderThunk()), [dispatch]);
+    const loadFolderFromPath = useCallback(
+        (p: string) => dispatch(loadFolderFromPathThunk(p)),
+        [dispatch],
+    );
+    const selectVideo = useCallback((p: string) => dispatch(selectVideoThunk(p)), [dispatch]);
+    const closeVideo = useCallback(() => dispatch(closeVideoThunk()), [dispatch]);
+    const resetVideoData = useCallback(() => dispatch(resetVideoDataThunk()), [dispatch]);
+    const openJsonFile = useCallback(() => dispatch(openJsonFileThunk()), [dispatch]);
+    const setDetectingBpm = useCallback(
+        (v: boolean) => dispatch(setDetectingBpmAction(v)),
+        [dispatch],
+    );
+    const _addRegion = (inPoint: number, outPoint: number) => {
         const id = `region_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
         const name = `Clip ${regions.length + 1}`;
         dispatch(
@@ -142,7 +121,7 @@ export default function App() {
         );
         return id;
     };
-    const duplicateRegion = (srcId: string) => {
+    const _duplicateRegion = (srcId: string) => {
         const src = regions.find((r) => r.id === srcId);
         if (!src) return null;
         const span = src.outPoint - src.inPoint;
@@ -164,13 +143,13 @@ export default function App() {
         );
         return id;
     };
-    const deleteRegion = (id: string) => dispatch(deleteRegionAction(id));
-    const setActiveRegionId = (id: string | null) => dispatch(setActiveRegionIdAction(id));
-    const updateRegionInOut = (id: string, inP: number, outP: number) =>
+    const _deleteRegion = (id: string) => dispatch(deleteRegionAction(id));
+    const _setActiveRegionId = (id: string | null) => dispatch(setActiveRegionIdAction(id));
+    const _updateRegionInOut = (id: string, inP: number, outP: number) =>
         dispatch(updateRegionInOutAction({ id, inPoint: inP, outPoint: outP }));
-    const updateRegionBeatTimes = (id: string, inBT: number, outBT: number) =>
+    const _updateRegionBeatTimes = (id: string, inBT: number, outBT: number) =>
         dispatch(updateRegionBeatTimesAction({ id, inBeatTime: inBT, outBeatTime: outBT }));
-    const renameRegion = (id: string, name: string) => dispatch(renameRegionAction({ id, name }));
+    const _renameRegion = (id: string, name: string) => dispatch(renameRegionAction({ id, name }));
     const exportOpen = useAppSelector((s) => s.ui.exportOpen);
     const setExportOpen = (v: boolean) => dispatch(setExportOpenAction(v));
     const selectedClipinIds = useAppSelector((s) => s.lists.selection.clipin);
@@ -242,7 +221,7 @@ export default function App() {
         [dispatch],
     );
 
-    const rDragStart = useRef<{ x: number; w: number } | null>(null);
+    const _rDragStart = useRef<{ x: number; w: number } | null>(null);
 
     // Imperative handle into PanelDock — lets the View menu reset the layout
     // and toggle individual panels. Visible panel ids re-render the menu so the
@@ -299,7 +278,7 @@ export default function App() {
                                 const { readJsonSidecarForVideo } = await import("./api/warp");
                                 const { videoInfo } = await readJsonSidecarForVideo(firstJson);
                                 await selectVideo(videoInfo.path);
-                            } catch (err: any) {
+                            } catch (err: unknown) {
                                 if (!String(err).includes("cancelled"))
                                     console.error("JSON drop failed:", err);
                             }
@@ -317,7 +296,7 @@ export default function App() {
         return () => {
             unlisten?.();
         };
-    }, [selectVideo, loadFolderFromPath]);
+    }, [selectVideo, loadFolderFromPath, dispatch]);
 
     // ── Theme: mirror settings.theme onto <html data-theme="…"> so the
     //     theme tokens cascade. Settings are persisted in localStorage by the
@@ -345,24 +324,30 @@ export default function App() {
 
     // ── BPM handlers ──────────────────────────────────────────────────────────
 
-    const playhead = useAppSelector((s) => s.warp.playhead);
+    const _playhead = useAppSelector((s) => s.warp.playhead);
     const warpData = useAppSelector(selectWarpData);
     const origAnchors = useAppSelector((s) => s.warp.origAnchors);
-    const beatAnchorsForSnap = useAppSelector((s) => s.warp.beatAnchors);
+    const _beatAnchorsForSnap = useAppSelector((s) => s.warp.beatAnchors);
     const warpBpm = useAppSelector((s) => s.warp.bpm);
 
-    const handleBpmChange = useCallback((bpm: number) => {
-        dispatch(setBpmAction(bpm));
-    }, []);
+    const _handleBpmChange = useCallback(
+        (bpm: number) => {
+            dispatch(setBpmAction(bpm));
+        },
+        [dispatch],
+    );
 
-    const handleBpmDetect = useCallback(async () => {
+    const _handleBpmDetect = useCallback(async () => {
         if (origAnchors.length < 2) return;
         setDetectingBpm(true);
         try {
             const { analyzeAnchors } = await import("./api/warp");
             const data = await analyzeAnchors(origAnchors.map((a) => a.time));
             if (data.bpm && data.bpm > 0) dispatch(setBpmAction(data.bpm));
-        } catch {}
+        } catch {
+            // analyzeAnchors failed (no anchors, or backend error). Best-effort
+            // BPM detection — fall through to clear the loading state.
+        }
         setDetectingBpm(false);
     }, [setDetectingBpm, origAnchors, dispatch]);
 
@@ -416,7 +401,7 @@ export default function App() {
                 deselect: () => dispatch(deselectAllWarp()),
                 openSettings: () => setSettingsOpen(true),
             }),
-        [video, anchorCount],
+        [video, anchorCount, dispatch],
     );
 
     const viewMenu: MenuDef = useMemo(
@@ -458,10 +443,10 @@ export default function App() {
 
     const canExport = !!video;
 
-    const clipIn = activeRegion?.inPoint ?? undefined;
-    const clipOut = activeRegion?.outPoint ?? undefined;
-    const clipInBeatTime = activeRegion?.inBeatTime;
-    const clipOutBeatTime = activeRegion?.outBeatTime;
+    const _clipIn = activeRegion?.inPoint ?? undefined;
+    const _clipOut = activeRegion?.outPoint ?? undefined;
+    const _clipInBeatTime = activeRegion?.inBeatTime;
+    const _clipOutBeatTime = activeRegion?.outBeatTime;
 
     // ── Render ─────────────────────────────────────────────────────────────────
 

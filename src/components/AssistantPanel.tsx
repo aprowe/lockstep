@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppSelector } from "../store/hooks";
 import { runAssistant } from "../assistant";
 import type { TranscriptEntry } from "../assistant/types";
@@ -55,8 +55,9 @@ export default function AssistantPanel() {
                     setEntries((prev) => mergeEntry(prev, entry));
                 },
             });
-        } catch (e: any) {
-            const msg = typeof e === "string" ? e : (e?.message ?? String(e));
+        } catch (e: unknown) {
+            const msg =
+                typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
             setEntries((prev) => [...prev, { kind: "error", text: msg }]);
         } finally {
             abortRef.current = null;

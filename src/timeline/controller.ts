@@ -557,7 +557,7 @@ function handleRegionMoveMove(
     const rawIn = drag.origIn + (raw - pxToT(drag.anchorX, snap));
     const rawOut = rawIn + dur;
     const newIn = Math.max(0, Math.min(MAX - dur, rawIn));
-    const newOut = newIn + dur;
+    const _newOut = newIn + dur;
     // Body-pan hints: pass the OTHER edge as bodyOtherEdge so evaluateSnap
     // considers cross-edge alignment.
     const inHints = constraintSnapHints(snap, moveEntityId, "in", rawIn, rawOut) ?? [];

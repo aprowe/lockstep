@@ -6,7 +6,6 @@ import {
     checkVideoSidecar,
     deleteVideoSidecar,
     openJsonFile as openJsonFileApi,
-    readJsonSidecarForVideo,
     loadLlcProject,
 } from "../../api/warp";
 import {
@@ -16,7 +15,6 @@ import {
     setMarkerCount,
     setClipCount,
     setMarkersLoaded,
-    setDetectingBpm,
 } from "../slices/videoSlice";
 import {
     loadAnchors,
@@ -62,7 +60,7 @@ export const openFileThunk = createAsyncThunk(
 
             const state = await loadMarkersForVideo(info.path);
             applyLoadedState(dispatch, getState, state, info.path, preLoadEntry);
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("Failed to open file:", e);
         }
     },
@@ -92,9 +90,11 @@ export const openFolderThunk = createAsyncThunk("video/openFolder", async (_, { 
                     type: "video/updateClipCount",
                     payload: { path: entry.path, count: clipCount },
                 });
-            } catch {}
+            } catch {
+                // Per-entry sidecar read failure — leave count at 0, keep going.
+            }
         }
-    } catch (e: any) {
+    } catch (e: unknown) {
         console.error("Failed to open folder:", e);
     }
 });
@@ -126,9 +126,11 @@ export const loadFolderFromPathThunk = createAsyncThunk(
                         type: "video/updateClipCount",
                         payload: { path: entry.path, count: clipCount },
                     });
-                } catch {}
+                } catch {
+                    // Per-entry sidecar read failure — leave counts at 0, keep going.
+                }
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("Failed to load folder from path:", e);
         }
     },
@@ -149,7 +151,7 @@ export const selectVideoThunk = createAsyncThunk(
 
             const state = await loadMarkersForVideo(info.path);
             applyLoadedState(dispatch, getState, state, info.path, preLoadEntry);
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("Failed to select video:", e);
         }
     },
@@ -176,7 +178,7 @@ export const resetVideoDataThunk = createAsyncThunk(
         dispatch(setActiveRegionId(null));
         dispatch(setGlobalMarkers(null));
 
-        const emptyState: SavedVideoState = {
+        const _emptyState: SavedVideoState = {
             version: 2,
             defaultRegion: {
                 origAnchors: [],
@@ -189,7 +191,9 @@ export const resetVideoDataThunk = createAsyncThunk(
         };
         try {
             await deleteVideoSidecar(vid.path);
-        } catch {}
+        } catch {
+            // No sidecar to delete (already gone or never existed) — fine.
+        }
     },
 );
 
@@ -208,7 +212,7 @@ export const openJsonFileThunk = createAsyncThunk(
             dispatch(setActiveRegionId(null));
             dispatch(setMarkersLoaded(false));
             applyLoadedState(dispatch, getState, savedState, info.path, preLoadEntry);
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("Failed to open JSON file:", e);
         }
     },
@@ -255,15 +259,15 @@ export const openLlcProjectThunk = createAsyncThunk(
             }));
             dispatch(setRegions(regions));
             dispatch(setActiveRegionId(null));
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("Failed to open .llc project:", e);
         }
     },
 );
 
-/** Apply loaded SavedVideoState to Redux */
+/** Apply loaded SavedVideoState to Redux. */
 function applyLoadedState(
-    dispatch: any,
+    dispatch: (action: unknown) => void,
     getState: () => unknown,
     state: SavedVideoState | null,
     videoPath: string,
@@ -283,7 +287,11 @@ function applyLoadedState(
         dispatch(setMaxStretch(dr.maxStretch ?? 2.0));
     }
 
-    // Migrate regions — setRegions backfills missing defaultLinked/inBeatTime/outBeatTime
+    // Migrate regions — setRegions backfills missing defaultLinked / inBeatTime /
+    // outBeatTime for sidecars saved before those fields existed. The `any` cast
+    // is deliberate: disk payloads may have fields missing entirely (legacy v1
+    // snapshots), and the `??` defaults below fill them in.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const loadedRegions: Region[] = (state?.regions ?? []).map((r: any) => ({
         id: r.id,
         name: r.name,

@@ -58,8 +58,9 @@ export async function callTool(name: string, args: unknown, ctx: ToolContext): P
     }
     try {
         return await t.handler(args, ctx);
-    } catch (e: any) {
-        const message = typeof e === "string" ? e : (e?.message ?? String(e));
+    } catch (e: unknown) {
+        const message =
+            typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
         return {
             blocks: [{ type: "text", text: `Tool "${name}" failed: ${message}` }],
             isError: true,

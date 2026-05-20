@@ -14,7 +14,6 @@ import {
 } from "../../store/slices/regionSlice";
 import { setExportOpen as setExportOpenAction } from "../../store/slices/uiSlice";
 import { setListSelection, setPendingEdit } from "../../store/slices/listsSlice";
-import { calcNewRegionBoundsFromScenes } from "../../timeline/model/newRegionBounds";
 import { visibleSceneCuts } from "../../utils/sceneFilter";
 import { useDockBridge } from "../DockContext";
 
@@ -34,8 +33,8 @@ export default function ClipsPanel() {
     const video = useAppSelector((s) => s.video.video);
     const regions = useAppSelector((s) => s.region.regions);
     const activeRegionId = useAppSelector((s) => s.region.activeRegionId);
-    const playhead = useAppSelector((s) => s.warp.playhead);
-    const view = useAppSelector((s) => s.ui.view);
+    const _playhead = useAppSelector((s) => s.warp.playhead);
+    const _view = useAppSelector((s) => s.ui.view);
     const warpBpm = useAppSelector((s) => s.warp.bpm);
     const videoPath = video?.path;
     const sceneCuts = useAppSelector(
@@ -46,7 +45,7 @@ export default function ClipsPanel() {
     );
     const sceneMinGap =
         useAppSelector((s) => (video ? s.scene.minGapByPath[video.path] : undefined)) ?? 2;
-    const visibleCuts = useMemo(
+    const _visibleCuts = useMemo(
         () => visibleSceneCuts(sceneCuts, userSceneCuts, sceneMinGap),
         [sceneCuts, userSceneCuts, sceneMinGap],
     );
@@ -71,7 +70,7 @@ export default function ClipsPanel() {
         getRange: getClipRange,
     });
 
-    const addRegion = useCallback(
+    const _addRegion = useCallback(
         (inPoint: number, outPoint: number) => {
             const id = `region_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
             const name = `Clip ${regions.length + 1}`;

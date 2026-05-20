@@ -47,7 +47,6 @@ import {
     setRegionInEdgeOp,
     setRegionOutEdgeOp,
 } from "../graphBridge";
-import { selectActiveRegion } from "../selectors";
 import { effectiveBeatBounds } from "../../timeline/model/effectiveBounds";
 import { commitLinkingEvent } from "../../timeline/model/linkingEvent";
 import { clampRegionInOut } from "../../timeline/model/clampRegion";

@@ -38,9 +38,10 @@ function requireVideoAndKey() {
 
 // ── analyze_video ───────────────────────────────────────────────────────────
 
-const analyzeVideo: ToolHandler = async (args: any, { log, signal }) => {
+const analyzeVideo: ToolHandler = async (args: unknown, { log, signal }) => {
     const { video, apiKey, model } = requireVideoAndKey();
-    const prompt = typeof args?.prompt === "string" ? args.prompt : "";
+    const a = (args ?? {}) as { prompt?: unknown };
+    const prompt = typeof a.prompt === "string" ? a.prompt : "";
     if (!prompt) throw new Error('missing string arg "prompt"');
 
     log("uploading video to Gemini…");
@@ -98,13 +99,14 @@ interface RawSegment {
     confidence?: number;
 }
 
-const findVideoSegments: ToolHandler = async (args: any, { log, signal }) => {
+const findVideoSegments: ToolHandler = async (args: unknown, { log, signal }) => {
     const { video, apiKey, model } = requireVideoAndKey();
-    const query = typeof args?.query === "string" ? args.query : "";
+    const a = (args ?? {}) as { query?: unknown; max_segments?: unknown };
+    const query = typeof a.query === "string" ? a.query : "";
     if (!query) throw new Error('missing string arg "query"');
     const maxSegments =
-        typeof args?.max_segments === "number"
-            ? Math.max(1, Math.min(50, Math.floor(args.max_segments)))
+        typeof a.max_segments === "number"
+            ? Math.max(1, Math.min(50, Math.floor(a.max_segments)))
             : 20;
 
     log("uploading video to Gemini…");

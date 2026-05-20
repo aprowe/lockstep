@@ -6,7 +6,7 @@ import { TICK_RULER_THEMES } from "./themes.js";
 import type { TickRulerTheme, TickRulerThemeName } from "./themes";
 import "./TickRuler.css";
 
-type Mode = "bars" | "time";
+type _Mode = "bars" | "time";
 
 interface CommonProps {
     /** pixels per unit. bars: per beat. time: per second. */
@@ -69,6 +69,7 @@ export default function TickRuler(props: TickRulerProps) {
     const defaultZMax = props.mode === "time" ? 1000 : 600;
     const zMin = props.zoomMin ?? defaultZMin;
     const zMax = props.zoomMax ?? defaultZMax;
+    const beatsPerBar = "beatsPerBar" in props ? props.beatsPerBar : undefined;
 
     // Draw whenever inputs change.
     useEffect(() => {
@@ -92,14 +93,7 @@ export default function TickRuler(props: TickRulerProps) {
         const ro = new ResizeObserver(draw);
         ro.observe(canvas);
         return () => ro.disconnect();
-    }, [
-        props.mode,
-        props.zoom,
-        props.scroll,
-        props.playhead,
-        props.theme,
-        "beatsPerBar" in props ? props.beatsPerBar : undefined,
-    ]);
+    }, [props.mode, props.zoom, props.scroll, props.playhead, props.theme, beatsPerBar]);
 
     function pxToUnit(px: number) {
         return (px + propsRef.current.scroll) / propsRef.current.zoom;
@@ -172,6 +166,9 @@ export default function TickRuler(props: TickRulerProps) {
             window.removeEventListener("mousemove", move);
             window.removeEventListener("mouseup", up);
         };
+        // emitSeek reads from propsRef (always-current); re-registering
+        // window listeners on every render would break drag tracking.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     function onWheel(e: React.WheelEvent<HTMLCanvasElement>) {

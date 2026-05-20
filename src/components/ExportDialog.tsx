@@ -462,14 +462,14 @@ export default function ExportDialog({
                         });
                         savedSoFar += 1;
                         setSavedCount(savedSoFar);
-                    } catch (e: any) {
-                        const msg = `${job.label} (save): ${e.message ?? String(e)}`;
+                    } catch (e: unknown) {
+                        const msg = `${job.label} (save): ${e instanceof Error ? e.message : String(e)}`;
                         if (!firstError) firstError = msg;
                         setLogLines((prev) => [...prev, `ERROR — ${msg}`]);
                     }
                 }
-            } catch (e: any) {
-                const msg = `${job.label}: ${e.message ?? String(e)}`;
+            } catch (e: unknown) {
+                const msg = `${job.label}: ${e instanceof Error ? e.message : String(e)}`;
                 if (!firstError) firstError = msg;
                 setLogLines((prev) => [...prev, `ERROR — ${msg}`]);
                 // Continue with the remaining jobs — earlier successes stay saved.
@@ -510,8 +510,8 @@ export default function ExportDialog({
                 });
             setSavedCount((prev) => prev + 1);
             setSavedFolder(parentFolder(savedPath));
-        } catch (e: any) {
-            if (!String(e).includes("cancelled")) setError(e.message ?? String(e));
+        } catch (e: unknown) {
+            if (!String(e).includes("cancelled")) setError(e instanceof Error ? e.message : String(e));
         } finally {
             setSaving(false);
         }
@@ -546,8 +546,8 @@ export default function ExportDialog({
             }
             setSavedCount(outputPaths.length);
             if (lastFolder) setSavedFolder(lastFolder);
-        } catch (e: any) {
-            if (!String(e).includes("cancelled")) setError(e.message ?? String(e));
+        } catch (e: unknown) {
+            if (!String(e).includes("cancelled")) setError(e instanceof Error ? e.message : String(e));
         } finally {
             setSaving(false);
         }

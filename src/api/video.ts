@@ -52,7 +52,7 @@ export async function openVideo(): Promise<VideoInfo | null> {
     try {
         const raw = await invoke<RawVideoInfo>("open_video");
         return rawToVideoInfo(raw);
-    } catch (e: any) {
+    } catch (e: unknown) {
         if (e === "cancelled" || String(e).includes("cancelled")) return null;
         throw e;
     }
@@ -65,7 +65,7 @@ export async function openVideo(): Promise<VideoInfo | null> {
 export async function openFolder(): Promise<VideoEntry[] | null> {
     try {
         return await invoke<VideoEntry[]>("open_folder");
-    } catch (e: any) {
+    } catch (e: unknown) {
         if (e === "cancelled" || String(e).includes("cancelled")) return null;
         throw e;
     }

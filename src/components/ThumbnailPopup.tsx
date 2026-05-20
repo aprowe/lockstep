@@ -29,6 +29,7 @@ export function ThumbnailHoverProvider({ children }: { children: ReactNode }) {
 
 const NOOP_SET: (h: HoverState | null) => void = () => {};
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSetThumbnailHover() {
     const ctx = useContext(ThumbnailHoverContext);
     return ctx?.setHovered ?? NOOP_SET;

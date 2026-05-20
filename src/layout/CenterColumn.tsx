@@ -18,7 +18,6 @@ import {
 } from "../store/slices/regionSlice";
 import {
     setPlaying as setPlayingAction,
-    setExportOpen as setExportOpenAction,
     setView as setViewAction,
     setTimelineHeight as setTimelineHeightAction,
     setPlaybackLoopMode as setPlaybackLoopModeAction,
@@ -133,7 +132,7 @@ export default function CenterColumn() {
     );
     // Union of orig + beat selected anchor ids — used for Delete key handling,
     // region thunks, and the marker panel's selectedIdsOverride.
-    const selectedAnchorIds = useAppSelector(selectSelectedIdsUnion);
+    const _selectedAnchorIds = useAppSelector(selectSelectedIdsUnion);
     // Lasso-driven scene-cut selection — lives in sceneSlice (not lists.selection
     // because scene rows in the panel address segments, not cuts; conflating the
     // two would make panel checkboxes reflect timeline lasso state).
@@ -229,7 +228,7 @@ export default function CenterColumn() {
         };
         // Re-attach whenever the video element changes (new src load) or mode changes.
         // Anchor changes are picked up via refs — no need to re-run the effect.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [playerRef, playbackMode, video?.path]);
 
     // ── Empty / loading state ─────────────────────────────────────────────────

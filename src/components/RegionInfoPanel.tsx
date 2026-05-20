@@ -4,7 +4,7 @@ import type { EffectiveBeatBounds } from "../timeline/model/effectiveBounds";
 import { IconLockClosed, IconLockOpen, IconDetectBPM, IconRename } from "./icons";
 import "./RegionInfoPanel.css";
 
-type LockTarget = "bpm" | "beats";
+type _LockTarget = "bpm" | "beats";
 
 interface RegionInfoPanelProps {
     activeRegion: Region | null;
@@ -133,7 +133,7 @@ export default function RegionInfoPanel({
                 onBpmChange(newBpm);
             }
         }
-    }, [regionSpan, activeRegion, lock, bpm, onBpmChange]);
+    }, [regionSpan, activeRegion, lock, bpm, onBpmChange, lockedBeats]);
 
     // When user switches to 'beats' lock, snapshot current beats
     const handleLockToggle = () => {
@@ -239,7 +239,7 @@ export default function RegionInfoPanel({
 
     // ── Beat adjustment helpers ─────────────────────────────
 
-    const adjustBeats = (newBeats: number) => {
+    const _adjustBeats = (newBeats: number) => {
         if (!activeRegion || beat <= 0 || newBeats < 0.5) return;
         applyBeatCount(newBeats);
     };

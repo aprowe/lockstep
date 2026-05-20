@@ -29,13 +29,13 @@ import { reduce } from "../../../src/constraints/resolver";
 import { SNAP_RULES } from "../../../src/constraints/snap-rules";
 
 // Constraint infra
-import { OpKind, ConstraintKind, PairMode } from "../../../src/constraints/types";
+import { OpKind } from "../../../src/constraints/types";
 import { anchorInId, anchorOutId, regionInId, regionOutId } from "../../../src/constraints/ids";
 
 // ─── Slice fixture builders ────────────────────────────────────────────────────
 
 type SliceRegion = PipelineSlice["region"]["regions"][number];
-type SliceAnchor = PipelineSlice["warp"]["origAnchors"][number];
+type _SliceAnchor = PipelineSlice["warp"]["origAnchors"][number];
 
 function emptySlice(): PipelineSlice {
     return {

@@ -32,7 +32,7 @@ export async function mockTauri(page: Page, handlers: CommandHandlers = {}) {
         w.__TAURI_INTERNALS__ = {
             invoke: async (cmd: string) => {
                 if (!handlerNames.includes(cmd)) {
-                    // eslint-disable-next-line no-console
+                     
                     console.warn("[tauri-mock] unhandled command:", cmd);
                     return null;
                 }

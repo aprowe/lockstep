@@ -100,8 +100,9 @@ export const detectScenesThunk = createAsyncThunk<
                 window: validWindow,
             }),
         );
-    } catch (e: any) {
-        dispatch(setError({ path, error: String(e?.message ?? e) }));
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        dispatch(setError({ path, error: msg }));
     }
 });
 

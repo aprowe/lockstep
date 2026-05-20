@@ -258,6 +258,11 @@ const PanelDock = forwardRef<PanelDockHandle, PanelDockProps>(function PanelDock
                 return api.panels.map((p) => p.id).filter((id) => id !== "center");
             },
         }),
+        // emitPanels is a stable closure over apiRef + onPanelsChange; the
+        // latter is the only thing that semantically affects the imperative
+        // handle. Adding emitPanels here would force a new handle identity
+        // on every render and tear down whatever holds the imperative ref.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         [onPanelsChange],
     );
 
@@ -305,6 +310,7 @@ const PanelDock = forwardRef<PanelDockHandle, PanelDockProps>(function PanelDock
 
 export default PanelDock;
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const PANEL_LIST: Array<{ id: string; title: string }> = [
     ...SIDE_PANEL_IDS.map((id) => ({ id, title: PANEL_TITLES[id] })),
     ...(SHOW_THUMB_RECORDER

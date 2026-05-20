@@ -42,7 +42,7 @@ import "./CanvasTimeline.css";
 const BG0 = "#0d0b09";
 const BG2 = "#171410";
 const BGWARP = "#13151c";
-const BLACK = "#000000";
+const _BLACK = "#000000";
 const FG1 = "#e2dbd2";
 const FG3 = "#a09488";
 const FG4 = "#7a6e62";
@@ -51,18 +51,18 @@ const SP_INPUT = "hsl(195,75%,55%)";
 const SP_WARP = "hsl(32,90%,55%)";
 const SP_OUTPUT = "hsl(280,55%,60%)";
 
-const MARKER_COLOR = "hsl(195,75%,55%)";
+const _MARKER_COLOR = "hsl(195,75%,55%)";
 const MARKER_HOVER = "hsl(195,75%,78%)";
 const PLAYHEAD_COL = "hsl(0,90%,65%)";
-const PLAYHEAD_GLOW = "hsla(0,90%,65%,0.22)";
+const _PLAYHEAD_GLOW = "hsla(0,90%,65%,0.22)";
 const SCENE_COLOR = "hsl(48,95%,62%)";
-const THROUGH_COLOR = "hsla(195,85%,75%,0.5)";
-const THROUGH_HOVER = "hsla(195,85%,70%,0.85)";
-const BAR_TICK = "rgba(226,219,210,0.75)";
-const BEAT_TICK = "rgba(160,148,136,0.5)";
-const SUB_TICK = "rgba(90,78,66,0.7)";
-const GRID_BAR = "rgba(226,219,210,0.14)";
-const GRID_BEAT = "rgba(226,219,210,0.07)";
+const _THROUGH_COLOR = "hsla(195,85%,75%,0.5)";
+const _THROUGH_HOVER = "hsla(195,85%,70%,0.85)";
+const _BAR_TICK = "rgba(226,219,210,0.75)";
+const _BEAT_TICK = "rgba(160,148,136,0.5)";
+const _SUB_TICK = "rgba(90,78,66,0.7)";
+const _GRID_BAR = "rgba(226,219,210,0.14)";
+const _GRID_BEAT = "rgba(226,219,210,0.07)";
 
 // CLIP_PALETTE and clipHsl are defined in ../timeline/palette.ts (shared with WarpView).
 
@@ -165,7 +165,7 @@ export interface CanvasTimelineProps {
 }
 
 // ── SNAP ──────────────────────────────────────────────────
-function snapTime(t: number, interval?: number, offset = 0): number {
+function _snapTime(t: number, interval?: number, offset = 0): number {
     if (!interval || interval <= 0) return t;
     return Math.round((t - offset) / interval) * interval + offset;
 }
@@ -365,7 +365,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
 
         const view = lerpedView.current ?? p.view;
         const tX = (t: number) => ((t - view.start) / (view.end - view.start)) * W;
-        const xToT = (x: number) => view.start + (x / W) * (view.end - view.start);
+        const _xToT = (x: number) => view.start + (x / W) * (view.end - view.start);
 
         // Pull live drag state from the controller for lasso + gesture helpers.
         // The slice (p.anchors / p.regions / p.beatAnchors / p.regionsOutput) is
@@ -396,7 +396,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
         const anchorPairs = buildAnchorPairs(anchors, beatAnchors);
 
         // True when an anchor (input or beat) is currently being dragged.
-        const anchorsDragging = dragState?.kind === "anchor";
+        const _anchorsDragging = dragState?.kind === "anchor";
 
         // Beat grid origin: read from slice (p.beatOffset = effectiveBounds.inBeatTime).
         // Previously this had an `anchorsDragging && clipInAnchor` branch that
@@ -1867,6 +1867,11 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
             window.removeEventListener("blur", onPointerCancelOrBlur);
             window.removeEventListener("keydown", onKeyDownEscape);
         };
+        // applyIntents / makeSnapshot are stable closures over the current
+        // render — re-registering window listeners on every change defeats
+        // the point of the effect. hoverTrackId is the only thing that
+        // semantically requires re-registration.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [hoverTrackId]);
 
     const inpRange = (() => {

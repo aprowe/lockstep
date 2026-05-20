@@ -35,19 +35,22 @@ function requireVideo(state: ReturnType<typeof import("../store/store").store.ge
     return v;
 }
 
-function requireString(args: any, key: string): string {
-    const v = args?.[key];
+function asRecord(args: unknown): Record<string, unknown> {
+    return (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
+}
+function requireString(args: unknown, key: string): string {
+    const v = asRecord(args)[key];
     if (typeof v !== "string" || v.length === 0) throw new Error(`missing string arg "${key}"`);
     return v;
 }
-function requireNumber(args: any, key: string): number {
-    const v = args?.[key];
+function requireNumber(args: unknown, key: string): number {
+    const v = asRecord(args)[key];
     if (typeof v !== "number" || !Number.isFinite(v))
         throw new Error(`missing number arg "${key}"`);
     return v;
 }
-function optNumber(args: any, key: string): number | undefined {
-    const v = args?.[key];
+function optNumber(args: unknown, key: string): number | undefined {
+    const v = asRecord(args)[key];
     return typeof v === "number" && Number.isFinite(v) ? v : undefined;
 }
 
@@ -75,11 +78,12 @@ const listVideosInFolder: ToolHandler = async (_args, { store }) => {
     });
 };
 
-const listRegions: ToolHandler = async (args: any, { store }) => {
+const listRegions: ToolHandler = async (args: unknown, { store }) => {
     const state = store.getState();
     const v = requireVideo(state);
     const regions = state.region.regions;
-    const q = typeof args?.query === "string" ? args.query.toLowerCase() : null;
+    const rawQ = asRecord(args).query;
+    const q = typeof rawQ === "string" ? rawQ.toLowerCase() : null;
     const filtered = q ? regions.filter((r) => r.name.toLowerCase().includes(q)) : regions;
     return json({
         videoPath: v.path,
@@ -124,7 +128,7 @@ const listScenes: ToolHandler = async (_args, { store }) => {
     });
 };
 
-const seekTo: ToolHandler = async (args: any, _ctx) => {
+const seekTo: ToolHandler = async (args: unknown, _ctx) => {
     const t = requireNumber(args, "time");
     // We don't have a direct dispatch for the player; the playhead in warp slice
     // reflects the player but doesn't drive it. Tools can't grab the player ref
@@ -138,7 +142,7 @@ const seekTo: ToolHandler = async (args: any, _ctx) => {
 
 // ── Vision tool ─────────────────────────────────────────────────────────────
 
-const extractFrameTool: ToolHandler = async (args: any, { store, log }) => {
+const extractFrameTool: ToolHandler = async (args: unknown, { store, log }) => {
     const state = store.getState();
     const v = requireVideo(state);
     const t = requireNumber(args, "time");
@@ -158,7 +162,7 @@ const extractFrameTool: ToolHandler = async (args: any, { store, log }) => {
 
 // ── Mutation tools ──────────────────────────────────────────────────────────
 
-const addRegionTool: ToolHandler = async (args: any, { store, log }) => {
+const addRegionTool: ToolHandler = async (args: unknown, { store, log }) => {
     const state = store.getState();
     const v = requireVideo(state);
     const name = requireString(args, "name");
@@ -188,7 +192,7 @@ const addRegionTool: ToolHandler = async (args: any, { store, log }) => {
     return json({ id, name, inPoint, outPoint, bpm });
 };
 
-const addMarkerTool: ToolHandler = async (args: any, { store, log }) => {
+const addMarkerTool: ToolHandler = async (args: unknown, { store, log }) => {
     const state = store.getState();
     const v = requireVideo(state);
     const time = requireNumber(args, "time");
@@ -201,7 +205,7 @@ const addMarkerTool: ToolHandler = async (args: any, { store, log }) => {
     return json({ id, time });
 };
 
-const addSceneCutTool: ToolHandler = async (args: any, { store, log }) => {
+const addSceneCutTool: ToolHandler = async (args: unknown, { store, log }) => {
     const state = store.getState();
     const v = requireVideo(state);
     const time = requireNumber(args, "time");
@@ -213,7 +217,7 @@ const addSceneCutTool: ToolHandler = async (args: any, { store, log }) => {
     return json({ time });
 };
 
-const openVideoTool: ToolHandler = async (args: any, { store, log }) => {
+const openVideoTool: ToolHandler = async (args: unknown, { store, log }) => {
     const path = requireString(args, "path");
     log(`opening ${path}`);
     await store.dispatch(selectVideoThunk(path));

@@ -41,14 +41,12 @@ import {
     setBeatZeroId,
     setSelectedOrigIds as setSelectedOrigIdsAction,
     setSelectedBeatIds as setSelectedBeatIdsAction,
-    setSelectedBothIds as setSelectedBothIdsAction,
     newAnchorId,
 } from "../store/slices/warpSlice";
 import { setView as setReduxView, setWarpCollapsed, setGridDiv } from "../store/slices/uiSlice";
 import { moveAnchors, moveBeatAnchors } from "../store/thunks/regionThunks";
 import { applyAnchorEntityMove, applyRegionEntityMove } from "../store/thunks/entityWriteThunks";
 import { beginReplayFrame } from "../constraints/pipelineDispatch";
-import { snapToSiblings } from "../constraints/recipes";
 import {
     origToBeat as beatMapOrigToBeat,
     beatToOrig as beatMapBeatToOrig,
@@ -134,7 +132,7 @@ export default function WarpView({
     const globalBpm = useAppSelector((s) => s.warp.bpm);
     const activeRegionBpm = useAppSelector((s) => selectActiveRegion(s)?.bpm);
     const bpm = activeRegionBpm ?? globalBpm;
-    const beatZeroId = useAppSelector((s) => s.warp.beatZeroId);
+    const _beatZeroId = useAppSelector((s) => s.warp.beatZeroId);
     const playhead = useAppSelector((s) => s.warp.playhead);
     const gridDiv = useAppSelector((s) => s.ui.gridDiv);
     const smoothPan = useAppSelector((s) => s.settings.smoothPan);
@@ -162,7 +160,7 @@ export default function WarpView({
     const anchorLock = useAppSelector((s) => s.ui.anchorLock);
     const lockMode = useAppSelector((s) => s.ui.lockMode);
     const constraintGraph = useAppSelector(selectConstraintGraph);
-    const constraintEntities = constraintGraph.entities;
+    const _constraintEntities = constraintGraph.entities;
 
     // ── Local state (gestures, view, menus) ─────────────────────────────────────
     const reduxView = useAppSelector((s) => s.ui.view);

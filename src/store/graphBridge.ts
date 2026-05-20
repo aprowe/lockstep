@@ -23,7 +23,6 @@ import type {
     AddClipOp,
     DeleteOp,
     EntityId,
-    Op,
     SetEdgeOp,
     SetValueOp,
 } from "../constraints";

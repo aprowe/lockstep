@@ -19,7 +19,7 @@ import {
 } from "../slices/sceneSlice";
 import { setListSelection } from "../slices/listsSlice";
 import { calcNewRegionBoundsUpToNext } from "../../timeline/model/newRegionBounds";
-import type { Anchor, Region } from "../../types";
+import type { Anchor } from "../../types";
 
 // ── moveAnchors ───────────────────────────────────────────────────────────────
 

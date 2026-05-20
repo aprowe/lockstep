@@ -54,7 +54,7 @@ const WarpConnector = forwardRef<HTMLDivElement, WarpConnectorProps>(function Wa
         clipOut,
         beatClipIn,
         beatClipOut,
-        clipFillColor,
+        clipFillColor: _clipFillColor,
         boundaryColor,
         linkedBoundaries,
         selectedBoundaries,

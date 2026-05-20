@@ -22,7 +22,7 @@ function entry(origTimes: number[], beatTimes?: number[]): HistoryEntry {
 
 describe("pushSnapshot", () => {
     it("appends a new entry beyond the initial snapshot", () => {
-        let state = historyReducer(undefined, pushSnapshot(entry([5])));
+        const state = historyReducer(undefined, pushSnapshot(entry([5])));
         expect(state.stack).toHaveLength(2);
         expect(state.index).toBe(1);
     });
