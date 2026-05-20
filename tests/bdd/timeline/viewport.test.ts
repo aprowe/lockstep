@@ -292,10 +292,10 @@ describeFeature(feature, ({ Scenario }) => {
         });
     });
 
-    // @behavior timeline-viewport::1bf697c2
     Scenario(
         "Zoom-to-clip toggles back to the previous view on a second invoke",
         ({ Given, And, When, Then }) => {
+            // @behavior timeline-viewport::96bc56e7
             const c = createTimelineController();
             const region = { id: "r1", inPoint: 30, outPoint: 60 } as const;
             const initialView: View = { start: 0, end: 100 };
@@ -356,6 +356,7 @@ describeFeature(feature, ({ Scenario }) => {
     // moved out of clip-bounds.feature. These are conceptual duplicates of
     // the toggling scenario above; left as no-ops for now.
     Scenario("Double-clicking a clip handle invokes Zoom-to-clip", ({ Given, And, When, Then }) => {
+        // @behavior timeline-viewport::f7ded0e9
         Given("[a video is loaded]", () => {});
         And("a clip exists", () => {});
         When("the user double-clicks the clip's handle", () => {});
@@ -363,6 +364,7 @@ describeFeature(feature, ({ Scenario }) => {
     });
 
     Scenario("Zoom-to-clip fills the timeline with the clip", ({ Given, And, When, Then }) => {
+        // @behavior timeline-viewport::67b26726
         Given("[a video is loaded]", () => {});
         And("a clip that is not perfectly fit to the timeline", () => {});
         When("the user invokes Zoom-to-clip", () => {});

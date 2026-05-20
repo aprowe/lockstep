@@ -90,6 +90,7 @@ describeFeature(
         // ── Foundational state ────────────────────────────────────────────────
 
         Scenario("A new clip is default-linked", ({ Given, Then, And }) => {
+            // @behavior clip-bounds::8324ebb2
             let store: Store;
             Given("a clip from {number} to {number}", (_ctx, a: number, b: number) => {
                 store = setupClip({ inPoint: a, outPoint: b });
@@ -112,6 +113,7 @@ describeFeature(
         Scenario(
             "Setting either beat-space bound away from its input partner diverges the clip",
             ({ Given, When, Then, And }) => {
+                // @behavior clip-bounds::2f5cddde
                 let store: Store;
                 Given(
                     "a default-linked clip from {number} to {number}",
@@ -148,6 +150,7 @@ describeFeature(
         ScenarioOutline(
             "A clipin <edge>-edge edit is undoable",
             ({ Given, When, And, Then }, variables) => {
+                // @behavior clip-bounds::7dc79a7d
                 let store: Store;
                 let originalInPoint = 0,
                     originalOutPoint = 0;
@@ -187,6 +190,7 @@ describeFeature(
         Scenario(
             "Setting in-point past out-point shifts the clip to preserve length",
             ({ Given, When, Then }) => {
+                // @behavior clip-bounds::7702c477
                 let store: Store;
                 Given("a clip from {number} to {number}", (_ctx, a: number, b: number) => {
                     store = setupClip({ inPoint: a, outPoint: b });
@@ -213,6 +217,7 @@ describeFeature(
         ScenarioOutline(
             "Set-<Edge>-Point outside the clip creates a new clip",
             ({ Given, When, Then }) => {
+                // @behavior clip-bounds::4287ad02
                 Given("a clip from {number} to {number}", () => {});
                 When(
                     "the Set <Edge> Point button is clicked with the playhead at <playhead>",
@@ -225,6 +230,7 @@ describeFeature(
         ScenarioOutline(
             "A clip cannot resize below the minimum length",
             ({ Given, When, Then }, variables) => {
+                // @behavior clip-bounds::4473a9d1
                 let store: Store;
                 Given("a clip from {number} to {number}", (_ctx, a: number, b: number) => {
                     store = setupClip({ inPoint: a, outPoint: b });
@@ -261,6 +267,7 @@ describeFeature(
                 RuleScenario(
                     "Dragging an anchor doesn't move a clip edge",
                     ({ Given, When, Then }) => {
+                        // @behavior clip-bounds::c070411c
                         Given("an anchor at inPoint", () => {
                             addAnchorPair(store, 1, clip(store).inPoint);
                         });
@@ -280,6 +287,7 @@ describeFeature(
                 RuleScenario(
                     "Dragging a clip edge doesn't move an anchor",
                     ({ Given, When, Then }) => {
+                        // @behavior clip-bounds::39ef3a66
                         Given("an anchor at {number}", (_ctx, t: number) => {
                             addAnchorPair(store, 1, t);
                         });
@@ -305,6 +313,7 @@ describeFeature(
                 RuleScenario(
                     "Dragging a default-linked clipin moves its clipout too",
                     ({ Given, When, Then }) => {
+                        // @behavior clip-bounds::d342f900
                         Given("the clip is default-linked", () => {
                             expect(clip(store).defaultLinked).toBe(true);
                         });
@@ -347,6 +356,7 @@ describeFeature(
                 RuleScenarioOutline(
                     "A linked anchor pair conformed at <edge> displays the clipout edge at the paired beat time",
                     ({ Given, Then }, variables) => {
+                        // @behavior clip-bounds::412c4541
                         Given("an anchor pair at orig <edgeVal>, beat <beatVal>", () => {
                             addAnchorPair(
                                 store,
@@ -371,6 +381,7 @@ describeFeature(
                 RuleScenario(
                     "A clipin drag past a linked anchor temporarily conforms",
                     ({ Given, When, Then, And }) => {
+                        // @behavior clip-bounds::fa46649f
                         Given(
                             "an anchor pair at orig {number}, beat {number}",
                             (_ctx, orig: number, beat: number) => {
@@ -416,6 +427,7 @@ describeFeature(
                 RuleScenario(
                     "An orig-anchor drag across a clip edge temporarily conforms",
                     ({ Given, When, Then, And }) => {
+                        // @behavior clip-bounds::c9d92a3e
                         Given(
                             "an anchor pair at orig {number}, beat {number}",
                             (_ctx, orig: number, beat: number) => {
@@ -449,6 +461,7 @@ describeFeature(
                 RuleScenario(
                     "Clipin body drag onto a diverged anchor writes clipout to the paired beat time",
                     ({ Given, When, Then, And }) => {
+                        // @behavior clip-bounds::0a12e07a
                         let preDragIn = 0;
                         Given(
                             "the clip spans {number} to {number} and an anchor pair at orig {number}, beat {number} diverged",
@@ -509,6 +522,7 @@ describeFeature(
                 RuleScenarioOutline(
                     "Edge resize onto a diverged anchor writes only the matching clipout edge",
                     ({ Given, When, Then, And }, variables) => {
+                        // @behavior clip-bounds::73129fa5
                         Given(
                             "the clip spans {number} to {number} and an anchor pair at orig <origVal>, beat <beatVal> diverged",
                             (_ctx, a: number, b: number) => {
@@ -555,6 +569,7 @@ describeFeature(
                 RuleScenario(
                     "Clipin drag past a diverged anchor with no output coincidence does NOT pull the beat anchor",
                     ({ Given, When, Then }) => {
+                        // @behavior clip-bounds::7fe89303
                         Given(
                             "the clip spans {number} to {number} and an anchor pair at orig {number}, beat {number} diverged",
                             (_ctx, a: number, b: number, orig: number, beat: number) => {
@@ -580,6 +595,7 @@ describeFeature(
                 RuleScenarioOutline(
                     "Clipout interaction on a conformed pair carries the anchor and writes the beat-space bound",
                     ({ Given, When, Then, And }, variables) => {
+                        // @behavior clip-bounds::b1e19cfe
                         Given(
                             "an anchor pair at orig <edgeVal>, beat <beatVal> conformed at the <edge>-edge",
                             () => {
@@ -625,6 +641,7 @@ describeFeature(
                 RuleScenarioOutline(
                     "Clipout edge drag on a fully conformed linked pair (orig=beat) moves clipout and carries the anchor",
                     ({ Given, When, Then, And }, variables) => {
+                        // @behavior clip-bounds::72147c44
                         Given(
                             "an anchor pair at orig <val>, beat <val> conformed at the <edge>-edge of clip {number} to {number}",
                             () => {
@@ -671,6 +688,7 @@ describeFeature(
                 RuleScenarioOutline(
                     "Conformed-anchor drag tracks the clipout edge",
                     ({ Given, When, Then, And }, variables) => {
+                        // @behavior clip-bounds::9c1ac82a
                         let store: Store;
                         Given("a clip's <edge>-edge is conformed to an anchor pair", () => {
                             store = setupClip();
@@ -701,6 +719,7 @@ describeFeature(
                 RuleScenarioOutline(
                     "Conformed-anchor move respects clip lock",
                     ({ Given, When, Then, And }, variables) => {
+                        // @behavior clip-bounds::b8131355
                         let store: Store;
                         Given(
                             "a clip with clipout length {number}, BPM {number}, lock=<lock>, lockedBeats {number}",
@@ -759,6 +778,7 @@ describeFeature(
                 RuleScenario(
                     "Dragging the orig anchor of a conformed pair unconforms the edge",
                     ({ Given, When, Then, And }) => {
+                        // @behavior clip-bounds::c82bd950
                         let store: Store;
                         Given("a clip's in-edge is conformed to an anchor pair", () => {
                             store = setupClip();
@@ -804,6 +824,7 @@ describeFeature(
                 RuleScenarioOutline(
                     "Clipout edge drag updates beat-time and the lock-dependent value",
                     ({ Given, When, Then, And }, variables) => {
+                        // @behavior clip-bounds::3a7f5cd7
                         Given("the clip's lock is <lock>", () => {
                             store.dispatch(setLockMode(variables.lock as "bpm" | "beats"));
                         });
@@ -841,6 +862,7 @@ describeFeature(
                 RuleScenarioOutline(
                     "Clipout edge drag carries its conformed anchor (inseparable while conformed)",
                     ({ Given, When, Then, And }, variables) => {
+                        // @behavior clip-bounds::1641fe80
                         Given("the <edge>-edge is conformed to an anchor pair", () => {
                             const edge = variables.edge as "in" | "out";
                             const r = clip(store);
@@ -880,6 +902,7 @@ describeFeature(
                 RuleScenario(
                     "Clipout edge drag snaps in output space only",
                     ({ When, Then, And }) => {
+                        // @behavior clip-bounds::7dc4ef19
                         // Snap targeting is asserted at the profile-unit level
                         // (tests/unit/profiles/clip-edge-drag.test.ts). At this layer the
                         // assertion is that a clipout edge drag operates on beat-space coords.
@@ -893,6 +916,7 @@ describeFeature(
                 );
 
                 RuleScenarioOutline("Clipout edge clamps", ({ When, Then }, variables) => {
+                    // @behavior clip-bounds::a1125f54
                     When("the user drags an edge such that <violation>", () => {
                         if (String(variables.violation).includes("less than 0.1")) {
                             store.dispatch(
@@ -941,6 +965,7 @@ describeFeature(
                 RuleScenario(
                     "Clipout body drag translates both edges by the drag delta",
                     ({ When, Then, And }) => {
+                        // @behavior clip-bounds::c9282fbb
                         When(
                             "the user drags the clipout body by {number}",
                             (_ctx, delta: number) => {
@@ -970,6 +995,7 @@ describeFeature(
                 RuleScenario(
                     "Clipout body drag carries any conformed anchors on either edge",
                     ({ Given, When, Then, And }) => {
+                        // @behavior clip-bounds::21c4a57d
                         Given("the in-edge OR out-edge is conformed to an anchor pair", () => {
                             addAnchorPair(store, 1, 10, 10);
                             addAnchorPair(store, 2, 30, 30);
@@ -1017,6 +1043,7 @@ describeFeature(
                 RuleScenarioOutline(
                     "Changing lock fixes the new quantity; length is untouched",
                     ({ Given, When, Then, And }, variables) => {
+                        // @behavior clip-bounds::36d6e617
                         Given("the clip's lock is <from>", () => {
                             store.dispatch(setLockMode(variables.from as "bpm" | "beats"));
                         });
@@ -1038,6 +1065,7 @@ describeFeature(
                 );
 
                 RuleScenario("Lock setting persists across operations", ({ Given, When, Then }) => {
+                    // @behavior clip-bounds::dab264db
                     Given("the clip's lock is beats", () => {
                         store.dispatch(setLockMode("beats"));
                     });
@@ -1059,6 +1087,7 @@ describeFeature(
                 RuleScenario(
                     "Direct BPM edit uses the grid model — length stays",
                     ({ Given, When, Then, And }) => {
+                        // @behavior clip-bounds::7869fac6
                         let store: Store;
                         Given(
                             "a clip with BPM {number}, lockedBeats {number}, clipout length {number}",
@@ -1095,6 +1124,7 @@ describeFeature(
                 RuleScenario(
                     "Direct beats edit on a diverged clip changes length only on the clipout",
                     ({ Given, When, Then, And }) => {
+                        // @behavior clip-bounds::70f74525
                         let store: Store;
                         Given(
                             "a diverged clip with BPM {number}, lockedBeats {number}, inBeatTime {number}, outBeatTime {number}",
@@ -1145,6 +1175,7 @@ describeFeature(
                 RuleScenarioOutline(
                     "Stretch-mode edit on a diverged clip rescales only the clipout",
                     ({ Given, When, Then, And }, variables) => {
+                        // @behavior clip-bounds::7b7b6ec7
                         let store: Store;
                         Given(
                             "a diverged clip with inPoint {number}, outPoint {number}, inBeatTime {number}, outBeatTime {number}, BPM {number}, lockedBeats {number}",
@@ -1221,6 +1252,7 @@ describeFeature(
                 RuleScenarioOutline(
                     "Unconforming via different triggers",
                     ({ Given, When, Then, And }, variables) => {
+                        // @behavior clip-bounds::05d369aa
                         let store: Store;
                         Given("a clip's in-edge is conformed to an anchor pair", () => {
                             store = setupClip();
@@ -1268,6 +1300,7 @@ describeFeature(
                 RuleScenarioOutline(
                     "Alt held during a clipout gesture inverts anchor-lock for that gesture only",
                     ({ Given, And, When, Then }, variables) => {
+                        // @behavior clip-bounds::d3ae4f6f
                         let store: Store;
                         Given("anchor-lock is OFF", () => {
                             store = setupClip();
@@ -1310,6 +1343,7 @@ describeFeature(
                 RuleScenarioOutline(
                     "Clipout out-edge resize × anchor-lock × lock matrix",
                     ({ Given, And, When, Then }, variables) => {
+                        // @behavior clip-bounds::f864bd52
                         let store: Store;
                         Given("anchor-lock is <anchorLock>", () => {
                             store = setupClip({ inPoint: 10, outPoint: 20 });
@@ -1375,6 +1409,7 @@ describeFeature(
                 RuleScenarioOutline(
                     "Clipout body-pan × anchor-lock",
                     ({ Given, And, When, Then }, variables) => {
+                        // @behavior clip-bounds::7d550902
                         let store: Store;
                         Given("anchor-lock is <anchorLock>", () => {
                             store = setupClip();
@@ -1444,6 +1479,7 @@ describeFeature(
             "A drag gesture is atomic — completion is one undo step; cancellation reverts state with no undo entry",
             ({ RuleScenario, RuleScenarioOutline }) => {
                 RuleScenario("A completed drag is one undo step", ({ Given, When, And, Then }) => {
+                    // @behavior clip-bounds::f280bc71
                     let store: Store;
                     let preIn = 0;
                     Given("a clip exists", () => {
@@ -1469,6 +1505,7 @@ describeFeature(
                 RuleScenarioOutline(
                     "Cancelling a drag reverts state without an undo entry",
                     ({ Given, When, Then, And }, variables) => {
+                        // @behavior clip-bounds::5bbc1402
                         let store: Store;
                         let preIn = 0;
                         Given("a <gesture> is in progress", () => {
