@@ -213,21 +213,21 @@ export const resetVideoDataThunk = createAsyncThunk(
     },
 );
 
-/** Open a standalone sidecar JSON file. Backend handles the file picker,
- *  video resolution, and parsing — the thunk receives structured data only. */
+/** Open a standalone sidecar JSON file and apply its markers to the currently
+ *  loaded video. The backend owns the file picker and parsing; no video switch. */
 export const openJsonFileThunk = createAsyncThunk(
     "video/openJsonFile",
     async (_, { dispatch, getState }) => {
         try {
+            const vid = (getState() as RootState).video.video;
+            if (!vid) return;
             const preLoadEntry: HistoryEntry = snapshotFromState(getState() as RootState);
-            const { videoInfo: info, savedState } = await openJsonFileApi();
-            dispatch(setVideo(info));
-            dispatch(setView({ start: 0, end: info.duration }));
+            const savedState = await openJsonFileApi();
             dispatch(clearAnchors());
             dispatch(setPlayhead(0));
             dispatch(setActiveRegionId(null));
             dispatch(setMarkersLoaded(false));
-            applyLoadedState(dispatch, getState, savedState, info.path, preLoadEntry);
+            applyLoadedState(dispatch, getState, savedState, vid.path, preLoadEntry);
         } catch (e: unknown) {
             console.error("Failed to open JSON file:", e);
         }

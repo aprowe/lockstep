@@ -128,13 +128,10 @@ export interface OpenJsonResult {
     savedState: SavedVideoState;
 }
 
-/** Opens a native JSON file picker; backend resolves the sibling video and
- *  returns structured data — the frontend never sees a file path or raw JSON. */
-export async function openJsonFile(): Promise<OpenJsonResult> {
-    const raw = await invoke<{ video_info: RawVideoInfo; saved_state: SavedVideoState }>(
-        "open_json_file",
-    );
-    return { videoInfo: rawToVideoInfo(raw.video_info), savedState: raw.saved_state };
+/** Opens a native JSON file picker and returns the parsed saved state.
+ *  The caller applies it to the currently loaded video. */
+export async function openJsonFile(): Promise<SavedVideoState> {
+    return invoke<SavedVideoState>("open_json_file");
 }
 
 /** Reads a .json sidecar at the given path; backend resolves the sibling video

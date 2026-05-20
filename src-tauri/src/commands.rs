@@ -623,11 +623,10 @@ pub struct OpenJsonResult {
     pub saved_state: serde_json::Value,
 }
 
-/// Opens a native JSON file picker, resolves the sibling video, and returns
-/// VideoInfo plus the parsed saved state — the frontend receives structured
-/// data and never touches file paths or raw JSON strings.
+/// Opens a native JSON file picker and returns the parsed saved state.
+/// The state is applied to the currently loaded video — no sibling video lookup.
 #[tauri::command]
-pub async fn open_json_file(app: AppHandle) -> Result<OpenJsonResult, String> {
+pub async fn open_json_file(app: AppHandle) -> Result<serde_json::Value, String> {
     use tauri_plugin_dialog::DialogExt;
 
     let file = app
@@ -642,11 +641,7 @@ pub async fn open_json_file(app: AppHandle) -> Result<OpenJsonResult, String> {
     };
 
     let content = std::fs::read_to_string(&json_path).map_err(|e| e.to_string())?;
-    let video = find_video_for_json(&json_path, &content)?;
-    let video_info = get_video_info(&video.to_string_lossy())?;
-    let saved_state: serde_json::Value =
-        serde_json::from_str(&content).map_err(|e| format!("Invalid JSON: {e}"))?;
-    Ok(OpenJsonResult { video_info, saved_state })
+    serde_json::from_str(&content).map_err(|e| format!("Invalid JSON: {e}"))
 }
 
 // ── Reveal in OS file manager ─────────────────────────────────────────────────
