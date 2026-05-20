@@ -1,6 +1,13 @@
 #!/bin/sh
 set -e
 
+# Fast checks first so style/lint failures surface before the slow suites.
+echo "▶ prettier"
+npx prettier --check . --log-level warn
+
+echo "▶ eslint"
+npm run lint --silent
+
 echo "▶ tests"
 npm test --silent
 
