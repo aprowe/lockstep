@@ -5,6 +5,7 @@ import type {
   Snapshot,
   PointerEventLike,
   HitEntry,
+  Intent,
 } from '../../../src/timeline/types'
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -109,10 +110,11 @@ describe('controller.pointerDown', () => {
       snap,
     )
     // Clean single-anchor drag → profile path; emits beginDrag(anchor-drag).
-    expect(intents).toEqual([{
+    expect(intents).toHaveLength(1)
+    expect(intents[0]).toMatchObject({
       kind: 'beginDrag',
       handle: { kind: 'anchor-drag', anchorId: 7, space: 'input' },
-    }])
+    })
     const ds = c.getDragState()
     expect(ds?.kind).toBe('anchor')
     if (ds?.kind === 'anchor') {
@@ -145,10 +147,11 @@ describe('controller.pointerDown', () => {
       makePointerEvent({ clientX: 150, clientY: 200, metaKey: true }),
       snap,
     )
-    expect(intents).toEqual([{
+    expect(intents).toHaveLength(1)
+    expect(intents[0]).toMatchObject({
       kind: 'beginDrag',
       handle: { kind: 'anchor-drag', anchorId: 9, space: 'beat' },
-    }])
+    })
     const ds = c.getDragState()
     expect(ds?.kind).toBe('anchor')
     if (ds?.kind === 'anchor') {
@@ -192,10 +195,11 @@ describe('controller.pointerDown', () => {
       snap,
     )
     // Clipin out-edge → CLIP_EDGE_DRAG profile (clip-out-edge handle).
-    expect(intents).toEqual([{
+    expect(intents).toHaveLength(1)
+    expect(intents[0]).toMatchObject({
       kind: 'beginDrag',
       handle: { kind: 'clip-out-edge', clipId: 'r1', space: 'input' },
-    }])
+    })
     const ds = c.getDragState()
     expect(ds?.kind).toBe('region-edge')
     if (ds?.kind === 'region-edge') {
@@ -222,10 +226,11 @@ describe('controller.pointerDown', () => {
       snap,
     )
     // Clean single-clipin body drag → CLIP_BODY_DRAG profile.
-    expect(intents).toEqual([{
+    expect(intents).toHaveLength(1)
+    expect(intents[0]).toMatchObject({
       kind: 'beginDrag',
       handle: { kind: 'clip-body', clipId: 'r2', space: 'input' },
-    }])
+    })
     const ds = c.getDragState()
     expect(ds?.kind).toBe('region-move')
     if (ds?.kind === 'region-move') {
@@ -477,7 +482,6 @@ describe('controller.pointerDown', () => {
       // existing selection stays unchanged.
       expect(ds.groupIds?.size).toBe(1)
       expect(ds.groupIds?.has(2)).toBe(true)
-      expect(ds.regionGroupIds).toBeUndefined()
       // Pending select (additive=false) fires on pointerUp click.
       expect(ds.pendingSelect).toEqual([{ kind: 'anchorSelect', id: 2, additive: false }])
     }
@@ -1328,7 +1332,7 @@ describe('controller.pointerMove — region-edge drag', () => {
     }
   })
 
-  it('output region-edge emits regionResize with isOutput=true', () => {
+  it('output region-edge emits drag intent (profile path) with isOutput=true space', () => {
     const c = createTimelineController()
     const snap = makeSnapshot({
       regions: [{ id: 'r1', inPoint: 0, outPoint: 30 }],
@@ -1337,12 +1341,11 @@ describe('controller.pointerMove — region-edge drag', () => {
     })
     c.pointerDown(makePointerEvent({ clientX: 240, clientY: 200 }), snap)
     const intents = c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
-    const resize = intents.find(i => i.kind === 'regionResize')!
-    if (resize.kind === 'regionResize') {
-      expect(resize.id).toBe('r1')
-      expect(resize.inPoint).toBe(0)
-      expect(resize.outPoint).toBeCloseTo(50)
-      expect(resize.isOutput).toBe(true)
+    const dragI = intents.find(i => i.kind === 'drag')!
+    expect(dragI).toBeDefined()
+    if (dragI.kind === 'drag') {
+      // origOut=30; newOut clamped to view; delta = newOut - origOut
+      expect(dragI.delta).toBeCloseTo(20)
     }
     const t = intents.find(i => i.kind === 'pubDragTime')!
     if (t.kind === 'pubDragTime') expect(t.space).toBe('output')
@@ -1522,8 +1525,12 @@ describe('controller — clipout (isOutput=true) region drag', () => {
       hits: [pointHit(200, 200, { kind: 'region', id: 'ro', isOutput: true })],
     })
     const intents = c.pointerDown(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
-    // pointerDown emits dragStart (selection is deferred to pointerUp click)
-    expect(intents).toEqual([{ kind: 'dragStart' }])
+    // Clean single-clipout body drag → CLIP_BODY_DRAG profile path.
+    expect(intents).toHaveLength(1)
+    expect(intents[0]).toMatchObject({
+      kind: 'beginDrag',
+      handle: { kind: 'clip-body', clipId: 'ro', space: 'beat' },
+    })
     const ds = c.getDragState()
     expect(ds?.kind).toBe('region-move')
     if (ds?.kind === 'region-move') {
@@ -1532,10 +1539,11 @@ describe('controller — clipout (isOutput=true) region drag', () => {
       // Uses regionsOutput bounds, not regions bounds
       expect(ds.origIn).toBe(2)
       expect(ds.origOut).toBe(5)
+      expect(ds.profileHandle).toEqual({ kind: 'clip-body', clipId: 'ro', space: 'beat' })
     }
   })
 
-  it('clipout body drag: pointerMove + pointerUp commits a regionEntityMove with isOutput=true and correct delta', () => {
+  it('clipout body drag: pointerMove + pointerUp emits drag+endDrag via profile path', () => {
     // Phase 2.5: pointerUp emits single-entity regionEntityMove (with delta)
     // instead of the whole-per-region regionMove. isOutput=true marks output-space.
     const c = createTimelineController()
@@ -1549,16 +1557,18 @@ describe('controller — clipout (isOutput=true) region drag', () => {
     })
     c.pointerDown(makePointerEvent({ clientX: 0, clientY: 200 }), snap)
     // Move 400px right in an 800px canvas over a 10s view → +5 s delta
-    // newIn = Math.max(0, Math.min(10-2=8, 0+5)) = 5; newOut = 7
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const intents = c.pointerUp(snap)
-    const commit = intents.find(i => i.kind === 'regionEntityMove' && i.id === 'ro')
-    expect(commit).toBeDefined()
-    if (commit?.kind === 'regionEntityMove') {
-      expect(commit.id).toBe('ro')
-      expect(commit.isOutput).toBe(true)
-      expect(commit.delta).toBeCloseTo(5)
+    // Profile path: pointerUp emits `drag` (final delta) + `endDrag`.
+    const dragI = intents.find(i => i.kind === 'drag')
+    const endI = intents.find(i => i.kind === 'endDrag')
+    expect(dragI).toBeDefined()
+    expect(endI).toBeDefined()
+    if (dragI?.kind === 'drag') {
+      expect(dragI.delta).toBeCloseTo(5)
     }
+    // No legacy regionEntityMove on profile path.
+    expect(intents.some(i => i.kind === 'regionEntityMove')).toBe(false)
     expect(intents.some(i => i.kind === 'regionMove')).toBe(false)
   })
 
@@ -1593,19 +1603,17 @@ describe('controller — clipout (isOutput=true) region drag', () => {
     })
     c.pointerDown(makePointerEvent({ clientX: 0, clientY: 200 }), snap)
     // Move 400px right in an 800px canvas over a 10s view → +5 s delta
-    // newIn = clamp(0 + 5, 0, 10-2) = 5; newOut = 7
     const intents = c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const ds = c.getDragState()
     expect(ds?.kind).toBe('region-move')
     if (ds?.kind === 'region-move') expect(ds.isOutput).toBe(true)
-    const move = intents.find(i => i.kind === 'regionEntityMove' && i.id === 'ro')!
-    if (move.kind === 'regionEntityMove') {
-      expect(move.isOutput).toBe(true)
-      expect(move.delta).toBeCloseTo(5)
-    }
+    // Profile path emits `drag` intent during pointerMove (not regionEntityMove).
+    const move = intents.find(i => i.kind === 'drag')!
+    expect(move).toBeDefined()
+    if (move.kind === 'drag') expect(move.delta).toBeCloseTo(5)
   })
 
-  it('clipout edge drag: emits regionResize with isOutput=true', () => {
+  it('clipout edge drag: profile path emits drag with edge delta', () => {
     const c = createTimelineController()
     const snap = makeSnapshot({
       view: { start: 0, end: 10 },
@@ -1615,15 +1623,14 @@ describe('controller — clipout (isOutput=true) region drag', () => {
       hits: [pointHit(320, 200, { kind: 'region-edge', id: 're', edge: 'out', isOutput: true })],
     })
     c.pointerDown(makePointerEvent({ clientX: 320, clientY: 200 }), snap)
-    // Move to x=560 → t = 560/800 * 10 = 7.0 in a 10s view
+    // Move to x=560 → t = 560/800 * 10 = 7.0; out edge delta = 7 - 4 = 3
     const intents = c.pointerMove(makePointerEvent({ clientX: 560, clientY: 200 }), snap)
-    const resize = intents.find(i => i.kind === 'regionResize')!
-    if (resize.kind === 'regionResize') {
-      expect(resize.id).toBe('re')
-      expect(resize.inPoint).toBe(1.0)
-      expect(resize.outPoint).toBeCloseTo(7.0)
-      expect(resize.isOutput).toBe(true)
+    const dragI = intents.find(i => i.kind === 'drag')!
+    expect(dragI).toBeDefined()
+    if (dragI.kind === 'drag') {
+      expect(dragI.delta).toBeCloseTo(3.0)
     }
+    expect(intents.some(i => i.kind === 'regionResize')).toBe(false)
   })
 
   it('clipout drag does NOT emit input-space region commit (clipin stays put)', () => {
@@ -1690,23 +1697,20 @@ describe('controller — R4 (new): clipout edge drag does NOT carry linked beat 
     }
   })
 
-  it('pointerUp emits regionResize but NOT a separate beatAnchorsChanged (carry in thunk)', () => {
+  it('pointerUp emits drag+endDrag but NOT a separate beatAnchorsChanged (carry in resolver)', () => {
     const c = createTimelineController()
     const snap = makeR4Snap()
     c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
     c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
     const intents = c.pointerUp(snap)
 
-    // Region resize commit still fires
-    const resizeIntent = intents.find(i => i.kind === 'regionResize')
-    expect(resizeIntent).toBeDefined()
-    if (resizeIntent?.kind === 'regionResize') {
-      expect(resizeIntent.id).toBe('r1')
-      expect(resizeIntent.isOutput).toBe(true)
-      expect(resizeIntent.outPoint).toBeCloseTo(25)
-    }
+    // Profile path: final drag + endDrag
+    const dragI = intents.find(i => i.kind === 'drag')
+    expect(dragI).toBeDefined()
+    if (dragI?.kind === 'drag') expect(dragI.delta).toBeCloseTo(5)
+    expect(intents.some(i => i.kind === 'endDrag')).toBe(true)
 
-    // No beatAnchorsChanged from the controller — the thunk handles it
+    // No beatAnchorsChanged from the controller — the resolver / MirrorPair handles it
     expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
   })
 
@@ -1752,17 +1756,17 @@ describe('controller — R4 (new): clipout edge drag does NOT carry linked beat 
 // Slice A — live BPM / lockedBeats preview during clipout edge drag
 // ───────────────────────────────────────────────────────────────────────────
 
-describe('controller — Slice A: live regionResize emitted during clipout edge drag', () => {
-  // Live BPM / lockedBeats are now in the slice (via commitClipoutResize →
-  // applyConformedClipout on every pointerMove). The controller's job is to
-  // emit a regionResize intent with the correct live beat-space bounds so the
-  // slice can update immediately.
+describe('controller — Slice A: live drag intent emitted during clipout edge drag', () => {
+  // Profile path: clipout edge drag emits `drag(delta)` intents during
+  // pointerMove. The CLIP_EDGE_DRAG profile's onDrag turns each into a
+  // SetEdge op on the regionOut entity. applyConformedClipout finalizes
+  // (defaultLinked + lockedBeats bookkeeping) in endDrag.
   //
   // Canvas: view 0..100, width=800 → 1px = 100/800 = 0.125s
   // Region output: inPoint=0, outPoint=20 (beat-space, length=20)
-  // Drag out-edge from x=160 (t=20) to x=200 (t=25)
+  // Drag out-edge from x=160 (t=20) to x=200 (t=25), expected delta = 5
 
-  it('lock=bpm: pointerMove emits regionResize with isOutput=true + correct bounds', () => {
+  it('lock=bpm: pointerMove emits drag intent with delta=5', () => {
     // Downstream: applyConformedClipout with lock='bpm' → lockedBeats = 25*120/60 = 50
     const c = createTimelineController()
     const snap = makeSnapshot({
@@ -1775,19 +1779,14 @@ describe('controller — Slice A: live regionResize emitted during clipout edge 
       hits: [pointHit(160, 200, { kind: 'region-edge', id: 'rA', edge: 'out', isOutput: true })],
     })
     c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
-    // Drag out-edge from t=20 to t=25 (x=200)
+    // Drag out-edge from t=20 to t=25 (x=200) — delta = 5
     const intents = c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
-    const resize = intents.find(i => i.kind === 'regionResize' && i.isOutput)
-    expect(resize).toBeDefined()
-    if (resize?.kind === 'regionResize') {
-      expect(resize.id).toBe('rA')
-      expect(resize.isOutput).toBe(true)
-      expect(resize.inPoint).toBeCloseTo(0)
-      expect(resize.outPoint).toBeCloseTo(25)
-    }
+    const dragI = intents.find(i => i.kind === 'drag')
+    expect(dragI).toBeDefined()
+    if (dragI?.kind === 'drag') expect(dragI.delta).toBeCloseTo(5)
   })
 
-  it('lock=beats: pointerMove emits regionResize with isOutput=true + correct bounds', () => {
+  it('lock=beats: pointerMove emits drag intent with delta=5', () => {
     // Downstream: applyConformedClipout with lock='beats' → bpm = 60*40/25 = 96
     const c = createTimelineController()
     const snap = makeSnapshot({
@@ -1801,18 +1800,14 @@ describe('controller — Slice A: live regionResize emitted during clipout edge 
       hits: [pointHit(160, 200, { kind: 'region-edge', id: 'rB', edge: 'out', isOutput: true })],
     })
     c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
-    // Drag out-edge from t=20 to t=25 (x=200)
+    // Drag out-edge from t=20 to t=25 (x=200) — delta = 5
     const intents = c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
-    const resize = intents.find(i => i.kind === 'regionResize' && i.isOutput)
-    expect(resize).toBeDefined()
-    if (resize?.kind === 'regionResize') {
-      expect(resize.id).toBe('rB')
-      expect(resize.isOutput).toBe(true)
-      expect(resize.outPoint).toBeCloseTo(25)
-    }
+    const dragI = intents.find(i => i.kind === 'drag')
+    expect(dragI).toBeDefined()
+    if (dragI?.kind === 'drag') expect(dragI.delta).toBeCloseTo(5)
   })
 
-  it('no clipLock in snapshot → regionResize still emitted (no lock-dependent derivation)', () => {
+  it('no clipLock in snapshot → drag intent still emitted (no lock-dependent derivation)', () => {
     const c = createTimelineController()
     const snap = makeSnapshot({
       view: { start: 0, end: 100 },
@@ -1828,8 +1823,8 @@ describe('controller — Slice A: live regionResize emitted during clipout edge 
     // No BPM/beats gesture-store intents emitted (they've been removed)
     expect(intents.some(i => i.kind === 'pubLiveBpm' as string)).toBe(false)
     expect(intents.some(i => i.kind === 'pubLiveLockedBeats' as string)).toBe(false)
-    // But output regionResize is still emitted so the slice stays live
-    expect(intents.some(i => i.kind === 'regionResize' && i.isOutput)).toBe(true)
+    // But drag intent is still emitted so the slice stays live via profile path
+    expect(intents.some(i => i.kind === 'drag')).toBe(true)
   })
 
   it('input-space (non-output) edge drag does NOT emit output regionResize', () => {

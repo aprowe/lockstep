@@ -9,13 +9,10 @@ import thumbnailsReducer from './slices/thumbnailsSlice'
 import settingsReducer from './slices/settingsSlice'
 import listsReducer from './slices/listsSlice'
 import dragReducer from './slices/dragSlice'
-import dragCtxReducer from './slices/dragCtxSlice'
 import gestureReducer from './slices/gestureSlice'
 import { persistenceMiddleware } from './middleware/persistenceMiddleware'
 import { historyMiddleware } from './middleware/historyMiddleware'
 import { revealPlayheadMiddleware } from './middleware/revealPlayheadMiddleware'
-import { selectionGraphMirrorMiddleware } from './middleware/selectionGraphMirrorMiddleware'
-import { anchorLockMirrorMiddleware } from './middleware/anchorLockMirrorMiddleware'
 
 export const store = configureStore({
   reducer: {
@@ -29,7 +26,6 @@ export const store = configureStore({
     settings: settingsReducer,
     lists: listsReducer,
     drag: dragReducer,
-    dragCtx: dragCtxReducer,
     gesture: gestureReducer,
   },
   middleware: (getDefaultMiddleware) =>
@@ -42,13 +38,7 @@ export const store = configureStore({
     })
       .prepend(persistenceMiddleware.middleware)
       .prepend(historyMiddleware.middleware)
-      .prepend(revealPlayheadMiddleware.middleware)
-      // selectionGraphMirrorMiddleware mirrors slice selection into dragCtxSlice.lassoIds
-      // so the constraint pipeline can build the TranslateGroup lasso.
-      .concat(selectionGraphMirrorMiddleware)
-      // anchorLockMirrorMiddleware mirrors ui.anchorLock into dragCtxSlice.anchorLock
-      // so the constraint pipeline can build the lock constraints.
-      .concat(anchorLockMirrorMiddleware),
+      .prepend(revealPlayheadMiddleware.middleware),
 })
 
 export type RootState = ReturnType<typeof store.getState>

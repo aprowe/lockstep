@@ -1,913 +1,555 @@
 Feature: Clip Bounds
 
-    # A region has TWO parallel sets of bounds:
-    #   clipin  (input space):  region.inPoint / outPoint        — seconds in source
-    #   clipout (beat space):   region.inBeatTime / outBeatTime  — seconds in output
-    #
-    # Default-linked: (inBeatTime, outBeatTime) === (inPoint, outPoint).
-    # Diverged: any operation that breaks that equality.
-    #
-    # Three coupled quantities per region:
-    #   beats = clipoutLength × BPM / 60
-    # `region.lock` says which quantity ABSORBS a clipout-length change:
-    #   lock='bpm'   → BPM stays; lockedBeats absorbs
-    #   lock='beats' → lockedBeats stays; BPM absorbs
+  # A clip has two parallel sets of bounds:
+  #   clipin  (input space):  inPoint, outPoint        — seconds in source video
+  #   clipout (beat space):   inBeatTime, outBeatTime  — seconds in output
+  #
+  # Default-linked: (inBeatTime, outBeatTime) === (inPoint, outPoint).
+  # Diverged:       any edit that breaks that equality.
+  #
+  # Three coupled clipout quantities related by:  beats = length × BPM / 60
+  # `clip.lock` says which quantity absorbs a length change:
+  #   lock=bpm   → BPM stays;          lockedBeats absorbs
+  #   lock=beats → lockedBeats stays;  BPM absorbs
+  #
+  # Vocabulary:
+  #   "orig anchor"    — input-space anchor (anchor.time)
+  #   "beat anchor"    — beat-space anchor (paired with an orig by id)
+  #   "anchor pair"    — the (orig, beat) pair; "linked" when orig === beat
+  #   "edge"           — `in` or `out`; clipin in-edge = inPoint, etc.
+  #   "conform"        — emergent state: orig coincides with clipin edge AND
+  #                      beat coincides with clipout edge. While both hold,
+  #                      the resolver's MirrorPair ties the edge to the
+  #                      paired beat anchor. Purely positional — engages
+  #                      and releases continuously as positions change.
+  #   "anchor-lock"    — global state.ui.anchorLock (independent of clip.lock)
+  #
+  # Drag semantics:
+  #   - Mid-drag state changes are written continuously; there is no
+  #     "preview vs commit" split.
+  #   - Undo does not snapshot intermediate drag frames. A completed
+  #     gesture is one undo step.
+  #   - Cancel (Escape / pointercancel) reverts to pre-drag state with
+  #     no undo entry.
 
-    # ── §1. Foundational state ────────────────────────────────
+  # ── Foundational state ──────────────────────────────────────────────
 
-    Scenario: A new region is default-linked
-        Given a region is freshly created from 10 to 20 seconds
-        Then inBeatTime equals inPoint (10) and outBeatTime equals outPoint (20)
-        And clipin and clipout render at the same horizontal positions
-        And the region is reported as default-linked
+  Scenario: A new clip is default-linked
+    Given a clip from 10 to 20
+    Then inBeatTime equals inPoint and outBeatTime equals outPoint
+    And clipin and clipout render at the same x-positions
+    And the clip is reported as default-linked
 
-    Scenario: Default-linked clipout renders at the clipin bounds
-        Given a region exists in its default-linked state
-        And no anchor sits on either boundary
-        Then clipout's in-edge displays at inPoint
-        And clipout's out-edge displays at outPoint
+  Scenario: Setting either beat-space bound away from its input partner diverges the clip
+    Given a default-linked clip from 10 to 20
+    When inBeatTime or outBeatTime is set to a value not matching its input partner
+    Then the clip is diverged
+    And clipin and clipout no longer share x-positions
 
-    Scenario: Region is diverged after any operation that breaks input/beat equality
-        Given a region in its default-linked state
-        When inBeatTime is set to a value different from inPoint by any path
-        Then the region is reported as diverged
-        And clipin and clipout no longer share horizontal positions
+  # ── Clipin (input-space) bounds editing ─────────────────────────────
+  # Direct manipulation of the input-space bounds. Each scenario starts
+  # from `a clip from 10 to 20` for consistent numerics.
 
-    # ── §2. Clipin (input-space) bounds editing ───────────────
-    # @test tests/bdd/timeline/clip-bounds.test.ts
+  Scenario Outline: A clipin <edge>-edge edit is undoable
+    Given a clip from 10 to 20
+    When the <edge>-point is changed to <new>
+    And the change is undone
+    Then the <edge>-point is at its original value
+    Examples:
+      | edge | new |
+      | in   | 15  |
+      | out  | 25  |
 
-    Scenario: A region's start bound can be undone
-        Given a region with start 10 and end 20
-        When the region's start is changed to 15
-        And the change is undone
-        Then the region's start is 10
+  Scenario: Setting in-point past out-point shifts the clip to preserve length
+    Given a clip from 10 to 20
+    When the in-point is changed to 25
+    Then the clip spans 25 to 35
 
-    Scenario: A region's end bound can be undone
-        Given a region with start 10 and end 20
-        When the region's end is changed to 25
-        And the change is undone
-        Then the region's start is 10
+  Scenario Outline: Set-<Edge>-Point outside the clip creates a new clip
+    Given a clip from 10 to 20
+    When the Set <Edge> Point button is clicked with the playhead at <playhead>
+    Then a new clip is created starting at <playhead>
+    Examples:
+      | Edge | playhead |
+      | Out  | 5        |
+      | In   | 30       |
 
-    Scenario: Setting in-point past out-point shifts the region to preserve length
-        Given a region with start 10 and end 20
-        When the region's start is changed to 25
-        Then the region moves to (25,35) so its length is unchanged
+  Scenario Outline: A clip cannot resize below the minimum length
+    Given a clip from 10 to 20
+    When the clip is resized to span <a> to <b>
+    Then the clip spans <c> to <d>
+    Examples:
+      | a    | b    | c  | d  |
+      | 10   | 10   | 10 | 11 |
+      | 10   | 10.5 | 10 | 11 |
+      | 20   | 20   | 19 | 20 |
+      | 19.5 | 20   | 19 | 20 |
 
-    Scenario: Set-Out-Point with playhead before in-point creates a new region
-        Given a region with start 30 and end 40
-        When the Set Out Point Button is clicked when the playhead is at 20
-        Then a new region is created starting at 20. 
+  Rule: Object isolation — anchors and clip edges move independently
 
-    Scenario: Set-In-Point with playhead after out-point creates a new region
-        Given a region with start 10 and end 20
-        When the Set In Point Button is clicked when the playhead is at 30
-        Then a new region is created starting at 30. 
+    Background:
+      Given a clip from 10 to 20
 
-    Scenario Outline: A region is prevented from being too small
-        Given the current region spans from 10 to 20 seconds and min length 1
-        When the region is attempted to resize to <a> to <b>
-        Then the region span is now <c> to <d> seconds
-        Examples:
-            | a   | b    | c  | d  |
-            | 10  | 10   | 10 | 11 |
-            | 10  | 10.5 | 10 | 11 |
-            | 20  | 20   | 19 | 20 |
-            | 19.5| 20   | 19 | 20 |
+    Scenario: Dragging an anchor doesn't move a clip edge
+      Given an anchor at inPoint
+      When the user drags the anchor
+      Then inPoint stays at 10 and only the anchor moves
 
-    Scenario: A region's zoom action is called when double-clicked
-        Given a region
-        When the user double-clicks the handle
-        Then the zoom action is called
+    Scenario: Dragging a clip edge doesn't move an anchor
+      Given an anchor at 15
+      When the user drags the clipin in-edge
+      Then the anchor stays at 15 and only the edge moves
 
-    Scenario: Zoom-to-region fills the timeline
-        Given a region that is not perfectly fit to the timeline
-        When the user calls the zoom action on that region
-        Then the zoom and bounds are set so the region is 100% of the timeline
+    Scenario: Dragging a default-linked clipin moves its clipout too
+      Given the clip is default-linked
+      When the user drags the clipin so the clip spans 15 to 25
+      Then the clipout spans 15 to 25
 
-    Scenario: Zoom-to-region a second time restores the prior view
-        Given a region that had the zoom action called on it
-        And zoom / pan is still centered on the region
-        When the user calls the zoom action again
-        Then the zoom and bounds are set to what they were before the first zoom
+  Rule: Conform — clipout edge tracks the paired beat anchor's beat time
 
-    # ── §3. Object isolation (anchor ↔ clip) ──────────────────
-    # Dragging an anchor never moves the clip boundary; dragging a clip
-    # never moves anchors. These are independent objects living in the
-    # same coordinate space.
+    Background:
+      Given a default-linked clip from 10 to 20
 
-    Scenario: Dragging an anchor does not move the clip boundary
-        Given a region exists from 10 to 20 seconds
-        And an anchor is placed at the region's in point
-        When the user drags the anchor to a new position
-        Then the region's in point remains at 10 seconds
-        And only the anchor moves
+    # Conform is the emergent state when orig coincides with the clipin
+    # edge. While that input coincidence holds, the clipout edge is
+    # written to the paired beat anchor's beat time (ConformVisual).
+    # When ALSO the beat anchor coincides with the clipout edge, a
+    # MirrorPair installs and dragging one moves the other.
 
-    Scenario: Dragging a clip in does not move anchors
-        Given a region exists from 10 to 20 seconds
-        And an anchor in is placed at 15 seconds
-        When the user drags the clip in to a new position
-        Then the anchor in remains at 15 seconds
-        And only the clip boundaries move
+    Scenario Outline: A linked anchor pair conformed at <edge> displays the clipout edge at the paired beat time
+      Given an anchor pair at orig <edgeVal>, beat <beatVal>
+      Then the clipout <edge>-edge displays at <beatVal>
+      Examples:
+        | edge | edgeVal | beatVal |
+        | in   | 10      | 6       |
+        | out  | 20      | 18      |
 
-    Scenario: Dragging a default-linked clip in also moves the clipout edges
-        Given a region exists from 10 to 20 seconds
-        When the user drags the clip in to 15 - 25
-        Then clip out edges move as well, since they are linked
+    Scenario: A clipin drag past a linked anchor temporarily conforms
+      Given an anchor pair at orig 15, beat 15
+      When the user drags the clipin in-edge from 12 through 15 and out to 18
+      Then while the in-edge coincides with 15 the conform holds and clipout in-edge tracks 15
+      And as the in-edge passes 15 the conform releases and the edge continues with the cursor
+      And the anchor pair stays at orig 15, beat 15 throughout
 
-    # ── §4. Linked-to-anchor state (derived, never stored) ────
-    # A clip edge can be "linked" to an anchor via either space:
-    #
-    #   INPUT-side link:  inputAnchor.inputTime === region.inPoint
-    #                     (or outPoint)
-    #   OUTPUT-side link: beatAnchor.beatTime === region.inBeatTime
-    #                     (or outBeatTime)
-    #
-    # Both forms are DERIVED — recomputed each frame from current
-    # positions, never stored. The two can coexist on the same edge:
-    # an edge that was input-linked has a paired beat anchor that
-    # naturally sits at the matching beat coord, so it's also
-    # output-linked. They diverge when only one anchor is present
-    # (e.g. an orphan beat anchor pinned to outBeatTime with no input
-    # partner).
+    Scenario: An orig-anchor drag across a clip edge temporarily conforms
+      Given an anchor pair at orig 8, beat 8
+      When the user drags the orig anchor from 8 through 10 and out to 12
+      Then while orig coincides with inPoint the conform holds
+      And dragging orig past 10 releases the conform
+      And the clip's inPoint stays at 10 throughout
 
-    # ── §4a. Input-side link ──
+    # Diverged anchor: orig ≠ beat. The input-side conform still writes
+    # the clipout edge to the beat anchor's time when the clip's edge
+    # lands on orig, but the MirrorPair guard prevents an unrelated clip
+    # drag from yanking the beat anchor in output space.
 
-    Scenario: In-edge is input-linked while their input times coincide
-        Given a region exists with inPoint at 10 seconds
-        And an input anchor exists at input time 10 seconds
-        Then the region's in-edge is reported as input-linked to that anchor
+    Scenario: Clipin body drag onto a diverged anchor writes clipout to the paired beat time
+      Given the clip spans 10 to 30 and an anchor pair at orig 20, beat 25 diverged
+      When the user drags the clipin body so inPoint sequentially reaches 15, then 20, then 22
+      Then at inPoint 15 pre-anchor inBeatTime is 15 and beat anchor stays at 25
+      And at inPoint 20 on-anchor inBeatTime is 25 and beat anchor stays at 25
+      And at inPoint 22 past-anchor inBeatTime is 22 and beat anchor stays at 25
 
-    Scenario: Out-edge is input-linked symmetrically
-        Given a region with outPoint at 20 seconds
-        And an input anchor at input time 20 seconds
-        Then the region's out-edge is reported as input-linked to that anchor
+    Scenario Outline: Edge resize onto a diverged anchor writes only the matching clipout edge
+      Given the clip spans 10 to 20 and an anchor pair at orig <origVal>, beat <beatVal> diverged
+      When the user drags the clipin <edge>-edge onto <origVal>
+      Then the clipout becomes <clipoutResult>
+      And the anchor pair stays at orig <origVal>, beat <beatVal>
+      Examples:
+        | edge | origVal | beatVal | clipoutResult |
+        | in   | 5       | 4       | (4, 20)       |
+        | out  | 25      | 26      | (10, 26)      |
 
-    Scenario: Input-link is broken the moment coincidence is lost
-        Given a region's in-edge is input-linked to an input anchor
-        When the input anchor's input time changes such that it no longer equals inPoint
-        Then the in-edge is no longer input-linked
-        And inBeatTime keeps its last committed value (no auto-revert)
+    Scenario: Clipin drag past a diverged anchor with no output coincidence does NOT pull the beat anchor
+      Given the clip spans 10 to 20 and an anchor pair at orig 10, beat 15 diverged
+      When the user drags the clipin body by 0.3 with the in-edge inside the snap radius of orig
+      Then the beat anchor stays at 15
+      # MirrorPair guard: requires BOTH input AND output coincidence; output
+      # is missing here so MirrorPair never installs.
 
-    Scenario: Any path to input-coincidence establishes the input-link
-        Given a region exists with inPoint at 10 seconds
-        And no input anchor sits at 10 seconds yet
-        When an input anchor is created at 10 seconds by any path (drag, button, programmatic)
-        Then the region's in-edge becomes input-linked to that new anchor
+    Scenario Outline: Clipout interaction on a conformed pair carries the anchor and writes the beat-space bound
+      Given an anchor pair at orig <edgeVal>, beat <beatVal> conformed at the <edge>-edge
+      When the user interacts with the clipout
+      Then <edge>BeatTime is written to <beatVal> at drag start
+      And the paired beat anchor moves with the clipout <edge>-edge during the drag
+      Examples:
+        | edge | edgeVal | beatVal |
+        | in   | 10      | 6       |
+        | out  | 20      | 18      |
 
-    Scenario: When two input anchors share an input time, the earliest pair id wins
-        Given two input anchors share input time 10 seconds with pair ids 3 and 7
-        And a region exists with inPoint at 10 seconds
-        Then the in-edge is reported as input-linked to the anchor with pair id 3
+    Scenario Outline: Clipout edge drag on a fully conformed linked pair (orig=beat) moves clipout and carries the anchor
+      Given an anchor pair at orig <val>, beat <val> conformed at the <edge>-edge of clip 10 to 20
+      When the user drags the clipout <edge>-edge to <newVal>
+      Then the clipout <edge>-edge is <newVal>
+      And the beat anchor follows to <newVal>
+      Examples:
+        | edge | val | newVal |
+        | in   | 10  | 12     |
+        | out  | 20  | 22     |
 
-    # ── §4b. Output-side link (symmetric) ──
+  Rule: Conformed-anchor move — dragging the beat side of a conformed pair moves the clipout edge
 
-    Scenario: In-edge is output-linked while a beat anchor's time equals inBeatTime
-        Given a region exists with inBeatTime at 5 seconds
-        And a beat anchor exists at beat time 5 seconds
-        Then the region's in-edge is reported as output-linked to that beat anchor
-        And the clipout's in-edge displays at the beat anchor's beat time
+    Scenario Outline: Conformed-anchor drag tracks the clipout edge
+      Given a clip's <edge>-edge is conformed to an anchor pair
+      When the user drags the paired beat anchor in output space
+      Then the clipout <edge>-edge tracks the anchor's position
+      And the lock-dependent value tracks accordingly
+      Examples:
+        | edge |
+        | in   |
+        | out  |
 
-    Scenario: Out-edge is output-linked symmetrically
-        Given a region with outBeatTime at 20 seconds
-        And a beat anchor at beat time 20 seconds
-        Then the region's out-edge is reported as output-linked to that beat anchor
+    Scenario Outline: Conformed-anchor move respects clip lock
+      Given a clip with clipout length 10, BPM 120, lock=<lock>, lockedBeats 20
+      And the <edge>-edge is conformed to a beat anchor at <startBeat>
+      When the user drags the beat anchor to <endBeat>
+      Then <edge>BeatTime updates to <endBeat>
+      And the clipout length is 8
+      And BPM is <newBpm> and lockedBeats is <newBeats>
+      Examples:
+        | edge | lock  | startBeat | endBeat | newBpm | newBeats |
+        | in   | bpm   | 5         | 7       | 120    | 16       |
+        | in   | beats | 5         | 7       | 150    | 20       |
+        | out  | bpm   | 15        | 13      | 120    | 16       |
+        | out  | beats | 15        | 13      | 150    | 20       |
 
-    Scenario: Output-link is broken the moment coincidence is lost
-        Given a region's out-edge is output-linked to a beat anchor
-        When the beat anchor's beat time changes such that it no longer equals outBeatTime
-        Then the out-edge is no longer output-linked
-        And outBeatTime keeps its last committed value (no auto-revert)
+    Scenario: Dragging the orig anchor of a conformed pair unconforms the edge
+      Given a clip's in-edge is conformed to an anchor pair
+      When the user drags the orig anchor away from the edge
+      Then the in-edge is no longer conformed
+      And inBeatTime, BPM, and lockedBeats are unchanged
 
-    Scenario: Any path to output-coincidence establishes the output-link
-        Given a region exists with outBeatTime at 20 seconds
-        And no beat anchor sits at beat time 20 yet
-        When a beat anchor is created at beat time 20 by any path (drag, programmatic)
-        Then the region's out-edge becomes output-linked to that new beat anchor
+  Rule: A clipout edge drag rescales the clipout; lock determines what absorbs the length change
 
-    Scenario: When two beat anchors share a beat time, the earliest pair id wins
-        Given two beat anchors share beat time 20 seconds with pair ids 3 and 7
-        And a region exists with outBeatTime at 20 seconds
-        Then the out-edge is reported as output-linked to the anchor with pair id 3
+    Background:
+      Given a clip with clipout length 10, BPM 120, lockedBeats 20
 
-    Scenario: An edge can be input-linked and output-linked simultaneously
-        Given a region with inPoint 10 and inBeatTime 6
-        And an input anchor at input time 10 with paired beat anchor at beat time 6
-        Then the in-edge is reported as input-linked to the input anchor
-        And the in-edge is reported as output-linked to the paired beat anchor
+    Scenario Outline: Clipout edge drag updates beat-time and the lock-dependent value
+      Given the clip's lock is <lock>
+      When the user drags the clipout <edge>-edge to make clipout length <newLen>
+      Then BPM is <newBpm> and lockedBeats is <newBeats>
+      And inPoint and outPoint are unchanged
+      Examples:
+        | edge | lock  | newLen | newBpm | newBeats |
+        | in   | bpm   | 8      | 120    | 16       |
+        | in   | bpm   | 12     | 120    | 24       |
+        | in   | beats | 8      | 150    | 20       |
+        | in   | beats | 12     | 100    | 20       |
+        | out  | bpm   | 12     | 120    | 24       |
 
-    # ── §5. Conforming to markers — linking event ─────────────
-    # The linking event fires the first moment a boundary coincides
-    # with an anchor — input-side (§5a) or output-side (§5b).
-    # ALL effects are LIVE during the drag; nothing persists until
-    # pointerUp at coincidence. The linking event ALWAYS behaves
-    # like lock='bpm' (BPM stays, beats absorbs), regardless of the
-    # region's actual lock setting — linking is the user asserting
-    # where the edge sits in beat-space.
+    Scenario Outline: Clipout edge drag carries its conformed anchor (inseparable while conformed)
+      Given the <edge>-edge is conformed to an anchor pair
+      When the user drags the clipout <edge>-edge by any nonzero amount
+      Then the paired beat anchor follows the new edge position
+      And the conform is preserved with clipout <edge>-edge equal to the anchor's beat time
+      Examples:
+        | edge |
+        | in   |
+        | out  |
 
-    # ── §5a. Input-side linking event ──
-
-    @todo @ignore
-    Scenario: All linking effects are live during the drag, not yet committed
-        Given a region with inPoint 10, outPoint 20, BPM 120, lock='bpm'
-        And an input anchor pair with input time 12 and beat time 6
-        When the user drags the input anchor toward the in-edge
-        And the anchor's input time momentarily reaches 10
-        Then the clipout's in-edge displays at beat time 6 (the paired beat anchor)
-        And the RegionInfoPanel shows the new lockedBeats live
-        And nothing has yet been committed to undoable state
-
-    Scenario: Linking event commits on pointerUp at coincidence
-        Given a region with inPoint 10, outPoint 20, BPM 120, lock='bpm'
-        And an input anchor pair with input time 10 after the drag, beat time 6
-        When the user releases the anchor while still at input time 10
-        Then inBeatTime is set to 6
-        And lockedBeats is recomputed as clipoutLength × bpm / 60
-        And BPM is unchanged
-        And lock is unchanged
-
-    @todo @ignore
-    Scenario: No commit if coincidence is broken before pointerUp
-        Given a region with inPoint at 10
-        And an input anchor passes through input time 10 during a drag
-        When the user releases the anchor at input time 12 (not coincident)
-        Then no commit fires
-        And inBeatTime, outBeatTime, BPM, lockedBeats all match pre-drag values
-
-    Scenario Outline: Linking event ignores lock — beats always absorbs
-        Given a region with lock=<lock>, BPM 120, lockedBeats 20
-        When the user drags an anchor onto the in-edge and releases at coincidence
-        And the resulting clipout length is 8 seconds
-        Then BPM stays at 120
-        And lockedBeats becomes 16
-        And lock stays at <lock>
-        Examples:
-            | lock  |
-            | bpm   |
-            | beats |
-
-    Scenario: Symmetric for out-edge linking
-        Given a region with inPoint 10, outPoint 20, BPM 120, lock='bpm'
-        And an input anchor pair at input time 20, beat time 18
-        When the user releases the anchor coincident with outPoint
-        Then outBeatTime is set to 18
-        And lockedBeats recomputes from the new clipout length
-        And BPM is unchanged
-
-    Scenario: Linking via Set-In-Point button when playhead is on an anchor
-        Given an input anchor exists at input time 10 with paired beat time 6
-        And the playhead is at 10
-        And a region exists with inPoint 12 (currently unlinked)
-        When the user clicks Set In Point
-        Then inPoint becomes 10
-        And inBeatTime is set to 6
-        And lockedBeats recomputes
-        And BPM is unchanged
-
-    Scenario: Linking via clip body drag onto an anchor
-        Given a region with inPoint 12, outPoint 22, lock='beats', lockedBeats 20
-        And an input anchor pair at input time 10, beat time 6
-        When the user drags the clip body so inPoint lands on 10 and releases
-        Then inPoint is 10 and outPoint is 20
-        And inBeatTime is set to 6
-        And lockedBeats recomputes (BPM stays — even though lock='beats')
-
-    # ── §5b. Output-side linking event ──
-    # Symmetric: triggered by a BEAT anchor coinciding with a clipout
-    # beat-space edge (inBeatTime / outBeatTime). Same commit rules:
-    # live during drag, persists on pointerUp at coincidence, always
-    # behaves like lock='bpm' (BPM stays, beats absorbs).
-
-    Scenario: Output-side linking effects are live during the drag
-        Given a region with inBeatTime 5, outBeatTime 20, BPM 120, lock='bpm'
-        And a beat anchor at beat time 8 (not currently coincident with either edge)
-        When the user drags the beat anchor toward the out-edge
-        And the anchor's beat time momentarily reaches 20
-        Then the clipout's out-edge displays at the beat anchor's live position
-        And the RegionInfoPanel shows the new lockedBeats live
-        And nothing has yet been committed to undoable state
-
-    Scenario: Output-side linking commits on pointerUp at coincidence
-        Given a region with inBeatTime 5, outBeatTime 20, BPM 120, lock='bpm', lockedBeats 30
-        And a beat anchor whose beat time, after the drag, is 22
-        When the user releases the beat anchor while its beat time equals the clipout's out-edge (i.e. outBeatTime adopts 22)
-        Then outBeatTime is set to 22
-        And lockedBeats is recomputed as clipoutLength × bpm / 60 (17 × 120 / 60 = 34)
-        And BPM is unchanged
-        And lock is unchanged
-
-    Scenario: No output-side commit if coincidence is broken before pointerUp
-        Given a region with outBeatTime at 20
-        And a beat anchor passes through beat time 20 during a drag
-        When the user releases the beat anchor at beat time 18 (not coincident with outBeatTime)
-        Then no commit fires
-        And outBeatTime, BPM, lockedBeats all match pre-drag values
-
-    Scenario Outline: Output-side linking event ignores lock — beats always absorbs
-        Given a region with lock=<lock>, BPM 120, lockedBeats 20, clipoutLength 10
-        When the user drags a beat anchor onto the out-edge and releases at coincidence
-        And the resulting clipout length is 8 seconds
-        Then BPM stays at 120
-        And lockedBeats becomes 16
-        And lock stays at <lock>
-        Examples:
-            | lock  |
-            | bpm   |
-            | beats |
-
-    Scenario: Symmetric for in-edge output-linking
-        Given a region with inBeatTime 5, outBeatTime 20, BPM 120, lock='bpm'
-        And a beat anchor whose beat time, after the drag, is 3
-        When the user releases the beat anchor coincident with the clipout's in-edge (inBeatTime adopts 3)
-        Then inBeatTime is set to 3
-        And lockedBeats recomputes from the new clipout length
-        And BPM is unchanged
-
-    Scenario: Output-side linking via clipout edge drag onto a beat anchor
-        Given a region with outBeatTime 20, BPM 120, lockedBeats 30
-        And a beat anchor exists at beat time 22 (not currently linked to any edge)
-        When the user drags the clipout out-edge until it coincides with the anchor at 22 and releases
-        Then outBeatTime is 22
-        And the out-edge is output-linked to that beat anchor
-        And lockedBeats recomputes (BPM stays — linking event always behaves like lock='bpm')
-
-    Scenario: Output-side linking event commits via controller-driven beat-anchor drag
-        Given a region with inBeatTime 5, outBeatTime 20, BPM 120, lock bpm, lockedBeats 30 and a beat anchor at beat time 18
-        When the user drags the beat anchor from beat time 18 to beat time 20 in the output track and releases
-        Then the region's outBeatTime is committed to 20
-        And lockedBeats recomputes to 30 from the new clipout length
-
-    # ── §6. Linked-anchor move ────────────────────────────────
-    # Once linked, dragging the BEAT anchor of the pair in output space
-    # moves the boundary's beat-space coord with it. inPoint stays put
-    # so the link remains intact for the duration of the drag. The
-    # region's lock now decides what absorbs the length change.
-
-    Scenario: Linked beat-anchor drag is live before commit
-        Given a region's in-edge is linked to an anchor pair
-        When the user drags the paired beat anchor in output space
-        Then the clipout's in-edge follows the beat anchor live
-        And the dependent value (BPM or lockedBeats, per lock) updates live
-        And nothing is committed until pointerUp
-
-    Scenario: Linked beat-anchor move respects lock='bpm'
-        Given a region with BPM 120, lock='bpm', clipout length 10 seconds
-        And the in-edge is linked to a beat anchor at beat time 5
-        When the user drags the beat anchor to beat time 7 and releases
-        Then inBeatTime updates to 7
-        And clipout length is 8 seconds
-        And BPM stays at 120
-        And lockedBeats becomes 16
-
-    Scenario: Linked beat-anchor move respects lock='beats'
-        Given a region with BPM 120, lock='beats', lockedBeats 20, clipout length 10
-        And the in-edge is linked to a beat anchor at beat time 5
-        When the user drags the beat anchor to beat time 7 and releases
-        Then inBeatTime updates
-        And clipout length is 8 seconds
-        And lockedBeats stays at 20
-        And BPM becomes 150
-
-    Scenario: Symmetric for out-edge linked-anchor move
-        Given a region's out-edge is linked to a beat anchor
-        When the user drags the paired beat anchor and releases
-        Then outBeatTime tracks the new beat time
-        And the lock-dependent value (BPM or lockedBeats) updates
-
-    Scenario: Dragging the INPUT anchor while linked unlinks (no length change)
-        Given a region's in-edge is linked to an input anchor
-        When the user drags the input anchor away from inPoint and releases
-        Then the in-edge is no longer linked
-        And inBeatTime is unchanged
-        And BPM and lockedBeats are unchanged
-
-    # ── §7. Resizing the clipout (edge drag) ──────────────────
-    # Direct manipulation: the user grabs the clipout's in-edge or
-    # out-edge and drags it in beat space. Lock decides what absorbs
-    # the length change. clipin (input bounds) is never affected.
-
-    Scenario: Clipout in-edge drag is live before commit
-        Given a region exists
-        When the user begins dragging the clipout's in-edge
-        Then inBeatTime updates live with the cursor
-        And the lock-dependent value updates live
-        And nothing is committed until pointerUp
-
-    Scenario Outline: Clipout in-edge drag commits with lock-dependent derivation
-        Given a region with BPM 120, lock=<lock>, lockedBeats 20, clipout length 10
-        When the user drags the clipout in-edge to make clipout length <newLen> and releases
-        Then BPM is <newBpm>
-        And lockedBeats is <newBeats>
-        And inPoint and outPoint are unchanged
-        Examples:
-            | lock  | newLen | newBpm | newBeats |
-            | bpm   | 8      | 120    | 16       |
-            | bpm   | 12     | 120    | 24       |
-            | beats | 8      | 150    | 20       |
-            | beats | 12     | 100    | 20       |
-
-    Scenario: Clipout out-edge drag mirrors the in-edge drag
-        Given a region with BPM 120, lock='bpm', clipout length 10
-        When the user drags the clipout out-edge to make clipout length 12 and releases
-        Then BPM stays at 120
-        And lockedBeats becomes 24
-        And outBeatTime updates (inBeatTime unchanged)
-        And inPoint and outPoint are unchanged
-
-    Scenario: Clipout edge drag carries the linked anchor (inseparable while conformed)
-        Given a region's in-edge is linked to an input anchor
-        When the user drags the clipout's in-edge by any nonzero amount
-        Then the linked anchor's beat time follows the new edge position
-        And the link is preserved at the new position (inBeatTime = the anchor's beat time)
-
-    @todo @ignore
     Scenario: Clipout edge drag snaps in output space only
-        Given the user is dragging a clipout in-edge or out-edge
-        Then the edge snaps to beat anchors
-        And to other regions' clipout edges
-        And to the BPM grid (output space only)
-        And not to scene cuts (scenes live in input space)
+      When the user drags a clipout edge
+      Then the edge snaps to beat anchors, other clipout edges, and the BPM grid
+      And not to scene cuts since scenes live in input space
 
-    @todo @ignore
-    Scenario: Clipout edge cannot resize below minimum length
-        Given a region with clipout length 1 second
-        When the user drags an edge such that the resulting length would be less than 0.1 seconds
-        Then the moving edge stops at 0.1 seconds from the opposite edge
+    Scenario Outline: Clipout edge clamps
+      When the user drags an edge such that <violation>
+      Then the moving edge clamps to <limit>
+      Examples:
+        | violation                                    | limit                       |
+        | the resulting length would be less than 0.1s | 0.1s from the opposite edge |
+        | the edge would cross 0 or OUTPUT_MAX         | the boundary                |
 
-    @todo @ignore
-    Scenario: Clipout edge cannot extend past output bounds
-        Given a region near the start or end of the output timeline
-        When the user drags an edge past [0, OUTPUT_MAX]
-        Then the edge clamps to the boundary
+  Rule: A clipout body drag translates both edges by the same delta
 
-    # ── §8. Panning the clipout (body translation) ────────────
-    # Translating the whole clipout in beat space: both edges by the
-    # same delta. Length is preserved → BPM and lockedBeats both stay.
+    Background:
+      Given a clip with inBeatTime 10, outBeatTime 30, BPM 120, lockedBeats 40
 
-    Scenario: Clipout body drag is live before commit
-        Given a region exists
-        When the user begins dragging the clipout body
-        Then both inBeatTime and outBeatTime update live by the same delta
-        And clipoutLength, BPM, and lockedBeats all stay unchanged in the preview
+    Scenario: Clipout body drag translates both edges by the drag delta
+      When the user drags the clipout body by 5
+      Then inBeatTime is 15 and outBeatTime is 35
+      And clipout length, BPM, lockedBeats, inPoint, and outPoint are all unchanged
 
-    Scenario: Clipout body drag commits on pointerUp
-        Given a region with inBeatTime 10, outBeatTime 30, BPM 120, lockedBeats 40
-        When the user drags the clipout body by +5 seconds and releases
-        Then inBeatTime is 15 and outBeatTime is 35
-        And clipoutLength stays at 20
-        And BPM stays at 120
-        And lockedBeats stays at 40
-        And inPoint and outPoint are unchanged
+    Scenario: Clipout body drag carries any conformed anchors on either edge
+      Given the in-edge OR out-edge is conformed to an anchor pair
+      When the user drags the clipout body by any nonzero amount
+      Then each conformed anchor follows the matching edge by the same delta
+      And the conforms are preserved at the new positions
 
-    Scenario: Clipout body drag carries any linked anchors on either edge
-        Given a region's in-edge or out-edge is linked to an input anchor
-        When the user drags the clipout body by any nonzero amount
-        Then each linked anchor's beat time follows the matching edge by the same delta
-        And the links are preserved at the new positions
+    @todo
+    Scenario: Clipout body drag snaps symmetrically — dominant edge wins
+      When the user translates the clipout body
+      Then the edge with the closer snap target wins
+      And the other edge translates by the same delta
 
-    @todo @ignore
-    Scenario: Clipout body drag snaps symmetrically
-        Given the user is translating the clipout body
-        Then the dominant edge (whichever has the closer snap target) wins the snap
-        And the other edge translates by the same delta
+    @todo
+    Scenario: Clipout body drag clamps to output bounds
+      When the user drags the body past [0, OUTPUT_MAX]
+      Then the body clamps so both edges remain inside the bounds
 
-    @todo @ignore
-    Scenario: Clipout body drag cannot translate past output bounds
-        Given a region near the start or end of the output timeline
-        When the user drags the body past [0, OUTPUT_MAX]
-        Then the body clamps so both edges remain inside the bounds
+  Rule: The BPM tick grid repositions in real time during gestures that change beat-space positions
 
-    # ── §9. BPM tick grid live updates ────────────────────────
+    @todo
+    Scenario Outline: BPM tick grid repositions
+      Given a clip exists
+      When the user drags <draggable>
+      Then the BPM tick grid repositions to reflect the new position
+      Examples:
+        | draggable                     |
+        | the clipin                    |
+        | an anchor sitting on the edge |
 
-    @todo @ignore
-    Scenario: BPM tick grid updates live while dragging a clip
-        Given a region exists
-        When the user drags the clip in the clipin track
-        Then the BPM tick grid repositions in real time to reflect the new clip in point
+  Rule: Changing lock fixes the new quantity; clipout length is untouched
 
-    @todo @ignore
-    Scenario: BPM tick grid updates live while dragging an anchor on the clip boundary
-        Given a region exists
-        And an anchor sits exactly on the region's in point
-        When the user drags the anchor
-        Then the BPM tick grid repositions in real time to reflect the anchor's current beat position
+    Background:
+      Given a clip with BPM 120, lockedBeats 20, clipout length 10
 
-    # ── §10. Locking and the three quantities ─────────────────
-    # lock = 'bpm'   → BPM stays fixed when clipout length changes;
-    #                  lockedBeats absorbs.
-    # lock = 'beats' → lockedBeats stays fixed when clipout length changes;
-    #                  BPM absorbs.
-    # The lock setting does NOT dictate which value the user is allowed
-    # to edit. The user can edit BPM or beats directly regardless of lock.
+    Scenario Outline: Changing lock fixes the new quantity; length is untouched
+      Given the clip's lock is <from>
+      When the user changes lock to <to>
+      Then <kept> stays at its current value as the new fixed quantity
+      And the other quantities and clipout length are unchanged
+      Examples:
+        | from  | to    | kept        |
+        | bpm   | beats | lockedBeats |
+        | beats | bpm   | BPM         |
 
-    Scenario: Changing lock from 'bpm' to 'beats' snapshots the current beat count
-        Given a region with BPM 120, clipout length 10, lock='bpm'
-        And lockedBeats is currently 20 (derived from current length)
-        When the user changes lock to 'beats'
-        Then lockedBeats becomes the snapshot of beats at the moment of switch (20)
-        And BPM, lockedBeats, and clipout length are otherwise unchanged
+    Scenario: Lock setting persists across operations
+      Given the clip's lock is beats
+      When the user performs any clipout edit
+      Then lock remains beats afterward
 
-    Scenario: Changing lock from 'beats' to 'bpm' keeps current BPM as the fixed quantity
-        Given a region with lock='beats', lockedBeats 20, clipout length 10, BPM 120
-        When the user changes lock to 'bpm'
-        Then BPM stays at 120 (now the fixed quantity)
-        And lockedBeats and clipout length are unchanged
+    @todo
+    Scenario: Lock toggled mid-drag rebases the in-progress drag
+      Given a clipout-resize drag is in progress
+      When the user toggles lock via UI mid-drag
+      Then the drag rebases to the new lock immediately
+      And subsequent cursor movement uses the new lock
 
-    Scenario: Lock setting persists across operations until the user changes it
-        Given a region with lock='beats'
-        When the user performs any clipout edit (resize, pan, or linked-anchor move)
-        Then lock remains 'beats' afterward
+  Rule: Direct BPM / beats edits use the grid model; the stretch modifier rescales length
 
-    @todo @ignore
-    Scenario: Lock changing mid-drag rebases the live preview
-        Given a clipout-resize drag is in progress with live preview visible
-        When the user toggles lock via UI mid-drag
-        Then the live preview rebases to the new lock setting immediately
-        And the eventual commit (pointerUp) uses the lock value at commit time
+    # Default (grid model): length stays, the lock-dependent value absorbs.
+    # Stretch modifier (Alt held): length rescales to keep the OTHER
+    # quantity fixed. Stretch edits always operate on the BEAT clipout —
+    # when default-linked, clipin follows along; when diverged, only clipout moves.
 
-    # ── §11. Direct BPM / beats input edit ────────────────────
-    # Default: BPM (or beats) edit uses the GRID model — length stays,
-    # the lock-dependent value absorbs. Beat anchors don't move.
-    # Holding the stretch modifier (Alt) switches to the STRETCH model:
-    # the clipout length rescales to keep the OTHER quantity fixed.
+    Scenario: Direct BPM edit uses the grid model — length stays
+      Given a clip with BPM 120, lockedBeats 20, clipout length 10
+      When applyBpmEdit is dispatched with newBpm 150, stretch false
+      Then BPM is 150 and lockedBeats is 25
+      And clipout length, inPoint, and outPoint are unchanged
+
+    Scenario: Direct beats edit on a diverged clip changes length only on the clipout
+      Given a diverged clip with BPM 120, lockedBeats 20, inBeatTime 0, outBeatTime 10
+      When applyBeatsEdit is dispatched with newLockedBeats 10
+      Then lockedBeats is 10 and BPM stays at 120
+      And clipout length shrinks to 5
+      And inPoint and outPoint stay unchanged
+
+    Scenario Outline: Stretch-mode edit on a diverged clip rescales only the clipout
+      Given a diverged clip with inPoint 10, outPoint 20, inBeatTime 5, outBeatTime 15, BPM 120, lockedBeats 20
+      When <edit> is dispatched with stretch true
+      Then <changed> updates, <kept> stays, and clipout length rescales to 8
+      And inPoint stays at 10 and outPoint stays at 20
+      And inBeatTime stays at 5; the clip remains diverged
+      Examples:
+        | edit                                  | changed     | kept        |
+        | applyBpmEdit with newBpm 150          | BPM         | lockedBeats |
+        | applyBeatsEdit with newLockedBeats 16 | lockedBeats | BPM         |
+
+    @todo
+    Scenario Outline: Stretch-mode edit on a default-linked clip rescales clipin AND clipout together
+      Given a default-linked clip with inPoint 10, outPoint 20, BPM 120, lockedBeats 20
+      When the user enters <newValue> while holding Alt
+      Then <changed> becomes its new value and clipout length rescales to 8
+      And the clip stays default-linked (inPoint stays at 10, outPoint follows to 18)
+      And inner beat anchors rescale proportionally
+      Examples:
+        | newValue        | changed     |
+        | BPM 150         | BPM         |
+        | lockedBeats 16  | lockedBeats |
+
+    @todo
+    Scenario: Stretch-mode rescale considers only the active clip's anchors
+      Given the active clip overlaps another in beat space
+      And a beat anchor falls inside both clips' clipout windows
+      When the user performs a stretch-modifier edit on the active clip
+      Then the shared anchor is rescaled as part of the active clip's clipout
+
+  Rule: Unconforming — coincidence break preserves last written beat-space coord
+
+    Scenario Outline: Unconforming via different triggers
+      Given a clip's in-edge is conformed to an anchor pair
+      When <action>
+      Then the in-edge is no longer conformed
+      And inBeatTime keeps its last written value
+      And BPM and lockedBeats are unchanged
+      Examples:
+        | action                                                        |
+        | the user drags the orig anchor away from the edge             |
+        | the user drags clipin so inPoint no longer matches the anchor |
+        | the user deletes the orig anchor or its paired beat anchor    |
+
+  Rule: Anchor-lock determines whether inner beat anchors follow clipout gestures
+
+    # Global state (state.ui.anchorLock). Holding Alt during ANY clipout
+    # gesture INVERTS the current global setting for that gesture only.
     #
-    # KEY RULE — what stretch affects:
-    # BPM/beats stretch edits ALWAYS operate on the BEAT clipout
-    # (inBeatTime / outBeatTime). When DEFAULT-LINKED, the clipin
-    # (inPoint / outPoint) follows along — the link is preserved.
-    # When DIVERGED, only the beat clipout rescales — clipin stays
-    # exactly where the user put it.
+    # Anchor-lock ON:
+    #   RESIZE  + lock=beats → inner anchors rescale proportionally
+    #   RESIZE  + lock=bpm   → inner anchors stay
+    #   BODY    drag         → inner anchors translate with the body
+    # Anchor-lock OFF:
+    #   RESIZE  + lock=beats → inner anchors stay
+    #   BODY    drag         → inner anchors stay
 
-    Scenario: Direct BPM edit uses the grid model (length stays, lockedBeats absorbs)
-        Given a region with BPM 120, lockedBeats 20, inBeatTime 0, outBeatTime 10
-        When applyBpmEdit is dispatched with newBpm 150 and stretch false
-        Then BPM becomes 150
-        And clipout length stays at 10
-        And lockedBeats becomes 25
-        And inPoint and outPoint stay unchanged
+    Scenario Outline: Alt held during a clipout gesture inverts anchor-lock for that gesture only
+      Given anchor-lock is OFF
+      And the user begins a clipout <gesture> gesture
+      When the user holds Alt during the drag
+      Then the gesture behaves as if anchor-lock were ON for this gesture only
+      And anchor-lock stays OFF after the gesture ends
+      Examples:
+        | gesture  |
+        | resize   |
+        | body-pan |
 
-    @todo @ignore
-    Scenario: Stretch-mode BPM edit while DEFAULT-LINKED rescales clipin AND clipout together
-        Given a default-linked region with inPoint 10, outPoint 20, BPM 120, lockedBeats 20
-        When the user enters BPM 150 while holding the stretch modifier (Alt)
-        Then BPM becomes 150
-        And clipout length rescales to 8
-        And the region stays default-linked (inPoint/outPoint follow to 10..18)
-        And inner beat anchors rescale proportionally around inBeatTime
+    Scenario Outline: Clipout out-edge resize × anchor-lock × lock matrix
+      Given anchor-lock is <anchorLock>
+      And a clip with lock=<lock>, BPM 120, lockedBeats 20, clipout length 10
+      And beat anchors at 12 and 16 inside the clipout window 10..20
+      When the user drags the clipout out-edge to make clipout length 8
+      Then BPM is <newBpm> and lockedBeats is <newBeats>
+      And the inner beat anchors <anchorBehavior>
+      Examples:
+        | anchorLock | lock  | newBpm | newBeats | anchorBehavior                                                  |
+        | ON         | beats | 150    | 20       | rescale proportionally around inBeatTime (12 → 11.6, 16 → 14.8) |
+        | OFF        | beats | 150    | 20       | stay at 12 and 16                                               |
+        | ON         | bpm   | 120    | 16       | stay at 12 and 16                                               |
 
-    Scenario: Stretch-mode BPM edit on a diverged region rescales only the clipout
-        Given a diverged region with inPoint 10, outPoint 20, inBeatTime 5, outBeatTime 15, BPM 120, lockedBeats 20
-        When applyBpmEdit is dispatched with newBpm 150 and stretch true
-        Then BPM becomes 150
-        And outBeatTime rescales to 13.33 (clipout length goes from 10 to 8)
-        And inPoint stays at 10 and outPoint stays at 20
-        And inBeatTime stays at 5 and the region remains diverged
+    Scenario Outline: Clipout body-pan × anchor-lock
+      Given anchor-lock is <anchorLock>
+      And a clip with inBeatTime 10, outBeatTime 30
+      And beat anchors at 12, 18, and 25 inside the clipout window
+      When the user drags the clipout body by 5
+      Then inBeatTime is 15 and outBeatTime is 35
+      And the inner beat anchors <anchorBehavior>
+      And anchors outside the original window are unchanged
+      Examples:
+        | anchorLock | anchorBehavior            |
+        | ON         | are now at 17, 23, and 30 |
+        | OFF        | stay at 12, 18, and 25    |
 
-    Scenario: Stretch-mode beats edit on a diverged region rescales only the clipout
-        Given a diverged region with inPoint 10, outPoint 20, inBeatTime 5, outBeatTime 15, BPM 120, lockedBeats 20
-        When applyBeatsEdit is dispatched with newLockedBeats 16 and stretch true
-        Then lockedBeats becomes 16
-        And clipout length rescales to 8 (60 x 16 / 120)
-        And BPM stays at 120
-        And inPoint stays at 10 and outPoint stays at 20
-        And inBeatTime stays at 5 and the region remains diverged
+    @todo
+    Scenario: Anchor-lock affects only the active clip's anchors
+      Given anchor-lock is ON and the active clip overlaps another in beat space
+      And a beat anchor falls inside both clips' clipout windows
+      When the user pans the active clip's clipout body
+      Then the shared anchor moves with the active clip
+      # Cross-clip anchor sharing will be reworked separately.
 
-    Scenario: Direct beats edit changes length, BPM preserved (diverged: clipout only)
-        Given a diverged region with BPM 120, lockedBeats 20, inBeatTime 0, outBeatTime 10
-        When applyBeatsEdit is dispatched with newLockedBeats 10
-        Then lockedBeats becomes 10
-        And BPM is preserved (120)
-        And clipout length shrinks to 5 (10 beats × 60 / 120)
-        And inPoint and outPoint stay unchanged (diverged region)
+  Rule: A drag gesture is atomic — completion is one undo step; cancellation reverts state with no undo entry
 
-    @todo @ignore
-    Scenario: Stretch-mode beats edit follows the same linked/diverged rule
-        Given a default-linked region with inPoint 10, outPoint 20, BPM 120, lockedBeats 20
-        When the user enters new lockedBeats 16 while holding the stretch modifier (Alt)
-        Then lockedBeats becomes 16
-        And clipout length rescales to 8 (60 × 16 / 120)
-        And the region stays default-linked (inPoint/outPoint follow to 10..18)
-        And BPM stays at 120
+    # State updates are continuous during a drag. A completed gesture
+    # is a single undo step — intermediate drag frames are not separately
+    # undoable. Cancel reverts to the pre-drag state with no undo entry.
 
-    @todo @ignore
-    Scenario: Stretch-mode rescale only considers the ACTIVE region's anchors
-        Given the active region overlaps another region in beat space
-        And a beat anchor falls inside both regions' clipout windows
-        When the user performs a stretch-modifier BPM edit on the active region
-        Then the shared anchor is rescaled as part of the active region's clipout
+    Scenario: A completed drag is one undo step
+      Given a clip exists
+      When the user completes a drag
+      And the user presses undo
+      Then the clip returns to its pre-drag state in one step
 
-    @todo @ignore
-    Scenario Outline: lock × stretch-modifier matrix on BPM edit (diverged region)
-        Given a diverged region with BPM 120, lockedBeats 20, clipout length 10, lock=<lock>
-        When the user enters BPM 150 with modifier=<mod>
-        Then clipout length becomes <newLen>
-        And lockedBeats becomes <newBeats>
-        And inner anchors rescale only when <anchorRescale>
-        And clipin (inPoint/outPoint) stays unchanged
-        Examples:
-            | lock  | mod          | newLen | newBeats | anchorRescale |
-            | bpm   | none         | 10     | 25       | never         |
-            | bpm   | stretch(Alt) | 8      | 20       | always        |
-            | beats | none         | 10     | 25       | never         |
-            | beats | stretch(Alt) | 8      | 20       | always        |
+    Scenario Outline: Cancelling a drag reverts state without an undo entry
+      Given a <gesture> is in progress
+      When <cancel>
+      Then state reverts to the pre-gesture values
+      And the undo stack is unchanged
+      Examples:
+        | gesture                  | cancel                  |
+        | orig-anchor drag         | the user presses Escape |
+        | beat-anchor drag         | pointercancel fires     |
+        | clipout edge drag        | the user presses Escape |
+        | clipout body translation | pointercancel fires     |
 
-    # ── §12. Unlinking semantics ──────────────────────────────
-    # When coincidence is broken, the boundary's beat-space coord keeps
-    # its last committed value — no auto-revert to inPoint/outPoint.
+  Rule: Reset Boundary returns a diverged clip to default-linked
 
-    Scenario: Input-anchor drag away from boundary unlinks without changing inBeatTime
-        Given a region's in-edge is linked to an input anchor
-        When the user drags the input anchor away from inPoint and releases
-        Then the in-edge is no longer linked
-        And inBeatTime keeps its last committed value
-        And BPM and lockedBeats are unchanged
+    @todo
+    Scenario: Reset Boundary clears inBeatTime and outBeatTime
+      Given a diverged clip with inPoint 10, outPoint 20, inBeatTime 5, outBeatTime 18
+      When the user clicks the Reset Boundary button
+      Then inBeatTime and outBeatTime become undefined
+      And the clip is default-linked
+      And clipin and clipout render at the same x-positions
 
-    Scenario: Clip body or edge drag away from anchor unlinks without changing inBeatTime
-        Given a region's in-edge is linked to an input anchor
-        When the user drags the clipin body or in-edge so inPoint no longer matches the anchor
-        Then the in-edge is no longer linked
-        And inBeatTime keeps its last committed value
+    @todo
+    Scenario: Reset Boundary is disabled on a default-linked clip
+      Given a default-linked clip with inBeatTime and outBeatTime undefined
+      Then the Reset Boundary button is disabled
 
-    Scenario: Anchor deletion unlinks but leaves clipout diverged
-        Given a region's in-edge is linked to an input anchor
-        When the user deletes the input anchor (or its paired beat anchor)
-        Then the in-edge is no longer linked
-        And inBeatTime keeps its last committed value
-        And no auto-revert to inPoint occurs
-
-    Scenario: Re-linking is a fresh linking event
-        Given a region whose in-edge was previously linked then unlinked, inBeatTime now diverged
-        When a different input anchor's input time later coincides with inPoint
-        And the user commits the gesture (pointerUp at coincidence)
-        Then inBeatTime is redefined from the new anchor's paired beat time
-        And lockedBeats recomputes
-        And BPM is unchanged
-
-    # ── §13. Anchor-lock mode ─────────────────────────────────
-    # A global mode (state.ui.anchorLock) that changes how beat anchors
-    # INSIDE a region's clipout window behave during resize and body-pan
-    # gestures. Toggled persistently via a button in the canvas toolbar.
-    # Engaged transiently by holding Alt during any clipout gesture (the
-    # modifier INVERTS the current global setting for that gesture only).
-    #
-    # Anchors-lock semantics:
-    #   RESIZE  + lock='beats'  → anchors STAY at their beat times
-    #                             (no proportional rescale)
-    #   RESIZE  + lock='bpm'    → unchanged (anchors never rescale here)
-    #   BODY DRAG (pan)         → anchors MOVE WITH the clipout by the
-    #                             same delta (carried along)
-    #
-    # Normal mode (anchor-lock OFF) behavior — for contrast:
-    #   RESIZE  + lock='beats'  → anchors rescale proportionally
-    #                             (because BPM changes)
-    #   BODY DRAG (pan)         → anchors stay (per §8)
-
-    @todo @ignore
-    Scenario: Anchor-lock toolbar button toggles the global setting
-        Given the canvas toolbar anchor-lock button shows state.ui.anchorLock=false
-        When the user clicks the anchor-lock button
-        Then state.ui.anchorLock becomes true
-        And the button shows the active / on state
-        When the user clicks the button again
-        Then state.ui.anchorLock becomes false
-
-    @todo @ignore
-    Scenario: Alt-held preview inverts the anchor-lock button display
-        Given state.ui.anchorLock is false
-        When the user holds Alt
-        Then the anchor-lock toolbar button visually displays its inverted (ON) state
-        And state.ui.anchorLock is still false (no persistent change)
-        When the user releases Alt
-        Then the button returns to its normal (OFF) display
-
-    @todo @ignore
-    Scenario: Alt-held preview works the other way when global lock is ON
-        Given state.ui.anchorLock is true
-        When the user holds Alt
-        Then the anchor-lock toolbar button visually displays its inverted (OFF) state
-        And state.ui.anchorLock is still true (no persistent change)
-
-    Scenario: Holding Alt during resize inverts anchor-lock for that gesture only
-        Given state.ui.anchorLock is false
-        And the user begins a clipout resize gesture
-        When the user holds Alt during the drag
-        Then the gesture behaves as if anchorLock were true for this gesture only
-        And state.ui.anchorLock stays at false after pointerUp
-
-    Scenario: Holding Alt during clipout body-pan inverts anchor-lock for that gesture only
-        Given state.ui.anchorLock is false
-        And the user begins a clipout body-pan gesture
-        When the user holds Alt during the drag
-        Then beat anchors inside the clipout window translate with the body for this gesture only
-        And state.ui.anchorLock stays at false after pointerUp
-
-    Scenario: Resize with anchor-lock ON and lock='beats' rescales anchors proportionally
-        Given state.ui.anchorLock is true
-        And a region with lock='beats', BPM 120, lockedBeats 20, clipout length 10
-        And beat anchors at beat times 12 and 16 (inside clipout window 10..20)
-        When the user drags the clipout out-edge to make clipout length 8 and releases
-        Then BPM becomes 150 (length × bpm / 60 = lockedBeats → bpm = 60 × 20 / 8)
-        And lockedBeats stays at 20
-        And the beat anchors rescale proportionally around inBeatTime (12 → 11.6, 16 → 14.8)
-
-    Scenario: Resize with anchor-lock OFF and lock='beats' keeps anchors in place
-        Given state.ui.anchorLock is false
-        And a region with lock='beats', BPM 120, lockedBeats 20, clipout length 10
-        And beat anchors at beat times 12 and 16 (inside clipout window 10..20)
-        When the user drags the clipout out-edge to make clipout length 8 and releases
-        Then BPM becomes 150
-        And lockedBeats stays at 20
-        And the beat anchors stay at beat times 12 and 16 (unchanged)
-
-    Scenario: Resize with anchor-lock ON and lock='bpm' is unchanged (anchors stay either way)
-        Given state.ui.anchorLock is true
-        And a region with lock='bpm', BPM 120, lockedBeats 20, clipout length 10
-        And beat anchors at beat times 12 and 16
-        When the user drags the clipout out-edge to make clipout length 8 and releases
-        Then BPM stays at 120
-        And lockedBeats becomes 16
-        And the beat anchors stay at beat times 12 and 16
-
-    Scenario: Clipout body-pan with anchor-lock ON carries all inner anchors
-        Given state.ui.anchorLock is true
-        And a region with inBeatTime 10, outBeatTime 30
-        And beat anchors at beat times 12, 18, and 25 (all inside the clipout window)
-        When the user drags the clipout body by +5 seconds and releases
-        Then inBeatTime is 15 and outBeatTime is 35
-        And the beat anchors are now at beat times 17, 23, and 30 (moved by +5)
-        And anchors outside the original clipout window are unchanged
-
-    Scenario: Clipout body-pan with anchor-lock OFF does not move anchors (default)
-        Given state.ui.anchorLock is false
-        And a region with inBeatTime 10, outBeatTime 30
-        And beat anchors at beat times 12, 18, and 25
-        When the user drags the clipout body by +5 seconds and releases
-        Then inBeatTime is 15 and outBeatTime is 35
-        And the beat anchors stay at 12, 18, and 25
-
-    @todo @ignore
-    Scenario: Anchor-lock affects only the active region's anchors
-        Given state.ui.anchorLock is true
-        And the active region overlaps another region in beat space
-        And a beat anchor falls inside both regions' clipout windows
-        When the user pans the active region's clipout body
-        Then the shared anchor moves with the active region
-        # Cross-region anchor sharing will be reworked in a separate effort.
-
-    # ── §14. Cancel paths ─────────────────────────────────────
-    # Standard cancel paths reset state without committing —
-    # consistent with drag.feature §2.4 of TIMELINE_BEHAVIOR.md.
-
-    Scenario Outline: Cancel during any conform / clipout gesture discards the preview
-        Given a <gesture> is in progress with live preview visible
-        When <cancel>
-        Then all preview values revert to pre-gesture state
-        And no commit enters the undo stack
-        Examples:
-            | gesture                     | cancel                  |
-            | linking-event anchor drag   | the user presses Escape |
-            | linked-anchor beat-drag     | pointercancel fires     |
-            | clipout in-edge drag        | window blur fires       |
-            | clipout out-edge drag       | the user presses Escape |
-            | clipout body translation    | pointercancel fires     |
-            | BPM input edit (uncommitted)| the user presses Escape |
-
-    # ── §15. Reset Boundary ───────────────────────────────────
-    # The Reset Boundary button returns a diverged region to default-linked
-    # state by clearing inBeatTime and outBeatTime (setting them to undefined).
-    # The button is disabled when the region is already default-linked.
-
-    @todo @ignore
-    Scenario: Reset Boundary button clears inBeatTime and outBeatTime
-        Given a region with inPoint 10, outPoint 20, inBeatTime 5, outBeatTime 18 (diverged)
-        When the user clicks the Reset Boundary button
-        Then inBeatTime becomes undefined
-        And outBeatTime becomes undefined
-        And the region is reported as default-linked
-        And clipin and clipout render at the same horizontal positions
-
-    @todo @ignore
-    Scenario: Reset Boundary is disabled when the region is already default-linked
-        Given a region in its default-linked state (inBeatTime and outBeatTime are undefined)
-        Then the Reset Boundary button is disabled (not clickable)
-
-    @todo @ignore
+    @todo
     Scenario: Reset Boundary is undoable
-        Given a region with inBeatTime 5, outBeatTime 18 (diverged)
-        When the user clicks the Reset Boundary button
-        And the change is undone
-        Then inBeatTime is 5 and outBeatTime is 18 again
-        And the region is reported as diverged
+      Given a diverged clip with inBeatTime 5, outBeatTime 18
+      When the user clicks Reset Boundary and then undoes
+      Then inBeatTime is 5, outBeatTime is 18, and the clip is diverged again
 
-    # ── §16. Active region and hit resolution ─────────────────
-    # pointerDown on a region body or any of its edges sets that region as
-    # the active region before any drag gesture begins.
-    # When two regions share a coincident boundary x-position, the active
-    # region's edge wins the hit test over the non-active region's edge.
+  Rule: PointerDown activates a clip; coincident-boundary hits resolve to the active clip
 
-    @todo @ignore
-    Scenario: PointerDown on a region body sets it as the active region
-        Given region A is the active region
-        And region B is not the active region
-        When the user presses the pointer on region B's body
-        Then region B becomes the active region immediately (before any movement)
-        And no drag has yet committed
+    # When boundary x-positions coincide between active and non-active
+    # clips, the active clip's edge wins the hit.
 
-    @todo @ignore
-    Scenario: PointerDown on a region edge sets it as the active region
-        Given region A is the active region
-        And region B is not the active region
-        When the user presses the pointer on region B's in-edge or out-edge
-        Then region B becomes the active region immediately
+    @todo
+    Scenario Outline: PointerDown on a clip's <target> activates it before any drag
+      Given clip A is the active clip and clip B is not
+      When the user presses the pointer on clip B's <target>
+      Then clip B becomes the active clip immediately, before any movement
+      Examples:
+        | target |
+        | body   |
+        | edge   |
 
-    @todo @ignore
-    Scenario: Active region's edge wins coincident boundary hit
-        Given region A (active) and region B share an x-position boundary
-        And region A's out-edge and region B's in-edge are at the same screen coordinate
-        When the user presses the pointer at that x-position
-        Then the hit is resolved to region A's out-edge
-        And region B's in-edge is not dragged
+    @todo
+    Scenario: Active clip's edge wins a coincident-boundary hit test
+      Given clip A and clip B share an x-position boundary
+      When the user presses the pointer at that x-position
+      Then the hit resolves to clip A's edge
 
-    @todo @ignore
-    Scenario: Non-active region's edge wins when the active region has no edge there
-        Given region A (active) has no edge near x-position P
-        And region B (non-active) has an edge at x-position P
-        When the user presses the pointer at x-position P
-        Then the hit is resolved to region B's edge
+    @todo
+    Scenario: Non-active clip's edge wins when the active clip has no edge there
+      Given clip A has no edge near x P
+      And clip B has an edge at x P
+      When the user presses the pointer at x P
+      Then the hit resolves to clip B's edge
 
-    # ── §17. Conform visual display (input-side) ─────────────
-    # When an input anchor's inputTime coincides with region.inPoint (or
-    # outPoint), the clipout edge is DISPLAYED at the paired beat anchor's
-    # beat time — but inBeatTime/outBeatTime are NOT written. The region
-    # stays default-linked. This is purely a render-time projection.
-    # Only a direct clipout interaction (edge drag or body pan) commits
-    # the conformed position and carries the paired beat anchor.
+  Rule: A clipout edge drag with lock=beats restricts the snap target set
 
-    @todo @ignore
-    Scenario: Conform is visual-only — inBeatTime not written during display
-        Given a default-linked region with inPoint 10
-        And an input anchor pair at inputTime 10, beatTime 6
-        Then the clipout's in-edge displays at beat time 6 (conformed visual)
-        And inBeatTime is still undefined (region is still default-linked)
-        And the undo stack has no new entry
+    # BPM grid ticks and beat anchors move with the grid as length
+    # changes, so they're excluded; the self-clip's projected clipin
+    # bounds become snap targets (they don't move during a clipout edit).
 
-    @todo @ignore
-    Scenario: Conformed-marker carry — interacting with the clipout commits and carries the anchor
-        Given a default-linked region with inPoint 10
-        And an input anchor pair at inputTime 10 (conformed at in-edge), beatTime 6
-        When the user drags the clipout out-edge (any interaction with the clipout)
-        Then inBeatTime is committed to 6 (the conformed value) at drag start
-        And the paired beat anchor at beatTime 6 moves with the clipout out-edge during the drag
-        And the commit enters the undo stack at pointerUp
+    @todo
+    Scenario: BPM-changing clipout edge drag excludes grid ticks and beat anchors from snaps
+      Given a clip with lock=beats and a clipout edge being dragged
+      And a BPM grid line and a beat anchor are nearby
+      Then neither the grid line nor the beat anchor appears as a snap target
+      And other clips' clipout edges still appear as snap targets
 
-    @todo @ignore
-    Scenario: Conformed-marker carry is symmetric for the out-edge
-        Given a default-linked region with outPoint 20
-        And an input anchor pair at inputTime 20 (conformed at out-edge), beatTime 18
-        When the user drags the clipout body (any interaction with the clipout)
-        Then outBeatTime is committed to 18 at drag start
-        And the paired beat anchor at beatTime 18 carries with the clipout body translation
+    @todo
+    Scenario: BPM-changing clipout edge drag adds the self-clip's clipin bounds as snap targets
+      Given a clip with lock=beats, inPoint 10, outPoint 20
+      And the clipout out-edge is being dragged in beat space
+      Then the clip's own clipin bounds at 10 and 20 in beat-space coords are offered as snap targets
 
-    # ── §18. Snap targets during grid-changing clipout ops ────
-    # During clipout gestures that change the BPM grid (edge drag with
-    # lock='beats'), the snap target set is restricted:
-    #   - BPM grid ticks are excluded (they move as the grid changes)
-    #   - Beat anchors are excluded (they may rescale)
-    #   - Self-region's OWN projected clipin bounds are ADDED as snap targets
+  Rule: Set-<Edge>-Point with playhead inside a clip resizes the matching edge
 
-    @todo @ignore
-    Scenario: Clipout edge drag with lock='beats' excludes BPM grid and beat anchors from snaps
-        Given a region with lock='beats' and a clipout out-edge being dragged
-        And a BPM grid line and a beat anchor are nearby
-        Then neither the BPM grid line nor the beat anchor appears as a snap target
-        And other regions' clipout edges still appear as snap targets
-
-    @todo @ignore
-    Scenario: Clipout edge drag with lock='beats' adds self-region clipin bounds as snap targets
-        Given a region with lock='beats', inPoint 10, outPoint 20
-        And the clipout out-edge is being dragged in beat space
-        Then the region's own clipin projected bounds (10 and 20, in beat-space coords) are offered as snap targets
-
-    # ── §19. Set In/Out Point resize path ────────────────────
-    # setInPointToPlayhead and setOutPointToPlayhead have two branches:
-    #   SPAWN:  playhead is outside the region (before inPoint or after outPoint)
-    #           → a new region is created (covered in §2)
-    #   RESIZE: playhead is inside the region
-    #           → the nearest boundary (in or out) is moved to the playhead
-
-    @todo @ignore
-    Scenario: Set-In-Point with playhead inside the region moves the in-point
-        Given a region with start 10 and end 30
-        And the playhead is at 20 (inside the region)
-        When the Set In Point Button is clicked
-        Then the region's start moves to 20
-        And the region now spans 20 to 30
-        And no new region is created
-
-    @todo @ignore
-    Scenario: Set-Out-Point with playhead inside the region moves the out-point
-        Given a region with start 10 and end 30
-        And the playhead is at 20 (inside the region)
-        When the Set Out Point Button is clicked
-        Then the region's end moves to 20
-        And the region now spans 10 to 20
-        And no new region is created
+    @todo
+    Scenario Outline: Set-<Edge>-Point moves the nearest boundary when the playhead is inside
+      Given a clip from 10 to 30 and the playhead at 20
+      When the Set <Edge> Point button is clicked
+      Then the clip's <edge>-edge moves to 20
+      And the clip spans <newSpan>
+      And no new clip is created
+      Examples:
+        | Edge | edge | newSpan  |
+        | In   | in   | 20 to 30 |
+        | Out  | out  | 10 to 20 |

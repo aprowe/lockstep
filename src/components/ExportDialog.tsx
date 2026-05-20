@@ -8,6 +8,8 @@ import { buildWarpRequest, type AudioMode } from '../utils/exportRequest'
 import { visibleSceneCuts } from '../utils/sceneFilter'
 import './ExportDialog.css'
 
+const EMPTY: never[] = []
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface ExportJob {
@@ -149,8 +151,8 @@ export default function ExportDialog({
 
   const reduxDispatch = useAppDispatch()
   const lastExportFolder = useAppSelector(s => s.ui.lastExportFolder)
-  const detectedSceneCuts = useAppSelector(s => (videoPath ? s.scene?.cutsByPath?.[videoPath] ?? [] : []))
-  const userSceneCuts = useAppSelector(s => (videoPath ? s.scene?.userCutsByPath?.[videoPath] ?? [] : []))
+  const detectedSceneCuts = useAppSelector(s => (videoPath ? s.scene?.cutsByPath?.[videoPath] : undefined) ?? EMPTY)
+  const userSceneCuts = useAppSelector(s => (videoPath ? s.scene?.userCutsByPath?.[videoPath] : undefined) ?? EMPTY)
   const sceneMinGap = useAppSelector(s => (videoPath ? s.scene?.minGapByPath?.[videoPath] : undefined)) ?? 2
   // Export uses the visible cut set (filtered detected ∪ user-placed) so the
   // backend processes the same boundaries the operator sees in the UI.

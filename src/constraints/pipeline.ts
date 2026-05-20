@@ -68,27 +68,17 @@ export interface PipelineSlice {
 }
 
 export interface DragCtx {
-  /** Lasso TranslateGroup members (entity IDs). Empty when no selection. */
-  lassoIds: EntityId[]
-  /** Snap installed for a drag — null when not snapping. */
-  snapInstall?: {
-    entityId: EntityId
-    field: 'time' | 'in' | 'out'
-    threshold: number
-    grid?: { interval: number; offset: number }
-    mode?: 'edge' | 'body'
-    targets?: Array<{ entityId: EntityId; field: 'time' | 'in' | 'out' }>
-  }
-  /** Anchor-lock state — null/false means inactive. */
-  anchorLock?: {
-    clipOutId: EntityId
-    innerAnchorOutIds: EntityId[]
-    lockMode: 'bpm' | 'beats'
-  }
   /** Active gesture handle — drives profile.whileDragging constraint injection. */
   activeHandle?: import('./profiles/types').Handle | null
   /** Modifier-key state for the active gesture (alt for anchor-lock XOR). */
   modifiers?: { alt: boolean }
+  /** Pixel-to-time conversion at drag start (from controller's view info).
+   *  Profiles use this to convert the pixel-space snap threshold (8 px)
+   *  into entity-time units. */
+  pxPerUnit?: number
+  /** Optional beat-grid for snap (set when the active gesture should
+   *  consider grid marks alongside entity targets). */
+  grid?: { interval: number; offset: number }
 }
 
 export interface PipelineInput {
@@ -197,30 +187,8 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     })
   }
 
-  // 3. Snap SnapTarget — installed BEFORE MirrorEdge / ConformVisual /
-  //    MirrorPair so the snap correction happens FIRST in each Propose pass.
-  //    Subsequent cascading constraints (MirrorEdge clipin→clipout,
-  //    MirrorPair clipout→anchor) then see the already-snapped value and
-  //    propagate it. Without this ordering, MirrorEdge would propagate the
-  //    pre-snap value to clipout, MirrorPair would propagate that stale
-  //    clipout to the anchor, and the anchor would be left at the pre-snap
-  //    value (the "anchors get lost during snap" bug).
-  if (dragCtx.snapInstall) {
-    const { entityId, field, threshold, grid, mode, targets } = dragCtx.snapInstall
-    state = reduce(state, {
-      kind: OpKind.AddConstraint,
-      constraint: {
-        kind:      ConstraintKind.SnapTarget,
-        id:        entityId,
-        field,
-        targets:   targets ?? [],
-        threshold,
-        grid,
-        mode,
-        tag:       `snap:${entityId}:${field}`,
-      },
-    })
-  }
+  // 3. (SnapTarget install moved to step 11 — profile.whileDragging
+  //     handles it now that all drag classes flow through profiles.)
 
   // 3b. Default-link (clipin → clipout): two MirrorEdges (per-edge value
   //    mirror). For each clipin edge write, clipout's matching edge gets the
@@ -268,8 +236,31 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
   //
   //    Handles: visual conform during clipin drag (clipout snaps to the
   //    paired beat anchor when clipin lands on its orig).
+  //
+  //    Skipped for the active pair-drag's anchor: when the user grabs the
+  //    warp connector, conform must not pull the clip with the moving pair.
+  //    Also skipped when an anchor-drag is active AND the partner side is
+  //    in the lasso (both sides move via TranslateGroup → equivalent to a
+  //    pair-drag). A single-side anchor drag (partner not lassoed) still
+  //    engages conform when the orig lands on a clip edge.
+  let conformSkipPairId: number | null = null
+  if (dragCtx.activeHandle) {
+    if (dragCtx.activeHandle.kind === 'pair-drag') {
+      conformSkipPairId = dragCtx.activeHandle.pairId
+    } else if (dragCtx.activeHandle.kind === 'anchor-drag') {
+      const id = dragCtx.activeHandle.anchorId
+      const origSel = slice.selection?.orig ?? []
+      const beatSel = slice.selection?.beat ?? []
+      // Anchor is "effectively a pair" when both sides are lassoed (the
+      // lasso TranslateGroup will translate both spaces together).
+      if (origSel.includes(id) && beatSel.includes(id)) {
+        conformSkipPairId = id
+      }
+    }
+  }
   for (const r of slice.region.regions) {
     for (const orig of slice.warp.origAnchors) {
+      if (orig.id === conformSkipPairId) continue
       const beat = beatById.get(orig.id)
       if (!beat) continue
       for (const edge of ['in', 'out'] as const) {
@@ -288,48 +279,14 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     }
   }
 
-  // 4b. MirrorPair (symmetric, dual-space install + guard) — installed wherever
-  //    conform is fully engaged in BOTH input and output spaces. This handles
-  //    the OTHER direction: drag clipout → anchor follows. ConformVisual only
-  //    handles anchor→clip; this is the symmetric clip→anchor.
-  //
-  //    Dual-space install + guard together prevent the diverged-anchor nudge
-  //    bug: it only installs when output coincidence ALSO holds (linked anchor
-  //    on a default-linked clip, or post-linking-event conformance), so a
-  //    default-link clip drag across a diverged anchor (input coincides but
-  //    output doesn't) never triggers the symmetric write.
-  {
-    const LINK_EPSILON = 1e-4
-    for (const r of slice.region.regions) {
-      const clipinEntity  = state.entities[regionInId(r.id)]
-      const clipoutEntity = state.entities[regionOutId(r.id)]
-      if (!clipinEntity  || clipinEntity.kind  !== 'clip') continue
-      if (!clipoutEntity || clipoutEntity.kind !== 'clip') continue
-      for (const orig of slice.warp.origAnchors) {
-        const beat = beatById.get(orig.id)
-        if (!beat) continue
-        for (const edge of ['in', 'out'] as const) {
-          const clipInEdgeValue  = edge === 'in' ? clipinEntity.in  : clipinEntity.out
-          const clipOutEdgeValue = edge === 'in' ? clipoutEntity.in : clipoutEntity.out
-          if (Math.abs(clipInEdgeValue  - orig.time) > LINK_EPSILON) continue
-          if (Math.abs(clipOutEdgeValue - beat.time) > LINK_EPSILON) continue
-          state = reduce(state, {
-            kind: OpKind.AddConstraint,
-            constraint: {
-              kind: ConstraintKind.MirrorPair,
-              a:    { id: anchorOutId(orig.id), field: Field.Time },
-              b:    { id: regionOutId(r.id),    field: edge },
-              guard: {
-                a: { id: anchorInId(orig.id), field: Field.Time },
-                b: { id: regionInId(r.id),    field: edge },
-              },
-              tag:  `conform:${orig.id}:${r.id}:${edge}`,
-            },
-          })
-        }
-      }
-    }
-  }
+  // 4b. MirrorPair — INSTALLATION moved to after step 11 (gesture-scoped
+  //     SnapTarget) so that in each Propose iteration, SnapTarget fires
+  //     first (restricts the drag value to the snap target) and MirrorPair
+  //     fires second (propagates the snap-restricted value to the conformed
+  //     beat anchor). Order matters because Propose iterates state.constraints
+  //     in insertion order, and a MirrorPair that propagates an unsnapped
+  //     value short-circuits before snap fires would desync the anchor from
+  //     the clipout edge.
 
   // 5. SnapRule constraints — derived from SNAP_RULES table.
   for (const spec of SNAP_RULES) {
@@ -403,11 +360,8 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
 
   // ── Transient (dragCtx) constraints ──────────────────────────────────────
 
-  // 8. Lasso TranslateGroup — preferred source: slice selection (read
-  //    directly from warp.selectedOrigIds + warp.selectedBeatIds +
-  //    lists.selection.clipin + clipout). Legacy fallback: dragCtx.lassoIds
-  //    (still populated by selectionGraphMirrorMiddleware, kept for the
-  //    transitional period).
+  // 8. Lasso TranslateGroup — derived directly from slice selection state.
+  //    No middleware mirror needed: the pipeline runs on every dispatch.
   let lassoIds: EntityId[] = []
   if (slice.selection) {
     for (const n of slice.selection.orig)  lassoIds.push(anchorInId(n))
@@ -416,9 +370,6 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     for (const s of slice.lists.selection.clipout) lassoIds.push(regionOutId(s))
     lassoIds = [...new Set(lassoIds)]
   }
-  if (lassoIds.length === 0 && dragCtx.lassoIds.length > 0) {
-    lassoIds = dragCtx.lassoIds
-  }
   if (lassoIds.length > 0) {
     state = reduce(state, lasso('main', lassoIds))
   }
@@ -426,31 +377,55 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
   // 9. (SnapTarget moved to step 3b above — must install before MirrorPair
   //    so snap restricts writes before MirrorPair propagates them.)
 
-  // 10. Anchor-lock constraints — from dragCtx.anchorLock (written by anchorLockMirrorMiddleware).
-  if (dragCtx.anchorLock) {
-    const { clipOutId, innerAnchorOutIds, lockMode } = dragCtx.anchorLock
-    if (lockMode === 'beats') {
-      for (const op of lockOn(clipOutId, innerAnchorOutIds)) {
-        state = reduce(state, op)
+  // 10. Anchor-lock constraints — derived directly from slice state.
+  //     The gesture-override (alt key during drag) is XOR'd with the static
+  //     ui.anchorLock to get the effective lock state.
+  {
+    const gestureOverride = slice.ui.anchorLockGestureOverride ?? null
+    const effectiveAnchorLock = gestureOverride !== null ? gestureOverride : (slice.ui.anchorLock ?? false)
+    const activeRegionId = slice.ui.activeRegionId ?? null
+    const activeRegion = activeRegionId
+      ? slice.region.regions.find(r => r.id === activeRegionId)
+      : undefined
+    if (effectiveAnchorLock && activeRegion) {
+      const clipoutIn = activeRegion.inBeatTime
+      const clipoutOut = activeRegion.outBeatTime
+      const EPSILON = 1e-9
+      const innerAnchorOutIds: EntityId[] = []
+      for (const a of slice.warp.beatAnchors) {
+        if (a.time > clipoutIn + EPSILON && a.time < clipoutOut - EPSILON) {
+          innerAnchorOutIds.push(anchorOutId(a.id))
+        }
       }
-    } else {
-      // 'bpm' mode: TranslateGroup only (no ScaleGroup).
-      state = reduce(state, {
-        kind: OpKind.AddConstraint,
-        constraint: {
-          kind:   ConstraintKind.TranslateGroup,
-          ids:    [clipOutId, ...innerAnchorOutIds],
-          driver: clipOutId,
-          tag:    `lock:${clipOutId}`,
-        },
-      })
+      innerAnchorOutIds.sort()
+      if (innerAnchorOutIds.length > 0) {
+        const clipOutId = regionOutId(activeRegion.id)
+        const lockMode = slice.ui.lockMode
+        if (lockMode === 'beats') {
+          for (const op of lockOn(clipOutId, innerAnchorOutIds)) {
+            state = reduce(state, op)
+          }
+        } else {
+          state = reduce(state, {
+            kind: OpKind.AddConstraint,
+            constraint: {
+              kind:   ConstraintKind.TranslateGroup,
+              ids:    [clipOutId, ...innerAnchorOutIds],
+              driver: clipOutId,
+              tag:    `lock:${clipOutId}`,
+            },
+          })
+        }
+      }
     }
   }
 
   // 11. Gesture-scoped constraints — declared by the active drag handle's
   //     GestureProfile.whileDragging. These exist exactly for the
-  //     pipeline-cycles where state.gesture.activeHandle points at them;
-  //     no install/teardown ops to leak.
+  //     pipeline-cycles where state.gesture.activeHandle points at them.
+  //     Profiles receive the partial graph state so they can use
+  //     `snapToSiblings` (and friends) to compute SnapTarget targets
+  //     dynamically.
   if (dragCtx.activeHandle) {
     const profile = lookupProfile(dragCtx.activeHandle)
     if (profile) {
@@ -460,11 +435,86 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
           beatAnchors: slice.warp.beatAnchors,
           regions:     slice.region.regions,
         },
-        ui: { anchorLock: false, lockMode: slice.ui.lockMode },
+        ui: { anchorLock: slice.ui.anchorLock ?? false, lockMode: slice.ui.lockMode },
         modifiers: dragCtx.modifiers ?? { alt: false },
+        pxPerUnit: dragCtx.pxPerUnit ?? 0,
+        grid:      dragCtx.grid ?? undefined,
       }
-      for (const constraint of profile.whileDragging(dragCtx.activeHandle, ctx)) {
+      for (const constraint of profile.whileDragging(dragCtx.activeHandle, ctx, state)) {
         state = reduce(state, { kind: OpKind.AddConstraint, constraint })
+      }
+    }
+  }
+
+  // 12. MirrorPair (formerly step 4b) — installed LAST so that during a
+  //     conformed clipout drag, snap restricts the drag value FIRST
+  //     (SnapTarget from step 11) and MirrorPair THEN propagates the
+  //     snap-restricted value to the beat anchor. Order is enforced by
+  //     state.constraints insertion order, which the Propose phase walks
+  //     for each fixed-point iteration.
+  //
+  //     Installed wherever conform is fully engaged in BOTH input and
+  //     output spaces. Dual-space install + guard prevents the
+  //     diverged-anchor nudge bug: only installs when output coincidence
+  //     ALSO holds, so a default-link clip drag across a diverged anchor
+  //     (input coincides but output doesn't) never triggers the symmetric
+  //     write.
+  {
+    const LINK_EPSILON = 1e-4
+    // When the active drag is a clipin (input-space) handle on a region, the
+    // clipout writes flow ONE WAY via default-link (clipin → clipout) and
+    // ConformVisual (anchor → clipout). Installing the SYMMETRIC MirrorPair
+    // would let the propose-value of clipin contaminate the beat anchor via
+    // clipout (the default-link cascade writes clipout = clipin, MirrorPair
+    // then propagates that to anchor.beat). Skip MirrorPair install for the
+    // dragged region's clipin handles to keep the diverged anchor pinned.
+    const activeInputHandle = dragCtx.activeHandle
+    const draggedClipinRegionId =
+      activeInputHandle &&
+      (activeInputHandle.kind === 'clip-in-edge' ||
+       activeInputHandle.kind === 'clip-out-edge' ||
+       activeInputHandle.kind === 'clip-body') &&
+      activeInputHandle.space === 'input'
+        ? activeInputHandle.clipId
+        : null
+    // When the active drag is a pair-drag on the warp connector, the user is
+    // intentionally moving the anchor relationship as a unit. The clip must
+    // not follow: skip MirrorPair install for that anchor entirely.
+    const draggedPairId =
+      activeInputHandle && activeInputHandle.kind === 'pair-drag'
+        ? activeInputHandle.pairId
+        : activeInputHandle && activeInputHandle.kind === 'anchor-drag'
+        ? activeInputHandle.anchorId
+        : null
+    for (const r of slice.region.regions) {
+      if (r.id === draggedClipinRegionId) continue
+      const clipinEntity  = state.entities[regionInId(r.id)]
+      const clipoutEntity = state.entities[regionOutId(r.id)]
+      if (!clipinEntity  || clipinEntity.kind  !== 'clip') continue
+      if (!clipoutEntity || clipoutEntity.kind !== 'clip') continue
+      for (const orig of slice.warp.origAnchors) {
+        if (orig.id === draggedPairId) continue
+        const beat = beatById.get(orig.id)
+        if (!beat) continue
+        for (const edge of ['in', 'out'] as const) {
+          const clipInEdgeValue  = edge === 'in' ? clipinEntity.in  : clipinEntity.out
+          const clipOutEdgeValue = edge === 'in' ? clipoutEntity.in : clipoutEntity.out
+          if (Math.abs(clipInEdgeValue  - orig.time) > LINK_EPSILON) continue
+          if (Math.abs(clipOutEdgeValue - beat.time) > LINK_EPSILON) continue
+          state = reduce(state, {
+            kind: OpKind.AddConstraint,
+            constraint: {
+              kind: ConstraintKind.MirrorPair,
+              a:    { id: anchorOutId(orig.id), field: Field.Time },
+              b:    { id: regionOutId(r.id),    field: edge },
+              guard: {
+                a: { id: anchorInId(orig.id), field: Field.Time },
+                b: { id: regionInId(r.id),    field: edge },
+              },
+              tag:  `conform:${orig.id}:${r.id}:${edge}`,
+            },
+          })
+        }
       }
     }
   }
@@ -569,60 +619,27 @@ export function runConstraintPipeline(input: PipelineInput): PipelineOutput {
 // ─── DragCtx extraction ───────────────────────────────────────────────────────
 
 /**
- * Derive a DragCtx from the dragCtxSlice state subtree.
+ * Derive a DragCtx from the gestureSlice state subtree.
  *
- * The shape of DragCtxSliceState mirrors DragCtx exactly (same fields, same
- * types — both are informed by the same DragCtx interface defined above).
+ * dragCtxSlice was dissolved: lasso TranslateGroup, anchor-lock constraints,
+ * and SnapTargets are all derived in buildGraphFromSlice directly from
+ * slice/gesture state. Only the active gesture handle + modifiers + pixel
+ * scaling remain in DragCtx.
  */
 export function extractDragCtxFromSlice(state: {
-  dragCtx?: {
-    lassoIds:    string[]
-    snapInstall: {
-      entityId: string
-      field: 'time' | 'in' | 'out'
-      threshold: number
-      grid?: { interval: number; offset: number }
-      mode?: 'edge' | 'body'
-      targets?: Array<{ entityId: string; field: 'time' | 'in' | 'out' }>
-    } | null
-    anchorLock:  {
-      clipOutId:           string
-      innerAnchorOutIds:   string[]
-      lockMode:            'bpm' | 'beats'
-    } | null
-  }
   gesture?: {
     activeHandle: import('./profiles/types').Handle | null
     modifiers:    { alt: boolean }
-    snapInstall?: {
-      entityId: string
-      field: 'time' | 'in' | 'out'
-      threshold: number
-      grid?: { interval: number; offset: number }
-      mode?: 'edge' | 'body'
-      targets?: Array<{ entityId: string; field: 'time' | 'in' | 'out' }>
-    } | null
+    pxPerUnit?: number
+    grid?: { interval: number; offset: number } | null
   }
 }): DragCtx {
-  const dc = state.dragCtx
-  const g  = state.gesture
-  // Snap install: prefer gesture.snapInstall (new path), fall back to
-  // dragCtx.snapInstall during the transitional period.
-  const snapInstall = g?.snapInstall ?? dc?.snapInstall ?? undefined
-  if (!dc) {
-    return {
-      lassoIds: [],
-      snapInstall:  snapInstall ?? undefined,
-      activeHandle: g?.activeHandle ?? null,
-      modifiers:    g?.modifiers    ?? { alt: false },
-    }
-  }
+  const g = state.gesture
   return {
-    lassoIds:     dc.lassoIds,
-    snapInstall:  snapInstall ?? undefined,
-    anchorLock:   dc.anchorLock  ?? undefined,
     activeHandle: g?.activeHandle ?? null,
     modifiers:    g?.modifiers    ?? { alt: false },
+    pxPerUnit:    g?.pxPerUnit ?? 0,
+    grid:         g?.grid ?? undefined,
   }
 }
 

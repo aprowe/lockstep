@@ -128,13 +128,7 @@ export interface CanvasTimelineProps {
    *  delta is the signed translate from the entity's position at drag start.
    *  The resolver propagates to other selected regions via lasso:main. */
   onRegionEntityMove?: (id: string, delta: number, isOutput: boolean, altKey: boolean) => void
-  onRegionResizeOutput?: (id: string, inBeatTime: number, outBeatTime: number, altKey: boolean) => void
-  onRegionMoveOutput?: (id: string, inBeatTime: number, outBeatTime: number, altKey: boolean) => void
-  /** Phase 7: install a SnapTarget constraint at drag start for the given entity + field. */
-  onSnapStart?: (entityId: string, field: 'time' | 'in' | 'out', pxPerUnit: number, grid?: { interval: number; offset: number }, gestureRole?: 'edge' | 'body' | 'anchor') => void
-  /** Phase 7: remove the SnapTarget constraint for the given entity + field. */
-  onSnapEnd?: (entityId: string, field: 'time' | 'in' | 'out') => void
-  /** Phase 7: constraint graph passed to the Snapshot so the controller can call
+  /** Constraint graph passed to the Snapshot so the controller can call
    *  findSnapCandidates for render hints. */
   constraintGraph?: ConstraintState
   onRegionZoom?: (id: string) => void
@@ -1282,16 +1276,15 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
           p.onRegionEntityMove?.(i.id, i.delta, i.isOutput, i.altKey)
           break
         case 'regionResize':
-          if (i.isOutput) p.onRegionResizeOutput?.(i.id, i.inPoint, i.outPoint, i.altKey)
-          else p.onRegionResize?.(i.id, i.inPoint, i.outPoint)
+          // Output-space resizes flow through the CLIP_EDGE_DRAG profile (drag/endDrag),
+          // not this intent — only input-space callers reach here.
+          if (!i.isOutput) p.onRegionResize?.(i.id, i.inPoint, i.outPoint)
           break
         case 'regionMove':
-          if (i.isOutput) p.onRegionMoveOutput?.(i.id, i.inPoint, i.outPoint, i.altKey)
-          else p.onRegionMove?.(i.id, i.inPoint, i.outPoint, i.altKey)
+          // Same — output-space body drags flow through CLIP_BODY_DRAG.
+          if (!i.isOutput) p.onRegionMove?.(i.id, i.inPoint, i.outPoint, i.altKey)
           break
         // Phase 7: snap constraint lifecycle.
-        case 'snapStart': p.onSnapStart?.(i.entityId, i.field, i.pxPerUnit, i.grid, i.gestureRole); break
-        case 'snapEnd': p.onSnapEnd?.(i.entityId, i.field); break
         case 'anchorAdd': p.onAnchorAdd?.(i.time); break
         case 'anchorDelete': p.onAnchorDelete?.(i.id); break
         case 'beatAnchorDelete': p.onBeatAnchorDelete?.(i.id); break
@@ -1338,7 +1331,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
         // the legacy dragStart + per-handle move/commit intents one gesture
         // class at a time. Pair (warp-line) drag is the first migration.
         case 'beginDrag':
-          dispatch(beginDrag({ handle: i.handle }))
+          dispatch(beginDrag({ handle: i.handle, pxPerUnit: i.pxPerUnit, grid: i.grid }))
           break
         case 'drag':
           dispatch(drag({ delta: i.delta, modifiers: i.modifiers }))

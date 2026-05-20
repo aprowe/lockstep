@@ -800,8 +800,14 @@ export function evaluateSnap(
   snap:  SnapTarget,
   drag:  { kind: 'edge'; value: number }
        | { kind: 'body'; inValue: number; outValue: number },
+  /** Multiplier on snap.threshold for the inclusion radius. Default 1 (the
+   *  snap distance — used by the Propose-phase handler). Hint rendering
+   *  passes a larger value to surface "approaching a snap" indicators
+   *  before the cursor enters the actual snap zone. */
+  thresholdMultiplier = 1,
 ): SnapCandidate[] {
   const out: SnapCandidate[] = []
+  const effectiveThreshold = snap.threshold * thresholdMultiplier
 
   for (const target of snap.targets) {
     const e = state.entities[target.entityId]
@@ -818,7 +824,7 @@ export function evaluateSnap(
       bestShift = Math.abs(dIn) <= Math.abs(dOut) ? dIn : dOut
     }
     const distance = Math.abs(bestShift)
-    if (distance > snap.threshold) continue
+    if (distance > effectiveThreshold) continue
     out.push({
       entityId: target.entityId,
       field:    target.field,
@@ -834,7 +840,7 @@ export function evaluateSnap(
     for (const v of edges) {
       const mark = offset + Math.round((v - offset) / interval) * interval
       const distance = Math.abs(mark - v)
-      if (distance <= snap.threshold) {
+      if (distance <= effectiveThreshold) {
         out.push({
           entityId: 'grid',
           field:    Field.Time,
@@ -868,6 +874,11 @@ export function findSnapCandidates(
   field: Field,
   currentValue: number,
   bodyOtherEdge?: number,
+  /** Multiplier on each SnapTarget's threshold. Default 1 matches the
+   *  resolver's snap zone. Hint callers pass a larger value (e.g. 3) so
+   *  the indicator appears as the cursor approaches a target — not only
+   *  once it's already inside the snap radius. */
+  thresholdMultiplier = 1,
 ): SnapCandidate[] {
   const result: SnapCandidate[] = []
   for (const constraint of state.constraints) {
@@ -884,7 +895,7 @@ export function findSnapCandidates(
           outValue: field === Field.Out ? currentValue : bodyOtherEdge }
       : { kind: 'edge' as const, value: currentValue }
 
-    result.push(...evaluateSnap(state, constraint, drag))
+    result.push(...evaluateSnap(state, constraint, drag, thresholdMultiplier))
   }
   return result.sort((a, b) => a.distance - b.distance)
 }

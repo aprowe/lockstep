@@ -57,10 +57,22 @@ Feature: Timeline Viewport
         When the viewport would extend before 0 or past the video duration
         Then the viewport edges are clamped to [0, videoDuration]
 
-    Scenario: Zoom-to-region toggles back to the previous view on a second invoke
+    Scenario: Double-clicking a clip handle invokes Zoom-to-clip
         Given [a video is loaded]
-        And a region exists
-        When the user invokes Zoom-to-region once
-        Then the viewport zooms to the region
-        When the user invokes Zoom-to-region again on the same region
+        And a clip exists
+        When the user double-clicks the clip's handle
+        Then the zoom-to-clip action fires for that clip
+
+    Scenario: Zoom-to-clip fills the timeline with the clip
+        Given [a video is loaded]
+        And a clip that is not perfectly fit to the timeline
+        When the user invokes Zoom-to-clip
+        Then the viewport is set so the clip fills 100% of the timeline
+
+    Scenario: Zoom-to-clip toggles back to the previous view on a second invoke
+        Given [a video is loaded]
+        And a clip exists
+        When the user invokes Zoom-to-clip once
+        Then the viewport zooms to the clip
+        When the user invokes Zoom-to-clip again on the same clip
         Then the viewport restores the previous view

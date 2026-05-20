@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { PAIR_DRAG } from '../../../src/constraints/profiles/pair-drag'
 import { ConstraintKind, OpKind } from '../../../src/constraints/types'
 import type { ProfileContext } from '../../../src/constraints/profiles/types'
+import { emptyState } from '../../../src/constraints/resolver'
 
 const ctx: ProfileContext = {
   preDrag: {
@@ -11,7 +12,9 @@ const ctx: ProfileContext = {
   },
   ui: { anchorLock: false, lockMode: 'bpm' },
   modifiers: { alt: false },
+  pxPerUnit: 0,
 }
+const state = emptyState()
 
 describe('PAIR_DRAG profile', () => {
   it('onDrag emits a single Move op on the orig anchor', () => {
@@ -21,7 +24,7 @@ describe('PAIR_DRAG profile', () => {
   })
 
   it('whileDragging installs a TranslateGroup over the pair', () => {
-    const cs = PAIR_DRAG.whileDragging({ kind: 'pair-drag', pairId: 1 }, ctx)
+    const cs = PAIR_DRAG.whileDragging({ kind: 'pair-drag', pairId: 1 }, ctx, state)
     const tg = cs.find(c => c.kind === ConstraintKind.TranslateGroup)
     expect(tg).toBeDefined()
     expect((tg as { ids: string[] }).ids).toEqual(['a1-in', 'a1-out'])

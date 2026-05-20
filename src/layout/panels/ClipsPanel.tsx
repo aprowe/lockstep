@@ -18,6 +18,8 @@ import { calcNewRegionBoundsFromScenes } from '../../timeline/model/newRegionBou
 import { visibleSceneCuts } from '../../utils/sceneFilter'
 import { useDockBridge } from '../DockContext'
 
+const EMPTY: never[] = []
+
 /**
  * Clips list — first port of the shared list pattern. Multiselect lives in
  * lists.selection.clips; the single "active" clip (which drives the
@@ -35,8 +37,9 @@ export default function ClipsPanel() {
   const playhead = useAppSelector(s => s.warp.playhead)
   const view = useAppSelector(s => s.ui.view)
   const warpBpm = useAppSelector(s => s.warp.bpm)
-  const sceneCuts = useAppSelector(s => video ? s.scene.cutsByPath[video.path] ?? [] : [])
-  const userSceneCuts = useAppSelector(s => video ? s.scene.userCutsByPath[video.path] ?? [] : [])
+  const videoPath = video?.path
+  const sceneCuts = useAppSelector(s => (videoPath ? s.scene.cutsByPath[videoPath] : undefined) ?? EMPTY)
+  const userSceneCuts = useAppSelector(s => (videoPath ? s.scene.userCutsByPath[videoPath] : undefined) ?? EMPTY)
   const sceneMinGap = useAppSelector(s => video ? s.scene.minGapByPath[video.path] : undefined) ?? 2
   const visibleCuts = useMemo(
     () => visibleSceneCuts(sceneCuts, userSceneCuts, sceneMinGap),

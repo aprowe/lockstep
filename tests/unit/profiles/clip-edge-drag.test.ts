@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { CLIP_EDGE_DRAG } from '../../../src/constraints/profiles/clip-edge-drag'
 import { ConstraintKind, Field, OpKind } from '../../../src/constraints/types'
 import type { ProfileContext } from '../../../src/constraints/profiles/types'
+import { emptyState } from '../../../src/constraints/resolver'
 
 const ctx: ProfileContext = {
   preDrag: {
@@ -14,7 +15,9 @@ const ctx: ProfileContext = {
   },
   ui: { anchorLock: false, lockMode: 'bpm' },
   modifiers: { alt: false },
+  pxPerUnit: 0,
 }
+const state = emptyState()
 
 describe('CLIP_EDGE_DRAG profile', () => {
   it('onDrag clipin in-edge: SetEdge with preDrag inPoint + delta', () => {
@@ -36,13 +39,12 @@ describe('CLIP_EDGE_DRAG profile', () => {
   })
 
   it('whileDragging installs an edge-mode SnapTarget on the dragged field', () => {
-    const cs = CLIP_EDGE_DRAG.whileDragging({ kind: 'clip-in-edge', clipId: 'r1', space: 'input' }, ctx)
-    expect(cs).toHaveLength(1)
-    const st = cs[0] as { kind: string; id: string; field: string; mode: string }
-    expect(st.kind).toBe(ConstraintKind.SnapTarget)
-    expect(st.id).toBe('r1-in')
-    expect(st.field).toBe(Field.In)
-    expect(st.mode).toBe('edge')
+    const cs = CLIP_EDGE_DRAG.whileDragging({ kind: 'clip-in-edge', clipId: 'r1', space: 'input' }, ctx, state)
+    const st = cs.find(c => c.kind === ConstraintKind.SnapTarget) as { kind: string; id: string; field: string; mode: string } | undefined
+    expect(st).toBeDefined()
+    expect(st!.id).toBe('r1-in')
+    expect(st!.field).toBe(Field.In)
+    expect(st!.mode).toBe('edge')
   })
 
   it('onDrag is empty for non-edge handles', () => {

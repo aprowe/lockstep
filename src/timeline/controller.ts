@@ -217,10 +217,22 @@ function buildRegionDrag(
 }
 
 /**
+ * Hint zone is wider than the snap zone so the indicator surfaces as the
+ * cursor approaches a target — not only when it's already inside the snap
+ * radius. Multiplier picked so a typical pxPerUnit≈30 (threshold≈0.27 time
+ * units) yields a hint zone of ~1 unit wide, which feels "approaching"
+ * without painting hints everywhere on a zoomed-out view.
+ */
+const HINT_THRESHOLD_MULTIPLIER = 4
+
+/**
  * Phase 7: convert findSnapCandidates results to time values for snap-hint rendering.
  * When the constraint graph has a SnapTarget for (entityId, field), this provides
  * the "nearby targets" list used by the canvas snap highlight layer.
  * Grid candidates (entityId='grid') carry their value directly on the candidate.
+ *
+ * Uses an expanded hint zone (HINT_THRESHOLD_MULTIPLIER × the SnapTarget's
+ * own threshold) so hints surface before the cursor enters the snap radius.
  */
 function constraintSnapHints(
   snap: Snapshot,
@@ -235,9 +247,34 @@ function constraintSnapHints(
   // can consider cross-edge alignment (e.g. dragged in-edge snapping to
   // another clip's out-edge). For edge-mode drags this is undefined and
   // evaluateSnap falls back to single-field comparison.
-  const candidates = findSnapCandidates(snap.constraintGraph, entityId, field, currentValue, bodyOtherEdge)
+  const candidates = findSnapCandidates(
+    snap.constraintGraph, entityId, field, currentValue, bodyOtherEdge,
+    HINT_THRESHOLD_MULTIPLIER,
+  )
   if (candidates.length === 0) return null
   return candidates.map(c => c.value)
+}
+
+/**
+ * Returns the value the resolver will snap the dragged entity to, or the raw
+ * value if no snap target is within the SNAP zone (multiplier = 1). Used to
+ * publish `dragTime` so the canvas's "active hint" check (dragTime === hint)
+ * lights up the hint that is actually being snapped — not just the closest
+ * one to the raw cursor.
+ */
+function constraintSnappedValue(
+  snap: Snapshot,
+  entityId: string,
+  field: 'time' | 'in' | 'out',
+  rawValue: number,
+  bodyOtherEdge?: number,
+): number {
+  if (!snap.constraintGraph) return rawValue
+  const candidates = findSnapCandidates(
+    snap.constraintGraph, entityId, field, rawValue, bodyOtherEdge,
+    1,
+  )
+  return candidates.length > 0 ? candidates[0].value : rawValue
 }
 
 /**
@@ -327,16 +364,23 @@ function handleAnchorMove(
     const outputHints = constraintSnapHints(snap, anchorOutId(drag.id), 'time', rawBeatSubject) ?? []
     const chosenHintSpace: Space = inputHints.length > 0 ? 'input' : 'output'
     const chosenHintTargets = inputHints.length > 0 ? inputHints : outputHints
-    snapped = drag.origTime + rawDelta
     intents.push({ kind: 'pubSnapHints', space: chosenHintSpace, times: chosenHintTargets })
+    // Publish dragTime in the chosen hint space using the snapped value, so
+    // the canvas's active-hint check (dragTime === hint) lights up the
+    // target that's actually being snapped.
+    const draggedSubject = chosenHintSpace === 'input' ? rawInputSubject : rawBeatSubject
+    const entityForSnap = chosenHintSpace === 'input' ? anchorInId(drag.id) : anchorOutId(drag.id)
+    const snappedSubject = constraintSnappedValue(snap, entityForSnap, 'time', draggedSubject)
+    intents.push({ kind: 'pubDragTime', space: chosenHintSpace, time: snappedSubject })
+    snapped = drag.origTime + rawDelta
   } else {
     // Resolver snaps via SnapTarget installed at pointerDown.
-    snapped = raw
     const entityIdForSnap = drag.space === 'input' ? anchorInId(drag.id) : anchorOutId(drag.id)
     const hints = constraintSnapHints(snap, entityIdForSnap, 'time', raw) ?? []
     intents.push({ kind: 'pubSnapHints', space: drag.space, times: hints })
+    snapped = constraintSnappedValue(snap, entityIdForSnap, 'time', raw)
+    intents.push({ kind: 'pubDragTime', space: drag.space, time: snapped })
   }
-  intents.push({ kind: 'pubDragTime', space: drag.space, time: snapped })
 
   const t = Math.max(0, snapped)
   const delta = t - drag.origTime
@@ -407,7 +451,8 @@ function handleRegionEdgeMove(
   const snapped = raw
   const hints = constraintSnapHints(snap, edgeEntityId, drag.edge, raw) ?? []
   intents.push({ kind: 'pubSnapHints', space, times: hints })
-  intents.push({ kind: 'pubDragTime', space, time: snapped })
+  const snappedDisplay = constraintSnappedValue(snap, edgeEntityId, drag.edge, raw)
+  intents.push({ kind: 'pubDragTime', space, time: snappedDisplay })
 
   // Compute new edge bounds inline.
   let newIn: number, newOut: number
@@ -498,7 +543,12 @@ function handleRegionMoveMove(
   const outHints = constraintSnapHints(snap, moveEntityId, 'out', rawOut, rawIn) ?? []
   const hints = [...new Set([...inHints, ...outHints])]
   intents.push({ kind: 'pubSnapHints', space, times: hints })
-  intents.push({ kind: 'pubDragTime', space, time: newIn })
+  // Use the in-edge snapped value for dragTime display so the in-edge hint
+  // highlights as "active" when actually snapped. (If only the out edge
+  // snaps, dragTime still shows raw newIn — that's acceptable; the visual
+  // alignment uses the in-edge for body drags.)
+  const snappedNewIn = constraintSnappedValue(snap, moveEntityId, 'in', rawIn, rawOut)
+  intents.push({ kind: 'pubDragTime', space, time: snappedNewIn })
 
   const deltaT = newIn - drag.origIn
   drag.lastDelta = deltaT
@@ -536,41 +586,8 @@ function handleRegionMoveMove(
   return intents
 }
 
-/** Phase 7: generate snapEnd intents to remove SnapTarget constraints installed at
- *  pointerDown. Mirrors snapStart emissions exactly — same (entityId, field) pairs. */
-function snapIntentsFromDrag(d: DragState | null): Intent[] {
-  if (!d) return []
-  if (d.kind === 'anchor') {
-    if (d.isPair) {
-      // Warp-line drag — both in and out anchors have SnapTargets.
-      // Pair drag installs only anchor-in snap; beat partner follows via
-      // the pairlink:* DirectedPair. snapEnd only needs to clear the orig.
-      return [
-        { kind: 'snapEnd', entityId: anchorInId(d.id), field: 'time' },
-      ]
-    }
-    // Single-space drag — one SnapTarget for the grabbed space.
-    const entityId = d.space === 'input' ? anchorInId(d.id) : anchorOutId(d.id)
-    return [{ kind: 'snapEnd', entityId, field: 'time' }]
-  }
-  if (d.kind === 'region-edge') {
-    const entityId = d.isOutput ? regionOutId(d.id) : regionInId(d.id)
-    return [{ kind: 'snapEnd', entityId, field: d.edge }]
-  }
-  if (d.kind === 'region-move') {
-    // Body-pan installs ONE body-mode SnapTarget with field='in'. Remove that.
-    const entityId = d.isOutput ? regionOutId(d.id) : regionInId(d.id)
-    return [{ kind: 'snapEnd', entityId, field: 'in' }]
-  }
-  return []
-}
-
 export function createTimelineController(): Controller {
   let drag: DragState | null = null
-  /** Phase 7: true when snapStart intents were emitted at this drag's pointerDown.
-   *  Only set when snap.constraintGraph was present; mirrors whether snapEnd
-   *  intents should be emitted on pointerUp / cancel. */
-  let snapInstalledForDrag = false
 
   function pointerDown(e: PointerEventLike, snap: Snapshot): Intent[] {
     // Right-click is handled by contextMenu(); do not arm any drag state.
@@ -583,7 +600,6 @@ export function createTimelineController(): Controller {
       return []
     }
 
-    snapInstalledForDrag = false
     const intents: Intent[] = []
     const x = mx(e)
     const y = my(e)
@@ -654,27 +670,18 @@ export function createTimelineController(): Controller {
       // resolver's MirrorPair — buildGraphFromSlice step 4b installs the
       // pair when conform holds in BOTH spaces. The controller no longer
       // captures linkedOutputEdges.)
-      // Profile path for non-pair anchor drags. Conformed-input pairing
-      // (isPair=true via forcePairCapture) still uses the legacy path
-      // because its semantics interact with ConformVisual / MirrorPair
-      // installs at build time. Follower regions in a combined selection
-      // propagate via the resolver's lasso:main TranslateGroup.
-      const isCleanSingleAnchor = drag.kind === 'anchor' && !drag.isPair
-      if (isCleanSingleAnchor && drag.kind === 'anchor') {
+      // Profile path for ALL anchor drags — clean, combined, and conformed.
+      // Combined selections propagate via the resolver's lasso:main
+      // TranslateGroup; conformed input pairs propagate via MirrorPair
+      // (buildGraphFromSlice step 4b installs it when conform holds).
+      // ANCHOR_DRAG profile's whileDragging installs the SnapTarget.
+      if (drag.kind === 'anchor') {
         drag.profileHandle = { kind: 'anchor-drag', anchorId: id, space: space === 'input' ? 'input' : 'beat' }
-        intents.push({ kind: 'beginDrag', handle: drag.profileHandle })
-      } else {
-        intents.push({ kind: 'dragStart' })
-      }
-      // SnapTarget install stays on the legacy path until snap consolidation.
-      if (snap.constraintGraph) {
         const pxPerUnit = W / viewSpanI
-        const entityId = space === 'input' ? anchorInId(id) : anchorOutId(id)
         const anchorGrid = space === 'output'
           ? computeGridForSnap(snap, anchorOutId(id), 'anchor')
           : undefined
-        intents.push({ kind: 'snapStart', entityId, field: 'time', pxPerUnit, grid: anchorGrid, gestureRole: 'anchor' })
-        snapInstalledForDrag = true
+        intents.push({ kind: 'beginDrag', handle: drag.profileHandle, pxPerUnit, grid: anchorGrid })
       }
       return intents
     }
@@ -718,15 +725,12 @@ export function createTimelineController(): Controller {
         // CanvasTimeline-side prePairDragLassoIds extension. The PAIR_DRAG
         // profile's whileDragging installs the TranslateGroup over both
         // partners for the gesture duration; clears on endDrag.
-        intents.push({ kind: 'beginDrag', handle: dragState.profileHandle })
-        // Snap install stays on the legacy path until the snap-consolidation
-        // step. SnapTarget on the ORIG anchor — beat partner follows via the
-        // TranslateGroup from PAIR_DRAG.whileDragging.
-        if (snap.constraintGraph) {
-          const pxPerUnit = W / viewSpanI
-          intents.push({ kind: 'snapStart', entityId: anchorInId(id), field: 'time', pxPerUnit, gestureRole: 'anchor' })
-          snapInstalledForDrag = true
-        }
+        // Pass pxPerUnit on the beginDrag intent so PAIR_DRAG.whileDragging
+        // can call snapToSiblings internally with a correct pixel→time
+        // threshold conversion. No snapStart intent / WarpView callback
+        // needed — the profile owns the snap install.
+        const pxPerUnit = W / viewSpanI
+        intents.push({ kind: 'beginDrag', handle: dragState.profileHandle, pxPerUnit })
         return intents
       }
       // No partner: fall through; the hit is effectively inert.
@@ -761,30 +765,20 @@ export function createTimelineController(): Controller {
           lastAltKey: e.altKey,
           origBeatAnchorTimes,
         }
-        // Profile path for clipin edge drag (input space). Clipout edge
-        // drags stay on the legacy path (output-space rescale logic in
-        // handleRegionEdgeMove + commitClipoutResize thunk).
-        if (!isOutput) {
-          const handleKind = edge === 'in' ? 'clip-in-edge' : 'clip-out-edge'
-          drag.profileHandle = { kind: handleKind, clipId: id, space: 'input' }
-          intents.push({ kind: 'beginDrag', handle: drag.profileHandle })
-        } else {
-          intents.push({ kind: 'dragStart' })
-        }
-        // Phase 7: install SnapTarget for the dragged region edge.
-        // For output-space edge drags: include grid for 'out' edge only when
-        // lockMode='bpm' (grid not in motion). 'in' edge always moves the grid.
-        // Input-space drags: no beat grid.
-        if (snap.constraintGraph) {
-          const pxPerUnit = W / viewSpanI
-          const entityId = isOutput ? regionOutId(id) : regionInId(id)
-          const edgeGesture = edge === 'in' ? 'edge-in' : 'edge-out'
-          const edgeGrid = isOutput
-            ? computeGridForSnap(snap, entityId, edgeGesture)
-            : undefined
-          intents.push({ kind: 'snapStart', entityId, field: edge, pxPerUnit, grid: edgeGrid, gestureRole: isOutput ? 'edge' : undefined })
-          snapInstalledForDrag = true
-        }
+        // Profile path for both clipin (input) and clipout (beat) edge drags.
+        const handleKind = edge === 'in' ? 'clip-in-edge' : 'clip-out-edge'
+        const space: 'input' | 'beat' = isOutput ? 'beat' : 'input'
+        const profileHandle: import('../constraints/profiles/types').Handle = { kind: handleKind, clipId: id, space }
+        drag.profileHandle = profileHandle
+        const pxPerUnit = W / viewSpanI
+        // For clipout edge drags, pass the beat grid so the profile's
+        // SnapTarget install includes grid alignment (matches legacy
+        // computeGridForSnap behavior). 'in' moves the grid; 'out' grid
+        // active only when lockMode='bpm'.
+        const edgeGrid = isOutput
+          ? computeGridForSnap(snap, regionOutId(id), edge === 'in' ? 'edge-in' : 'edge-out')
+          : undefined
+        intents.push({ kind: 'beginDrag', handle: profileHandle, pxPerUnit, grid: edgeGrid })
       }
       return intents
     }
@@ -809,26 +803,14 @@ export function createTimelineController(): Controller {
           [{ kind: 'regionSelect', id }],
         )
         if (drag.kind === 'region-move') drag.lastAltKey = e.altKey
-        // Profile path for clean single-clipin body drag (input space, no
-        // co-captured anchors / regions). Clipout body drags retain their
-        // commitClipoutPan legacy path (anchor-lock + inner-anchor carry).
-        const isCleanRegionMove =
-          drag.kind === 'region-move' &&
-          !isOutput &&
-          (!drag.groupIds || drag.groupIds.size <= 1) &&
-          (!drag.anchorGroupIds || drag.anchorGroupIds.size === 0)
-        if (isCleanRegionMove && drag.kind === 'region-move') {
-          drag.profileHandle = { kind: 'clip-body', clipId: id, space: 'input' }
-          intents.push({ kind: 'beginDrag', handle: drag.profileHandle })
-        } else {
-          intents.push({ kind: 'dragStart' })
-        }
-        // SnapTarget install stays on the legacy path until snap consolidation.
-        if (snap.constraintGraph) {
+        // Profile path for ALL region body drags — clean and combined.
+        // Followers (other selected regions/anchors) propagate via the
+        // resolver's lasso:main TranslateGroup.
+        if (drag.kind === 'region-move') {
+          const space: 'input' | 'beat' = isOutput ? 'beat' : 'input'
+          drag.profileHandle = { kind: 'clip-body', clipId: id, space }
           const pxPerUnit = W / viewSpanI
-          const entityId = isOutput ? regionOutId(id) : regionInId(id)
-          intents.push({ kind: 'snapStart', entityId, field: 'in', pxPerUnit, gestureRole: 'body' })
-          snapInstalledForDrag = true
+          intents.push({ kind: 'beginDrag', handle: drag.profileHandle, pxPerUnit })
         }
       }
       return intents
@@ -1197,11 +1179,6 @@ export function createTimelineController(): Controller {
     if (d && !isProfileDriven && (d.kind === 'anchor' || d.kind === 'region-edge' || d.kind === 'region-move')) {
       intents.push({ kind: 'dragEnd' })
     }
-    // Phase 7: remove SnapTarget constraints installed at pointerDown.
-    if (snapInstalledForDrag) {
-      for (const si of snapIntentsFromDrag(d)) intents.push(si)
-      snapInstalledForDrag = false
-    }
     intents.push({ kind: 'pubClearGesture' })
     intents.push({ kind: 'cursor', cursor: '' })
     intents.push({ kind: 'redraw' })
@@ -1215,11 +1192,6 @@ export function createTimelineController(): Controller {
     const intents: Intent[] = [{ kind: 'pubClearGesture' }]
     if (d && (d.kind === 'anchor' || d.kind === 'region-edge' || d.kind === 'region-move')) {
       intents.push({ kind: 'dragCancel' })
-    }
-    // Phase 7: remove SnapTarget constraints installed at pointerDown.
-    if (snapInstalledForDrag) {
-      for (const si of snapIntentsFromDrag(d)) intents.push(si)
-      snapInstalledForDrag = false
     }
     return intents
   }

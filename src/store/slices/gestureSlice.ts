@@ -14,30 +14,26 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { Handle } from '../../constraints/profiles/types'
 
-export interface GestureSnapInstall {
-  entityId: string
-  field:    'time' | 'in' | 'out'
-  threshold: number
-  grid?:    { interval: number; offset: number }
-  mode?:    'edge' | 'body'
-  targets?: Array<{ entityId: string; field: 'time' | 'in' | 'out' }>
-}
-
 export interface GestureState {
   activeHandle: Handle | null
   cumulativeDelta: number
   modifiers: { alt: boolean }
-  /** Snap install for the active gesture. Populated by beginDrag /
-   *  snapStart; cleared by endDrag / cancelDrag / snapEnd. Replaces
-   *  dragCtxSlice.snapInstall. */
-  snapInstall: GestureSnapInstall | null
+  /** Pixel-to-time conversion at drag start. Used by profiles to convert
+   *  the pixel-space snap threshold (8 px) into entity-time units.
+   *  0 means "not set" (no drag active or controller didn't provide).
+   */
+  pxPerUnit: number
+  /** Optional beat-grid for snap (set when the active gesture should
+   *  consider grid marks alongside entity targets). */
+  grid: { interval: number; offset: number } | null
 }
 
 const initialState: GestureState = {
   activeHandle: null,
   cumulativeDelta: 0,
   modifiers: { alt: false },
-  snapInstall: null,
+  pxPerUnit: 0,
+  grid: null,
 }
 
 const gestureSlice = createSlice({
@@ -53,14 +49,16 @@ const gestureSlice = createSlice({
     setGestureModifiers(state, action: PayloadAction<{ alt: boolean }>) {
       state.modifiers = action.payload
     },
-    setGestureSnapInstall(state, action: PayloadAction<GestureSnapInstall | null>) {
-      state.snapInstall = action.payload
+    setGesturePxPerUnit(state, action: PayloadAction<{ pxPerUnit: number; grid?: { interval: number; offset: number } | null }>) {
+      state.pxPerUnit = action.payload.pxPerUnit
+      state.grid = action.payload.grid ?? null
     },
     clearGesture(state) {
       state.activeHandle = null
       state.cumulativeDelta = 0
       state.modifiers = { alt: false }
-      state.snapInstall = null
+      state.pxPerUnit = 0
+      state.grid = null
     },
   },
 })
@@ -69,7 +67,7 @@ export const {
   setActiveHandle,
   setCumulativeDelta,
   setGestureModifiers,
-  setGestureSnapInstall,
+  setGesturePxPerUnit,
   clearGesture,
 } = gestureSlice.actions
 

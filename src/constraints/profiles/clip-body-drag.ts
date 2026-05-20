@@ -16,6 +16,7 @@
 import { ConstraintKind, Field, OpKind, type Constraint } from '../types'
 import { regionInId, regionOutId } from '../ids'
 import { innerBeatAnchorIds } from './inner-anchors'
+import { buildGestureSnapTarget } from './snap'
 import type { GestureProfile } from './types'
 
 function entityForHandle(handle: { kind: 'clip-body'; clipId: string; space: 'input' | 'beat' }): string {
@@ -27,20 +28,20 @@ export const CLIP_BODY_DRAG: GestureProfile = {
     if (handle.kind !== 'clip-body') return []
     return [{ kind: OpKind.Move, id: entityForHandle(handle), delta }]
   },
-  whileDragging: (handle, ctx) => {
+  whileDragging: (handle, ctx, state) => {
     if (handle.kind !== 'clip-body') return []
     const driver = entityForHandle(handle)
-    const cs: Constraint[] = [
-      {
-        kind: ConstraintKind.SnapTarget,
-        id: driver,
-        field: Field.In,
-        targets: [],
-        threshold: 4,
-        mode: 'body',
-        tag: `gesture:snap:${driver}`,
-      },
-    ]
+    const cs: Constraint[] = []
+    const snap = buildGestureSnapTarget({
+      draggedId: driver,
+      field: Field.In,
+      state,
+      pxPerUnit: ctx.pxPerUnit,
+      grid: ctx.grid,
+      gestureRole: 'body',
+      tag: `gesture:snap:${driver}`,
+    })
+    if (snap) cs.push(snap)
 
     // Anchor-lock segment — clipout body drags only (input-space body
     // drags don't lock inner beat anchors; clipin moves independently

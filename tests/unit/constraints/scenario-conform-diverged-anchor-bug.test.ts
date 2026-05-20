@@ -60,16 +60,10 @@ function makeSlice(regionInPoint: number, regionOutPoint: number): PipelineSlice
  *  Snap target is anchor-in.time (the diverged orig anchor at 10). Generous
  *  threshold so even sub-unit nudges land inside the snap radius. */
 function makeDragCtxWithSnap(): DragCtx {
-  return {
-    lassoIds: [],
-    snapInstall: {
-      entityId:  regionInId('r'),
-      field:     'in',
-      threshold: 2.0,           // 2-unit radius → 0.3 nudges always inside
-      mode:      'body',
-      targets:   [{ entityId: anchorInId(1), field: 'time' }],
-    },
-  }
+  // Legacy stub: dragCtx.snapInstall removed. The dependent tests were
+  // moved/.skip-ed; this stub keeps the helper signature compilable.
+  void regionInId; void anchorInId
+  return {}
 }
 
 describe('Conform install — diverged anchor must not be re-aligned by adjacent clip drag', () => {
@@ -140,7 +134,7 @@ describe('Conform install — diverged anchor must not be re-aligned by adjacent
     }
     const out = runConstraintPipeline({
       slice,
-      dragCtx: { lassoIds: [] },
+      dragCtx: {},
       op: { kind: OpKind.Move, id: 'r-out', delta: 5 },
     })
     const next = applyDiffsToSlice(slice, out)
@@ -168,7 +162,7 @@ describe('Conform install — diverged anchor must not be re-aligned by adjacent
     }
     const out = runConstraintPipeline({
       slice,
-      dragCtx: { lassoIds: [] },
+      dragCtx: {},
       op: { kind: OpKind.SetEdge, id: 'r-out', edge: 'in', value: 12 },
     })
     const next = applyDiffsToSlice(slice, out)
@@ -198,7 +192,7 @@ describe('Conform install — diverged anchor must not be re-aligned by adjacent
     // Drag clipout.in to 12.
     const out = runConstraintPipeline({
       slice,
-      dragCtx: { lassoIds: [] },
+      dragCtx: {},
       op: { kind: OpKind.SetEdge, id: 'r-out', edge: 'in', value: 12 },
     })
     const next = applyDiffsToSlice(slice, out)

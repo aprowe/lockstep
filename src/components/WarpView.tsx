@@ -48,12 +48,10 @@ import {
   newAnchorId,
 } from '../store/slices/warpSlice'
 import { setView as setReduxView, setWarpCollapsed, setGridDiv } from '../store/slices/uiSlice'
-import { commitClipoutResize, commitClipoutPan } from '../store/thunks/clipoutThunks'
 import { moveAnchors, moveBeatAnchors } from '../store/thunks/regionThunks'
 import { applyAnchorEntityMove, applyRegionEntityMove } from '../store/thunks/entityWriteThunks'
 import { beginReplayFrame } from '../constraints/pipelineDispatch'
 import { snapToSiblings } from '../constraints/recipes'
-import { setGestureSnapInstall } from '../store/slices/gestureSlice'
 import {
   origToBeat as beatMapOrigToBeat,
   beatToOrig as beatMapBeatToOrig,
@@ -363,23 +361,13 @@ export default function WarpView({
   /** Single-entity region body move — dispatches Move ops on the primary
    *  clipin entity; resolver propagates to followers via lasso:main.
    *  delta is the signed translate from the entity's position at drag start.
-   *  Output-space drags are routed to commitClipoutPan (absolute beat times
-   *  are recovered from the current clipout entity in the constraint graph). */
+   *  Output-space (clipout) drags now flow through the CLIP_BODY_DRAG profile
+   *  via beginDrag/drag/endDrag — this handler only sees input-space drags. */
   const handleRegionEntityMove = useCallback(
-    (id: string, delta: number, isOutput: boolean, altKey: boolean) => {
-      if (isOutput) {
-        // Output-space body pan: delegate to commitClipoutPan with a delta.
-        // commitClipoutPan resolves the absolute target from state.drag.preDrag
-        // so repeated emissions during a drag (live pointerMove + pointerUp
-        // commit) converge instead of compounding.
-        if (clipOverlays?.find(c => c.id === id)) {
-          dispatch(commitClipoutPan({ id, delta, altKey }))
-        }
-      } else {
-        dispatch(applyRegionEntityMove({ id, delta }))
-      }
+    (id: string, delta: number, _isOutput: boolean, _altKey: boolean) => {
+      dispatch(applyRegionEntityMove({ id, delta }))
     },
-    [dispatch, clipOverlays],
+    [dispatch],
   )
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
@@ -645,40 +633,6 @@ export default function WarpView({
         onRegionResize={onClipOverlayResize}
         onRegionMove={onClipOverlayMove}
         onRegionEntityMove={handleRegionEntityMove}
-        onRegionMoveOutput={(id, inP, outP, altKey) => {
-          if (clipOverlays?.find(c => c.id === id)) {
-            dispatch(commitClipoutPan({ id, inBeatTime: inP, outBeatTime: outP, altKey }))
-          }
-        }}
-        onRegionResizeOutput={(id, inP, outP, altKey) => {
-          if (clipOverlays?.find(c => c.id === id)) {
-            dispatch(commitClipoutResize({ id, inBeatTime: inP, outBeatTime: outP, altKey }))
-          }
-        }}
-        onSnapStart={(entityId, field, pxPerUnit, grid, gestureRole) => {
-          const op = snapToSiblings(entityId, field, constraintGraph, pxPerUnit, 8, grid, gestureRole)
-          if (op.kind === 'add_constraint' && op.constraint.kind === 'snap_target') {
-            const snap = op.constraint as {
-              id: string; field: 'time' | 'in' | 'out'; threshold: number
-              grid?: { interval: number; offset: number }; mode?: 'edge' | 'body'
-              targets: Array<{ entityId: string; field: 'time' | 'in' | 'out' }>
-            }
-            // Write to gestureSlice (new path). dragCtx.snapInstall is no
-            // longer the source of truth — extractDragCtxFromSlice prefers
-            // gesture.snapInstall.
-            dispatch(setGestureSnapInstall({
-              entityId:  snap.id,
-              field:     snap.field,
-              threshold: snap.threshold,
-              grid:      snap.grid,
-              mode:      snap.mode,
-              targets:   snap.targets,
-            }))
-          }
-        }}
-        onSnapEnd={(_entityId, _field) => {
-          dispatch(setGestureSnapInstall(null))
-        }}
         constraintGraph={constraintGraph}
         onRegionZoom={onClipOverlayZoom}
         segments={segments}

@@ -1,17 +1,18 @@
 import type { AppDispatch, RootState } from '../store'
 import { dragStart, dragEnd } from '../slices/dragSlice'
-import { loadAnchors } from '../slices/warpSlice'
+import { loadAnchors, setAnchorLinked } from '../slices/warpSlice'
 import { setRegions } from '../slices/regionSlice'
-import { clearLasso, clearSnapInstall, clearAnchorLock } from '../slices/dragCtxSlice'
 import {
   setActiveHandle,
   setCumulativeDelta,
   setGestureModifiers,
+  setGesturePxPerUnit,
   clearGesture,
 } from '../slices/gestureSlice'
 import type { Handle, ProfileContext } from '../../constraints/profiles/types'
 import { lookupProfile } from '../../constraints/profiles'
 import { dispatchPipelinedReplay } from '../../constraints/pipelineDispatch'
+import { applyConformedClipout } from './entityWriteThunks'
 
 /**
  * Begin a drag gesture. Snapshots the slice's pre-drag state for the
@@ -20,12 +21,13 @@ import { dispatchPipelinedReplay } from '../../constraints/pipelineDispatch'
  * constraints automatically — no install/teardown ops to leak.
  */
 export const beginDrag =
-  ({ handle }: { handle: Handle }) =>
+  ({ handle, pxPerUnit, grid }: { handle: Handle; pxPerUnit?: number; grid?: { interval: number; offset: number } }) =>
   (dispatch: AppDispatch, getState: () => RootState) => {
     dispatch(dragStart(snapshotPreDragState(getState())))
     dispatch(setActiveHandle(handle))
     dispatch(setCumulativeDelta(0))
     dispatch(setGestureModifiers({ alt: false }))
+    dispatch(setGesturePxPerUnit({ pxPerUnit: pxPerUnit ?? 0, grid: grid ?? null }))
   }
 
 /**
@@ -57,12 +59,55 @@ export const drag =
 /**
  * End a drag cleanly. Clears the active handle (so gesture-scoped
  * constraints vanish from the next graph build) and ends the drag
- * (clears preDrag). Idempotent.
+ * (clears preDrag). Also runs the link bookkeeping that
+ * `applyAnchorEntityMove` runs for beat-anchor drags via the legacy
+ * path: if a beat anchor diverged from its orig partner during the
+ * drag, mark the pair unlinked so subsequent orig moves don't pull
+ * the diverged beat back via the orig→beat DirectedPair.
  */
-export const endDrag = () => (dispatch: AppDispatch) => {
-  dispatch(clearGesture())
-  dispatch(dragEnd())
-}
+export const endDrag = () =>
+  (dispatch: AppDispatch, getState: () => RootState) => {
+    const state = getState()
+    const handle = state.gesture.activeHandle
+    // Clipout body/edge drags: finalize via applyConformedClipout. The
+    // pipeline writes during the drag already updated the slice's
+    // inBeatTime/outBeatTime via the resolver+graphMirrorMiddleware, but
+    // the defaultLinked re-link check (clipout coincident with clipin?)
+    // and lockedBeats bootstrap live in applyConformedClipout.
+    if (
+      handle &&
+      ((handle.kind === 'clip-body'     && handle.space === 'beat') ||
+       (handle.kind === 'clip-in-edge'  && handle.space === 'beat') ||
+       (handle.kind === 'clip-out-edge' && handle.space === 'beat'))
+    ) {
+      const clipId = handle.clipId
+      const region = state.region.regions.find(r => r.id === clipId)
+      if (region) {
+        dispatch(applyConformedClipout({
+          id:          clipId,
+          inBeatTime:  region.inBeatTime,
+          outBeatTime: region.outBeatTime,
+          origAnchors: state.warp.origAnchors,
+          beatAnchors: state.warp.beatAnchors,
+        }))
+      }
+    }
+    // Link bookkeeping for beat-anchor profile drags.
+    if (handle && handle.kind === 'anchor-drag' && handle.space === 'beat') {
+      const beat = state.warp.beatAnchors.find(a => a.id === handle.anchorId)
+      const orig = state.warp.origAnchors.find(a => a.id === handle.anchorId)
+      if (beat && orig) {
+        const coincident = Math.abs(beat.time - orig.time) < 1e-6
+        if (coincident && beat.linked === false) {
+          dispatch(setAnchorLinked({ id: handle.anchorId, linked: true }))
+        } else if (!coincident && beat.linked !== false) {
+          dispatch(setAnchorLinked({ id: handle.anchorId, linked: false }))
+        }
+      }
+    }
+    dispatch(clearGesture())
+    dispatch(dragEnd())
+  }
 
 /**
  * Restore pre-drag state by restoring the slice snapshot captured at drag start
@@ -86,10 +131,6 @@ export const cancelDrag =
       beatAnchors: preDrag.beatAnchors,
     }))
     dispatch(setRegions(preDrag.regions))
-
-    // Clear ephemeral dragCtx state (legacy — gesture clears below).
-    dispatch(clearSnapInstall())
-    dispatch(clearAnchorLock())
 
     // Clear gesture state (active handle, delta, modifiers).
     dispatch(clearGesture())
@@ -127,9 +168,8 @@ function profileContextFromState(state: RootState): ProfileContext {
       lockMode: state.ui.lockMode ?? 'bpm',
     },
     modifiers: state.gesture.modifiers,
+    pxPerUnit: state.gesture.pxPerUnit,
+    grid: state.gesture.grid ?? undefined,
   }
 }
 
-// Quiet the unused-import warning for clearLasso (kept exported re-export
-// path in case callers need it — historic API surface).
-void clearLasso

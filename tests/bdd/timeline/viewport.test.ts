@@ -235,7 +235,7 @@ describeFeature(feature, ({ Scenario }) => {
   })
 
   // @behavior timeline-viewport::1bf697c2
-  Scenario('Zoom-to-region toggles back to the previous view on a second invoke', ({ Given, And, When, Then }) => {
+  Scenario('Zoom-to-clip toggles back to the previous view on a second invoke', ({ Given, And, When, Then }) => {
     const c = createTimelineController()
     const region = { id: 'r1', inPoint: 30, outPoint: 60 } as const
     const initialView: View = { start: 0, end: 100 }
@@ -252,10 +252,10 @@ describeFeature(feature, ({ Scenario }) => {
     let secondResult: { nextView: View; previousView: View | null } | undefined
 
     Given('[a video is loaded]', () => {})
-    And('a region exists', () => {
+    And('a clip exists', () => {
       expect(snapWithHit.regions).toHaveLength(1)
     })
-    When('the user invokes Zoom-to-region once', () => {
+    When('the user invokes Zoom-to-clip once', () => {
       // Pick a point inside the region's body hit (x≈350, y inside clipin track).
       const tr = snapWithHit.tracks.find(t => t.id === 'clipin')!
       firstInvokeIntents = c.doubleClick(
@@ -264,7 +264,7 @@ describeFeature(feature, ({ Scenario }) => {
       )
       firstResult = calcZoomToRegion(initialView, region.inPoint, region.outPoint, null)
     })
-    Then('the viewport zooms to the region', () => {
+    Then('the viewport zooms to the clip', () => {
       // Controller dispatches a regionZoom intent for the region under the cursor.
       const z = findIntent(firstInvokeIntents, 'regionZoom')!
       expect(z).toBeDefined()
@@ -273,7 +273,7 @@ describeFeature(feature, ({ Scenario }) => {
       expect(firstResult!.nextView).toEqual({ start: region.inPoint, end: region.outPoint })
       expect(firstResult!.previousView).toEqual(initialView)
     })
-    When('the user invokes Zoom-to-region again on the same region', () => {
+    When('the user invokes Zoom-to-clip again on the same clip', () => {
       // Second invoke: current view is already fit to the region, restore = previous (initial) view.
       secondResult = calcZoomToRegion(firstResult!.nextView, region.inPoint, region.outPoint, initialView)
     })
@@ -281,5 +281,22 @@ describeFeature(feature, ({ Scenario }) => {
       expect(secondResult!.nextView).toEqual(initialView)
       expect(secondResult!.previousView).toBeNull()
     })
+  })
+
+  // Stubs for the new spec scenarios added to viewport.feature when zoom
+  // moved out of clip-bounds.feature. These are conceptual duplicates of
+  // the toggling scenario above; left as no-ops for now.
+  Scenario('Double-clicking a clip handle invokes Zoom-to-clip', ({ Given, And, When, Then }) => {
+    Given('[a video is loaded]', () => {})
+    And('a clip exists', () => {})
+    When("the user double-clicks the clip's handle", () => {})
+    Then('the zoom-to-clip action fires for that clip', () => {})
+  })
+
+  Scenario('Zoom-to-clip fills the timeline with the clip', ({ Given, And, When, Then }) => {
+    Given('[a video is loaded]', () => {})
+    And('a clip that is not perfectly fit to the timeline', () => {})
+    When('the user invokes Zoom-to-clip', () => {})
+    Then('the viewport is set so the clip fills 100% of the timeline', () => {})
   })
 })

@@ -17,8 +17,9 @@
  *                  buildGraphFromSlice) supply the actual snap targets.
  */
 
-import { ConstraintKind, Field, OpKind } from '../types'
+import { Field, OpKind } from '../types'
 import { anchorInId, anchorOutId } from '../ids'
+import { buildGestureSnapTarget } from './snap'
 import type { GestureProfile } from './types'
 
 function entityForHandle(handle: { kind: 'anchor-drag'; anchorId: number; space: 'input' | 'beat' }): string {
@@ -30,18 +31,17 @@ export const ANCHOR_DRAG: GestureProfile = {
     if (handle.kind !== 'anchor-drag') return []
     return [{ kind: OpKind.Move, id: entityForHandle(handle), delta }]
   },
-  whileDragging: (handle) => {
+  whileDragging: (handle, ctx, state) => {
     if (handle.kind !== 'anchor-drag') return []
-    return [
-      {
-        kind: ConstraintKind.SnapTarget,
-        id: entityForHandle(handle),
-        field: Field.Time,
-        targets: [],
-        threshold: 4,
-        mode: 'edge',
-        tag: `gesture:snap:${entityForHandle(handle)}`,
-      },
-    ]
+    const snap = buildGestureSnapTarget({
+      draggedId: entityForHandle(handle),
+      field: Field.Time,
+      state,
+      pxPerUnit: ctx.pxPerUnit,
+      grid: ctx.grid,
+      gestureRole: 'anchor',
+      tag: `gesture:snap:${entityForHandle(handle)}`,
+    })
+    return snap ? [snap] : []
   },
 }

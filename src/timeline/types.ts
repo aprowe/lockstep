@@ -180,23 +180,6 @@ export type DragState =
        *  mirror of slice state) — it carries forward the gesture's intent
        *  into the lift event. */
       lastTime?: number
-      /** @deprecated Removed during the combined-gesture audit. Field
-       *  retained as optional for type-level back-compat in tests that
-       *  haven't been updated; populated only as `undefined`. Safe to
-       *  delete fully on the next pass. */
-      regionGroupIds?: ReadonlySet<string>
-      /** @deprecated Removed during the combined-gesture audit. */
-      origRegionBounds?: Map<string, { inPoint: number; outPoint: number }>
-      /** @deprecated Removed during the combined-gesture audit. Beat-anchor
-       *  ↔ clipout-edge coupling is now handled by the resolver's MirrorPair
-       *  (buildGraphFromSlice step 4b). Field retained as optional/empty for
-       *  type compatibility during the transition; safe to delete. */
-      linkedOutputEdges?: Array<{
-        regionId: string
-        edge: 'in' | 'out'
-        origInBeatTime: number
-        origOutBeatTime: number
-      }>
     }
   | {
       kind: 'region-edge'
@@ -342,23 +325,16 @@ export type Intent =
   | { kind: 'pubHoveredScene'; time: number | null }
   | { kind: 'pubHoveredWarpLine'; id: number | null }
   | { kind: 'thumbnailHover'; payload: { time: number; x: number; y: number } | null }
-  /** Phase 7: install a SnapTarget constraint at drag start so the resolver's
-   *  Propose phase snaps the entity on every pointerMove. `pxPerUnit` lets the
-   *  WarpView handler convert the pixel threshold to entity-space units.
-   *  When `grid` is provided, the resolver will also snap to beat-grid marks
-   *  at `grid.offset + N * grid.interval` alongside entity targets. */
-  | { kind: 'snapStart'; entityId: string; field: 'time' | 'in' | 'out'; pxPerUnit: number; grid?: { interval: number; offset: number }; gestureRole?: 'edge' | 'body' | 'anchor' }
-  /** Phase 7: remove the SnapTarget constraint installed by snapStart. */
-  | { kind: 'snapEnd'; entityId: string; field: 'time' | 'in' | 'out' }
   // drag lifecycle — routes to dragSlice actions in applyIntents
   | { kind: 'dragStart' }
   | { kind: 'dragEnd' }
   | { kind: 'dragCancel' }
   /** Profile-driven drag lifecycle (replaces the per-handle intents above
-   *  one profile at a time). `beginDrag` snapshots preDrag and records the
-   *  active handle; `drag` carries the cumulative delta from drag start
-   *  and the current modifier state; `endDrag` clears gesture state. */
-  | { kind: 'beginDrag'; handle: import('../constraints/profiles/types').Handle }
+   *  one profile at a time). `beginDrag` snapshots preDrag, records the
+   *  active handle, and stores the controller's pixel-to-time conversion +
+   *  optional beat-grid so the profile's whileDragging can compute snap
+   *  thresholds in entity-time units. */
+  | { kind: 'beginDrag'; handle: import('../constraints/profiles/types').Handle; pxPerUnit?: number; grid?: { interval: number; offset: number } }
   | { kind: 'drag';      delta: number; modifiers: { alt: boolean } }
   | { kind: 'endDrag' }
   // canvas-side hints

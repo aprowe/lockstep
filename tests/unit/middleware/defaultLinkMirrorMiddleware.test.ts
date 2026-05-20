@@ -18,7 +18,6 @@ import regionReducer, {
 import warpReducer from '../../../src/store/slices/warpSlice'
 import uiReducer from '../../../src/store/slices/uiSlice'
 import listsReducer from '../../../src/store/slices/listsSlice'
-import dragCtxReducer from '../../../src/store/slices/dragCtxSlice'
 import { configureStore, type EnhancedStore } from '@reduxjs/toolkit'
 import { selectConstraintGraph } from '../../../src/store/selectors/constraintGraph'
 import { ConstraintKind, PairMode } from '../../../src/constraints/types'
@@ -34,7 +33,6 @@ function makeStore(): EnhancedStore {
       ui: uiReducer,
       region: regionReducer,
       lists: listsReducer,
-      dragCtx: dragCtxReducer,
     },
   })
 }

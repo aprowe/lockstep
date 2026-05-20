@@ -14,6 +14,7 @@
 import { ConstraintKind, Field, OpKind, type Constraint } from '../types'
 import { regionInId, regionOutId } from '../ids'
 import { innerBeatAnchorIds } from './inner-anchors'
+import { buildGestureSnapTarget } from './snap'
 import type { GestureProfile } from './types'
 
 type EdgeHandle =
@@ -52,18 +53,21 @@ export const CLIP_EDGE_DRAG: GestureProfile = {
       value: baseline + delta,
     }]
   },
-  whileDragging: (handle, ctx) => {
+  whileDragging: (handle, ctx, state) => {
     if (!isEdgeHandle(handle)) return []
     const driver = entityForHandle(handle)
-    const cs: Constraint[] = [{
-      kind:      ConstraintKind.SnapTarget,
-      id:        driver,
-      field:     edgeOfHandle(handle) === 'in' ? Field.In : Field.Out,
-      targets:   [],
-      threshold: 4,
-      mode:      'edge',
-      tag:       `gesture:snap:${driver}:${edgeOfHandle(handle)}`,
-    }]
+    const edge = edgeOfHandle(handle)
+    const cs: Constraint[] = []
+    const snap = buildGestureSnapTarget({
+      draggedId:   driver,
+      field:       edge === 'in' ? Field.In : Field.Out,
+      state,
+      pxPerUnit:   ctx.pxPerUnit,
+      grid:        ctx.grid,
+      gestureRole: 'edge',
+      tag:         `gesture:snap:${driver}:${edge}`,
+    })
+    if (snap) cs.push(snap)
 
     // Anchor-lock segment for clipout edge drags (beat space only).
     if (handle.space === 'beat') {

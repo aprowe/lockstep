@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { ANCHOR_DRAG } from '../../../src/constraints/profiles/anchor-drag'
 import { ConstraintKind, OpKind, Field } from '../../../src/constraints/types'
 import type { ProfileContext } from '../../../src/constraints/profiles/types'
+import { emptyState } from '../../../src/constraints/resolver'
 
 const ctx: ProfileContext = {
   preDrag: {
@@ -11,7 +12,9 @@ const ctx: ProfileContext = {
   },
   ui: { anchorLock: false, lockMode: 'bpm' },
   modifiers: { alt: false },
+  pxPerUnit: 0,
 }
+const state = emptyState()
 
 describe('ANCHOR_DRAG profile', () => {
   it('input-space onDrag emits a Move op on the orig anchor entity', () => {
@@ -27,7 +30,7 @@ describe('ANCHOR_DRAG profile', () => {
   })
 
   it('whileDragging installs a SnapTarget for the dragged anchor in input space', () => {
-    const cs = ANCHOR_DRAG.whileDragging({ kind: 'anchor-drag', anchorId: 1, space: 'input' }, ctx)
+    const cs = ANCHOR_DRAG.whileDragging({ kind: 'anchor-drag', anchorId: 1, space: 'input' }, ctx, state)
     expect(cs).toHaveLength(1)
     const st = cs[0] as { kind: string; id: string; field: string }
     expect(st.kind).toBe(ConstraintKind.SnapTarget)
@@ -36,7 +39,7 @@ describe('ANCHOR_DRAG profile', () => {
   })
 
   it('whileDragging installs a SnapTarget for the dragged anchor in beat space', () => {
-    const cs = ANCHOR_DRAG.whileDragging({ kind: 'anchor-drag', anchorId: 1, space: 'beat' }, ctx)
+    const cs = ANCHOR_DRAG.whileDragging({ kind: 'anchor-drag', anchorId: 1, space: 'beat' }, ctx, state)
     expect(cs).toHaveLength(1)
     const st = cs[0] as { kind: string; id: string }
     expect(st.id).toBe('a1-out')

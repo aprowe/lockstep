@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { CLIP_BODY_DRAG } from '../../../src/constraints/profiles/clip-body-drag'
 import { ConstraintKind, OpKind } from '../../../src/constraints/types'
 import type { ProfileContext } from '../../../src/constraints/profiles/types'
+import { emptyState } from '../../../src/constraints/resolver'
 
 const ctx: ProfileContext = {
   preDrag: {
@@ -14,7 +15,9 @@ const ctx: ProfileContext = {
   },
   ui: { anchorLock: false, lockMode: 'bpm' },
   modifiers: { alt: false },
+  pxPerUnit: 0,
 }
+const state = emptyState()
 
 describe('CLIP_BODY_DRAG profile', () => {
   it('onDrag (input space) emits Move op on the clipin entity', () => {
@@ -30,12 +33,11 @@ describe('CLIP_BODY_DRAG profile', () => {
   })
 
   it('whileDragging installs a body-mode SnapTarget on the dragged clip', () => {
-    const cs = CLIP_BODY_DRAG.whileDragging({ kind: 'clip-body', clipId: 'r1', space: 'input' }, ctx)
-    expect(cs).toHaveLength(1)
-    const st = cs[0] as { kind: string; id: string; mode: string }
-    expect(st.kind).toBe(ConstraintKind.SnapTarget)
-    expect(st.id).toBe('r1-in')
-    expect(st.mode).toBe('body')
+    const cs = CLIP_BODY_DRAG.whileDragging({ kind: 'clip-body', clipId: 'r1', space: 'input' }, ctx, state)
+    const st = cs.find(c => c.kind === ConstraintKind.SnapTarget) as { kind: string; id: string; mode: string } | undefined
+    expect(st).toBeDefined()
+    expect(st!.id).toBe('r1-in')
+    expect(st!.mode).toBe('body')
   })
 
   it('onDrag is empty for non-clip-body handles', () => {

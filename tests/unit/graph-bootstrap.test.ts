@@ -4,7 +4,6 @@ import warpReducer, { addAnchor, loadAnchors } from '../../src/store/slices/warp
 import regionReducer, { addRegion } from '../../src/store/slices/regionSlice'
 import uiReducer from '../../src/store/slices/uiSlice'
 import listsReducer from '../../src/store/slices/listsSlice'
-import dragCtxReducer from '../../src/store/slices/dragCtxSlice'
 import { selectConstraintGraph } from '../../src/store/selectors/constraintGraph'
 import type { RootState } from '../../src/store/store'
 
@@ -21,7 +20,6 @@ function makeStore() {
       ui: uiReducer,
       region: regionReducer,
       lists: listsReducer,
-      dragCtx: dragCtxReducer,
     },
   })
 }

@@ -321,7 +321,7 @@ export function driveController(opts: DriverOptions): DriverHandle {
           store.dispatch(cancelDrag())
           break
         case 'beginDrag':
-          store.dispatch(beginDragThunk({ handle: i.handle }))
+          store.dispatch(beginDragThunk({ handle: i.handle, pxPerUnit: i.pxPerUnit, grid: i.grid }))
           break
         case 'drag':
           store.dispatch(dragThunk({ delta: i.delta, modifiers: i.modifiers }))

@@ -13,7 +13,6 @@ import uiReducer, { setLockMode } from '../../../src/store/slices/uiSlice'
 import warpReducer from '../../../src/store/slices/warpSlice'
 import regionReducer from '../../../src/store/slices/regionSlice'
 import listsReducer from '../../../src/store/slices/listsSlice'
-import dragCtxReducer from '../../../src/store/slices/dragCtxSlice'
 import { selectConstraintGraph } from '../../../src/store/selectors/constraintGraph'
 import type { RootState } from '../../../src/store/store'
 
@@ -24,7 +23,6 @@ function makeStore(): EnhancedStore {
       ui: uiReducer,
       region: regionReducer,
       lists: listsReducer,
-      dragCtx: dragCtxReducer,
     },
   })
 }

@@ -20,8 +20,9 @@
  * continues to emit snapStart/snapEnd intents for pair drags.
  */
 
-import { ConstraintKind, OpKind } from '../types'
+import { ConstraintKind, Field, OpKind, type Constraint } from '../types'
 import { anchorInId, anchorOutId } from '../ids'
+import { buildGestureSnapTarget } from './snap'
 import type { GestureProfile } from './types'
 
 export const PAIR_DRAG: GestureProfile = {
@@ -29,14 +30,25 @@ export const PAIR_DRAG: GestureProfile = {
     if (handle.kind !== 'pair-drag') return []
     return [{ kind: OpKind.Move, id: anchorInId(handle.pairId), delta }]
   },
-  whileDragging: (handle) => {
+  whileDragging: (handle, ctx, state) => {
     if (handle.kind !== 'pair-drag') return []
-    return [
+    const cs: Constraint[] = [
       {
         kind: ConstraintKind.TranslateGroup,
         ids:  [anchorInId(handle.pairId), anchorOutId(handle.pairId)],
         tag:  `gesture:pair:${handle.pairId}`,
       },
     ]
+    const snap = buildGestureSnapTarget({
+      draggedId: anchorInId(handle.pairId),
+      field: Field.Time,
+      state,
+      pxPerUnit: ctx.pxPerUnit,
+      grid: ctx.grid,
+      gestureRole: 'anchor',
+      tag: `gesture:snap:${anchorInId(handle.pairId)}`,
+    })
+    if (snap) cs.push(snap)
+    return cs
   },
 }

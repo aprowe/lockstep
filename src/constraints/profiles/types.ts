@@ -12,7 +12,7 @@
  * `state.gesture.activeHandle` points at them.
  */
 
-import type { Constraint, Op } from '../types'
+import type { Constraint, Op, State } from '../types'
 
 export type Handle =
   | { kind: 'pair-drag';     pairId: number }
@@ -42,9 +42,22 @@ export type ProfileContext = {
   }
   /** Transient modifier-key state for the active drag. */
   modifiers: { alt: boolean }
+  /** Pixel-to-time conversion factor at drag start. Used by profiles to
+   *  convert the controller's pixel-space snap threshold into entity-time
+   *  units. 0 means "not provided" — profiles should fall back to a sane
+   *  default threshold rather than divide by zero. */
+  pxPerUnit: number
+  /** Beat-grid for snap (set when the active gesture should snap to grid
+   *  marks, e.g., clipout edge drag with lockMode='bpm'). */
+  grid?: { interval: number; offset: number }
 }
 
 export type GestureProfile = {
   onDrag: (handle: Handle, delta: number, ctx: ProfileContext) => Op[]
-  whileDragging: (handle: Handle, ctx: ProfileContext) => Constraint[]
+  /** Returns constraints that exist for the duration of the active gesture.
+   *  `state` is the partial graph built so far (structural + lasso + conform +
+   *  snap-rules); profiles can use it to query cohorts via `snapToSiblings`
+   *  to populate SnapTarget targets dynamically.
+   */
+  whileDragging: (handle: Handle, ctx: ProfileContext, state: State) => Constraint[]
 }

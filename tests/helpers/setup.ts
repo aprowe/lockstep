@@ -17,12 +17,9 @@ import thumbnailsReducer from '../../src/store/slices/thumbnailsSlice'
 import settingsReducer from '../../src/store/slices/settingsSlice'
 import listsReducer from '../../src/store/slices/listsSlice'
 import dragReducer from '../../src/store/slices/dragSlice'
-import dragCtxReducer from '../../src/store/slices/dragCtxSlice'
 import gestureReducer from '../../src/store/slices/gestureSlice'
 import { persistenceMiddleware } from '../../src/store/middleware/persistenceMiddleware'
 import { historyMiddleware } from '../../src/store/middleware/historyMiddleware'
-import { selectionGraphMirrorMiddleware } from '../../src/store/middleware/selectionGraphMirrorMiddleware'
-import { anchorLockMirrorMiddleware } from '../../src/store/middleware/anchorLockMirrorMiddleware'
 import type { VideoInfo, SavedVideoState } from '../../src/types'
 
 export function makeStore() {
@@ -38,7 +35,6 @@ export function makeStore() {
       settings: settingsReducer,
       lists: listsReducer,
       drag: dragReducer,
-      dragCtx: dragCtxReducer,
       gesture: gestureReducer,
     },
     middleware: (getDefault) =>
@@ -48,9 +44,7 @@ export function makeStore() {
         },
       })
         .prepend(persistenceMiddleware.middleware)
-        .prepend(historyMiddleware.middleware)
-        .concat(selectionGraphMirrorMiddleware)
-        .concat(anchorLockMirrorMiddleware),
+        .prepend(historyMiddleware.middleware),
   })
   // Widen dispatch to accept production thunks. The middleware stack
   // supports them at runtime (RTK includes thunk by default), but the
