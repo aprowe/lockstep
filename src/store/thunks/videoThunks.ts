@@ -33,6 +33,7 @@ import type { HistoryEntry } from "../slices/historySlice";
 import { snapshotFromState } from "../middleware/historyMiddleware";
 import { setView } from "../slices/uiSlice";
 
+/** Read and parse the JSON sidecar for `videoPath`, or null when absent. */
 async function loadMarkersForVideo(videoPath: string): Promise<SavedVideoState | null> {
     try {
         const content = await checkVideoSidecar(videoPath);
@@ -43,6 +44,11 @@ async function loadMarkersForVideo(videoPath: string): Promise<SavedVideoState |
     return null;
 }
 
+/**
+ * Show the native file picker and load the chosen video. Clears any prior
+ * folder state, resets anchors/regions/playhead, then applies the sidecar
+ * (if one exists) and pushes a fresh history snapshot.
+ */
 export const openFileThunk = createAsyncThunk(
     "video/openFile",
     async (_, { dispatch, getState }) => {
@@ -66,6 +72,10 @@ export const openFileThunk = createAsyncThunk(
     },
 );
 
+/**
+ * Show the native folder picker, list the videos inside, and populate the
+ * sidebar. Reads each video's sidecar to seed the marker/clip count badges.
+ */
 export const openFolderThunk = createAsyncThunk("video/openFolder", async (_, { dispatch }) => {
     try {
         const entries = await openFolder();
@@ -99,6 +109,8 @@ export const openFolderThunk = createAsyncThunk("video/openFolder", async (_, { 
     }
 });
 
+/** Same as `openFolderThunk` but takes an explicit folder path (e.g. from
+ *  a drag-and-drop event) instead of showing a picker. */
 export const loadFolderFromPathThunk = createAsyncThunk(
     "video/loadFolderFromPath",
     async (path: string, { dispatch }) => {
@@ -136,6 +148,8 @@ export const loadFolderFromPathThunk = createAsyncThunk(
     },
 );
 
+/** Load the video at `path` (used when the user clicks a row in the folder
+ *  sidebar). Resets anchors/regions/playhead, then applies the sidecar. */
 export const selectVideoThunk = createAsyncThunk(
     "video/selectVideo",
     async (path: string, { dispatch, getState }) => {
@@ -157,6 +171,7 @@ export const selectVideoThunk = createAsyncThunk(
     },
 );
 
+/** Tear down the loaded video and clear all derived state. */
 export const closeVideoThunk = createAsyncThunk("video/closeVideo", async (_, { dispatch }) => {
     dispatch(clearVideo());
     dispatch(clearAnchors());
@@ -166,6 +181,7 @@ export const closeVideoThunk = createAsyncThunk("video/closeVideo", async (_, { 
     dispatch(setGlobalMarkers(null));
 });
 
+/** Wipe all anchors and regions for the active video and delete its sidecar. */
 export const resetVideoDataThunk = createAsyncThunk(
     "video/resetVideoData",
     async (_, { dispatch, getState }) => {
@@ -265,7 +281,11 @@ export const openLlcProjectThunk = createAsyncThunk(
     },
 );
 
-/** Apply loaded SavedVideoState to Redux. */
+/**
+ * Hydrate the store from a parsed `SavedVideoState`. Seeds warp settings,
+ * anchors, regions, and cached scene cuts, then resets the history stack
+ * so the loaded state is the new base entry.
+ */
 function applyLoadedState(
     dispatch: (action: unknown) => void,
     getState: () => unknown,
@@ -287,10 +307,9 @@ function applyLoadedState(
         dispatch(setMaxStretch(dr.maxStretch ?? 2.0));
     }
 
-    // Migrate regions — setRegions backfills missing defaultLinked / inBeatTime /
-    // outBeatTime for sidecars saved before those fields existed. The `any` cast
-    // is deliberate: disk payloads may have fields missing entirely (legacy v1
-    // snapshots), and the `??` defaults below fill them in.
+    // Normalize incoming regions — `setRegions` backfills missing fields, but
+    // we also coerce here so the `??` defaults below fill any holes the
+    // sidecar JSON happens to have. The `any` cast tolerates partial payloads.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const loadedRegions: Region[] = (state?.regions ?? []).map((r: any) => ({
         id: r.id,

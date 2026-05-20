@@ -1,19 +1,16 @@
 /**
- * Phase 1 bridge between slice metadata and the constraint graph.
+ * Bridge between slice metadata and the constraint graph.
  *
- * Slices hold IDs + non-position metadata. The constraint graph holds the
- * authoritative position for every anchor and region edge. These helpers
- * keep the two in sync:
+ * Slices hold IDs + non-position metadata. The constraint graph derived by
+ * `buildGraphFromSlice` carries the position values for every anchor and
+ * region edge as graph entities. The helpers in this file translate between
+ * the two shapes:
  *
  *   buildSeedGraph()      — construct a fresh constraint State from an
- *                           anchor/region snapshot (load paths).
- *   anchorEntityOp(…)     — translate a slice-shaped anchor mutation into
- *                           a constraint Op for `applyOp` dispatch.
- *   regionEntityOps(…)    — translate a region edit into the appropriate
- *                           SetEdge ops.
- *
- * The graph in Phase 1 carries NO constraints — just entities. The resolver
- * therefore runs but performs no propagation. Future phases add constraints.
+ *                           anchor/region snapshot (load paths and tests).
+ *   addAnchorOps / …      — translate a slice-shaped mutation into one or
+ *                           more constraint Ops for the pipeline.
+ *   readAnchorTime / …    — pure read helpers used by selectors and tests.
  */
 
 import { emptyState, type State as ConstraintState, OpKind } from "../constraints";
@@ -65,8 +62,9 @@ export function buildSeedGraph(
     }
 
     // Regions — clipin holds input bounds; clipout holds beat-space bounds.
-    // Also seed meta[clipoutId] with bpm/lockedBeats so the bpmDerivedConstraint
-    // (installed by the middleware after setGraph) has initial values to work with.
+    // Also seed `meta[clipoutId]` with bpm / lockedBeats so the
+    // bpmDerivedConstraint installed by `buildGraphFromSlice` has initial
+    // values to work with.
     for (const r of regions) {
         state.entities[regionInId(r.id)] = {
             kind: "clip",
@@ -93,6 +91,7 @@ export function buildSeedGraph(
 
 // ─── Ops for individual mutations ─────────────────────────────────────────
 
+/** Emit AddAnchor ops for both sides of an anchor pair. */
 export function addAnchorOps(id: number, origTime: number, beatTime: number): AddAnchorOp[] {
     return [
         { kind: OpKind.AddAnchor, id: anchorInId(id), time: origTime },

@@ -10,14 +10,11 @@
  *   onDrag:         Move op on the orig anchor. TranslateGroup carries
  *                   the same delta to beat in the resolver, so a single
  *                   op is sufficient.
- *   whileDragging:  TranslateGroup over [orig, beat]. Bidirectional —
- *                   either entity can drive — but the only writes come
- *                   from onDrag's Move on orig, so it acts one-way in
- *                   practice.
- *
- * Snap install stays on the legacy `dragCtx.snapInstall` path until the
- * snap-consolidation step migrates it into a profile field. The controller
- * continues to emit snapStart/snapEnd intents for pair drags.
+ *   whileDragging:  TranslateGroup over [orig, beat], plus a SnapTarget on
+ *                   the orig anchor's `time` field. The TranslateGroup is
+ *                   bidirectional — either entity can drive — but the only
+ *                   writes come from onDrag's Move on orig, so it acts
+ *                   one-way in practice.
  */
 
 import { ConstraintKind, Field, OpKind, type Constraint } from "../types";

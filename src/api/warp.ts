@@ -56,6 +56,10 @@ export interface AnalyzeResult {
     message: string;
 }
 
+/**
+ * Estimate BPM and beat spacing from a set of anchor times. Returns null
+ * fields when fewer than two anchors are supplied or the spacing is degenerate.
+ */
 export async function analyzeAnchors(anchorTimes: number[]): Promise<AnalyzeResult> {
     return invoke<AnalyzeResult>("analyze_anchors", { req: { anchor_times: anchorTimes } });
 }

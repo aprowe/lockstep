@@ -17,7 +17,7 @@ interface RegionInfoPanelProps {
     onBpmChange: (bpm: number) => void;
     onUpdateRegionInOut?: (id: string, inPoint: number, outPoint: number) => void;
     onUpdateRegionBeatTimes?: (id: string, inBeatTime: number, outBeatTime: number) => void;
-    /** Global lock mode (Phase 6 — replaces per-region Region.lock). */
+    /** Global lock mode applied to whichever region is active. */
     lockMode?: "bpm" | "beats";
     /** Called when lock mode toggle is clicked */
     onLockChange?: (lock: "bpm" | "beats", lockedBeats?: number) => void;
@@ -76,7 +76,7 @@ export default function RegionInfoPanel({
     const regionSpan = beatSpan; // use beat-space span for all calculations
     const totalBeats = beat > 0 ? beatSpan / beat : 0;
 
-    // Lock: use global lockMode prop (Phase 6), default to 'bpm'.
+    // Lock mode is global; default to 'bpm' when the parent has not supplied one.
     const lock = lockModeProp ?? "bpm";
     const lockedBeats = activeRegion?.lockedBeats ?? totalBeats;
 

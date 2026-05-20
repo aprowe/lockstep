@@ -168,11 +168,12 @@ export function lockOff(clipOutId: EntityId): Op {
 
 // ─── Conform-driven edge/anchor propagation ──────────────────────────────
 //
-// No recipe is needed here. The ConformVisual + MirrorPair bindings that
-// `buildGraphFromSlice` auto-installs whenever a clipout edge is positionally
-// coincident with an anchor handle the propagation in both directions:
-// clipout-edge writes drive the paired anchor, and anchor writes drive the
-// edge. No ephemeral pointerDown-time DirectedPair is required.
+// No recipe is needed here. `buildGraphFromSlice` installs a
+// ConformRedirect + ConformVisual pair for every (region × anchor × edge);
+// the resolver checks coincidence per pipeline pass and engages / disengages
+// automatically. ConformRedirect rewrites user clipout writes into
+// anchor.beat writes, and ConformVisual asserts clipout = anchor.beat in
+// the other direction.
 
 // ─── Region.lock dropdown (BPM vs beats fixed) ────────────────────────────
 
@@ -488,10 +489,10 @@ export function snapToSiblings(
 
 // ─── Conform binding ──────────────────────────────────────────────────────
 //
-// Conformance is positional and auto-managed by `buildGraphFromSlice` —
-// whenever a clipin edge ≈ orig anchor.time, a MirrorPair binding
-// anchor-out.time ↔ clipout.{edge} is installed. There is no manual
-// conform/unconform recipe — the install/remove is derived from positions.
+// Conform bindings are installed unconditionally by `buildGraphFromSlice`
+// (one ConformRedirect + one ConformVisual per region × anchor × edge).
+// The resolver handlers gate themselves on positional coincidence each
+// pipeline pass, so there is no manual conform/unconform recipe.
 
 // ─── Highlight (hover / multi-select indicator) ───────────────────────────
 

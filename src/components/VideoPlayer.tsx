@@ -1,6 +1,12 @@
 import { forwardRef, useRef, useImperativeHandle, useEffect } from "react";
 import "./VideoPlayer.css";
 
+/**
+ * Imperative handle exposed via `forwardRef`. The center column drives the
+ * video element through this surface — Redux is the system of record for
+ * playhead/playing flags, but transport commands (seek/play/pause) need to
+ * call directly into the HTMLVideoElement to avoid an extra render cycle.
+ */
 export interface VideoPlayerHandle {
     seek(time: number): void;
     play(): void;

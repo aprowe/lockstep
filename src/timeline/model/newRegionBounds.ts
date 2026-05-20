@@ -1,7 +1,7 @@
 import type { View } from "../../types";
 
-// Mirrors MIN_VISIBLE in utils/view.ts. Kept local since this module no longer
-// depends on utils/view (callers import from here directly).
+// Mirrors MIN_VISIBLE in utils/view.ts. Kept local so this module stays free
+// of utils/view dependencies; callers import region helpers from here directly.
 const MIN_VISIBLE = 0.5;
 
 /**
@@ -85,8 +85,8 @@ export function calcNewRegionBoundsUpToNext(
  * when there are no scene cuts AND no other regions in scope — otherwise
  * the clamping is the desired behavior, even if the span ends up small.
  * A safety check still kicks in when adjacent scenes pinch the bounds to
- * less than {@link MIN_VISIBLE}, in which case we fall back so the result
- * is usable rather than a degenerate sliver.
+ * less than {@link MIN_VISIBLE}, in which case the function falls back so
+ * the result is usable rather than a degenerate sliver.
  */
 export function calcNewRegionBoundsFromScenes(
     cursor: number,
@@ -125,8 +125,8 @@ export function calcNewRegionBoundsFromScenes(
     const outPoint = Math.min(videoDuration, ...nextCandidates);
 
     // Degenerate-pinch safety: two scenes very close to each other on either
-    // side of the cursor would yield an unusable sliver. Keep callers happy
-    // with the legacy 5s/10% fallback in that case.
+    // side of the cursor would yield an unusable sliver. Fall back to the
+    // 5s/10% rule in that case.
     if (outPoint - inPoint < MIN_VISIBLE) {
         return calcNewRegionBounds(c, viewSpan, videoDuration);
     }

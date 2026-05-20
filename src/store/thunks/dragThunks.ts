@@ -67,20 +67,24 @@ export const drag =
 /**
  * End a drag cleanly. Clears the active handle (so gesture-scoped
  * constraints vanish from the next graph build) and ends the drag
- * (clears preDrag). Also runs the link bookkeeping that
- * `applyAnchorEntityMove` runs for beat-anchor drags via the legacy
- * path: if a beat anchor diverged from its orig partner during the
- * drag, mark the pair unlinked so subsequent orig moves don't pull
- * the diverged beat back via the orig→beat DirectedPair.
+ * (clears preDrag).
+ *
+ * Also performs the post-drag bookkeeping that `applyAnchorEntityMove`
+ * performs for beat-anchor drags: when a beat anchor diverged from its
+ * orig partner during the drag, mark the pair unlinked so subsequent
+ * orig moves don't pull the diverged beat back via the orig→beat
+ * DirectedPair.
+ *
+ * Clipout body/edge drags finalize via `applyConformedClipout` — the
+ * pipeline writes during the drag already updated the slice via the
+ * resolver, but the defaultLinked re-link check (clipout coincident
+ * with clipin?) and lockedBeats bootstrap live in that thunk.
  */
 export const endDrag = () => (dispatch: AppDispatch, getState: () => RootState) => {
     const state = getState();
     const handle = state.gesture.activeHandle;
-    // Clipout body/edge drags: finalize via applyConformedClipout. The
-    // pipeline writes during the drag already updated the slice's
-    // inBeatTime/outBeatTime via the resolver+graphMirrorMiddleware, but
-    // the defaultLinked re-link check (clipout coincident with clipin?)
-    // and lockedBeats bootstrap live in applyConformedClipout.
+    // Clipout body/edge drags: finalize via applyConformedClipout (see
+    // header comment for why this runs at endDrag rather than during drag).
     if (
         handle &&
         ((handle.kind === "clip-body" && handle.space === "beat") ||
@@ -119,13 +123,12 @@ export const endDrag = () => (dispatch: AppDispatch, getState: () => RootState) 
 };
 
 /**
- * Restore pre-drag state by restoring the slice snapshot captured at drag start
- * (pointercancel / Escape rollback). Dispatching loadAnchors + setRegions
- * atomically reverts all position changes. dragCtxSlice transient state
- * (lasso, snap, anchorLock) is cleared.
+ * Roll a drag back by restoring the slice snapshot captured at drag start
+ * (pointercancel / Escape). Dispatches `loadAnchors` + `setRegions` to
+ * revert all position changes, then clears gesture state and ends the drag
+ * so the history and persistence middleware resume normal operation.
  *
- * If no drag is active (preDrag is null), this is a no-op.
- * After restore, clears drag.active so middleware resumes normal operation.
+ * No-op when no drag is active (`preDrag` is null).
  */
 export const cancelDrag = () => (dispatch: AppDispatch, getState: () => RootState) => {
     const state = getState();
@@ -150,8 +153,9 @@ export const cancelDrag = () => (dispatch: AppDispatch, getState: () => RootStat
 };
 
 /**
- * Snapshot current slice state for use as preDrag. Called by applyIntents when
- * the controller emits a 'dragStart' intent or beginDrag thunk runs.
+ * Snapshot the slice fields needed to replay/roll-back the drag. Called by
+ * `beginDrag` (and by the controller's intent layer when it emits a
+ * 'dragStart' intent).
  */
 export function snapshotPreDragState(state: RootState) {
     return {

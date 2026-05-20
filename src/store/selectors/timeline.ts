@@ -13,20 +13,17 @@ import {
 import { augmentBoundaryAnchors } from "../../utils/anchorAugment";
 
 /**
- * Timeline-display derivations that were previously inline `useMemo`s in
- * WarpView. Centralising them as memoised selectors keeps the TSX file as
- * pure wiring (useAppSelector + dispatch).
+ * Memoized timeline-display derivations. Keeps `WarpView` and other timeline
+ * surfaces as pure wiring — every non-trivial slice derivation lives here.
  */
 
-/** Beat anchors as `{ id, time }[]`, ordered by orig-anchor sort order.
- *  Replaces the `useMemo` that mapped `sortedBeat → { id, time }`. */
+/** Beat anchors as `{ id, time }[]`, ordered by orig-anchor sort order. */
 export const selectQuantAnchors = createSelector(selectSortedBeat, (sortedBeat): Anchor[] =>
     sortedBeat.map((a) => ({ id: a.id, time: a.time })),
 );
 
-/** Input-space snap targets derived purely from slice state.
- *  Currently the orig-anchor times — callers combine with scene cuts
- *  (which arrive via props in WarpView). */
+/** Input-space snap targets derived from slice state — the orig-anchor times.
+ *  Callers union this with scene cuts where applicable. */
 export const selectSnapTargetsInput = createSelector(
     (s: RootState) => s.warp.origAnchors,
     (origAnchors): number[] => origAnchors.map((a) => a.time),
@@ -49,8 +46,7 @@ export const selectSnapTargetsOutput = createSelector(
 
 /** Augmented orig-anchor array used as the segment boundary set: real
  *  orig anchors plus synthetic boundary entries (id < 0) at clipIn / clipOut
- *  when an active region's edges aren't already covered by a real anchor.
- *  Mirrors WarpView's `segmentAnchors` useMemo. */
+ *  when an active region's edges aren't already covered by a real anchor. */
 export const selectSegmentAnchors = createSelector(
     selectSortedOrig,
     selectClipIn,
@@ -75,13 +71,10 @@ export const selectSelectedBoundaries = createSelector(
     (segmentAnchors, selectedIds): boolean[] => segmentAnchors.map((a) => selectedIds.has(a.id)),
 );
 
-/** Beat-grid origin (offset). Replicates the WarpView useMemo:
+/** Beat-grid origin (offset):
  *   - no clip active → first beat anchor's time
- *   - clip active + beatZeroId set → that beat anchor's time
- *   - clip active + no beatZero → active region's inBeatTime (falls back to clipIn).
- *  Note: WarpView previously preferred `effectiveBounds.inBeatTime` over
- *  `activeRegion.inBeatTime`; with the constraint pipeline keeping slice
- *  positions current those values agree. */
+ *   - clip active + `beatZeroId` set → that beat anchor's time
+ *   - clip active + no beatZero → active region's inBeatTime (or clipIn). */
 export const selectBeatOffset = createSelector(
     selectClipIn,
     selectActiveRegion,

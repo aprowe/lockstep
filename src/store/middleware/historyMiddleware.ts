@@ -29,20 +29,26 @@ import { setLockMode } from "../slices/uiSlice";
 import { _syncAnchorPositions } from "../slices/warpSlice";
 import { _syncRegionPositions, _syncRegionMeta } from "../slices/regionSlice";
 
+/**
+ * Undo/redo middleware. Listens for undo-worthy slice mutations, debounces
+ * 400ms, then pushes a snapshot of the full undoable state. Also handles
+ * `undo` / `redo` actions by restoring the snapshot at the current history
+ * index, and snapshots immediately on `dragEnd` to capture each gesture as
+ * a single history entry.
+ */
 export const historyMiddleware = createListenerMiddleware();
 
 /**
- * Every action that mutates undo-worthy state via the debounced path.
- * `loadAnchors`, `loadWarpSettings` and `setRegions` are intentionally
- * excluded — they're the bulk-restore actions used BY undo/redo and must not
- * trigger a fresh snapshot. `dragEnd` is excluded here because it has its own
- * immediate (non-debounced) listener below. Selection, playhead,
- * active-region-id, view and UI layout are excluded because they don't belong
- * in undo history.
+ * Actions that trigger a debounced snapshot. Excluded on purpose:
+ *  - `loadAnchors`, `loadWarpSettings`, `setRegions` — bulk-restore actions
+ *    used BY undo/redo, must not snapshot recursively.
+ *  - `dragEnd` — has its own immediate listener below so each gesture is one
+ *    history entry rather than the trailing edge of a debounce window.
+ *  - Selection, playhead, active-region-id, view, UI layout — not undoable.
  *
- * applyOp is removed — the pipeline now writes slice diffs directly via
- * _syncAnchorPositions / _syncRegionPositions / _syncRegionMeta. We capture
- * snapshots on those slice-write actions instead.
+ * The pipeline writes slice diffs through `_syncAnchorPositions` /
+ * `_syncRegionPositions` / `_syncRegionMeta`, so those are the triggers for
+ * position-change snapshots.
  */
 const snapshotTriggers = isAnyOf(
     // Warp anchors (slice ID-list / metadata mutations)
@@ -72,8 +78,9 @@ const snapshotTriggers = isAnyOf(
     _syncRegionMeta,
 );
 
+/** Build a `HistoryEntry` from the current root state — the set of fields
+ *  that participate in undo/redo. */
 export function snapshotFromState(state: RootState): HistoryEntry {
-    // Slice is now the source of truth for positions (the pipeline keeps it in sync).
     return {
         origAnchors: state.warp.origAnchors,
         beatAnchors: state.warp.beatAnchors,
@@ -127,7 +134,8 @@ function restoreEntry(entry: HistoryEntry, dispatch: (a: unknown) => void) {
         }),
     );
     dispatch(setRegions(entry.regions));
-    // No setGraph needed — the graph is derived from the slice by the pipeline.
+    // The constraint graph is rebuilt from the slice on next read by the
+    // pipeline — no separate graph restore needed.
 }
 
 historyMiddleware.startListening({

@@ -1,22 +1,17 @@
 /**
- * Phase 1 entity-write thunks.
+ * Entity-write thunks — the single dispatch surface for any mutation that
+ * needs to flow through the constraint pipeline.
  *
- * Translates "logical" slice-shaped position writes into constraint-graph ops
- * dispatched via `constraintSlice.applyOp`. These thunks replace the old
- * slice reducers that wrote positions directly (`setOrigAnchorsFromTimeline`,
- * `moveOrigAnchor`, `moveBeatAnchor`, `updateRegionInOut`, `applyConformedClipout`,
- * `applyBpmEdit`, `applyBeatsEdit`, `applyLinkingEvent`, `resetRegionBoundary`).
+ * Each thunk represents one logical edit (move an anchor, resize a region,
+ * commit a conform, edit BPM, etc.) and emits:
+ *   1. The pipeline op(s) that update the position entities — routed
+ *      through `dispatchPipelined` / `dispatchPipelinedReplay` so the
+ *      resolver propagates linked-pair, conform, and snap constraints.
+ *   2. Any slice metadata that isn't carried by the graph (the `linked`
+ *      flag on a beat anchor, region bpm / lockedBeats, etc.).
  *
- * Each thunk is the single source of truth for one "logical edit" — call sites
- * dispatch the thunk and the thunk emits:
- *   1. The graph ops needed to update the position entities, and
- *   2. Any metadata updates to the warp / region slices (linkedBeatIds,
- *      bpm, lockedBeats, etc.) that don't live in the graph yet.
- *
- * No-op behavior with no constraints in the graph: each `applyOp` runs the
- * resolver pipeline against an empty constraint set, so the graph entities
- * mutate identically to a direct field assignment. Phase 2+ adds real
- * constraints; the call sites here don't need to change.
+ * Call sites should always reach for one of these thunks instead of
+ * writing slice positions directly.
  */
 import type { AppDispatch, RootState } from "../store";
 import type { Anchor, Region } from "../../types";
@@ -86,20 +81,17 @@ export const applyRemoveAnchors =
     };
 
 /**
- * Single-entity anchor move via the constraint graph.
+ * Single-entity anchor move via the constraint pipeline.
  *
- * Dispatches ONE Move op for the PRIMARY grabbed entity (identified by its
- * graph entity ID string, e.g. `a7-in` or `a7-out`). The resolver's
- * lasso:main TranslateGroup propagates the implied delta to every other
- * selected entity — no manual follower iteration needed.
+ * Dispatches ONE Move op for the primary grabbed entity (identified by its
+ * graph entity id, e.g. `a7-in` or `a7-out`). The resolver's lasso:main
+ * TranslateGroup propagates the implied delta to every other selected
+ * entity, so no manual follower iteration is needed.
  *
- * Uses a Move op (delta-based) so the translate seed is explicit: the
- * resolver's TranslateGroup handler reads `delta` directly from `seedWrites`,
- * not by subtracting stale entity values.
- *
- * This replaces the whole-array `applyOrigAnchorsFromTimeline` /
- * `applyBeatAnchorsFromTimeline` path for drag commits. Bulk-load and
- * other non-drag paths still use the whole-array thunks.
+ * The Move op is delta-based: the resolver's TranslateGroup handler reads
+ * `delta` directly from `seedWrites` rather than subtracting stale entity
+ * values. Used by single-anchor drag commits; bulk operations go through
+ * the whole-array thunks.
  */
 export const applyAnchorEntityMove =
     (payload: { entityId: string; time: number }) =>
@@ -114,11 +106,12 @@ export const applyAnchorEntityMove =
         else if (beatMatch) pairId = parseInt(beatMatch[1], 10);
         if (pairId === undefined) return;
 
-        // Absolute-replay drag: compute delta against the PRE-DRAG snapshot, not
-        // the live slice. dispatchPipelinedReplay then runs the pipeline against
-        // a fresh preDrag baseline each frame, so transient constraint writes
-        // (e.g., conform engaging mid-drag) don't carry forward to subsequent
-        // frames. When no drag is active, falls back to delta vs current slice.
+        // Replay-drag invariant: compute delta against the PRE-DRAG snapshot
+        // (not the live slice). `dispatchPipelinedReplay` runs the pipeline
+        // against a fresh preDrag baseline each frame, so transient constraint
+        // writes (e.g. conform engaging mid-drag) don't carry forward to
+        // subsequent frames. When no drag is active, falls back to delta vs
+        // current slice.
         const preDrag = state.drag?.preDrag;
         let baselineTime: number | undefined;
         if (preDrag) {
@@ -158,28 +151,27 @@ export const applyAnchorEntityMove =
     };
 
 /**
- * Phase 4 — single-entity region body move via the constraint graph.
+ * Single-entity region body move via the constraint pipeline.
  *
- * Accepts `{ id, delta }` — the region's slice id and the signed translate
- * from the entity's position at drag start (computed by the controller).
- * Dispatches ONE Move op (delta-based) on the clipin entity. A Move op seeds
- * BOTH `in` and `out` writes simultaneously, which is the translate signature
- * that `findTranslateDelta` recognises so the lasso:main TranslateGroup can
- * propagate to other selected clipin entities.
+ * Accepts `{ id, delta }` — the region's slice id and the cumulative
+ * translate from the entity's position at drag start (computed by the
+ * controller). Dispatches ONE Move op on the clipin entity. A Move op seeds
+ * BOTH `in` and `out` writes simultaneously, which is the translate
+ * signature `findTranslateDelta` recognises so the lasso:main TranslateGroup
+ * propagates the delta to other selected clipin entities.
  *
- * Output-space body drags are routed to `commitClipoutPan` by the caller
- * (WarpView.handleRegionEntityMove) before reaching this thunk — this thunk
+ * Output-space body drags route to `commitClipoutPan` instead — this thunk
  * only handles input-space moves.
  *
- * Default-linked regions: the DirectedPair (Translate) constraint installed by
- * defaultLinkMirrorMiddleware propagates the clipin Move to clipout automatically
- * via the resolver. No explicit clipout Move is needed.
+ * Default-linked regions: the DirectedPair (Translate) constraint installed
+ * by `buildGraphFromSlice` propagates the clipin Move to clipout
+ * automatically, so no explicit clipout Move is needed.
  *
- * Diverged regions: clipout has independent beat-space anchoring. Body drag
- * should move both clipin and clipout together. We dispatch an explicit clipout
- * Move with the same residual delta. Double-translate guard: if the lasso:main
- * TranslateGroup already contains the clipout entity, the lasso already
- * propagated the delta — skip the explicit Move to avoid double-translating.
+ * Diverged regions: clipout is independently anchored in beat-space, so the
+ * body drag also dispatches an explicit clipout Move with the same delta.
+ * When the lasso:main TranslateGroup already contains the clipout entity,
+ * the lasso has already propagated the delta — skip the explicit Move to
+ * avoid double-translating.
  */
 export const applyRegionEntityMove =
     (payload: { id: string; delta: number }) =>
@@ -189,12 +181,12 @@ export const applyRegionEntityMove =
         const state = getState();
         const sliceR = state.region.regions.find((r) => r.id === id);
         if (!sliceR) return;
-        // Absolute-replay drag: `cumulativeDelta` is the displacement from the
-        // PRE-DRAG snapshot (the controller emits this on every pointerMove +
-        // pointerUp). dispatchPipelinedReplay rebuilds the pipeline slice from
-        // preDrag each frame and runs the Move against that — so each frame is
-        // a pure function of (preDrag, cumulativeDelta), with no state carrying
-        // over from previous frames.
+        // Replay-drag invariant: `cumulativeDelta` is the displacement from
+        // the PRE-DRAG snapshot (the controller emits this on every
+        // pointerMove + pointerUp). `dispatchPipelinedReplay` rebuilds the
+        // pipeline slice from preDrag each frame and runs the Move against
+        // that, so each frame is a pure function of (preDrag, cumulativeDelta)
+        // — no state carries over from previous frames.
         dispatchPipelinedReplay(dispatch, getState, {
             kind: OpKind.Move,
             id: regionInId(id),
@@ -202,14 +194,14 @@ export const applyRegionEntityMove =
         });
 
         // No linking-event commit during drag. ConformVisual handles input-side
-        // conform transiently in the constraint pipeline — engages while clipin
-        // sits on the orig anchor, releases when clipin moves past.
+        // conform transiently inside the pipeline — engages while clipin sits
+        // on the orig anchor, releases when clipin moves past.
     };
 
 /**
- * Apply a moved orig anchor. The anchor-pair DirectedPair (installed by
- * `initAnchorPair` in step 1 of `buildGraphFromSlice`) propagates the move
- * to the beat side via the resolver when linked.
+ * Move a single orig anchor by id to `time`. The anchor-pair DirectedPair
+ * (installed by `initAnchorPair` in `buildGraphFromSlice`) propagates the
+ * write to the beat side via the resolver when the pair is linked.
  */
 export const applyMoveOrigAnchor =
     (payload: { id: number; time: number }) =>
@@ -218,14 +210,11 @@ export const applyMoveOrigAnchor =
     };
 
 /**
- * Apply a whole-array orig-anchor update (e.g. multi-anchor drag commit on
- * the input track). Detects adds / removes / moves and dispatches the
- * corresponding graph ops + slice ID-list updates. Linked anchors get their
- * beat side updated to match.
- *
- * Match-the-legacy-contract: also wholesale-replaces the slice's
- * `origAnchors` list and aligns `beatAnchors`. Added anchors get a linked
- * beat side seeded at the same time.
+ * Whole-array orig-anchor update. Diffs the input against the current
+ * slice to detect adds / removes / moves and dispatches one op per change.
+ * Linked anchors propagate to the beat side via the resolver. Added
+ * anchors get a linked beat side seeded at the same time, and the slice's
+ * `origAnchors` ordering matches the input.
  */
 export const applyOrigAnchorsFromTimeline =
     (nextOrigAnchors: readonly Anchor[]) => (dispatch: AppDispatch, getState: () => RootState) => {
@@ -282,10 +271,8 @@ export const applyBeatAnchorsFromTimeline =
         const state = getState();
         const prevBeatById = new Map(state.warp.beatAnchors.map((a) => [a.id, a]));
 
-        // Wholesale-replace the beat anchor slice list. The original
-        // `setBeatAnchorsFromTimeline` reducer assigned `state.beatAnchors = payload`
-        // without touching origAnchors; we preserve that contract here for
-        // back-compat with timeline drag harnesses.
+        // Wholesale-replace the beat anchor slice list; origAnchors are left
+        // untouched (callers are responsible for keeping them aligned).
         dispatch(setBeatAnchorsAction([...nextBeatAnchors]));
 
         // Update graph entities for beat anchors. When the beat time has diverged
@@ -335,13 +322,11 @@ export const applyResetBeatLinks =
     };
 
 /** Bulk-load anchors from a saved video state. Replaces slice ID lists and
- *  rebuilds the graph entries. The constraint graph is rebuilt via setGraph
- *  by the loader (videoThunks); this thunk only handles slice + per-anchor ops. */
+ *  emits AddAnchor ops for each anchor. The pipeline rebuilds its derived
+ *  graph from the slice on the next read. */
 export const applyLoadAnchors =
     (payload: { origAnchors: Anchor[]; beatAnchors: Anchor[]; beatZeroId?: number | null }) =>
     (dispatch: AppDispatch, getState: () => RootState) => {
-        // First drop any prior entities (the load path almost always calls
-        // setGraph on top of this, but be defensive).
         dispatch(loadAnchorsAction(payload));
         for (const a of payload.origAnchors) {
             const beat = payload.beatAnchors.find((b) => b.id === a.id);
@@ -563,9 +548,10 @@ export const applyLinkingEvent =
     };
 
 /** Commit a conformed clipout (resize / pan / boundary conform). Writes
- *  inBeatTime/outBeatTime to clipout entity. The bpmDerivedConstraint in the
- *  graph fires in the Derive phase and updates meta[clipoutId].bpm / .lockedBeats;
- *  graphMirrorMiddleware then projects those back to region.bpm / .lockedBeats. */
+ *  inBeatTime/outBeatTime to the clipout entity. The bpmDerivedConstraint
+ *  fires in the Derive phase and updates `meta[clipoutId].bpm` /
+ *  `.lockedBeats`; the pipeline dispatch then projects those onto
+ *  `region.bpm` / `.lockedBeats` via `_syncRegionMeta`. */
 export const applyConformedClipout =
     (payload: {
         id: string;
@@ -702,9 +688,9 @@ export const applyBpmEdit =
             dispatch(updateRegionBpm({ id: payload.id, bpm: payload.newBpm }));
             dispatch(updateRegionLockedBeats({ id: payload.id, lockedBeats }));
         }
-        // Mirror to legacy global bpm so consumers that haven't migrated to
-        // per-region (ExportDialog default, persistence default, BPM detect)
-        // stay in sync with what the user just typed.
+        // Mirror to the global bpm so consumers reading off `warp.bpm`
+        // (ExportDialog default, persistence default, BPM detect) reflect
+        // what the user just typed.
         dispatch(setGlobalBpmAction(payload.newBpm));
     };
 
@@ -717,8 +703,8 @@ export const applyBpmEdit =
  *  - Diverged region: only clipout changes. Clipin's input-space bounds
  *    are independent of the beat count.
  *
- *  `payload.stretch` is currently ignored — kept on the signature for
- *  back-compat with existing callers. */
+ *  `payload.stretch` is accepted for call-site symmetry with `applyBpmEdit`
+ *  but is not consulted here. */
 export const applyBeatsEdit =
     (payload: {
         id: string;

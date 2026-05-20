@@ -56,8 +56,7 @@ export default function AssistantPanel() {
                 },
             });
         } catch (e: unknown) {
-            const msg =
-                typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
+            const msg = typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
             setEntries((prev) => [...prev, { kind: "error", text: msg }]);
         } finally {
             abortRef.current = null;

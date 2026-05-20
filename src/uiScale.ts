@@ -20,6 +20,7 @@ function apply(scale: number): void {
     window.dispatchEvent(new CustomEvent("ui-scale-change", { detail: scale }));
 }
 
+/** Read the persisted UI scale (clamped to the allowed range). Falls back to 1.0×. */
 export function getUiScale(): number {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw === null) return DEFAULT;
@@ -27,6 +28,10 @@ export function getUiScale(): number {
     return clamp(n);
 }
 
+/**
+ * Persist `scale` (clamped to 0.7–2.0 in 0.1 steps), apply it to `<html>`,
+ * and fire `ui-scale-change`. Returns the value that was actually applied.
+ */
 export function setUiScale(scale: number): number {
     const next = clamp(scale);
     localStorage.setItem(STORAGE_KEY, String(next));
@@ -34,10 +39,12 @@ export function setUiScale(scale: number): number {
     return next;
 }
 
+/** Add `delta` to the current scale and apply the result. */
 export function stepUiScale(delta: number): number {
     return setUiScale(getUiScale() + delta);
 }
 
+/** Reset the UI scale to 1.0× and apply it. */
 export function resetUiScale(): number {
     return setUiScale(DEFAULT);
 }

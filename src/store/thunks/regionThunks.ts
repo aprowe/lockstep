@@ -71,15 +71,15 @@ export const moveRegionBounds =
 /**
  * Pan a region's input-space bounds (body drag — length preserved).
  *
- * Unlike `moveRegionBounds` (used for edge resize), this also translates
+ * Unlike `moveRegionBounds` (edge resize), this also translates
  * inBeatTime/outBeatTime by the same delta so the clipout follows the
- * clipin when the user body-drags the clipin. When the region is
- * default-linked (no explicit beat bounds), they stay undefined — the
- * clipout renders linked to the new input bounds automatically.
+ * clipin during a body drag. Default-linked regions leave their beat
+ * bounds linked to the input bounds via the DirectedPair constraint —
+ * the explicit beat-time write only runs for diverged regions.
  *
- * Inner-anchor translation (when anchor-lock is on) is now handled by the
- * TranslateGroup constraint emitted by anchorLockMirrorMiddleware — the resolver
- * propagates it automatically when the clipout entity moves.
+ * Inner-anchor translation (when anchor-lock is on) is handled by the
+ * TranslateGroup constraint emitted by `buildGraphFromSlice` — the
+ * resolver propagates it as the clipout entity moves.
  */
 export const panClipinBounds =
     (payload: MoveRegionBoundsPayload) => (dispatch: AppDispatch, getState: () => RootState) => {

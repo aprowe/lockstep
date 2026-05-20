@@ -127,8 +127,8 @@ export default function WarpView({
     // ── Redux state ─────────────────────────────────────────────────────────────
     const origAnchors = useAppSelector((s) => s.warp.origAnchors);
     const beatAnchors = useAppSelector((s) => s.warp.beatAnchors);
-    // BPM is per-region after Phase 6 — the grid follows the active region's
-    // clipout. Fall back to the legacy global only when no region is active.
+    // BPM is per-region — the grid follows the active region's clipout. The
+    // global `warp.bpm` is only used when no region is active.
     const globalBpm = useAppSelector((s) => s.warp.bpm);
     const activeRegionBpm = useAppSelector((s) => selectActiveRegion(s)?.bpm);
     const bpm = activeRegionBpm ?? globalBpm;

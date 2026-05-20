@@ -17,7 +17,7 @@ interface SceneRowProps {
      *  none were found vs. because the scanner never ran there). */
     scannedRanges?: ReadonlyArray<{ start: number; end: number }>;
     view: View;
-    /** Clip duration — used to clamp projection. */
+    /** Clip duration; used to clamp the time→x projection to the visible range. */
     duration: number;
     /** When true, expand to show scene index labels per diamond. */
     expanded?: boolean;

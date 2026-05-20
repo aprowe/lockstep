@@ -18,6 +18,10 @@ export interface SceneDetectionProgressPayload {
     error?: string;
 }
 
+/**
+ * Kick off scene-cut detection. Returns the `job_id` immediately; cuts stream
+ * back via `listenSceneProgress`. Pass `start`/`end` to scan a sub-range only.
+ */
 export async function startSceneDetection(params: {
     path: string;
     threshold?: number;
@@ -28,10 +32,15 @@ export async function startSceneDetection(params: {
     return invoke<string>("start_scene_detection", { req: params });
 }
 
+/** Cancel the currently-running scene-detection job, if any. */
 export async function cancelSceneDetection(): Promise<void> {
     return invoke<void>("cancel_scene_detection");
 }
 
+/**
+ * Subscribe to scene-detection progress events. Invoke the returned
+ * `UnlistenFn` to stop listening.
+ */
 export async function listenSceneProgress(
     cb: (payload: SceneDetectionProgressPayload) => void,
 ): Promise<UnlistenFn> {

@@ -4,6 +4,11 @@ import { setPlayhead } from "../slices/warpSlice";
 import { setView } from "../slices/uiSlice";
 import { scrollViewToTime } from "../../utils/view";
 
+/**
+ * Auto-scroll the timeline view to keep the playhead visible after a
+ * deliberate seek (panel activation, toolbar nav, keyboard shortcut, region
+ * zoom). See the listener below for the seek-vs-drift heuristic.
+ */
 export const revealPlayheadMiddleware = createListenerMiddleware();
 
 /** Last seen playhead value — used to distinguish deliberate seeks from

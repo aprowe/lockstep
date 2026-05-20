@@ -5,8 +5,8 @@ import type { ListFilterMode } from "../../store/slices/listsSlice";
 
 /**
  * Closed-interval window. Markers / scenes / clips all reduce to "does
- * this item overlap [start, end]?" — using closed bounds avoids the
- * inconsistent `> vs >=` choices the per-panel filters used to make.
+ * this item overlap [start, end]?" — closed bounds keep the overlap
+ * semantics consistent across panels.
  */
 export interface ItemRange {
     start: number;

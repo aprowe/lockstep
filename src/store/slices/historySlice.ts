@@ -2,14 +2,13 @@ import { createSlice, original, type PayloadAction } from "@reduxjs/toolkit";
 import type { Anchor, Region } from "../../types";
 
 /**
- * One undo/redo snapshot — the full set of state fields that participate in
- * undo. Any user-visible mutation worth reversing must be captured here.
- * Excluded on purpose: selection, playhead, active-region-id, view, UI layout,
- * and the internal globalMarkers cache.
+ * One undo/redo snapshot — the full set of slice fields that participate in
+ * undo. Any user-visible mutation worth reversing is captured here. Excluded
+ * on purpose: selection, playhead, active-region-id, view, UI layout, and
+ * the internal globalMarkers cache.
  *
- * The constraint graph is no longer snapshotted — it is derived on demand from
- * the slice via selectConstraintGraph. The slice IS the source of truth for
- * positions.
+ * The constraint graph is not stored here; it is derived from the slice on
+ * demand by `selectConstraintGraph`.
  */
 export interface HistoryEntry {
     // Warp anchors
@@ -85,11 +84,14 @@ const historySlice = createSlice({
     name: "history",
     initialState,
     reducers: {
+        /** Push a snapshot onto the stack. No-op when the snapshot is byte-equal
+         *  to the current entry. Truncates any redo tail and caps at 100 entries
+         *  (oldest first dropped). */
         pushSnapshot(state, action: PayloadAction<HistoryEntry>) {
             const entry = action.payload;
             const cur = state.stack[state.index];
-            // Use original() so reference comparisons on nested objects (e.g. graph)
-            // see the underlying value rather than the Immer draft proxy.
+            // Use original() so reference comparisons on nested objects see the
+            // underlying value rather than the Immer draft proxy.
             const curOriginal = (cur && original(cur)) || cur;
             if (curOriginal && entriesEqual(curOriginal as HistoryEntry, entry)) return;
             // Truncate future entries

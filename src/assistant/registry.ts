@@ -19,6 +19,11 @@ interface RegisteredTool {
 const tools = new Map<string, RegisteredTool>();
 const extensions = new Map<string, Extension>();
 
+/**
+ * Register an extension's tools with the global registry. Call once per
+ * extension at module load time. Re-registering a tool name logs a warning
+ * (the later registration wins).
+ */
 export function registerExtension(ext: Extension): void {
     extensions.set(ext.id, ext);
     for (const def of ext.tools) {
@@ -40,14 +45,20 @@ export function registerExtension(ext: Extension): void {
     }
 }
 
+/** All tool definitions across every registered extension, in registration order. */
 export function listAllTools(): ToolDef[] {
     return Array.from(tools.values()).map((t) => t.def);
 }
 
+/** All registered extensions, in registration order. */
 export function listExtensions(): Extension[] {
     return Array.from(extensions.values());
 }
 
+/**
+ * Dispatch a tool call. Unknown names and thrown errors are caught and
+ * surfaced as `isError` results so the assistant loop can continue.
+ */
 export async function callTool(name: string, args: unknown, ctx: ToolContext): Promise<ToolResult> {
     const t = tools.get(name);
     if (!t) {
@@ -59,8 +70,7 @@ export async function callTool(name: string, args: unknown, ctx: ToolContext): P
     try {
         return await t.handler(args, ctx);
     } catch (e: unknown) {
-        const message =
-            typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
+        const message = typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
         return {
             blocks: [{ type: "text", text: `Tool "${name}" failed: ${message}` }],
             isError: true,

@@ -11,7 +11,7 @@
  *   clipout:edge  — role-qualified dragger tag for clipout edge-resize gestures
  *   clipout:body  — role-qualified dragger tag for clipout body-pan gestures
  *   twin:{id}     — per-region cohort containing both clipin + clipout for that region
- *   scenes        — scene-marker entities (deferred: cohort is always empty for now)
+ *   scenes        — scene-marker entities synthesized from detected + user cuts
  *   playhead      — playhead entity (deferred: cohort is empty until playhead is added)
  *   grid          — synthetic: not a real cohort; means "include beat-grid snap"
  */

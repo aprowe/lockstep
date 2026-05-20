@@ -449,10 +449,9 @@ export default function ExportDialog({
                 results.push(outputPath);
                 setOutputPaths([...results]);
 
-                // Land the rendered file in the destination folder immediately, before
-                // moving on to the next render. Earlier behavior queued every clip and
-                // copied them only after the full batch finished, which delayed
-                // visibility (and lost everything if a later clip aborted the run).
+                // Land each rendered file in the destination folder immediately,
+                // before moving on to the next render — keeps progress visible and
+                // preserves work even if a later clip aborts the run.
                 if (destFolder) {
                     try {
                         await saveToFolder({
@@ -511,7 +510,8 @@ export default function ExportDialog({
             setSavedCount((prev) => prev + 1);
             setSavedFolder(parentFolder(savedPath));
         } catch (e: unknown) {
-            if (!String(e).includes("cancelled")) setError(e instanceof Error ? e.message : String(e));
+            if (!String(e).includes("cancelled"))
+                setError(e instanceof Error ? e.message : String(e));
         } finally {
             setSaving(false);
         }
@@ -547,7 +547,8 @@ export default function ExportDialog({
             setSavedCount(outputPaths.length);
             if (lastFolder) setSavedFolder(lastFolder);
         } catch (e: unknown) {
-            if (!String(e).includes("cancelled")) setError(e instanceof Error ? e.message : String(e));
+            if (!String(e).includes("cancelled"))
+                setError(e instanceof Error ? e.message : String(e));
         } finally {
             setSaving(false);
         }

@@ -364,8 +364,8 @@ export interface SnapRule {
  *  clipout edge. Purely transient and one-way (anchor → clip): the handler
  *  re-checks coincidence every pipeline pass, so it engages while the user
  *  is on the conform position and disengages when they move past — without
- *  ever writing back to the anchor side (which would cause the nudge-bug
- *  class we hit with symmetric MirrorPair).
+ *  ever writing back to the anchor side (symmetric coupling would let raw
+ *  cursor values leak through the default-link cascade into the anchor).
  *
  *  Use case: dragging clipin across a marker should visually show the
  *  clipout edge snap to the paired beat anchor's time as clipin lands on

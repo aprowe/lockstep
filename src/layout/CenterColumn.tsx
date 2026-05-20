@@ -228,7 +228,6 @@ export default function CenterColumn() {
         };
         // Re-attach whenever the video element changes (new src load) or mode changes.
         // Anchor changes are picked up via refs — no need to re-run the effect.
-         
     }, [playerRef, playbackMode, video?.path]);
 
     // ── Empty / loading state ─────────────────────────────────────────────────

@@ -5,8 +5,10 @@ import type { State as ConstraintState } from "../../constraints/types";
 import { extractDragCtxFromSlice } from "../../constraints/pipeline";
 
 /**
- * Memoized derived view of the constraint graph, rebuilt from slice + dragCtx
- * on demand. Replaces the deleted `state.constraint.graph` for reads.
+ * Memoized derived view of the constraint graph, rebuilt from slice +
+ * gesture state on demand. The slice is the source of truth for positions;
+ * this selector projects it into the typed Entity/Constraint graph that the
+ * resolver pipeline consumes.
  *
  * Cache invalidates whenever any contributing slice changes reference, which
  * Immer guarantees per dispatch. The build cost is microseconds per call.
@@ -22,9 +24,9 @@ export const selectConstraintGraph = createSelector(
     (s: RootState) => s.ui.anchorLockGestureOverride,
     (s: RootState) => s.region.activeRegionId,
     (s: RootState) => s.lists,
-    // gestureSlice — profile.whileDragging constraints depend on activeHandle.
-    // Without this dependency the selector wouldn't invalidate when a drag
-    // starts, and gesture-scoped constraints wouldn't appear in the snapshot.
+    // Gesture profile constraints (`whileDragging`) depend on `activeHandle`,
+    // so this slice is part of the selector's cache key — a fresh drag invalidates
+    // the build and the gesture-scoped constraints appear in the next snapshot.
     (s: RootState) => s.gesture,
     // Defensive: test stores may omit video/scene slices.
     (s: RootState) => (s as { video?: { video?: { path?: string } | null } }).video?.video?.path,

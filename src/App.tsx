@@ -14,7 +14,6 @@ import { stepUiScale, resetUiScale, getUiScale, UI_SCALE_STEP } from "./uiScale"
 import HudChip from "./components/HudChip";
 import { useTransientChip } from "./utils/useTransientChip";
 
-
 import PanelDock, { PANEL_LIST, type PanelDockHandle } from "./layout/PanelDock";
 import { DockBridgeProvider } from "./layout/DockContext";
 import ContextMenu from "./components/ContextMenu";
@@ -44,7 +43,6 @@ import {
 } from "./store/thunks/videoThunks";
 import { ensureSceneListener } from "./store/thunks/sceneThunks";
 
-
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setDetectingBpm as setDetectingBpmAction } from "./store/slices/videoSlice";
 import {
@@ -53,9 +51,7 @@ import {
     deselectAll as deselectAllWarp,
 } from "./store/slices/warpSlice";
 import { selectWarpData, selectActiveRegion as selectActiveRegionRedux } from "./store/selectors";
-import {
-    setExportOpen as setExportOpenAction,
-} from "./store/slices/uiSlice";
+import { setExportOpen as setExportOpenAction } from "./store/slices/uiSlice";
 import "./App.css";
 
 const VIDEO_EXTS = ["mp4", "mov", "avi", "mkv", "webm", "m4v"];

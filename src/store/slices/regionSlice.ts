@@ -2,15 +2,15 @@ import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import type { Region } from "../../types";
 
 /**
- * Phase 1 — region positions (inPoint / outPoint / inBeatTime / outBeatTime)
- * live in the constraint graph (`state.constraint.graph.entities[{id}-in / {id}-out]`).
- * The region slice keeps the metadata and ID list. Position fields on
- * `state.region.regions[i]` are retained for load-bootstrap purposes (the
- * loader writes the saved positions onto the slice, then seeds the graph via
- * `setGraph(buildSeedGraph(…))`). After bootstrap the slice no longer MUTATES
- * positions — every position write routes through `constraintSlice.applyOp`
- * (see `entityWriteThunks`). Selectors prefer graph entities over slice
- * positions on read.
+ * Region slice — region metadata (id, name, bpm, lockedBeats, stretch
+ * bounds, defaultLinked) plus the input-space bounds (inPoint/outPoint)
+ * and beat-space bounds (inBeatTime/outBeatTime).
+ *
+ * The slice is the source of truth for region positions. The constraint
+ * pipeline derives its graph from this slice on demand; pipeline writes
+ * flow back via the internal `_syncRegionPositions` / `_syncRegionMeta`
+ * reducers. Direct mutation of position fields outside of the load path
+ * is reserved for the entity-write thunks (see `entityWriteThunks.ts`).
  */
 interface RegionState {
     regions: Region[];
@@ -63,13 +63,10 @@ const regionSlice = createSlice({
     name: "region",
     initialState,
     reducers: {
+        /** Replace the region list. Backfills `colorIndex`, `defaultLinked`,
+         *  `inBeatTime`, and `outBeatTime` for any payload entry missing them
+         *  so loaded snapshots are normalized at the slice boundary. */
         setRegions(state, action: PayloadAction<Region[]>) {
-            // Backfill colorIndex for any region loaded from a save predating
-            // the field. Using array position keeps existing palette assignments
-            // stable for a single load; persistence will write them back.
-            // Also backfill defaultLinked / inBeatTime / outBeatTime for saves
-            // predating this migration (pre-release: inBeatTime/outBeatTime may be
-            // absent or undefined in old JSON).
             const seen = new Set<number>();
             for (const r of action.payload) {
                 if (typeof r.colorIndex === "number") seen.add(r.colorIndex);
@@ -82,8 +79,8 @@ const regionSlice = createSlice({
                     colorIndex = next;
                     seen.add(next++);
                 }
-                // Cast to `unknown` first so we can safely coerce missing fields from
-                // JSON that predates this migration (pre-release; no shim needed).
+                // Coerce optional fields off of `unknown` so the backfill below
+                // applies cleanly even when the payload omits them.
                 const raw = r as unknown as {
                     defaultLinked?: boolean;
                     inBeatTime?: number;
@@ -126,8 +123,7 @@ const regionSlice = createSlice({
             if (r) r.bpm = action.payload.bpm;
         },
         /** Update lockedBeats only. Used by linking-event / conformed-clipout
-         *  commits — the graph holds the beat-space positions; this carries the
-         *  derived beat count for lock='beats' regions. */
+         *  commits to carry the derived beat count for lock='beats' regions. */
         updateRegionLockedBeats(state, action: PayloadAction<{ id: string; lockedBeats: number }>) {
             const r = state.regions.find((r) => r.id === action.payload.id);
             if (r) r.lockedBeats = action.payload.lockedBeats;
@@ -144,14 +140,13 @@ const regionSlice = createSlice({
                     r.maxStretch = action.payload.maxStretch;
             }
         },
-        // ── Internal: graph → slice projection ─────────────────────────────────
-        /** Internal — sync position fields from a graph snapshot.
-         *  Dispatched by graphMirrorMiddleware after every `applyOp` / `setGraph`.
-         *  Consumers should NEVER dispatch this directly. Position ownership lives
-         *  in the constraint graph; the slice is a downstream view.
+        // ── Internal: pipeline → slice projection ──────────────────────────────
+        /** Internal — write region position fields from a pipeline diff.
+         *  Dispatched by `dispatchPipelined` / `dispatchPipelinedReplay` after
+         *  each op runs. Consumers should NEVER dispatch this directly.
          *
-         *  Each entry in the payload map is a `Partial` field bag — only the keys
-         *  that are PRESENT in the bag are written. */
+         *  Each entry in the payload map is a `Partial` field bag — only the
+         *  keys present in the bag are written. */
         _syncRegionPositions(state, action: PayloadAction<RegionPosDiff>) {
             for (const r of state.regions) {
                 const fields = action.payload[r.id];
@@ -168,11 +163,11 @@ const regionSlice = createSlice({
             }
         },
 
-        // ── Internal: graph meta → slice projection ────────────────────────────
-        /** Internal — sync bpm / lockedBeats from the constraint graph's per-entity
-         *  meta back onto the region slice. Dispatched by graphMirrorMiddleware after
-         *  every `applyOp` / `setGraph` when the bpmDerivedConstraint updates meta.
-         *  Consumers should NEVER dispatch this directly. */
+        // ── Internal: pipeline meta → slice projection ─────────────────────────
+        /** Internal — write bpm / lockedBeats from the pipeline's per-entity
+         *  meta back onto the region slice. Dispatched by the pipeline dispatch
+         *  helpers when the bpmDerivedConstraint updates meta during the Derive
+         *  phase. Consumers should NEVER dispatch this directly. */
         _syncRegionMeta(state, action: PayloadAction<RegionMetaDiff>) {
             for (const r of state.regions) {
                 const fields = action.payload[r.id];
@@ -198,13 +193,10 @@ export const {
     _syncRegionMeta,
 } = regionSlice.actions;
 
-// ── Back-compat re-exports for the position-writing thunks ───────────────
-// These used to be slice reducers; Phase 1 moved them into entity-write
-// thunks so the constraint graph is the source of truth for position writes.
-// Re-exported under their original names so existing call sites only need
-// to swap `dispatch(updateRegionInOut(...))` for `dispatch(updateRegionInOut(...))`
-// with no other change — the dispatch target is now a thunk, but call shape
-// is identical.
+// ── Position-writing thunks re-exported under their slice-action names ────
+// Position writes live in entity-write thunks so the constraint pipeline
+// runs and propagates linked/conform behaviour. The aliases here let call
+// sites dispatch them as if they were plain slice actions.
 export {
     applyUpdateRegionInOut as updateRegionInOut,
     applyUpdateRegionBeatTimes as updateRegionBeatTimes,

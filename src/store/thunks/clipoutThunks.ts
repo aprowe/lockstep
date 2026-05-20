@@ -6,17 +6,14 @@ import { OpKind } from "../../constraints/types";
 import { dispatchPipelinedReplay } from "../../constraints/pipelineDispatch";
 
 /**
- * Commit a clipout RESIZE — edge dragged.
+ * Commit a clipout edge resize.
  *
- * - Always: applyConformedClipout({ id, inBeatTime, outBeatTime }).
- *
- * Inner-anchor rescale (when anchor-lock + lock='beats') is now handled by the
- * ScaleGroup constraint emitted by anchorLockMirrorMiddleware — the resolver
- * propagates it automatically when the clipout entity edges move.
- *
- * Conformed-marker carry is handled structurally: the MirrorPair binding
- * auto-installed by buildGraphFromSlice on positional coincidence propagates
- * clipout-edge writes to the paired beat anchor automatically.
+ * Always dispatches `applyConformedClipout` with the new beat-space bounds.
+ * Anchor-lock + lock='beats' rescaling of inner anchors is handled by the
+ * ScaleGroup constraint emitted by `buildGraphFromSlice` — the resolver
+ * propagates it as the clipout edge moves. Conformed-marker carry is
+ * handled structurally by the MirrorPair binding auto-installed when a
+ * clipout edge coincides with a beat anchor.
  */
 export const commitClipoutResize =
     (payload: { id: string; inBeatTime: number; outBeatTime: number; altKey: boolean }) =>
@@ -28,9 +25,9 @@ export const commitClipoutResize =
         const inputAnchors = state.warp.origAnchors;
         const beatAnchors = state.warp.beatAnchors;
 
-        // Alt key inverts ui.anchorLock for this gesture only (XOR-style override).
-        // Dispatch the override BEFORE the resize ops so anchorLockMirrorMiddleware
-        // sees the effective lock when it re-emits graph constraints.
+        // Alt inverts `ui.anchorLock` for this gesture only (XOR override).
+        // Dispatch the override BEFORE the resize ops so the next pipeline
+        // build sees the effective lock when it emits anchor-lock constraints.
         if (payload.altKey) {
             dispatch(setAnchorLockGestureOverride(!state.ui.anchorLock));
         }
@@ -52,17 +49,18 @@ export const commitClipoutResize =
     };
 
 /**
- * Commit a clipout BODY PAN — region body translated. Length unchanged.
+ * Commit a clipout body pan (region translated, length unchanged).
  *
- * - Always: applyConformedClipout({ id, inBeatTime, outBeatTime }).
+ * Always dispatches `applyConformedClipout` with the new beat-space bounds.
+ * Inner-anchor translation (when anchor-lock is on) is handled by the
+ * TranslateGroup constraint emitted by `buildGraphFromSlice` — the
+ * resolver propagates it as the clipout entity moves. Conformed-marker
+ * carry is handled structurally by the MirrorPair binding auto-installed
+ * when a clipout edge coincides with a beat anchor.
  *
- * Inner-anchor translation (when anchor-lock is on) is now handled by the
- * TranslateGroup constraint emitted by anchorLockMirrorMiddleware — the resolver
- * propagates it automatically when the clipout entity moves.
- *
- * Conformed-marker carry is handled structurally: the MirrorPair binding
- * auto-installed by buildGraphFromSlice on positional coincidence propagates
- * clipout-edge writes (and body translates) to paired beat anchors.
+ * Accepts either absolute (`inBeatTime` / `outBeatTime`) or delta-based
+ * payloads. Delta payloads compute against the PRE-DRAG region bounds so
+ * repeated dispatches during a single drag converge instead of compounding.
  */
 export const commitClipoutPan =
     (
@@ -82,10 +80,9 @@ export const commitClipoutPan =
         const preDragRegion =
             state.drag.preDrag?.regions.find((r) => r.id === payload.id) ?? region;
 
-        // Resolve the absolute target. Delta-based payloads compute against the
-        // PRE-DRAG region bounds — repeated dispatches during a single drag
-        // (live pointerMove + pointerUp commit) converge to the same final
-        // position instead of compounding. Absolute payloads are used as-is.
+        // Resolve the absolute target. Delta payloads compute against the
+        // PRE-DRAG region bounds (see header comment); absolute payloads are
+        // used as-is.
         let inBeatTime: number;
         let outBeatTime: number;
         if ("delta" in payload) {
@@ -96,17 +93,17 @@ export const commitClipoutPan =
             outBeatTime = payload.outBeatTime;
         }
 
-        // Alt key inverts ui.anchorLock for this gesture only (XOR-style override).
-        // Dispatch the override BEFORE the pan ops so anchorLockMirrorMiddleware
-        // sees the effective lock when it re-emits graph constraints.
+        // Alt inverts `ui.anchorLock` for this gesture only (XOR override).
+        // Dispatch the override BEFORE the pan ops so the next pipeline build
+        // sees the effective lock when it emits anchor-lock constraints.
         if (payload.altKey) {
             dispatch(setAnchorLockGestureOverride(!state.ui.anchorLock));
         }
 
-        // Absolute-replay drag: Move clipout by the absolute delta vs preDrag.
-        // dispatchPipelinedReplay rebuilds the pipeline slice from preDrag and
-        // runs the Move against that baseline — so each frame is a pure function
-        // of (preDrag, cumulativeDelta), no state carrying from prior frames.
+        // Replay-drag invariant: Move clipout by the cumulative delta vs the
+        // preDrag baseline. `dispatchPipelinedReplay` rebuilds the pipeline
+        // slice from preDrag and runs the Move against it, so each frame is
+        // a pure function of (preDrag, cumulativeDelta).
         const cumulativeDelta = inBeatTime - preDragRegion.inBeatTime;
         if (Math.abs(cumulativeDelta) > 1e-9) {
             dispatchPipelinedReplay(dispatch, getState, {

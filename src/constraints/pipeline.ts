@@ -108,9 +108,10 @@ export interface PipelineOutput {
  * Build a constraint State from (slice, dragCtx).
  *
  * Derives all constraints from slice state: anchor pairs, default-link
- * DirectedPairs, ConformVisual bindings, SnapRules, space cohorts,
- * twin cohorts, lasso TranslateGroup, anchorLock TranslateGroup/ScaleGroup,
- * ConformVisual + MirrorPair conform bindings.
+ * DirectedPairs, SnapRules, space cohorts, twin cohorts, lasso
+ * TranslateGroup, anchorLock TranslateGroup/ScaleGroup, and the
+ * ConformRedirect + ConformVisual bindings (one pair per region × anchor ×
+ * edge).
  */
 export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): State {
     let state = emptyState();
@@ -182,10 +183,7 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
         });
     }
 
-    // 3. (SnapTarget install moved to step 11 — profile.whileDragging
-    //     handles it now that all drag classes flow through profiles.)
-
-    // 3b. Default-link (clipin → clipout): two MirrorEdges (per-edge value
+    // 3. Default-link (clipin → clipout): two MirrorEdges (per-edge value
     //    mirror). For each clipin edge write, clipout's matching edge gets the
     //    same value. Chosen over Translate (delta cascade) so the linked
     //    invariant `clipout = clipin` is re-asserted every pipeline pass —
@@ -221,7 +219,7 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
         }
     }
 
-    // 4. ConformVisual + ConformRedirect — INSTALLED AFTER STEP 11 below so
+    // 4. ConformVisual + ConformRedirect — installed after step 11 below so
     //    they fire AFTER SnapTarget in each Propose fixed-point iteration.
     //    Insertion order matters: SnapTarget restricts the seed write first,
     //    ConformRedirect rewrites user clipout writes into anchor.beat writes,
@@ -302,8 +300,8 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
 
     // ── Transient (dragCtx) constraints ──────────────────────────────────────
 
-    // 8. Lasso TranslateGroup — derived directly from slice selection state.
-    //    No middleware mirror needed: the pipeline runs on every dispatch.
+    // 8. Lasso TranslateGroup — derived directly from slice selection state
+    //    on every pipeline dispatch.
     let lassoIds: EntityId[] = [];
     if (slice.selection) {
         for (const n of slice.selection.orig) lassoIds.push(anchorInId(n));
@@ -315,9 +313,6 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     if (lassoIds.length > 0) {
         state = reduce(state, lasso("main", lassoIds));
     }
-
-    // 9. (SnapTarget moved to step 3b above — must install before MirrorPair
-    //    so snap restricts writes before MirrorPair propagates them.)
 
     // 10. Anchor-lock constraints — derived directly from slice state.
     //     The gesture-override (alt key during drag) is XOR'd with the static
@@ -404,9 +399,9 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     //     raw cursor). ConformVisual must run after ConformRedirect so the
     //     clipout it writes reflects the redirected anchor.beat.
     //
-    //     Both rules fan out per (region × anchor × edge). MirrorPair was
-    //     deleted — the conform coupling is now strictly directed (anchor →
-    //     clipout), with redirect handling user clipout drags.
+    //     Both rules fan out per (region × anchor × edge). The conform
+    //     coupling is strictly directed (anchor → clipout); ConformRedirect
+    //     handles user clipout drags by rewriting them into anchor.beat writes.
     //
     //     See: docs/superpowers/specs/2026-05-20-conform-invariant-restructure-design.md
     // Install both ConformRedirect and ConformVisual for every
@@ -487,9 +482,9 @@ export function extractDiffs(postState: State, slice: PipelineSlice): Omit<Pipel
             }
         }
 
-        // defaultLinked diff is not driven by position; skip it in the extract
-        // (it's driven by constraint presence, not entity values). Phase 2 can add
-        // it when the defaultlink removal is part of the op.
+        // defaultLinked is not driven by entity position — it's controlled by
+        // the presence/absence of the defaultlink DirectedPair constraint, so
+        // there's nothing to diff here.
 
         if (hasDiff) regionDiffs[r.id] = diff;
 
@@ -540,7 +535,7 @@ export function extractDiffs(postState: State, slice: PipelineSlice): Omit<Pipel
 export function runConstraintPipeline(input: PipelineInput): PipelineOutput {
     const { slice, dragCtx, op } = input;
 
-    // Build the graph from slice + dragCtx (mirrors the middleware cascade).
+    // Build the graph from slice + dragCtx.
     const preState = buildGraphFromSlice(slice, dragCtx);
 
     // Run the resolver pipeline.
@@ -555,10 +550,10 @@ export function runConstraintPipeline(input: PipelineInput): PipelineOutput {
 /**
  * Derive a DragCtx from the gestureSlice state subtree.
  *
- * dragCtxSlice was dissolved: lasso TranslateGroup, anchor-lock constraints,
- * and SnapTargets are all derived in buildGraphFromSlice directly from
- * slice/gesture state. Only the active gesture handle + modifiers + pixel
- * scaling remain in DragCtx.
+ * Lasso TranslateGroup, anchor-lock constraints, and SnapTargets are all
+ * derived in buildGraphFromSlice directly from slice/gesture state. DragCtx
+ * carries only the active gesture handle, modifier-key state, and the
+ * pixel-to-time scaling needed by profile.whileDragging.
  */
 export function extractDragCtxFromSlice(state: {
     gesture?: {

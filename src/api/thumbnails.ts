@@ -38,6 +38,7 @@ export function setThumbnailPriority(r: ThumbnailPriorityRequest): Promise<void>
     });
 }
 
+/** Resolve the on-disk path of a cached thumbnail. Returns null if not yet generated. */
 export function getThumbnailPath(fileHash: string, frame: number): Promise<string | null> {
     return invoke<string | null>("get_thumbnail_path", { fileHash, frame });
 }
@@ -60,14 +61,17 @@ export interface QueueStats {
     tiers: QueueTierStats[];
 }
 
+/** Per-tier queue statistics for the diagnostic panel. Returns null while no queue is active. */
 export function getThumbnailQueueStats(fileHash: string): Promise<QueueStats | null> {
     return invoke<QueueStats | null>("get_thumbnail_queue_stats", { fileHash });
 }
 
+/** Drop the entire thumbnail cache for one video. */
 export function clearThumbnails(fileHash: string): Promise<void> {
     return invoke("clear_thumbnails", { fileHash });
 }
 
+/** Drop the thumbnail cache for every video. */
 export function clearAllThumbnails(): Promise<void> {
     return invoke("clear_all_thumbnails");
 }
@@ -79,6 +83,10 @@ export interface ThumbnailReadyPayload {
     duration_ms?: number;
 }
 
+/**
+ * Subscribe to per-frame thumbnail-ready events. Invoke the returned
+ * `UnlistenFn` to stop listening.
+ */
 export function listenThumbnailReady(cb: (p: ThumbnailReadyPayload) => void): Promise<UnlistenFn> {
     return listen<ThumbnailReadyPayload>("thumbnail-ready", (e) => cb(e.payload));
 }

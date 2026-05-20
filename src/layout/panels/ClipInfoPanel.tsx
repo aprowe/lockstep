@@ -39,8 +39,9 @@ export default function ClipInfoPanel() {
             if (data.bpm && data.bpm > 0) {
                 // Route detect through applyBpmEdit so the active region's bpm
                 // (and derived lockedBeats) update — that's what the grid reads.
-                // Legacy global bpm is mirrored by applyBpmEdit for back-compat.
-                // stretch: false → length stays, lockedBeats recomputes.
+                // The global warp.bpm is mirrored by applyBpmEdit as a fallback
+                // for the no-active-region case. stretch: false → length stays,
+                // lockedBeats recomputes.
                 if (activeRegionId) {
                     dispatch(
                         applyBpmEditAction({

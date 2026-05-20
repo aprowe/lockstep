@@ -52,13 +52,17 @@ function pxToT(px: number, snap: Snapshot): number {
     return snap.view.start + (px / w) * (snap.view.end - snap.view.start);
 }
 
-/** Click → drag threshold (squared) in pixels. Once cursor movement from
- *  pointerDown exceeds this distance, the gesture is a drag and the
- *  pendingSelect emit is discarded on pointerUp. Same threshold used by the
- *  lasso (4 px). */
+/**
+ * Click vs. drag threshold (squared pixel distance, 4 px).
+ *
+ * Once cursor movement from pointerDown exceeds this distance the gesture is
+ * a drag: the pendingSelect intents are discarded on pointerUp and any
+ * commit intents fire instead. The lasso uses the same threshold to decide
+ * whether to activate.
+ */
 const DRAG_THRESHOLD_PX_SQ = 16;
 
-/** Update `moved` once the cursor crossed the click→drag threshold. */
+/** Flip `moved` to true once the cursor has crossed the click vs. drag threshold. */
 function markMovedIfBeyondThreshold(
     drag: { startClientX: number; startClientY: number; moved: boolean },
     e: PointerEventLike,
@@ -69,12 +73,17 @@ function markMovedIfBeyondThreshold(
     if (dx * dx + dy * dy >= DRAG_THRESHOLD_PX_SQ) drag.moved = true;
 }
 
-/** Build a combined-selection anchor drag state. When `wasSelected` is true,
- *  every selected anchor in BOTH spaces and every selected region is
- *  captured. Otherwise only the dragged anchor's space is populated.
+/**
+ * Build a combined-selection anchor drag state.
  *
- *  Selection is no longer emitted on pointerDown — see the call site for the
- *  `pendingSelect[]` flushed on pointerUp click. */
+ * When `wasSelected` is true, every selected anchor in BOTH spaces and every
+ * selected region is captured for the gesture. Otherwise only the dragged
+ * anchor's own space is populated.
+ *
+ * Selection intents are not emitted at pointerDown — the caller's
+ * `pendingSelect[]` is flushed on pointerUp when the gesture stays under the
+ * click threshold.
+ */
 function buildAnchorDrag(
     snap: Snapshot,
     id: number,
@@ -86,28 +95,24 @@ function buildAnchorDrag(
     startClientY: number,
     pendingSelect: PendingSelect[],
 ): Extract<DragState, { kind: "anchor" }> {
-    // Anchor group ids for the dragged space. For an input drag, we capture
-    // every id in selectedOrigAnchorIds; for an output drag, selectedBeatAnchorIds.
+    // Same-space group: capture every selected anchor in the dragged space.
     const spaceSelectedIds =
         space === "input" ? snap.selectedOrigAnchorIds : snap.selectedBeatAnchorIds;
     const anchorIdsInSelection = wasSelected ? new Set(spaceSelectedIds) : new Set<number>();
     anchorIdsInSelection.add(id);
 
-    // capturedSpaces is for the PRIMARY anchor only. Drives intent emission:
-    // only an anchorEntityMove for a space is emitted when that space is captured.
-    // Follower propagation happens via the resolver's lasso:main TranslateGroup.
+    // capturedSpaces applies to the PRIMARY anchor only and drives intent
+    // emission: anchorEntityMove fires for a space only when that space is
+    // captured. Follower propagation runs through the resolver's lasso:main
+    // TranslateGroup.
     const primaryInputCaptured =
         space === "input" ? true : forcePairCapture || snap.selectedOrigAnchorIds.has(id);
     const primaryBeatCaptured =
         space === "output" ? true : forcePairCapture || snap.selectedBeatAnchorIds.has(id);
 
-    // (Removed: regionGroupIds + origRegionBounds capture. Follower
-    // selected regions now propagate via the resolver's lasso:main
-    // TranslateGroup — mixed-entity, reads selection from slices.)
-
     const isPair = primaryInputCaptured && primaryBeatCaptured;
 
-    // Resolve partner's pre-drag time (input drag → beat partner; output drag → orig partner)
+    // Resolve the partner's pre-drag time (input drag → beat partner; output drag → orig partner).
     let partnerOrigTime = origTime;
     if (isPair) {
         if (space === "input") {
@@ -135,9 +140,13 @@ function buildAnchorDrag(
     };
 }
 
-/** Build a combined-selection region-move drag state. When `wasSelected` is
- *  true, every selected region and every selected anchor (both spaces) is
- *  captured. Otherwise only the dragged region is populated. */
+/**
+ * Build a combined-selection region-move drag state.
+ *
+ * When `wasSelected` is true, every selected region and every selected anchor
+ * (both spaces) is captured for the gesture. Otherwise only the dragged
+ * region is populated.
+ */
 function buildRegionDrag(
     snap: Snapshot,
     id: string,
@@ -158,16 +167,16 @@ function buildRegionDrag(
         const gr = list.find((rr) => rr.id === gid);
         if (gr) origBounds.set(gid, { inPoint: gr.inPoint, outPoint: gr.outPoint });
     }
-    // Always ensure the dragged id is included.
+    // Ensure the dragged id is always included.
     if (!origBounds.has(id)) origBounds.set(id, { inPoint: r.inPoint, outPoint: r.outPoint });
 
-    // Anchor group: empty unless the region was selected AND anchors are too.
+    // Anchor group is empty unless the region was selected AND anchors are too.
     let anchorGroupIds: ReadonlySet<number> | undefined;
     let origInputAnchorTimes: Map<number, number> | undefined;
     let origBeatAnchorTimes: Map<number, number> | undefined;
-    // For combined region+anchor drags, capture ALL uniquely-selected anchor
-    // ids (union of orig and beat selected sets) so any selected anchor moves
-    // with the region pan. Both spaces are moved by the same time delta.
+    // Combined region+anchor drag: capture every uniquely-selected anchor id
+    // (union of orig + beat sets) so each anchor moves with the region pan.
+    // Both spaces are moved by the same time delta.
     const allSelectedAnchorIds = new Set([
         ...snap.selectedOrigAnchorIds,
         ...snap.selectedBeatAnchorIds,
@@ -183,9 +192,9 @@ function buildRegionDrag(
             if (ab) origBeatAnchorTimes.set(gid, ab.time);
         }
     }
-    // Slice B: for output-space body pan, capture all beat-anchor original
-    // times so handleRegionMoveMove can compute beatAnchorsChanged inline
-    // when effectiveAnchorLock is true.
+    // Output-space body pan: capture all beat-anchor original times so
+    // handleRegionMoveMove can compute beatAnchorsChanged inline when
+    // effectiveAnchorLock is true.
     if (isOutput) {
         origBeatAnchorTimes = new Map();
         for (const a of snap.beatAnchors) origBeatAnchorTimes.set(a.id, a.time);
@@ -221,10 +230,12 @@ function buildRegionDrag(
 const HINT_THRESHOLD_MULTIPLIER = 4;
 
 /**
- * Phase 7: convert findSnapCandidates results to time values for snap-hint rendering.
- * When the constraint graph has a SnapTarget for (entityId, field), this provides
- * the "nearby targets" list used by the canvas snap highlight layer.
- * Grid candidates (entityId='grid') carry their value directly on the candidate.
+ * Convert findSnapCandidates results to time values for snap-hint rendering.
+ *
+ * When the constraint graph has a SnapTarget for (entityId, field), this
+ * provides the "nearby targets" list used by the canvas snap highlight layer.
+ * Grid candidates (entityId='grid') carry their value directly on the
+ * candidate.
  *
  * Uses an expanded hint zone (HINT_THRESHOLD_MULTIPLIER × the SnapTarget's
  * own threshold) so hints surface before the cursor enters the snap radius.
@@ -238,9 +249,9 @@ function constraintSnapHints(
 ): number[] | null {
     if (!snap.constraintGraph) return null;
     // bodyOtherEdge: when the dragged entity is a clip body (both edges
-    // moving rigidly), pass the OTHER edge's current value so evaluateSnap
-    // can consider cross-edge alignment (e.g. dragged in-edge snapping to
-    // another clip's out-edge). For edge-mode drags this is undefined and
+    // moving rigidly), this is the OTHER edge's current value so evaluateSnap
+    // can consider cross-edge alignment (e.g. the dragged in-edge snapping to
+    // another clip's out-edge). For edge-mode drags it stays undefined and
     // evaluateSnap falls back to single-field comparison.
     const candidates = findSnapCandidates(
         snap.constraintGraph,
@@ -338,8 +349,10 @@ function computeGridForSnap(
 
 /**
  * Handle pointerMove for an active anchor drag.
- * Computes intent payloads inline from `origTime + delta` against the snapshot.
- * No live* mirror state is mutated — the controller is intent-pure.
+ *
+ * Computes intent payloads inline from `origTime + delta` against the
+ * snapshot. The controller is intent-pure: it carries no mirrored slice
+ * state, just the per-drag bookkeeping on `DragState`.
  */
 function handleAnchorMove(
     drag: Extract<DragState, { kind: "anchor" }>,
@@ -357,15 +370,15 @@ function handleAnchorMove(
     if (isPairDrag) {
         const clientDx = e.clientX - drag.startClientX;
         const rawDelta = (clientDx / W) * viewSpan;
-        // For pair drags, drag.origTime is the dragged-space pre-drag position
+        // For pair drags drag.origTime is the dragged-space pre-drag position
         // and drag.partnerOrigTime is the partner-space pre-drag position.
         const draggedInputT = drag.space === "input" ? drag.origTime : drag.partnerOrigTime;
         const draggedBeatT = drag.space === "output" ? drag.origTime : drag.partnerOrigTime;
         const rawInputSubject = draggedInputT + rawDelta;
         const rawBeatSubject = draggedBeatT + rawDelta;
 
-        // Resolver snaps via SnapTarget installed at pointerDown.
-        // Controller shows raw position (1-frame lag acceptable).
+        // The resolver snaps via the SnapTarget installed at pointerDown; the
+        // controller shows raw position (one-frame lag is acceptable).
         const inputHints =
             constraintSnapHints(snap, anchorInId(drag.id), "time", rawInputSubject) ?? [];
         const outputHints =
@@ -373,9 +386,9 @@ function handleAnchorMove(
         const chosenHintSpace: Space = inputHints.length > 0 ? "input" : "output";
         const chosenHintTargets = inputHints.length > 0 ? inputHints : outputHints;
         intents.push({ kind: "pubSnapHints", space: chosenHintSpace, times: chosenHintTargets });
-        // Publish dragTime in the chosen hint space using the snapped value, so
+        // Publish dragTime in the chosen hint space using the snapped value so
         // the canvas's active-hint check (dragTime === hint) lights up the
-        // target that's actually being snapped.
+        // target that is actually being snapped.
         const draggedSubject = chosenHintSpace === "input" ? rawInputSubject : rawBeatSubject;
         const entityForSnap =
             chosenHintSpace === "input" ? anchorInId(drag.id) : anchorOutId(drag.id);
@@ -383,7 +396,7 @@ function handleAnchorMove(
         intents.push({ kind: "pubDragTime", space: chosenHintSpace, time: snappedSubject });
         snapped = drag.origTime + rawDelta;
     } else {
-        // Resolver snaps via SnapTarget installed at pointerDown.
+        // The resolver snaps via the SnapTarget installed at pointerDown.
         const entityIdForSnap = drag.space === "input" ? anchorInId(drag.id) : anchorOutId(drag.id);
         const hints = constraintSnapHints(snap, entityIdForSnap, "time", raw) ?? [];
         intents.push({ kind: "pubSnapHints", space: drag.space, times: hints });
@@ -399,12 +412,11 @@ function handleAnchorMove(
         const origInputT = drag.space === "input" ? drag.origTime : drag.partnerOrigTime;
         const origBeatT = drag.space === "output" ? drag.origTime : drag.partnerOrigTime;
 
-        // Profile-driven drags (e.g. warp-line): emit `drag({ delta, modifiers })`.
-        // The active GestureProfile's onDrag (set by beginDrag at pointerDown)
-        // translates delta to ops; whileDragging supplies the gesture-scoped
-        // constraints. Other drags (single anchor, conformed-input "isPair")
-        // still use the legacy per-captured-space anchorEntityMove emit until
-        // their migration step.
+        // Profile-driven drags emit `drag({ delta, modifiers })`. The active
+        // GestureProfile's onDrag (set by beginDrag at pointerDown) translates
+        // delta into ops; whileDragging supplies the gesture-scoped
+        // constraints. Drags without a profileHandle fall through to the
+        // per-captured-space anchorEntityMove path.
         if (drag.profileHandle) {
             intents.push({ kind: "drag", delta, modifiers: { alt: e.altKey } });
         } else {
@@ -428,15 +440,12 @@ function handleAnchorMove(
 
         // Combined anchor+region drag: the lasso:main TranslateGroup
         // (mixed-entity; covers selected anchors + clips) propagates the
-        // anchor's Move op to follower regions automatically. No explicit
+        // anchor's Move op to follower regions automatically — no explicit
         // primary regionEntityMove emission needed.
-
-        // Beat-anchor ↔ clipout-edge coupling: the resolver's MirrorPair (installed
-        // by buildGraphFromSlice step 4b when conform holds in both spaces)
-        // handles this propagation. No controller-side regionResize emission
-        // needed; the legacy linkedOutputEdges capture was redundant AND wrong
-        // (only checked beat-space coincidence, pulling clipout edges during solo
-        // beat drags of diverged pairs).
+        //
+        // Beat-anchor ↔ clipout-edge coupling: the resolver's MirrorPair
+        // (installed by buildGraphFromSlice step 4b when conform holds in both
+        // spaces) handles that propagation.
     }
 
     if (snap.followDrag) {
@@ -449,8 +458,11 @@ function handleAnchorMove(
 
 /**
  * Handle pointerMove for an active region-edge drag.
- * Computes new edge position + Slice-B beat-anchor rescale inline. No
- * live* mirror state is mutated — only `moved` and `lastAltKey`.
+ *
+ * Computes the new edge position and, for output-space drags with
+ * anchor-lock + lock='beats' active, rescales beat anchors that lay inside
+ * the original bounds. Mutates only `moved` and `lastAltKey` on the drag
+ * state — payloads are derived from `origIn` / `origOut` + cursor delta.
  */
 function handleRegionEdgeMove(
     drag: Extract<DragState, { kind: "region-edge" }>,
@@ -485,8 +497,9 @@ function handleRegionEdgeMove(
 
     if (drag.moved) {
         if (drag.profileHandle) {
-            // CLIP_EDGE_DRAG: drag intent carries cumulative delta (newEdge -
-            // preDragEdge). The profile's onDrag turns it into a SetEdge op.
+            // CLIP_EDGE_DRAG: the drag intent carries the cumulative delta
+            // (newEdge - preDragEdge); the profile's onDrag turns it into a
+            // SetEdge op.
             const baseline = drag.edge === "in" ? drag.origIn : drag.origOut;
             const newEdge = drag.edge === "in" ? newIn : newOut;
             intents.push({
@@ -504,9 +517,9 @@ function handleRegionEdgeMove(
                 altKey: drag.lastAltKey,
             });
         }
-        // Slice B: rescale beat anchors that lay inside [origIn, origOut] when
-        // effectiveAnchorLock && lock='beats'. Output-space-only — clipin edge
-        // drag doesn't touch beat anchors.
+        // Rescale beat anchors that lay inside [origIn, origOut] when
+        // effectiveAnchorLock && lock='beats'. Output-space-only — clipin
+        // edge drags don't touch beat anchors.
         if (drag.isOutput && drag.origBeatAnchorTimes) {
             const effectiveAnchorLock = (snap.clipAnchorLock ?? false) !== drag.lastAltKey; // XOR
             const shouldRescale = effectiveAnchorLock && snap.clipLock === "beats";
@@ -538,7 +551,9 @@ function handleRegionEdgeMove(
 
 /**
  * Handle pointerMove for an active region-move (body pan) drag.
- * Computes payloads inline from origIn/origOut + delta. No live* mirror state.
+ *
+ * Computes payloads inline from `origIn` / `origOut` + cursor delta. Mutates
+ * only `moved`, `lastAltKey`, and `lastDelta` on the drag state.
  */
 function handleRegionMoveMove(
     drag: Extract<DragState, { kind: "region-move" }>,
@@ -559,15 +574,15 @@ function handleRegionMoveMove(
     const newIn = Math.max(0, Math.min(MAX - dur, rawIn));
     const _newOut = newIn + dur;
     // Body-pan hints: pass the OTHER edge as bodyOtherEdge so evaluateSnap
-    // considers cross-edge alignment.
+    // can consider cross-edge alignment.
     const inHints = constraintSnapHints(snap, moveEntityId, "in", rawIn, rawOut) ?? [];
     const outHints = constraintSnapHints(snap, moveEntityId, "out", rawOut, rawIn) ?? [];
     const hints = [...new Set([...inHints, ...outHints])];
     intents.push({ kind: "pubSnapHints", space, times: hints });
     // Use the in-edge snapped value for dragTime display so the in-edge hint
-    // highlights as "active" when actually snapped. (If only the out edge
-    // snaps, dragTime still shows raw newIn — that's acceptable; the visual
-    // alignment uses the in-edge for body drags.)
+    // highlights as "active" when actually snapped. If only the out edge
+    // snaps, dragTime still shows raw newIn — the visual alignment for body
+    // drags is referenced from the in-edge.
     const snappedNewIn = constraintSnappedValue(snap, moveEntityId, "in", rawIn, rawOut);
     intents.push({ kind: "pubDragTime", space, time: snappedNewIn });
 
@@ -576,7 +591,7 @@ function handleRegionMoveMove(
 
     if (drag.moved) {
         if (drag.profileHandle) {
-            // CLIP_BODY_DRAG: emit drag intent; thunk dispatches Move via onDrag.
+            // CLIP_BODY_DRAG: emit the drag intent; the thunk dispatches Move via onDrag.
             intents.push({ kind: "drag", delta: deltaT, modifiers: { alt: drag.lastAltKey } });
         } else {
             intents.push({
@@ -586,8 +601,8 @@ function handleRegionMoveMove(
                 isOutput: drag.isOutput,
                 altKey: drag.lastAltKey,
             });
-            // Combined region+anchor drag (legacy path only): emit anchorEntityMove
-            // for the primary anchor in each space. Follower anchors propagate via
+            // Combined region+anchor drag: emit anchorEntityMove for the
+            // primary anchor in each space; follower anchors propagate via
             // lasso:main. Input-space only.
             if (!drag.isOutput && drag.origInputAnchorTimes && drag.origInputAnchorTimes.size > 0) {
                 const firstInputId = drag.origInputAnchorTimes.keys().next().value as number;
@@ -646,15 +661,15 @@ export function createTimelineController(): Controller {
         const hit = hitAt(snap.hits, x, y) as Record<string, unknown> | null;
 
         // 2) Anchor hit — combined-selection drag.
-        //    pointerDown does NOT change selection. The select intent is
+        //    pointerDown does NOT change selection: the select intent is
         //    deferred to pointerUp via `pendingSelect`. If the gesture moves
-        //    past the click→drag threshold (4 px), the pending select is
-        //    discarded — drag committed its move and selection stays as it was.
-        //    When the dragged anchor is in the current selection, capture every
-        //    selected ANCHOR in BOTH spaces and every selected REGION so the
-        //    drag's time delta applies uniformly across kinds. When the dragged
-        //    anchor is NOT in the current selection, capture ONLY the dragged
-        //    id (single-object drag — other selected things stay put).
+        //    past the click vs. drag threshold (4 px), the pending select is
+        //    discarded and the drag's commit stands.
+        //    When the dragged anchor IS in the current selection, capture
+        //    every selected anchor (both spaces) and every selected region so
+        //    the drag's time delta applies uniformly. When it is NOT in the
+        //    current selection, capture ONLY the dragged id (single-object
+        //    drag — other selected things stay put).
         if (hit && hit.kind === "anchor") {
             const id = hit.id as number;
             const space = hit.space as "input" | "output";
@@ -676,10 +691,9 @@ export function createTimelineController(): Controller {
             // additive modifier. Additive (shift/cmd/ctrl) implies "I'm building
             // selection, not initiating a coordinated move."
             const captureGroup = wasSelected && !additive;
-            // For an input-space anchor that sits on a region's inPoint or outPoint
-            // (conformed), also capture the paired beat anchor so it moves with the
-            // input anchor live. This mirrors the symmetric behavior of output-space
-            // anchor drags moving linked clipout edges (linkedOutputEdges).
+            // For an input-space anchor that sits on a region's inPoint or
+            // outPoint (conformed), also capture the paired beat anchor so it
+            // moves with the input anchor live.
             const LINK_TOL = 1e-4;
             const isConformedInput =
                 space === "input" &&
@@ -705,15 +719,15 @@ export function createTimelineController(): Controller {
                 e.clientY,
                 pendingSelect,
             );
-            // (Beat-anchor ↔ clipout-edge coupling is now handled by the
-            // resolver's MirrorPair — buildGraphFromSlice step 4b installs the
-            // pair when conform holds in BOTH spaces. The controller no longer
-            // captures linkedOutputEdges.)
-            // Profile path for ALL anchor drags — clean, combined, and conformed.
-            // Combined selections propagate via the resolver's lasso:main
-            // TranslateGroup; conformed input pairs propagate via MirrorPair
-            // (buildGraphFromSlice step 4b installs it when conform holds).
-            // ANCHOR_DRAG profile's whileDragging installs the SnapTarget.
+            // Beat-anchor ↔ clipout-edge coupling is handled by the resolver's
+            // MirrorPair (buildGraphFromSlice step 4b installs it when conform
+            // holds in both spaces).
+            //
+            // Profile path for ALL anchor drags — clean, combined, and
+            // conformed. Combined selections propagate via the resolver's
+            // lasso:main TranslateGroup; conformed input pairs propagate via
+            // MirrorPair. The ANCHOR_DRAG profile's whileDragging installs the
+            // SnapTarget.
             if (drag.kind === "anchor") {
                 drag.profileHandle = {
                     kind: "anchor-drag",
@@ -736,10 +750,9 @@ export function createTimelineController(): Controller {
         }
 
         // 2b) Warp-line hit — arms a combined anchor drag with BOTH partners
-        //     captured. pointerDown does NOT emit selection — the pair-select
+        //     captured. pointerDown does NOT emit selection; the pair-select
         //     fires on pointerUp ONLY when the gesture stays under the click
-        //     threshold (i.e. it was a click, not a drag).
-        //     Defensive: only arm when both partners exist.
+        //     threshold. Defensive: arm only when both partners exist.
         if (hit && hit.kind === "warp-line") {
             const id = hit.id as number;
             const inAnchor = snap.anchors.find((a) => a.id === id);
@@ -750,10 +763,9 @@ export function createTimelineController(): Controller {
                     { kind: "anchorSelect", id, additive },
                     { kind: "beatAnchorSelect", id, additive },
                 ];
-                // Build a combined-anchor drag that includes BOTH partners regardless
-                // of the live selection (the user just grabbed the pair; even if the
-                // selection slice hasn't received the new ids yet, we know they
-                // belong in this drag).
+                // Build a combined-anchor drag that includes BOTH partners
+                // regardless of the current selection state — the user just
+                // grabbed the pair, so they belong in this drag.
                 const dragState = buildAnchorDrag(
                     snap,
                     id,
@@ -765,24 +777,21 @@ export function createTimelineController(): Controller {
                     e.clientY,
                     pendingSelect,
                 );
-                // Force-pair: both spaces are captured for the primary, partner's
-                // beat-space pre-drag time is `beatAnchor.time`.
+                // Force-pair: both spaces are captured for the primary;
+                // the partner's beat-space pre-drag time is `beatAnchor.time`.
                 dragState.capturedSpaces = { input: true, beat: true };
                 dragState.partnerOrigTime = beatAnchor.time;
                 dragState.isPair = true;
-                // profileHandle marks this drag as profile-driven. Distinct from
-                // isPair, which is also set for conformed-input single-anchor drags
-                // (those don't use the profile system yet).
+                // profileHandle marks this drag as profile-driven. Distinct
+                // from `isPair`, which is also set for conformed-input
+                // single-anchor drags that don't use a profile.
                 dragState.profileHandle = { kind: "pair-drag", pairId: id };
                 drag = dragState;
-                // beginDrag (profile-driven) replaces the legacy dragStart + the
-                // CanvasTimeline-side prePairDragLassoIds extension. The PAIR_DRAG
-                // profile's whileDragging installs the TranslateGroup over both
-                // partners for the gesture duration; clears on endDrag.
-                // Pass pxPerUnit on the beginDrag intent so PAIR_DRAG.whileDragging
-                // can call snapToSiblings internally with a correct pixel→time
-                // threshold conversion. No snapStart intent / WarpView callback
-                // needed — the profile owns the snap install.
+                // The PAIR_DRAG profile's whileDragging installs the
+                // TranslateGroup over both partners for the gesture duration
+                // and clears it on endDrag. pxPerUnit travels with the
+                // beginDrag intent so whileDragging can convert the snap
+                // threshold from pixels to entity-time units.
                 const pxPerUnit = W / viewSpanI;
                 intents.push({ kind: "beginDrag", handle: dragState.profileHandle, pxPerUnit });
                 return intents;
@@ -798,8 +807,8 @@ export function createTimelineController(): Controller {
             const list = isOutput ? (snap.regionsOutput ?? snap.regions) : snap.regions;
             const r = list.find((rr) => rr.id === id);
             if (r) {
-                // For output-space edge drags, capture beat-anchor original times
-                // so handleRegionEdgeMove can compute Slice-B rescale inline.
+                // For output-space edge drags, capture beat-anchor original
+                // times so handleRegionEdgeMove can rescale them inline.
                 let origBeatAnchorTimes: Map<number, number> | undefined;
                 if (isOutput) {
                     origBeatAnchorTimes = new Map();
@@ -830,9 +839,8 @@ export function createTimelineController(): Controller {
                 drag.profileHandle = profileHandle;
                 const pxPerUnit = W / viewSpanI;
                 // For clipout edge drags, pass the beat grid so the profile's
-                // SnapTarget install includes grid alignment (matches legacy
-                // computeGridForSnap behavior). 'in' moves the grid; 'out' grid
-                // active only when lockMode='bpm'.
+                // SnapTarget install includes grid alignment: 'in' moves the
+                // grid; 'out' grid is active only when lockMode='bpm'.
                 const edgeGrid = isOutput
                     ? computeGridForSnap(
                           snap,
@@ -876,9 +884,9 @@ export function createTimelineController(): Controller {
                     [{ kind: "regionSelect", id }],
                 );
                 if (drag.kind === "region-move") drag.lastAltKey = e.altKey;
-                // Profile path for ALL region body drags — clean and combined.
-                // Followers (other selected regions/anchors) propagate via the
-                // resolver's lasso:main TranslateGroup.
+                // Profile path for ALL region body drags. Followers (other
+                // selected regions/anchors) propagate via the resolver's
+                // lasso:main TranslateGroup.
                 if (drag.kind === "region-move") {
                     const space: "input" | "beat" = isOutput ? "beat" : "input";
                     drag.profileHandle = { kind: "clip-body", clipId: id, space };
@@ -1147,8 +1155,9 @@ export function createTimelineController(): Controller {
                     // Click (no drag): flush the deferred selection intents.
                     for (const ps of d.pendingSelect) intents.push(ps);
                 } else {
-                    // Single-entity commit. Use the controller's record of the last
-                    // computed position (d.lastTime) — populated by handleAnchorMove.
+                    // Single-entity commit. Use the controller's record of
+                    // the last computed position (d.lastTime, populated by
+                    // handleAnchorMove).
                     const finalT = d.lastTime ?? d.origTime;
                     const delta = finalT - d.origTime;
                     const finalInputT = Math.max(
@@ -1159,10 +1168,10 @@ export function createTimelineController(): Controller {
                         0,
                         (d.space === "output" ? d.origTime : d.partnerOrigTime) + delta,
                     );
-                    // Profile-driven drags: re-emit the final `drag(delta)` so the
-                    // pointerUp applyIntents's beginReplayFrame reset (which resets
-                    // the slice to preDrag) is followed by a final dispatch that
-                    // re-applies the cumulative delta. THEN endDrag clears
+                    // Profile-driven drags re-emit the final `drag(delta)`:
+                    // pointerUp's applyIntents runs beginReplayFrame (resetting
+                    // the slice to preDrag), then this final dispatch
+                    // re-applies the cumulative delta, then endDrag clears
                     // preDrag + gesture state.
                     if (d.profileHandle) {
                         const finalDelta = (d.lastTime ?? d.origTime) - d.origTime;
@@ -1190,17 +1199,19 @@ export function createTimelineController(): Controller {
                             });
                         }
                     }
-                    // (Combined anchor+region drag follows via lasso:main
-                    // TranslateGroup, beat-anchor↔clipout-edge via MirrorPair —
-                    // both in the resolver. No commit-time secondary emissions.)
+                    // Combined anchor+region drag follows via the resolver's
+                    // lasso:main TranslateGroup; beat-anchor ↔ clipout-edge
+                    // coupling via MirrorPair. No commit-time secondary
+                    // emissions needed here.
                 }
             } else if (d.kind === "region-edge") {
                 if (!d.moved) {
                     for (const ps of d.pendingSelect) intents.push(ps);
                 } else if (d.profileHandle) {
-                    // CLIP_EDGE_DRAG profile path. Re-emit final cumulative delta so
-                    // beginReplayFrame's reset on pointerUp is followed by a
-                    // dispatch that re-applies the final edge value. Then endDrag.
+                    // CLIP_EDGE_DRAG profile path: re-emit the final cumulative
+                    // delta so beginReplayFrame's reset on pointerUp is
+                    // followed by a dispatch that re-applies the final edge
+                    // value, then endDrag.
                     const baseline = d.edge === "in" ? d.origIn : d.origOut;
                     const newEdge =
                         d.edge === "in" ? (d.lastIn ?? d.origIn) : (d.lastOut ?? d.origOut);
@@ -1211,7 +1222,8 @@ export function createTimelineController(): Controller {
                     });
                     intents.push({ kind: "endDrag" });
                 } else {
-                    // Re-emit final regionResize using the controller's last computed bounds.
+                    // Re-emit final regionResize from the controller's last
+                    // computed bounds.
                     const newIn = d.lastIn ?? d.origIn;
                     const newOut = d.lastOut ?? d.origOut;
                     intents.push({
@@ -1227,9 +1239,9 @@ export function createTimelineController(): Controller {
                 if (!d.moved) {
                     for (const ps of d.pendingSelect) intents.push(ps);
                 } else if (d.profileHandle) {
-                    // Profile-driven (CLIP_BODY_DRAG). Re-emit the cumulative delta
-                    // so the pointerUp applyIntents's beginReplayFrame reset is
-                    // followed by a final dispatch.
+                    // CLIP_BODY_DRAG: re-emit the cumulative delta so
+                    // pointerUp's beginReplayFrame reset is followed by a
+                    // final dispatch.
                     const deltaT = d.lastDelta ?? 0;
                     intents.push({ kind: "drag", delta: deltaT, modifiers: { alt: d.lastAltKey } });
                     intents.push({ kind: "endDrag" });
@@ -1299,9 +1311,9 @@ export function createTimelineController(): Controller {
         }
         // dragEnd fires for content-dragging kinds (anchor / region-edge /
         // region-move). Seek, pan, minimap and lasso never fired dragStart so
-        // they must not fire dragEnd either. Profile-driven drags emit their
-        // own `endDrag` intent earlier in this branch (replaces dragEnd +
-        // gesture clear) — skip the legacy dragEnd for them.
+        // they must not fire dragEnd either. Profile-driven drags already
+        // emitted their own `endDrag` intent earlier in this branch — skip
+        // the dragEnd for them.
         const isProfileDriven =
             d &&
             ((d.kind === "anchor" && d.profileHandle !== undefined) ||
@@ -1378,7 +1390,7 @@ export function createTimelineController(): Controller {
         const hit = hitAt(snap.hits, x, y) as Record<string, unknown> | null;
         if (hit?.kind === "anchor") {
             const id = hit.id as number;
-            // FIX: original only handled input space; output right-clicks were silently dropped.
+            // Both input and beat anchors route to their own context menu kind.
             if (hit.space === "input") {
                 return [{ kind: "anchorContextMenu", id, x: e.clientX, y: e.clientY }];
             }

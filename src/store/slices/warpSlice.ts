@@ -3,20 +3,19 @@ import type { Anchor } from "../../types";
 import type { SavedVideoState } from "../../types";
 
 /**
- * Phase 1 — anchor positions live in the constraint graph
- * (`state.constraint.graph.entities[a{id}-in / a{id}-out]`). The warp slice
- * keeps the ID lists + non-position metadata. The `Anchor[]` arrays here are
- * retained for load-bootstrap purposes (the slice receives saved positions on
- * `loadAnchors`, then the loader seeds the graph via `setGraph(buildSeedGraph(…))`).
+ * Warp slice — holds the orig and beat anchor arrays plus warp settings
+ * (bpm, stretch bounds, beat-zero, selection, playhead).
  *
- * After bootstrap the slice no longer MUTATES positions — every position write
- * routes through `constraintSlice.applyOp` (see entityWriteThunks). The
- * remaining anchor reducers below operate on the ID lists / linkage / selection
- * only.
+ * The slice is the source of truth for anchor positions. The constraint
+ * graph used by the pipeline is derived from this slice on demand by
+ * `buildGraphFromSlice`; pipeline writes flow back to the slice through
+ * the internal `_syncAnchorPositions` reducer.
  *
- * Selectors prefer graph entities over slice positions on read, so the slice
- * `time` fields are dead data after bootstrap and act only as a fallback for
- * test fixtures or partially-seeded states.
+ * Position-mutating call sites should NEVER write `time` fields directly —
+ * they route through the entity-write thunks (see `entityWriteThunks.ts`)
+ * which dispatch ops to the pipeline and let the resolver sync the slice.
+ * The non-position reducers below (selection, link flag, ID-list adds/
+ * removes, settings) are safe to dispatch directly.
  */
 interface WarpState {
     origAnchors: Anchor[];
@@ -63,10 +62,10 @@ const warpSlice = createSlice({
     initialState,
     reducers: {
         // ── Anchor ID-list / bootstrap mutations ──────────────────────────────
-        // The reducers below accept legacy `Anchor` payloads (with `time`) so test
-        // fixtures and load paths can seed positions in the same call. They do NOT
-        // make position changes coherent across the system — every real position
-        // write must go through `constraintSlice.applyOp` to update the graph.
+        // The reducers below accept `Anchor` payloads (with `time`) so test
+        // fixtures and load paths can seed positions in the same call. Direct
+        // position changes outside of bootstrap/load should go through the
+        // entity-write thunks so the constraint pipeline runs.
 
         setOrigAnchors(state, action: PayloadAction<Anchor[]>) {
             state.origAnchors = action.payload;
@@ -74,10 +73,8 @@ const warpSlice = createSlice({
         setBeatAnchors(state, action: PayloadAction<Anchor[]>) {
             state.beatAnchors = action.payload;
         },
-        /** Add a new anchor ID. Beat side is auto-linked (pair marker DeleteGroup
-         *  installed by graphMirrorMiddleware). The position arrives via the
-         *  matching `applyOp(AddAnchor)` dispatched by the entity-write thunk;
-         *  this reducer only manages the slice ID list. */
+        /** Add a new anchor ID with `time` seeded for both orig and beat sides.
+         *  Beat side defaults to linked (absence of the `linked` flag). */
         addAnchor(state, action: PayloadAction<{ id: number; time: number }>) {
             const { id, time } = action.payload;
             state.origAnchors.push({ id, time });
@@ -94,10 +91,9 @@ const warpSlice = createSlice({
                 state.beatZeroId = null;
             }
         },
-        /** Reset beat anchor(s) to "linked" (matching orig). The slice's beat
-         *  `time` is updated to mirror orig so test fixtures stay coherent;
-         *  the live position is updated in the graph and the pair marker
-         *  (DeleteGroup) is re-installed by `applyResetBeatLinks`. */
+        /** Reset beat anchor(s) to "linked" (matching orig). Snaps the beat
+         *  `time` back onto orig and clears the diverged-marker flag. The
+         *  matching pair constraint is re-installed by `applyResetBeatLinks`. */
         resetBeatLinks(state, action: PayloadAction<number[]>) {
             for (const id of action.payload) {
                 const orig = state.origAnchors.find((a) => a.id === id);
@@ -116,14 +112,13 @@ const warpSlice = createSlice({
             state.selectedBeatIds = [];
             state.beatZeroId = null;
         },
-        /** Bulk-set both anchor arrays (used for import, undo/redo).
-         *  Positions are accepted here so load paths can hand the slice the
-         *  saved values verbatim; the graph is re-seeded separately by the loader
-         *  via `setGraph(buildSeedGraph(…))`.
+        /** Bulk-set both anchor arrays (used for import, undo/redo). Positions
+         *  are written directly so the slice reflects the saved snapshot; the
+         *  pipeline rebuilds its derived graph from the slice on the next read.
          *
-         *  The `linked` boolean on each Anchor in `beatAnchors` is the persistence
-         *  flag used by graphMirrorMiddleware to decide which pairs get
-         *  `initAnchorPair` constraints installed (true/absent = linked, false = diverged). */
+         *  The `linked` boolean on each beat anchor is the persistence flag
+         *  used when `buildGraphFromSlice` installs `initAnchorPair`
+         *  constraints (true/absent = linked, false = diverged). */
         loadAnchors(
             state,
             action: PayloadAction<{
@@ -205,9 +200,9 @@ const warpSlice = createSlice({
         },
 
         // ── Internal: pipeline → slice projection ────────────────────────────────
-        /** Internal — sync the slice's `time` fields from a pipeline diff.
-         *  Dispatched by dispatchPipelined after every pipelined op.
-         *  Consumers should NEVER dispatch this directly. */
+        /** Internal — write the slice's `time` fields from a pipeline diff.
+         *  Dispatched by `dispatchPipelined` / `dispatchPipelinedReplay` after
+         *  every pipelined op. Consumers should NEVER dispatch this directly. */
         _syncAnchorPositions(
             state,
             action: PayloadAction<{ orig: Record<number, number>; beat: Record<number, number> }>,
@@ -222,9 +217,9 @@ const warpSlice = createSlice({
             }
         },
         /** Set the linked flag for a beat anchor. true = linked (beat tracks orig),
-         *  false = diverged (beat is independently positioned). The absence of the
-         *  flag is treated as true. Dispatched by thunks when an anchor is
-         *  explicitly unlinked (diverged) or re-linked (reset). */
+         *  false = diverged (beat is independently positioned). Absence of the
+         *  flag means linked. Dispatched by thunks when an anchor is explicitly
+         *  unlinked (diverged) or re-linked (reset). */
         setAnchorLinked(state, action: PayloadAction<{ id: number; linked: boolean }>) {
             const a = state.beatAnchors.find((a) => a.id === action.payload.id);
             if (a) {
@@ -262,9 +257,10 @@ export const {
     setAnchorLinked,
 } = warpSlice.actions;
 
-// ── Back-compat re-exports for the position-writing thunks ───────────────
-// These used to be slice reducers; Phase 1 moved them into entity-write
-// thunks so the constraint graph is the source of truth for position writes.
+// ── Position-writing thunks re-exported under their slice-action names ────
+// Position writes live in entity-write thunks so the constraint pipeline
+// runs and propagates linked/conform behaviour. The aliases here let call
+// sites dispatch them as if they were plain slice actions.
 export {
     applyMoveOrigAnchor as moveOrigAnchor,
     applyMoveBeatAnchor as moveBeatAnchor,

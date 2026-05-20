@@ -72,6 +72,17 @@ const _GRID_BEAT = "rgba(226,219,210,0.07)";
 const EMPTY_LINKED_IDS: ReadonlySet<number> = new Set<number>();
 
 // ── PROPS ──────────────────────────────────────────────────
+/**
+ * Props for the canvas timeline. WarpView owns slice-derived data and selectors
+ * and feeds them in; the timeline itself is pure wiring over a pointer/wheel/key
+ * controller (`createTimelineController`) and a canvas draw routine.
+ *
+ * Callback naming convention:
+ *  - `onXEntityMove` — single-entity intent for the primary grabbed item; the
+ *    resolver propagates the delta to other selected entities via the lasso group.
+ *  - `onXChange` — bulk slice writes used outside of drag.
+ *  - `onX{Add,Delete,Select}` — discrete intents emitted by the controller.
+ */
 export interface CanvasTimelineProps {
     duration: number;
     outputDuration: number;
@@ -125,8 +136,8 @@ export interface CanvasTimelineProps {
     onTimelineContextMenu?: (time: number, x: number, y: number) => void;
     regions: RegionBlock[];
     regionsOutput?: RegionBlock[];
-    /** Full Region objects for live linking-event preview during anchor drags (R1 Slice C).
-     *  Optional — defaults to [] when omitted so existing call sites are unaffected. */
+    /** Full Region objects for live linking-event preview during anchor drags.
+     *  Optional — defaults to [] when omitted. */
     regionDetails?: Region[];
     onRegionSelect?: (id: string) => void;
     onRegionContextMenu?: (id: string, x: number, y: number) => void;
@@ -398,21 +409,15 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
         // True when an anchor (input or beat) is currently being dragged.
         const _anchorsDragging = dragState?.kind === "anchor";
 
-        // Beat grid origin: read from slice (p.beatOffset = effectiveBounds.inBeatTime).
-        // Previously this had an `anchorsDragging && clipInAnchor` branch that
-        // computed offset via the live anchor pair mapping, which made the grid
-        // visually jump to the "conformed" position during an anchor drag — even
-        // when MirrorPair didn't propagate the anchor delta into the clipout
-        // (input-anchor drags, where the guard suppresses propagation). The grid
-        // would snap back at pointerUp once the live-mapping branch fell away,
-        // revealing that the slice never actually moved. Removed: grid and region
-        // overlay now both read the slice, so they always agree.
+        // Beat grid origin reads directly from the slice
+        // (p.beatOffset = effectiveBounds.inBeatTime). The grid and the
+        // region overlay both source from here so they stay in lockstep
+        // during anchor drags — MirrorPair writes the authoritative value
+        // to the slice and we display whatever it wrote.
         const beatOffset = p.beatOffset ?? 0;
 
-        // Clipout regions render from the slice directly. Conform-driven position
-        // overrides used to live here; they were removed because they duplicated
-        // what MirrorPair already writes to the slice and could LIE about the
-        // current value during a drag.
+        // Clipout regions render straight from the slice; MirrorPair is the
+        // single writer for clipout position during a drag.
         const regionsOutput = p.regionsOutput;
 
         function spaceRange(space: "input" | "warp" | "output") {
@@ -1577,7 +1582,6 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                     // Same — output-space body drags flow through CLIP_BODY_DRAG.
                     if (!i.isOutput) p.onRegionMove?.(i.id, i.inPoint, i.outPoint, i.altKey);
                     break;
-                // Phase 7: snap constraint lifecycle.
                 case "anchorAdd":
                     p.onAnchorAdd?.(i.time);
                     break;
@@ -1676,9 +1680,8 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                 case "dragCancel":
                     dispatch(cancelDrag());
                     break;
-                // Profile-driven drag lifecycle. beginDrag / drag / endDrag replace
-                // the legacy dragStart + per-handle move/commit intents one gesture
-                // class at a time. Pair (warp-line) drag is the first migration.
+                // Profile-driven drag lifecycle: beginDrag → drag → endDrag dispatches
+                // pure deltas through the constraint pipeline.
                 case "beginDrag":
                     dispatch(beginDrag({ handle: i.handle, pxPerUnit: i.pxPerUnit, grid: i.grid }));
                     break;

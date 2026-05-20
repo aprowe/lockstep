@@ -10,6 +10,13 @@
 import type { State, SnapIndex, SnapRule } from "./types";
 import { ConstraintKind } from "./types";
 
+/**
+ * Build a `SnapIndex` from the SnapCohort and SnapRule constraints in `state`.
+ *
+ * @param state - The constraint graph state to scan.
+ * @returns Forward (cohort → ids) and reverse (entity → cohort tags) lookup
+ *          maps plus the list of installed SnapRules.
+ */
 export function buildSnapIndex(state: State): SnapIndex {
     const idsByCohort = new Map<string, string[]>();
     const cohortsByEntity = new Map<string, string[]>();

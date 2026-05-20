@@ -42,10 +42,11 @@ export interface Snapshot {
     maxDuration: number;
     anchors: Anchor[];
     beatAnchors: Anchor[];
-    /** Legacy field — retained for downstream visualization (e.g. CanvasTimeline
-     *  draws unlinked beat anchors with reduced opacity). The controller does
-     *  NOT consult this for anchor-drag propagation: anchor drags are always
-     *  space-local. Use the warp-line drag gesture to move a pair together. */
+    /** Beat-anchor ids whose input partner sits at the same time (within
+     *  tolerance). Used by CanvasTimeline to draw unlinked beat anchors with
+     *  reduced opacity. The controller does NOT consult this for anchor-drag
+     *  propagation: solo anchor drags are space-local. Use the warp-line drag
+     *  gesture to move a pair together. */
     linkedBeatIds: ReadonlySet<number>;
     /** Per-space selection. An anchor id in `selectedOrigAnchorIds` means only
      *  its input-space copy is selected; similarly for `selectedBeatAnchorIds`.
@@ -54,12 +55,11 @@ export interface Snapshot {
     selectedBeatAnchorIds: ReadonlySet<number>;
     regions: RegionBlock[];
     regionsOutput?: RegionBlock[];
-    /** Full Region objects (including bpm, lock, lockedBeats, inBeatTime, outBeatTime,
-     *  anchorLock) for the controller to compute linking-event live previews during
-     *  anchor drags (R1 Slice C). Parallel to `regions` but carries the complete
-     *  Region type rather than the stripped RegionBlock. Defaults to [] when not
-     *  provided so existing code that builds Snapshots without full region data is
-     *  unaffected. */
+    /** Full Region objects (bpm, lock, lockedBeats, inBeatTime, outBeatTime,
+     *  anchorLock) for the controller to compute linking-event live previews
+     *  during anchor drags. Parallel to `regions` but carries the complete
+     *  Region type rather than the stripped RegionBlock. Defaults to [] when
+     *  not provided. */
     regionDetails: Region[];
     /** Per-space clip selection. A region id in `selectedClipinIds` means only
      *  its input-space (clipin) copy is selected; similarly for `selectedClipoutIds`.
@@ -90,9 +90,9 @@ export interface Snapshot {
     tracks: LayoutTrack[];
     hits: HitEntry[];
     playhead?: number;
-    /** Phase 7: constraint graph at snapshot time — used by the controller to call
-     *  findSnapCandidates for render hints. Optional so existing Snapshot builds
-     *  without graph access are unaffected. */
+    /** Constraint graph at snapshot time. The controller calls
+     *  findSnapCandidates against it for snap-hint rendering. Optional so
+     *  Snapshots built without graph access are still valid. */
     constraintGraph?: ConstraintState;
 }
 
@@ -120,8 +120,8 @@ export interface KeyEventLike {
     altKey: boolean;
 }
 
-/** Selection intent to flush on pointerUp when the gesture turned out to be a
- *  click (no movement past the threshold). Re-uses the existing select intent
+/** Selection intent flushed on pointerUp when the gesture turned out to be a
+ *  click (no movement past the threshold). Re-uses the existing select-intent
  *  shape — emitting these from pointerUp gives "click selects, drag does not"
  *  semantics. */
 export type PendingSelect =
@@ -152,12 +152,11 @@ export type DragState =
            *  id). Pair drags translate by cursor pixel delta, not by snapped
            *  input-time delta from the grabbed anchor's origTime. */
           isPair: boolean;
-          /** Profile handle for the active drag, set at pointerDown only by
-           *  branches that emit `beginDrag` (warp-line currently; other handle
-           *  kinds migrate one at a time). When set, handleAnchorDrag emits the
-           *  profile-driven `drag` intent instead of legacy `anchorEntityMove`.
-           *  Distinct from `isPair` because `isPair` is also true for
-           *  conformed-input single-anchor drags that do NOT use profiles. */
+          /** Profile handle for the active drag, set at pointerDown when the
+           *  controller emits `beginDrag`. When set, handleAnchorMove emits
+           *  the profile-driven `drag` intent instead of `anchorEntityMove`.
+           *  Distinct from `isPair`, which is also true for conformed-input
+           *  single-anchor drags that do not use a profile. */
           profileHandle?: import("../constraints/profiles/types").Handle;
           /** Same-space anchor ids that participate in this drag (multi-select).
            *  Always includes the dragged id; size > 1 means the user grabbed an
@@ -174,11 +173,10 @@ export type DragState =
            *  values move during pointerMove as the slice updates live). For
            *  single-space drags this is `origTime`. */
           partnerOrigTime: number;
-          /** Last computed dragged-space time from pointerMove. Used by pointerUp
-           *  to re-emit the final commit without needing the pointer event. This
-           *  is the controller's own record of what it last *computed* (not a
-           *  mirror of slice state) — it carries forward the gesture's intent
-           *  into the lift event. */
+          /** Last computed dragged-space time from pointerMove. pointerUp
+           *  reads this to re-emit the final commit without needing the
+           *  pointer event. It is the controller's own record of what it last
+           *  computed — not a mirror of slice state. */
           lastTime?: number;
       }
     | {
@@ -192,19 +190,21 @@ export type DragState =
           startClientY: number;
           moved: boolean;
           pendingSelect: PendingSelect[];
-          /** Last observed alt-key state during the drag (for anchor-lock flip, §13). */
+          /** Last observed alt-key state during the drag (toggles the
+           *  anchor-lock flip). */
           lastAltKey: boolean;
-          /** Snapshot of beat-anchor times at pointerDown (by id) — used as the
-           *  origin for Slice B proportional rescale / translate math. Initialized
-           *  for all output-space edge drags so handleRegionEdgeMove can compute
-           *  rescaled beat-anchor positions inline. Undefined for input-space drags. */
+          /** Snapshot of beat-anchor times at pointerDown, keyed by id. Used
+           *  as the origin for proportional rescale / translate math.
+           *  Initialized for all output-space edge drags so handleRegionEdgeMove
+           *  can compute rescaled beat-anchor positions inline. Undefined for
+           *  input-space drags. */
           origBeatAnchorTimes?: Map<number, number>;
-          /** Last computed (newIn, newOut) from pointerMove. Used by pointerUp
-           *  to re-emit the final regionResize commit. */
+          /** Last computed (newIn, newOut) from pointerMove. pointerUp reads
+           *  these to re-emit the final regionResize commit. */
           lastIn?: number;
           lastOut?: number;
-          /** Profile handle when this drag is profile-driven (clean single-edge
-           *  drag). Combined-gesture or coupled cases stay on the legacy
+          /** Profile handle when this drag is profile-driven (single-edge
+           *  drag). Combined-gesture or coupled cases fall through to the
            *  regionResize emit path. */
           profileHandle?: import("../constraints/profiles/types").Handle;
       }
@@ -219,7 +219,8 @@ export type DragState =
           startClientY: number;
           moved: boolean;
           pendingSelect: PendingSelect[];
-          /** Last observed alt-key state during the drag (for anchor-lock flip, §13). */
+          /** Last observed alt-key state during the drag (toggles the
+           *  anchor-lock flip). */
           lastAltKey: boolean;
           /** Region ids that participate in this drag (multi-select). Always
            *  includes the dragged id. When size > 1, the same time delta is
@@ -228,16 +229,16 @@ export type DragState =
           /** Snapshot of original (inPoint, outPoint) per region id at drag start. */
           origBounds?: Map<string, { inPoint: number; outPoint: number }>;
           /** Combined-selection drag: anchors captured at pointerDown when the
-           *  dragged region was already selected. Same time delta applies to
-           *  every anchor in both spaces. */
+           *  dragged region was already selected. The same time delta applies
+           *  to every anchor in both spaces. */
           anchorGroupIds?: ReadonlySet<number>;
           origInputAnchorTimes?: Map<number, number>;
           origBeatAnchorTimes?: Map<number, number>;
-          /** Last computed delta from pointerMove. Used by pointerUp to re-emit
-           *  the final regionEntityMove commit. */
+          /** Last computed delta from pointerMove. pointerUp reads this to
+           *  re-emit the final regionEntityMove commit. */
           lastDelta?: number;
-          /** Profile handle when this drag is profile-driven (clean single-clip
-           *  body drag). Combined-gesture cases stay on the legacy
+          /** Profile handle when this drag is profile-driven (single-clip
+           *  body drag). Combined-gesture cases fall through to the
            *  regionEntityMove emit path. */
           profileHandle?: import("../constraints/profiles/types").Handle;
       }
@@ -277,14 +278,14 @@ export type Intent =
     | { kind: "beatAnchorsChanged"; next: Anchor[] }
     /** Single-entity anchor move. Carries the graph entity ID of the PRIMARY
      *  grabbed anchor and its new absolute time. The resolver's lasso:main
-     *  TranslateGroup propagates the implied delta to all other selected entities.
-     *  Replaces whole-array anchorsChanged/beatAnchorsChanged for drag commits. */
+     *  TranslateGroup propagates the implied delta to all other selected
+     *  entities. */
     | { kind: "anchorEntityMove"; entityId: string; time: number }
-    /** Single-entity region body move. Carries the region's slice id, the signed
-     *  translate delta for the PRIMARY grabbed region, and the space/modifier
-     *  context for caller routing. The resolver's lasso:main TranslateGroup
-     *  propagates to other selected regions.
-     *  isOutput distinguishes clipin (input-space) vs clipout (output-space) drags. */
+    /** Single-entity region body move. Carries the region's slice id, the
+     *  signed translate delta for the PRIMARY grabbed region, and the
+     *  space/modifier context for caller routing. The resolver's lasso:main
+     *  TranslateGroup propagates to other selected regions. `isOutput`
+     *  distinguishes clipin (input-space) vs clipout (output-space) drags. */
     | { kind: "regionEntityMove"; id: string; delta: number; isOutput: boolean; altKey: boolean }
     | {
           kind: "regionResize";
@@ -323,11 +324,9 @@ export type Intent =
     | { kind: "scenesSelectionChange"; times: Set<number> }
     /** Lasso commit: separate orig-space and beat-space anchor id sets. */
     | { kind: "connectorSelectionChange"; origIds: Set<number>; beatIds: Set<number> }
-    // gesture-store publishes — wrapper forwards to src/store/gesture.ts singleton
-    // Live drag region bounds (pubDragRegion / pubDragRegions), live BPM
-    // (pubLiveBpm), and live lockedBeats (pubLiveLockedBeats) have been removed —
-    // the slice is now the live state (controller dispatches commit thunks on
-    // every pointerMove). Retained kinds below are still used.
+    // gesture-store publishes — wrapper forwards to the gesture singleton.
+    // Drag-time live state lives in the slice; commit thunks fire every
+    // pointerMove. The kinds below publish UI-only hints.
     | { kind: "pubDragTime"; space: Space | null; time: number | null }
     | { kind: "pubSnapHints"; space: Space; times: readonly number[] }
     | { kind: "pubScrubTime"; time: number | null }
@@ -352,11 +351,10 @@ export type Intent =
     | { kind: "dragStart" }
     | { kind: "dragEnd" }
     | { kind: "dragCancel" }
-    /** Profile-driven drag lifecycle (replaces the per-handle intents above
-     *  one profile at a time). `beginDrag` snapshots preDrag, records the
-     *  active handle, and stores the controller's pixel-to-time conversion +
-     *  optional beat-grid so the profile's whileDragging can compute snap
-     *  thresholds in entity-time units. */
+    /** Profile-driven drag lifecycle. `beginDrag` snapshots preDrag, records
+     *  the active handle, and stores the controller's pixel-to-time
+     *  conversion plus an optional beat-grid so the profile's whileDragging
+     *  can compute snap thresholds in entity-time units. */
     | {
           kind: "beginDrag";
           handle: import("../constraints/profiles/types").Handle;

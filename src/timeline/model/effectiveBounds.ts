@@ -1,11 +1,10 @@
-/** Effective beat-space bounds for a region.
+/**
+ * Effective beat-space bounds for a region.
  *
- *  After the sentinel removal (inBeatTime/outBeatTime are required numbers,
- *  never undefined), this is a trivial read of the slice fields. The old
- *  anchor-conform fallback chain is gone — the clipout always carries explicit
- *  beat-space values. Callers that pass origAnchors / beatAnchors are safe;
- *  the arguments are accepted but ignored for backwards-compatibility until
- *  all call sites are updated.
+ * The clipout always carries explicit beat-space values, so this is a direct
+ * read of the region's `inBeatTime` / `outBeatTime`. `origAnchors` and
+ * `beatAnchors` are accepted but ignored — kept on the signature for call
+ * sites that still pass them.
  */
 
 export interface EffectiveBeatBounds {
@@ -13,11 +12,17 @@ export interface EffectiveBeatBounds {
     outBeatTime: number;
 }
 
+/**
+ * Return the region's beat-space in/out as `{ inBeatTime, outBeatTime }`.
+ *
+ * @param region   Object carrying explicit `inBeatTime` and `outBeatTime`.
+ * @returns        The same two values wrapped in an `EffectiveBeatBounds`.
+ */
 export function effectiveBeatBounds(
     region: { inBeatTime: number; outBeatTime: number },
-     
+
     _origAnchors?: readonly unknown[],
-     
+
     _beatAnchors?: readonly unknown[],
 ): EffectiveBeatBounds {
     return { inBeatTime: region.inBeatTime, outBeatTime: region.outBeatTime };

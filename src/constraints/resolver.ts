@@ -414,8 +414,7 @@ const HANDLERS: HandlerEntry[] = [
      *
      *  This implements "drag clipout = drag anchor.beat" while keeping the
      *  conform invariant strictly directed (anchor → clipout, never the
-     *  reverse). Replaces the symmetric MirrorPair that previously coupled
-     *  these endpoints — symmetric coupling let raw cursor values leak
+     *  reverse) — symmetric coupling would let raw cursor values leak
      *  through the default-link cascade into the anchor.
      *
      *  Skipped when:

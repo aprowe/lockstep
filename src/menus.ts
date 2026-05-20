@@ -1,10 +1,11 @@
 /**
  * Menu definitions for the main menu bar.
  *
- * Each builder takes the dependencies it needs and returns a MenuDef.
- * Extracted from App.tsx so tests can import them with stub deps.
+ * Each builder takes the dependencies it needs (handlers, current state) and
+ * returns a `MenuDef`. Lives outside the React tree so tests can import them
+ * with stub deps.
  *
- * Layout specs: layouts/menubar.layout.yaml
+ * Layout specs: `layouts/menubar.layout.yaml`.
  */
 
 import type { MenuDef, MenuEntry } from "./components/MenuBar";
@@ -24,6 +25,10 @@ interface FileMenuDeps {
     clearRecentFiles: () => void;
 }
 
+/**
+ * Build the "File" top-level menu. Items disable themselves based on whether
+ * a video is loaded and whether any anchors exist.
+ */
 export function buildFileMenu(d: FileMenuDeps): MenuDef {
     const recentItems: MenuEntry[] =
         d.recentFiles.length > 0
@@ -69,6 +74,9 @@ interface EditMenuDeps {
     openSettings: () => void;
 }
 
+/**
+ * Build the "Edit" top-level menu (undo/redo, select-all, settings).
+ */
 export function buildEditMenu(d: EditMenuDeps): MenuDef {
     return {
         label: "Edit",
@@ -104,6 +112,10 @@ interface ViewMenuDeps {
     showShortcuts: () => void;
 }
 
+/**
+ * Build the "View" top-level menu — UI scale controls, the keyboard-shortcut
+ * sheet, and one checked-toggle entry per dock panel.
+ */
 export function buildViewMenu(d: ViewMenuDeps): MenuDef {
     return {
         label: "View",

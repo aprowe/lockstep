@@ -12,11 +12,11 @@ import { ConstraintKind } from "./types";
  *   - TranslateGroup (directed, has driver):      driver → followers only.
  *   - ScaleGroup (always has a driver):           driver → followers only.
  *   - DirectedPair (any mode):                    from → to only.
- *   - MirrorPair (symmetric):                     a ↔ b reciprocally.
  *
  * Non-write constraints (Clamp, PreserveLength, SnapTarget, Derived,
- * SingleOfKind, DeleteGroup, HighlightGroup) are ignored — they don't
- * propagate position writes.
+ * SingleOfKind, DeleteGroup, HighlightGroup, ConformVisual,
+ * ConformRedirect, SnapCohort, SnapRule) are ignored — they don't
+ * propagate a translate-shaped delta.
  */
 export function movementClosure(state: State, seed: EntityId): Set<EntityId> {
     const closure = new Set<EntityId>([seed]);
@@ -46,9 +46,9 @@ export function movementClosure(state: State, seed: EntityId): Set<EntityId> {
                     if (c.from === id) followers = [c.to];
                     break;
 
-                // ConformVisual + ConformRedirect: directional couplings handled
-                // elsewhere; not included in movement closure (they don't propagate
-                // a translate-shaped delta).
+                // ConformVisual + ConformRedirect are directional couplings
+                // that don't propagate a translate-shaped delta, so they're
+                // not included in movement closure.
             }
 
             for (const f of followers) {

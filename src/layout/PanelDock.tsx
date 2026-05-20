@@ -71,7 +71,8 @@ const SIDE_PANEL_IDS = [
     "assistant",
 ] as const;
 
-// Bumped to v6 to add Assistant to the NE group alongside scenes/markers.
+// Versioned key — bump when the default layout shape changes so previously
+// saved layouts are dropped instead of half-deserializing into the new schema.
 const STORAGE_KEY = "lockstep:panel-layout:v7";
 
 /**

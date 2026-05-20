@@ -32,7 +32,6 @@ export async function mockTauri(page: Page, handlers: CommandHandlers = {}) {
         w.__TAURI_INTERNALS__ = {
             invoke: async (cmd: string) => {
                 if (!handlerNames.includes(cmd)) {
-                     
                     console.warn("[tauri-mock] unhandled command:", cmd);
                     return null;
                 }

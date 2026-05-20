@@ -36,9 +36,17 @@ import {
     setMinGap as setSceneMinGap,
 } from "../slices/sceneSlice";
 
+/**
+ * Auto-persistence middleware. Watches for any change to undoable warp/region
+ * state (anchors, regions, scene cuts, etc.), debounces 500ms, and writes a
+ * JSON sidecar next to the active video file via the Rust backend.
+ *
+ * Saves are skipped while a drag is active; the trailing `dragEnd` triggers
+ * a single save once the gesture completes.
+ */
 export const persistenceMiddleware = createListenerMiddleware();
 
-// Match any action that should trigger a save
+// Actions that should trigger a persistence write.
 const shouldSave = isAnyOf(
     // Warp state changes (slice ID-list / metadata mutations)
     setOrigAnchors,
@@ -65,7 +73,7 @@ const shouldSave = isAnyOf(
     addCut,
     deleteCut,
     setSceneMinGap,
-    // Pipeline slice writes — position mutations (replaces applyOp trigger)
+    // Pipeline slice writes — position mutations
     _syncAnchorPositions,
     _syncRegionPositions,
     _syncRegionMeta,
@@ -93,11 +101,11 @@ persistenceMiddleware.startListening({
 
         const warp = state.warp;
 
-        // Slice is the source of truth for positions.
         const matOrigAnchors: Anchor[] = warp.origAnchors.map((a) => ({ id: a.id, time: a.time }));
 
-        // Determine which anchors are linked via the slice's beatAnchors[n].linked field.
-        // absent or true = linked; false = diverged.
+        // The slice's beatAnchors[n].linked field encodes the linked/diverged
+        // distinction (absent or true = linked, false = diverged); persist it
+        // so the load path can re-install the right pair constraints.
         const matBeatAnchors: Anchor[] = warp.beatAnchors.map((a) => {
             const isLinked = a.linked !== false;
             return isLinked
@@ -105,7 +113,6 @@ persistenceMiddleware.startListening({
                 : { id: a.id, time: a.time, linked: false };
         });
 
-        // Materialise region positions from the slice (source of truth).
         const matRegions = state.region.regions.map((r) => ({ ...r }));
 
         const cuts = state.scene.cutsByPath[vid.path];

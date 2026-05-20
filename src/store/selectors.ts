@@ -13,9 +13,8 @@ export { selectConstraintGraph };
 // ── Region selectors ────────────────────────────────────────────────────────
 
 /**
- * The active region. Position fields (inPoint/outPoint/inBeatTime/outBeatTime)
- * are read from the slice (which the pipeline keeps in sync). Non-position
- * metadata (id/name/bpm/lock/etc.) also comes from the slice.
+ * The active region (or null when none is active). Reads from the region
+ * slice, which the constraint pipeline keeps in sync.
  */
 export const selectActiveRegion = createSelector(
     (s: RootState) => s.region.regions,
@@ -34,8 +33,7 @@ export const selectClipOut = createSelector(selectActiveRegion, (r) => r?.outPoi
 // ── Warp selectors ──────────────────────────────────────────────────────────
 
 /**
- * Anchors sorted by orig time. Reads positions directly from slice
- * (the pipeline keeps slice in sync with the constraint engine).
+ * Orig anchors sorted ascending by `time`.
  */
 export const selectSortedOrig = createSelector(
     (s: RootState) => s.warp.origAnchors,
@@ -92,7 +90,8 @@ export const selectLinkedAnchorIds = createSelector(
     },
 );
 
-/** WarpData-compatible object for legacy components that still expect it */
+/** WarpData-shaped projection for components that consume the bundle as a
+ *  single object (anchors + bpm + stretch bounds). */
 export const selectWarpData = createSelector(
     (s: RootState) => s.warp,
     (warp) => ({
@@ -140,10 +139,7 @@ export const selectDimmedAnchorIds = createSelector(
     },
 );
 
-// ── Slice-based position selectors ──────────────────────────────────────────
-//
-// These selectors read positions from the slice. The constraint pipeline keeps
-// the slice in sync, so these values are equivalent to reading the graph.
+// ── Per-id position lookups ─────────────────────────────────────────────────
 
 /** Return the orig (input-space) time for a given anchor pair id. */
 export const selectAnchorOrigTime = (s: RootState, anchorId: number): number | undefined =>
@@ -153,33 +149,32 @@ export const selectAnchorOrigTime = (s: RootState, anchorId: number): number | u
 export const selectAnchorBeatTime = (s: RootState, anchorId: number): number | undefined =>
     s.warp.beatAnchors.find((a) => a.id === anchorId)?.time;
 
-/** All anchors from slice, sorted by id (orig side). */
+/** Defensive copy of the orig anchor list. */
 export const selectOrigAnchorsFromGraph = createSelector(
     (s: RootState) => s.warp.origAnchors,
     (sliceOrig): Anchor[] => [...sliceOrig],
 );
 
-/** All beat anchors from slice. */
+/** Defensive copy of the beat anchor list. */
 export const selectBeatAnchorsFromGraph = createSelector(
     (s: RootState) => s.warp.beatAnchors,
     (sliceBeat): Anchor[] => [...sliceBeat],
 );
 
-/** Region inPoint from slice. */
+/** Region inPoint by id. */
 export const selectRegionInPoint = (s: RootState, regionId: string): number | undefined =>
     s.region.regions.find((r) => r.id === regionId)?.inPoint;
 
 export const selectRegionOutPoint = (s: RootState, regionId: string): number | undefined =>
     s.region.regions.find((r) => r.id === regionId)?.outPoint;
 
-/** Region clipout `in` (beat-space) from slice. */
+/** Region clipout `in` (beat-space) by id. */
 export const selectRegionInBeatTime = (s: RootState, regionId: string): number | undefined =>
     s.region.regions.find((r) => r.id === regionId)?.inBeatTime;
 
 export const selectRegionOutBeatTime = (s: RootState, regionId: string): number | undefined =>
     s.region.regions.find((r) => r.id === regionId)?.outBeatTime;
 
-// Keep graphBridge helpers re-exported for any tests that import from here
+// Convenience re-exports — graphBridge read helpers and entity-id builders.
 export { readAnchorTime, readClipBounds };
-// Keep id helpers re-exported
 export { anchorInId, anchorOutId, regionInId, regionOutId };
