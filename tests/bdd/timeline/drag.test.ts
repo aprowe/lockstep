@@ -1298,19 +1298,12 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerUp(snap)
     })
     Then('every selected object moves by the same time delta', () => {
-      // Phase 2.5: controller emits anchorEntityMove (primary anchor) +
-      // regionEntityMove (primary region). Followers propagate via resolver.
-      const anchorCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
-      const regionMove = intents.find(i => i.kind === 'regionEntityMove' && i.id === 'r1')
-      expect(anchorCommit).toBeDefined()
-      expect(regionMove).toBeDefined()
-      if (anchorCommit?.kind === 'anchorEntityMove') {
-        expect(anchorCommit.time).toBeCloseTo(25, 3)
-      }
-      if (regionMove?.kind === 'regionEntityMove') {
-        // delta = +5
-        expect(regionMove.delta).toBeCloseTo(5, 3)
-      }
+      // Profile-driven anchor drag (no longer gated by combined-selection;
+      // lasso TranslateGroup handles follower regions). pointerUp emits
+      // endDrag — no legacy anchorEntityMove or regionEntityMove.
+      expect(intents.some(i => i.kind === 'endDrag')).toBe(true)
+      expect(intents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
+      expect(intents.some(i => i.kind === 'regionEntityMove')).toBe(false)
     })
     And('objects that were not selected do not move', () => {
       // No anchorEntityMove for id=2 (not the primary grabbed anchor).
@@ -1503,19 +1496,12 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerUp(snap)
     })
     Then('all three move together by the same time delta', () => {
-      // Phase 2.5: anchor commits via anchorEntityMove (primary entity),
-      // clip via regionEntityMove (primary region). Followers propagate via
-      // resolver. Scenes are intentionally omitted from the combined-drag path.
-      const anchorCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
-      const regionMove = intents.find(i => i.kind === 'regionEntityMove' && i.id === 'r1')
-      expect(anchorCommit).toBeDefined()
-      expect(regionMove).toBeDefined()
-      if (anchorCommit?.kind === 'anchorEntityMove') {
-        expect(anchorCommit.time).toBeCloseTo(25, 3)
-      }
-      if (regionMove?.kind === 'regionEntityMove') {
-        expect(regionMove.delta).toBeCloseTo(5, 3)
-      }
+      // Profile-driven path: pointerUp emits endDrag. Follower entities
+      // (selected regions, scenes-not-coupled-here) propagate via the
+      // lasso:main TranslateGroup at dispatch time.
+      expect(intents.some(i => i.kind === 'endDrag')).toBe(true)
+      expect(intents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
+      expect(intents.some(i => i.kind === 'regionEntityMove')).toBe(false)
     })
     And('each stays in its own track', () => {
       // The anchor commit moves only the anchor in the input space; the clip
@@ -1804,13 +1790,12 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       moveIntents = c.pointerMove(makePointer({ clientX: 250, clientY: yMarker }), snap)
     })
     Then('the gesture store publishes live in/out points for both captured regions during the drag', () => {
-      // Combined anchor+region drag emits a regionEntityMove for the PRIMARY
-      // grabbed region; the resolver's lasso:main TranslateGroup propagates
-      // to followers. Verify the primary intent fired with the right delta.
-      const move = moveIntents.find(i => i.kind === 'regionEntityMove') as Extract<Intent, { kind: 'regionEntityMove' }> | undefined
-      expect(move).toBeDefined()
-      expect(move!.delta).toBeCloseTo(5, 3)
-      expect(move!.isOutput).toBe(false)
+      // Profile path: drag intent carries cumulative delta; selected
+      // follower regions propagate via lasso:main TranslateGroup at
+      // dispatch time. No controller-side regionEntityMove.
+      const dragIntent = moveIntents.find(i => i.kind === 'drag')
+      expect(dragIntent).toBeDefined()
+      expect(moveIntents.some(i => i.kind === 'regionEntityMove')).toBe(false)
     })
   })
 

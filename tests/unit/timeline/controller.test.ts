@@ -423,7 +423,11 @@ describe('controller.pointerDown', () => {
 
   // ── Combined-selection drag capture ───────────────────────────────────────
 
-  it('clicking a SELECTED anchor with regions selected captures regions for combined drag', () => {
+  it('clicking a SELECTED anchor with regions selected leaves selection intact (lasso TG handles regions)', () => {
+    // After the combined-gesture audit, the controller no longer
+    // captures regionGroupIds / origRegionBounds in the anchor drag
+    // state. Follower regions propagate via the resolver's lasso:main
+    // TranslateGroup, which reads selection from slices directly.
     const c = createTimelineController()
     const snap = makeSnapshot({
       anchors: [{ id: 1, time: 10 }, { id: 2, time: 50 }],
@@ -435,9 +439,6 @@ describe('controller.pointerDown', () => {
       selectedClipinIds: new Set(['r1', 'r2']),
       hits: [pointHit(80, 200, { kind: 'anchor', id: 1, space: 'input' })],
     })
-    // Drag a SELECTED anchor — no modifier — no anchorSelect should fire
-    // (selection preserved) and the drag state captures all selected anchors
-    // and regions.
     const intents = c.pointerDown(
       makePointerEvent({ clientX: 80, clientY: 200 }),
       snap,
@@ -448,9 +449,6 @@ describe('controller.pointerDown', () => {
     if (ds?.kind === 'anchor') {
       expect(ds.groupIds?.size).toBe(2)
       expect(ds.capturedSpaces.input).toBe(true)
-      expect(ds.regionGroupIds?.size).toBe(2)
-      expect(ds.origRegionBounds?.get('r1')).toEqual({ inPoint: 30, outPoint: 40 })
-      expect(ds.origRegionBounds?.get('r2')).toEqual({ inPoint: 60, outPoint: 70 })
     }
   })
 

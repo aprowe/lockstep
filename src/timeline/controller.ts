@@ -104,20 +104,9 @@ function buildAnchorDrag(
     ? true
     : (forcePairCapture || snap.selectedBeatAnchorIds.has(id))
 
-  // Region group: every selected region's bounds at drag start. Empty when
-  // the dragged anchor was not in the selection — a non-selected click
-  // does NOT pull the existing selection into this drag.
-  let regionGroupIds: ReadonlySet<string> | undefined
-  let origRegionBounds: Map<string, { inPoint: number; outPoint: number }> | undefined
-  const spaceClipIds = space === 'input' ? snap.selectedClipinIds : snap.selectedClipoutIds
-  if (wasSelected && spaceClipIds.size > 0) {
-    regionGroupIds = new Set(spaceClipIds)
-    origRegionBounds = new Map()
-    for (const gid of regionGroupIds) {
-      const gr = snap.regions.find(rr => rr.id === gid)
-      if (gr) origRegionBounds.set(gid, { inPoint: gr.inPoint, outPoint: gr.outPoint })
-    }
-  }
+  // (Removed: regionGroupIds + origRegionBounds capture. Follower
+  // selected regions now propagate via the resolver's lasso:main
+  // TranslateGroup — mixed-entity, reads selection from slices.)
 
   const isPair = primaryInputCaptured && primaryBeatCaptured
 
@@ -146,8 +135,6 @@ function buildAnchorDrag(
     groupIds: anchorIdsInSelection,
     capturedSpaces: { input: primaryInputCaptured, beat: primaryBeatCaptured },
     partnerOrigTime,
-    regionGroupIds,
-    origRegionBounds,
   }
 }
 
@@ -378,34 +365,17 @@ function handleAnchorMove(
       }
     }
 
-    // Combined anchor+region drag: emit regionEntityMove for the PRIMARY
-    // grabbed region. Follower regions propagate via lasso:main.
-    if (drag.regionGroupIds && drag.origRegionBounds && drag.regionGroupIds.size > 0) {
-      // Pick the same primary order the previous implementation used: first
-      // entry in the group iteration order (insertion order of the Set).
-      const firstId = drag.regionGroupIds.values().next().value
-      if (firstId !== undefined) {
-        const orig = drag.origRegionBounds.get(firstId)
-        if (orig) {
-          const MAX = snap.duration
-          const gDur = orig.outPoint - orig.inPoint
-          const gIn = Math.max(0, Math.min(MAX - gDur, orig.inPoint + delta))
-          const primaryDelta = gIn - orig.inPoint
-          intents.push({ kind: 'regionEntityMove', id: firstId, delta: primaryDelta, isOutput: false, altKey: false })
-        }
-      }
-    }
+    // Combined anchor+region drag: the lasso:main TranslateGroup
+    // (mixed-entity; covers selected anchors + clips) propagates the
+    // anchor's Move op to follower regions automatically. No explicit
+    // primary regionEntityMove emission needed.
 
-    // For output-space drags with linked region edges, emit regionResize
-    // (isOutput) so the clipout edge follows the anchor continuously.
-    if (drag.space === 'output' && drag.linkedOutputEdges && drag.linkedOutputEdges.length > 0) {
-      const liveBeatT = origBeatT + delta
-      for (const le of drag.linkedOutputEdges) {
-        const newIn  = le.edge === 'in'  ? liveBeatT : le.origInBeatTime
-        const newOut = le.edge === 'out' ? liveBeatT : le.origOutBeatTime
-        intents.push({ kind: 'regionResize', id: le.regionId, inPoint: newIn, outPoint: newOut, isOutput: true, altKey: false })
-      }
-    }
+    // Beat-anchor ↔ clipout-edge coupling: the resolver's MirrorPair (installed
+    // by buildGraphFromSlice step 4b when conform holds in both spaces)
+    // handles this propagation. No controller-side regionResize emission
+    // needed; the legacy linkedOutputEdges capture was redundant AND wrong
+    // (only checked beat-space coincidence, pulling clipout edges during solo
+    // beat drags of diverged pairs).
   }
 
   if (snap.followDrag) {
@@ -680,32 +650,16 @@ export function createTimelineController(): Controller {
         e.clientX, e.clientY,
         pendingSelect,
       )
-      // For output-space anchor drags, record any region edge whose
-      // beat-space boundary (inBeatTime / outBeatTime) is coincident with
-      // this anchor at drag start. These edges will follow the anchor live.
-      if (space === 'output' && anchor && snap.regionDetails.length > 0) {
-        const linkedOutputEdges: Extract<DragState, { kind: 'anchor' }>['linkedOutputEdges'] = []
-        const LINK_TOL = 1e-4
-        for (const rd of snap.regionDetails) {
-          const inBeat  = rd.inBeatTime
-          const outBeat = rd.outBeatTime
-          if (Math.abs(anchor.time - inBeat) < LINK_TOL) {
-            linkedOutputEdges.push({ regionId: rd.id, edge: 'in', origInBeatTime: inBeat, origOutBeatTime: outBeat })
-          } else if (Math.abs(anchor.time - outBeat) < LINK_TOL) {
-            linkedOutputEdges.push({ regionId: rd.id, edge: 'out', origInBeatTime: inBeat, origOutBeatTime: outBeat })
-          }
-        }
-        if (drag.kind === 'anchor') drag.linkedOutputEdges = linkedOutputEdges
-      }
-      // Profile path for clean single-anchor drags. Combined-selection
-      // (regions co-captured), conformed-input pairing, and
-      // linkedOutputEdges all stay on the legacy path (deferred
-      // combined-gesture audit per the spec).
-      const isCleanSingleAnchor =
-        drag.kind === 'anchor' &&
-        !drag.isPair &&
-        (!drag.regionGroupIds || drag.regionGroupIds.size === 0) &&
-        (!drag.linkedOutputEdges || drag.linkedOutputEdges.length === 0)
+      // (Beat-anchor ↔ clipout-edge coupling is now handled by the
+      // resolver's MirrorPair — buildGraphFromSlice step 4b installs the
+      // pair when conform holds in BOTH spaces. The controller no longer
+      // captures linkedOutputEdges.)
+      // Profile path for non-pair anchor drags. Conformed-input pairing
+      // (isPair=true via forcePairCapture) still uses the legacy path
+      // because its semantics interact with ConformVisual / MirrorPair
+      // installs at build time. Follower regions in a combined selection
+      // propagate via the resolver's lasso:main TranslateGroup.
+      const isCleanSingleAnchor = drag.kind === 'anchor' && !drag.isPair
       if (isCleanSingleAnchor && drag.kind === 'anchor') {
         drag.profileHandle = { kind: 'anchor-drag', anchorId: id, space: space === 'input' ? 'input' : 'beat' }
         intents.push({ kind: 'beginDrag', handle: drag.profileHandle })
@@ -1144,29 +1098,9 @@ export function createTimelineController(): Controller {
               intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(d.id), time: finalBeatT })
             }
           }
-          // Combined anchor+region drag: emit regionEntityMove for the PRIMARY
-          // grabbed region using the same delta.
-          if (d.regionGroupIds && d.origRegionBounds && d.regionGroupIds.size > 0) {
-            const firstId = d.regionGroupIds.values().next().value
-            if (firstId !== undefined) {
-              const orig = d.origRegionBounds.get(firstId)
-              if (orig) {
-                const MAX = snap.duration
-                const gDur = orig.outPoint - orig.inPoint
-                const gIn = Math.max(0, Math.min(MAX - gDur, orig.inPoint + delta))
-                intents.push({ kind: 'regionEntityMove', id: firstId, delta: gIn - orig.inPoint, isOutput: false, altKey: false })
-              }
-            }
-          }
-          // Commit: emit final regionResize (isOutput) for output-linked edges.
-          if (d.space === 'output' && d.linkedOutputEdges && d.linkedOutputEdges.length > 0) {
-            for (const le of d.linkedOutputEdges) {
-              const newIn  = le.edge === 'in'  ? finalBeatT : le.origInBeatTime
-              const newOut = le.edge === 'out' ? finalBeatT : le.origOutBeatTime
-              if (Math.abs(newIn - le.origInBeatTime) < 1e-9 && Math.abs(newOut - le.origOutBeatTime) < 1e-9) continue
-              intents.push({ kind: 'regionResize', id: le.regionId, inPoint: newIn, outPoint: newOut, isOutput: true, altKey: false })
-            }
-          }
+          // (Combined anchor+region drag follows via lasso:main
+          // TranslateGroup, beat-anchor↔clipout-edge via MirrorPair —
+          // both in the resolver. No commit-time secondary emissions.)
         }
       } else if (d.kind === 'region-edge') {
         if (!d.moved) {

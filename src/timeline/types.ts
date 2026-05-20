@@ -180,18 +180,17 @@ export type DragState =
        *  mirror of slice state) — it carries forward the gesture's intent
        *  into the lift event. */
       lastTime?: number
-      /** Combined-selection drag: regions captured at pointerDown when the
-       *  dragged anchor was already selected. Same time delta applies to
-       *  every region, clamped to [0, MAX]. Empty when only anchors are in
-       *  the selection. */
+      /** @deprecated Removed during the combined-gesture audit. Field
+       *  retained as optional for type-level back-compat in tests that
+       *  haven't been updated; populated only as `undefined`. Safe to
+       *  delete fully on the next pass. */
       regionGroupIds?: ReadonlySet<string>
+      /** @deprecated Removed during the combined-gesture audit. */
       origRegionBounds?: Map<string, { inPoint: number; outPoint: number }>
-      /** Output-space anchor drag only: region edges whose beat-space
-       *  boundary was coincident with this anchor's beat time at drag start.
-       *  During the drag the linked edge follows the anchor live; on
-       *  pointerUp a regionResize (isOutput) commit fires per linked edge.
-       *  Each entry stores both edge beat times so the non-linked edge can
-       *  be preserved when building the output-region override. */
+      /** @deprecated Removed during the combined-gesture audit. Beat-anchor
+       *  ↔ clipout-edge coupling is now handled by the resolver's MirrorPair
+       *  (buildGraphFromSlice step 4b). Field retained as optional/empty for
+       *  type compatibility during the transition; safe to delete. */
       linkedOutputEdges?: Array<{
         regionId: string
         edge: 'in' | 'out'
