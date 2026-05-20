@@ -21,18 +21,13 @@
 //!      │
 //!      ▼
 //!   rife_pass::apply_warp_aware_rife  (optional, I/O)
-//!      │
-//!      ▼
-//!   post::apply_post_processing   (I/O: trim / rearrange / normalize)
 //! ```
 
 pub mod options;
-pub mod post;
 pub mod rife_pass;
 pub mod segments;
 pub mod time_map;
 
 pub use options::{AudioMode, InterpMethod, WarpOptions};
-pub use post::PostOptions;
 pub use segments::SegmentPlan;
 pub use time_map::TimeMap;

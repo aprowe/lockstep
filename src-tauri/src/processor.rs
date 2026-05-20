@@ -1,13 +1,10 @@
 //! Warp orchestrator: chains the pipeline stages in `crate::pipeline` into the
-//! single `remap_video` entry point. Also houses the standalone BPM estimator
-//! and the legacy constant-fps `interpolate_video` helper which aren't part of
-//! the warp pipeline proper.
+//! single `remap_video` entry point. Also houses the standalone BPM estimator.
 
 use tempfile::TempDir;
 
 use crate::ffmpeg::{audio_sample_rate, video_duration};
 use crate::pipeline::{
-    post::{apply_post_processing, PostOptions},
     rife_pass::apply_warp_aware_rife,
     segments::{concat_segments, encode_segments, plan_segments},
     time_map::build_time_map,
@@ -121,9 +118,7 @@ where
         ),
     );
 
-    // Trigger mode is raw 1.0x playback at anchor points — PCHIP smoothing +
-    // RIFE both assume a densified, stretchable time map and would fight it.
-    let smooth = !opts.no_smooth && !opts.trigger_mode;
+    let smooth = !opts.no_smooth;
     if !smooth {
         log::info!("[warp] PCHIP smoothing disabled; using raw piecewise-linear time map");
     }
@@ -141,11 +136,8 @@ where
 
     // RIFE replaces the video track wholesale and RIFE'd exports are silent by
     // design (see rife_pass.rs), so when RIFE is selected we skip the segment
-    // encode + concat entirely. Trigger mode still uses the segment path — it's
-    // 1.0x playback with freeze-pads that the warp-aware pair selector can't
-    // express.
-    let use_rife = !opts.trigger_mode
-        && matches!(opts.interp_method, InterpMethod::Rife)
+    // encode + concat entirely.
+    let use_rife = matches!(opts.interp_method, InterpMethod::Rife)
         && opts.interp_fps.is_some();
 
     if use_rife {
@@ -166,7 +158,7 @@ where
         // markers can't produce sub-frame segments that break the concat
         // demuxer (see issue #14).
         let min_segment_duration = if source_fps > 0.0 { 1.0 / source_fps } else { 0.001 };
-        let plans = plan_segments(&time_map, opts.trigger_mode, min_segment_duration);
+        let plans = plan_segments(&time_map, min_segment_duration);
         progress(0.01, &format!("Planned {} segment(s)", plans.len()));
         let segment_files = encode_segments(
             input_path,
@@ -184,56 +176,7 @@ where
         concat_segments(&segment_files, tmp_path, output_path, progress)?;
     }
 
-    // ── Stage 5: Post-processing ──
-    let first_beat_time = opts.beat_times.iter().copied().reduce(f64::min).unwrap_or(0.0);
-    apply_post_processing(
-        output_path,
-        PostOptions {
-            bpm: opts.bpm,
-            beat_zero_time: opts.beat_zero_time,
-            first_beat_time,
-            add_to_end: opts.add_to_end,
-            trim_to_loop: opts.trim_to_loop,
-            loop_beats: opts.loop_beats,
-        },
-        tmp_path,
-        progress,
-    )?;
-
     progress(1.0, "Done");
     Ok(())
 }
 
-// ── Constant-fps interpolation (legacy, not part of the warp pipeline) ──────
-
-/// Re-encode `input_path` at a constant `fps` using blend-mode frame interpolation.
-/// Frames that don't align with a source frame are blended from the two nearest.
-pub fn interpolate_video<F>(
-    input_path: &str,
-    fps: u32,
-    output_path: &str,
-    progress: &F,
-) -> Result<(), String>
-where
-    F: Fn(f64, &str) + Send,
-{
-    progress(0.0, &format!("Interpolating to {fps} fps..."));
-
-    let fps_str = fps.to_string();
-    let vf = format!("minterpolate=fps={fps}:mi_mode=blend");
-
-    crate::ffmpeg::run_ffmpeg(&[
-        "-y",
-        "-i", input_path,
-        "-vf", &vf,
-        "-r", &fps_str,
-        "-c:v", "libx264",
-        "-preset", "fast",
-        "-crf", "18",
-        "-c:a", "copy",
-        output_path,
-    ])?;
-
-    progress(1.0, "Done");
-    Ok(())
-}

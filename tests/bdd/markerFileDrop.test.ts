@@ -83,9 +83,6 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
         bpm: 120,
         minStretch: 0.5,
         maxStretch: 2.0,
-        loopBeats: null,
-        trimToLoop: false,
-        addToEnd: false,
         regions: [],
       }))
       vi.mocked(videoApi.loadVideoFromPath).mockResolvedValue(makeVideoInfo())

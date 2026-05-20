@@ -107,30 +107,13 @@ export const selectLinkedAnchorIds = createSelector(
 /** WarpData-compatible object for legacy components that still expect it */
 export const selectWarpData = createSelector(
   (s: RootState) => s.warp,
-  selectSortedOrig,
-  selectSortedBeat,
-  selectClipIn,
-  (warp, sortedOrig, sortedBeat, clipIn) => {
-    // Compute beat offset
-    let beatOffset = sortedBeat[0]?.time ?? 0
-    if (clipIn !== undefined) {
-      if (warp.beatZeroId !== null) {
-        const z = sortedBeat.find(a => a.id === warp.beatZeroId)
-        if (z) beatOffset = z.time
-      } else {
-        beatOffset = clipIn
-      }
-    }
-    return {
-      origAnchors: warp.origAnchors,
-      beatAnchors: warp.beatAnchors,
-      bpm: warp.bpm,
-      minStretch: warp.minStretch,
-      maxStretch: warp.maxStretch,
-      beatZeroTime: beatOffset,
-      addToEnd: warp.addToEnd,
-    }
-  },
+  (warp) => ({
+    origAnchors: warp.origAnchors,
+    beatAnchors: warp.beatAnchors,
+    bpm: warp.bpm,
+    minStretch: warp.minStretch,
+    maxStretch: warp.maxStretch,
+  }),
 )
 
 // ── Effective beat bounds ────────────────────────────────────────────────────

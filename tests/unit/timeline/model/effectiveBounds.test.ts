@@ -33,7 +33,7 @@ describe('effectiveBeatBounds', () => {
       id: 'r1', name: 'R', inPoint: 10, outPoint: 20,
       inBeatTime: 7, outBeatTime: 25,
       defaultLinked: false,
-      bpm: 120, minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+      bpm: 120, minStretch: 0.5, maxStretch: 2.0,
     }
     expect(effectiveBeatBounds(region)).toEqual({ inBeatTime: 7, outBeatTime: 25 })
   })

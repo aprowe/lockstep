@@ -10,7 +10,7 @@ import type { Region } from '../../../src/types'
 const makeRegion = (id: string, inPoint: number, outPoint: number): Region => ({
   id, name: id, inPoint, outPoint,
   inBeatTime: inPoint, outBeatTime: outPoint, defaultLinked: true,
-  bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
+  bpm: 120, minStretch: 0.5, maxStretch: 2,
 })
 
 describe('cancelDrag rollback', () => {

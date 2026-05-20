@@ -15,14 +15,6 @@ struct DefaultRegion {
     #[serde(rename = "beatAnchors")]
     beat_anchors: Vec<Anchor>,
     bpm: f64,
-    #[serde(rename = "beatZeroAnchorTime")]
-    beat_zero_anchor_time: Option<f64>,
-    #[serde(rename = "loopBeats")]
-    loop_beats: Option<serde_json::Value>,
-    #[serde(rename = "trimToLoop")]
-    trim_to_loop: Option<bool>,
-    #[serde(rename = "addToEnd")]
-    add_to_end: Option<bool>,
 }
 
 #[derive(serde::Deserialize)]
@@ -33,10 +25,10 @@ struct Region {
     #[serde(rename = "outPoint")]
     out_point: f64,
     bpm: f64,
-    #[serde(rename = "addToEnd")]
-    add_to_end: Option<bool>,
-    #[serde(rename = "triggerMode")]
-    trigger_mode: Option<bool>,
+    #[serde(rename = "inBeatTime")]
+    in_beat_time: f64,
+    #[serde(rename = "outBeatTime")]
+    out_beat_time: f64,
 }
 
 #[derive(serde::Deserialize)]
@@ -55,11 +47,9 @@ fn main() {
     let mut positional: Vec<String> = Vec::new();
     let mut output: Option<String> = None;
     let mut clip_selector: Option<String> = None;
-    let mut fade_at_loop = false;
     let mut interp_fps: Option<u32> = None;
     let mut interp_method: InterpMethod = InterpMethod::Minterpolate;
     let mut no_smooth = false;
-    let mut trigger_override: Option<bool> = None;
 
     let mut i = 1;
     while i < args.len() {
@@ -72,7 +62,6 @@ fn main() {
                 i += 1;
                 clip_selector = args.get(i).cloned();
             }
-            "--fade-at-loop"  => fade_at_loop = true,
             "--fps" => {
                 i += 1;
                 match args.get(i).and_then(|v| v.parse::<u32>().ok()) {
@@ -85,8 +74,6 @@ fn main() {
                 interp_method = InterpMethod::from_str(args.get(i).map(|s| s.as_str()));
             }
             "--no-smooth" => no_smooth = true,
-            "--trigger" => trigger_override = Some(true),
-            "--no-trigger" => trigger_override = Some(false),
             "--help" | "-h" => { print_usage(); return; }
             arg if arg.starts_with('-') => {
                 eprintln!("error: unknown flag '{arg}'");
@@ -144,20 +131,13 @@ fn main() {
     };
 
     let dr = &state.default_region;
-    let loop_beats = dr.loop_beats.as_ref().and_then(|v| v.as_u64()).map(|n| n as u32);
 
-    // Shared warp options (per-region overrides bpm / clip_in / clip_out / add_to_end)
     let base_opts = BaseOpts {
         orig_times: dr.orig_anchors.iter().map(|a| a.time).collect(),
         beat_times: dr.beat_anchors.iter().map(|a| a.time).collect(),
-        beat_zero_time: dr.beat_zero_anchor_time.unwrap_or(0.0),
-        trim_to_loop: dr.trim_to_loop.unwrap_or(false),
-        loop_beats,
-        fade_at_loop,
         interp_fps,
         interp_method,
         no_smooth,
-        trigger_override,
     };
 
     // If -o ends with .mp4, it's a single-file output; otherwise it's a directory for batch
@@ -201,44 +181,47 @@ fn main() {
 struct BaseOpts {
     orig_times: Vec<f64>,
     beat_times: Vec<f64>,
-    beat_zero_time: f64,
-    trim_to_loop: bool,
-    loop_beats: Option<u32>,
-    fade_at_loop: bool,
     interp_fps: Option<u32>,
     interp_method: InterpMethod,
     no_smooth: bool,
-    /// CLI-level override (`--trigger` / `--no-trigger`); wins over the region's
-    /// JSON `triggerMode` when set.
-    trigger_override: Option<bool>,
 }
 
 fn build_opts(base: &BaseOpts, region: Option<&Region>, dr: &DefaultRegion) -> WarpOptions {
-    let trigger_mode = base
-        .trigger_override
-        .or(region.and_then(|r| r.trigger_mode))
-        .unwrap_or(false);
-    // Trigger mode plays clips at 1.0x — no frame interpolation makes sense.
-    let (interp_fps, interp_method) = if trigger_mode {
-        (None, InterpMethod::Minterpolate)
-    } else {
-        (base.interp_fps, base.interp_method)
+    let clip_in = region.map(|r| r.in_point);
+    let clip_out = region.map(|r| r.out_point);
+    let eps = 1e-6_f64;
+
+    // Filter global anchors to clip window, excluding exact boundary positions
+    // (we inject those from the region's beat times below).
+    let in_range = |t: f64| -> bool {
+        clip_in.map_or(true, |ci| t >= ci - eps) &&
+        clip_out.map_or(true, |co| t <= co + eps)
     };
+    let at_boundary = |t: f64| -> bool {
+        clip_in.map_or(false, |ci| (t - ci).abs() < eps) ||
+        clip_out.map_or(false, |co| (t - co).abs() < eps)
+    };
+    let mut pairs: Vec<(f64, f64)> = base.orig_times.iter().zip(base.beat_times.iter())
+        .filter(|(&o, _)| in_range(o) && !at_boundary(o))
+        .map(|(&o, &b)| (o, b))
+        .collect();
+
+    // Always inject boundary anchors from the region's beat-space positions.
+    if let Some(r) = region {
+        pairs.push((r.in_point, r.in_beat_time));
+        pairs.push((r.out_point, r.out_beat_time));
+        pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    }
+
     WarpOptions {
-        orig_times: base.orig_times.clone(),
-        beat_times: base.beat_times.clone(),
+        orig_times: pairs.iter().map(|p| p.0).collect(),
+        beat_times: pairs.iter().map(|p| p.1).collect(),
         bpm: region.map(|r| r.bpm).unwrap_or(dr.bpm),
-        beat_zero_time: base.beat_zero_time,
-        add_to_end: region.and_then(|r| r.add_to_end).or(dr.add_to_end).unwrap_or(false),
-        trim_to_loop: base.trim_to_loop,
-        loop_beats: base.loop_beats,
-        fade_at_loop: base.fade_at_loop,
-        clip_in: region.map(|r| r.in_point),
-        clip_out: region.map(|r| r.out_point),
-        interp_fps,
-        interp_method,
+        clip_in,
+        clip_out,
+        interp_fps: base.interp_fps,
+        interp_method: base.interp_method,
         no_smooth: base.no_smooth,
-        trigger_mode,
         scene_cuts: Vec::new(),
         audio_mode: Default::default(),
     }
@@ -307,10 +290,7 @@ fn print_usage() {
     eprintln!("options:");
     eprintln!("  -o, --output <path>    output file or directory (required)");
     eprintln!("  -c, --clip <idx|name>  select a single clip (index or name substring)");
-    eprintln!("  --fade-at-loop         add fade at loop point");
     eprintln!("  --fps <n>              output at constant <n> fps with frame interpolation");
     eprintln!("  --interp-method <m>    interpolation method: minterpolate (default) | rife");
     eprintln!("  --no-smooth            skip PCHIP smoothing; use raw linear time map (debug)");
-    eprintln!("  --trigger              play anchors at 1.0x with freeze-pad (no time-warp)");
-    eprintln!("  --no-trigger           force warp mode even if the region has triggerMode=true");
 }

@@ -27,7 +27,7 @@ function setup() {
     id: 'r', name: 'r', inPoint: 10, outPoint: 30,
     inBeatTime: 10, outBeatTime: 30, defaultLinked: true,
     bpm: 120, lockedBeats: 40,
-    minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+    minStretch: 0.5, maxStretch: 2.0,
   }
   store.dispatch(addRegion(region))
   // Diverged anchor: orig=20, beat=25, linked=false.
@@ -106,7 +106,7 @@ describe('Clipin drag onto diverged anchor: clipout conforms to beat anchor', ()
       // Explicit beat bounds different from input bounds → diverged.
       inBeatTime: 100, outBeatTime: 120, defaultLinked: false,
       bpm: 120, lockedBeats: 40,
-      minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+      minStretch: 0.5, maxStretch: 2.0,
     }
     store.dispatch(addRegion(divergedRegion))
     store.dispatch(addAnchor({ id: 1, time: 20 }))

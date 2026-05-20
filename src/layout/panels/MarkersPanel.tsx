@@ -17,6 +17,7 @@ export default function MarkersPanel() {
   const beatAnchors = useAppSelector(s => s.warp.beatAnchors)
   const warpBpm = useAppSelector(s => s.warp.bpm)
   const warpData = useAppSelector(selectWarpData)
+  const beatZeroId = useAppSelector(s => s.warp.beatZeroId)
   const gridDiv = useAppSelector(s => s.ui.gridDiv)
   const activeRegion = useAppSelector(selectActiveRegion)
   const filterMode = useAppSelector(s => s.lists.filterMode.markers)
@@ -42,7 +43,8 @@ export default function MarkersPanel() {
   // Build all rows up-front; let useFilteredItems window them by mode.
   const allItems = useMemo<MarkerRowData[]>(() => {
     if (!video) return []
-    const beatZeroTime = warpData?.beatZeroTime ?? 0
+    const beatZeroAnchor = beatZeroId !== null ? beatAnchors.find(a => a.id === beatZeroId) : beatAnchors[0]
+    const beatZeroTime = beatZeroAnchor?.time ?? 0
     const beatDuration = warpBpm > 0 ? 60 / warpBpm : 0
     const sorted = [...origAnchors].sort((a, b) => a.time - b.time)
     return sorted.map((anchor, i) => {
@@ -69,7 +71,7 @@ export default function MarkersPanel() {
         stretch,
       }
     })
-  }, [video, origAnchors, beatAnchors, warpBpm, warpData])
+  }, [video, origAnchors, beatAnchors, warpBpm, beatZeroId])
 
   const items = useFilteredItems({
     items: allItems,
@@ -88,7 +90,8 @@ export default function MarkersPanel() {
   const onSnap = useCallback(() => {
     if (warpBpm <= 0) return
     const beat = (60 / warpBpm) / Math.max(1, gridDiv)
-    const beatOffset = warpData?.beatZeroTime ?? 0
+    const bzAnchor = beatZeroId !== null ? beatAnchors.find(a => a.id === beatZeroId) : beatAnchors[0]
+    const beatOffset = bzAnchor?.time ?? 0
     const toSnap = beatAnchors.filter(a => selectedAnchorIdSet.has(a.id))
     const snapped = snapAllToBeat(toSnap, beat, beatOffset)
     dispatch(setBeatAnchorsFromTimeline(

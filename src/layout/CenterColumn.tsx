@@ -243,7 +243,7 @@ export default function CenterColumn() {
     dispatch(addRegionAction({
       id, name, inPoint, outPoint,
       inBeatTime: inPoint, outBeatTime: outPoint, defaultLinked: true,
-      bpm: warpData?.bpm ?? 120, minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+      bpm: warpData?.bpm ?? 120, minStretch: 0.5, maxStretch: 2.0,
     }))
     return id
   }
@@ -407,7 +407,7 @@ export default function CenterColumn() {
           if (bpm <= 0) return null
           // Beat zero anchors at the active region's in-point when one is
           // set; otherwise it falls back to the warp's beat-zero time, or 0.
-          const beatZero = activeRegion?.inPoint ?? warpData?.beatZeroTime ?? 0
+          const beatZero = activeRegion?.inPoint ?? 0
           return (playhead - beatZero) * (bpm / 60)
         })()}
       />

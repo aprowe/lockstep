@@ -8,7 +8,7 @@ import type { Region } from '../../../src/types'
 const makeRegion = (id: string, inPoint: number, outPoint: number) => ({
   id, name: id, inPoint, outPoint,
   inBeatTime: inPoint, outBeatTime: outPoint, defaultLinked: true,
-  bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false as const,
+  bpm: 120, minStretch: 0.5, maxStretch: 2,
 })
 
 // ── setInPointToPlayhead ──────────────────────────────────────────────────────
@@ -266,7 +266,7 @@ const makeFullRegion = (overrides: Partial<Region> = {}): Region => {
     bpm: 120,
     minStretch: 0.5,
     maxStretch: 2.0,
-    addToEnd: false as const,
+
     defaultLinked: true,
     ...overrides,
   }

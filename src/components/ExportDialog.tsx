@@ -15,10 +15,9 @@ interface ExportJob {
   clipIn: number | null
   clipOut: number | null
   bpm: number
-  addToEnd: boolean
-  triggerMode?: boolean
-  /** Beat count for filename interpolation. For region jobs this is the
-   *  region span at its bpm; null falls back to the global loop-beats. */
+  inBeatTime?: number
+  outBeatTime?: number
+  /** Beat count for filename interpolation. */
   beats: number | null
   /** 0-based index of the source region within the *full* regions list, so
    *  `{n}` in the filename pattern stays stable even when exporting a subset.
@@ -33,9 +32,6 @@ interface ExportDialogProps {
   videoPath: string
   originalName: string
   videoFps?: number
-  loopBeats: number | null
-  addToEnd: boolean
-  trimToLoop: boolean
   regions: Region[]
   activeRegionId: string | null
   /** Clip ids selected on the timeline / clips list. When the dialog opens
@@ -86,11 +82,11 @@ function buildMarkerJson(warpData: WarpData, opts: {
   videoName: string
   exportFolder: string | null
 }): string {
-  const { origAnchors, beatAnchors, bpm, minStretch, maxStretch, addToEnd, beatZeroTime } = warpData
+  const { origAnchors, beatAnchors, bpm, minStretch, maxStretch } = warpData
   return JSON.stringify({
     videoName: opts.videoName,
     exportFolder: opts.exportFolder,
-    origAnchors, beatAnchors, bpm, minStretch, maxStretch, addToEnd, beatZeroTime,
+    origAnchors, beatAnchors, bpm, minStretch, maxStretch,
   }, null, 2)
 }
 
@@ -114,10 +110,9 @@ function parentFolder(filePath: string): string {
 
 export default function ExportDialog({
   open, onClose, warpData, videoPath, originalName, videoFps,
-  loopBeats, addToEnd, trimToLoop, regions, activeRegionId,
+  regions, activeRegionId,
   selectedClipIds,
 }: ExportDialogProps) {
-  const [fadeAtLoop, setFadeAtLoop] = useState(false)
   const [interpolateFrames, setInterpolateFrames] = useState(false)
   const [interpMethod, setInterpMethod] = useState<InterpMethod>('minterpolate')
   const [interpFps, setInterpFps] = useState(() => Math.round(videoFps ?? 60))
@@ -251,10 +246,10 @@ export default function ExportDialog({
   // Allow export even with no markers (passthrough / cut only)
   const canProcess = !!warpData || (videoPath.length > 0)
 
-  const beatsForRegion = (r: { inPoint: number; outPoint: number; bpm: number } | null): number | null => {
-    if (!r) return loopBeats
-    const span = Math.max(0, r.outPoint - r.inPoint)
-    if (span <= 0 || !(r.bpm > 0)) return loopBeats
+  const beatsForRegion = (r: { inBeatTime: number; outBeatTime: number; bpm: number } | null): number | null => {
+    if (!r) return null
+    const span = Math.max(0, r.outBeatTime - r.inBeatTime)
+    if (span <= 0 || !(r.bpm > 0)) return null
     return Math.round(span * r.bpm / 60)
   }
 
@@ -268,8 +263,8 @@ export default function ExportDialog({
         clipIn: activeRegion?.inPoint ?? null,
         clipOut: activeRegion?.outPoint ?? null,
         bpm: activeRegion?.bpm ?? bpm,
-        addToEnd: activeRegion?.addToEnd ?? addToEnd,
-        triggerMode: activeRegion?.triggerMode ?? false,
+        inBeatTime: activeRegion?.inBeatTime,
+        outBeatTime: activeRegion?.outBeatTime,
         beats: beatsForRegion(activeRegion),
         regionIndex: activeIdx,
       }]
@@ -281,8 +276,7 @@ export default function ExportDialog({
         clipIn: null,
         clipOut: null,
         bpm,
-        addToEnd,
-        beats: loopBeats,
+        beats: null,
         regionIndex: -1,
       }]
     }
@@ -291,8 +285,8 @@ export default function ExportDialog({
       clipIn: r.inPoint,
       clipOut: r.outPoint,
       bpm: r.bpm,
-      addToEnd: r.addToEnd,
-      triggerMode: r.triggerMode ?? false,
+      inBeatTime: r.inBeatTime,
+      outBeatTime: r.outBeatTime,
       beats: beatsForRegion(r),
       // {n} should track the clip's position in the *full* list, not in the
       // filtered export subset — exporting clips 2 and 5 should still yield
@@ -348,9 +342,6 @@ export default function ExportDialog({
           videoPath,
           warpData,
           job,
-          loopBeats,
-          trimToLoop,
-          fadeAtLoop,
           interpolateFrames,
           interpFps,
           interpMethod,
@@ -623,12 +614,6 @@ export default function ExportDialog({
           {/* Options */}
           {status === 'idle' && (
             <div className="export-dialog__options">
-              {addToEnd && (
-                <label className="export-dialog__check">
-                  <input type="checkbox" checked={fadeAtLoop} onChange={e => setFadeAtLoop(e.target.checked)} />
-                  Fade at loop
-                </label>
-              )}
               <div className="export-dialog__audio">
                 <label className="export-dialog__check">
                   <input

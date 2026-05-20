@@ -6,11 +6,6 @@ export interface WarpRequest {
   orig_times: number[]
   beat_times: number[]
   bpm: number
-  beat_zero_time: number
-  add_to_end: boolean
-  trim_to_loop: boolean
-  loop_beats: number | null
-  fade_at_loop: boolean
   clip_in?: number | null
   clip_out?: number | null
   /** When set, output is re-timed at this constant fps with blended interpolated frames.
@@ -18,9 +13,6 @@ export interface WarpRequest {
   interp_fps?: number | null
   /** "minterpolate" (default) | "rife". Only consulted when interp_fps is set. */
   interp_method?: 'minterpolate' | 'rife' | null
-  /** When true, play each anchor interval at 1.0x (truncate or freeze-pad)
-   *  instead of time-warping. Forces interp_fps=null on the backend. */
-  trigger_mode?: boolean
   /** Source-time positions (seconds) of hard scene cuts. RIFE uses these
    *  to avoid blending frames across a cut. Optional. */
   scene_cuts?: number[]

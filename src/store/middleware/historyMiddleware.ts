@@ -15,9 +15,6 @@ import {
   setBpm,
   setMinStretch,
   setMaxStretch,
-  setLoopBeats,
-  setTrimToLoop,
-  setAddToEnd,
 } from '../slices/warpSlice'
 import {
   setRegions,
@@ -27,7 +24,6 @@ import {
   updateRegionBpm,
   updateRegionLockedBeats,
   updateRegionStretch,
-  updateRegionTriggerMode,
 } from '../slices/regionSlice'
 import { setLockMode } from '../slices/uiSlice'
 import { _syncAnchorPositions } from '../slices/warpSlice'
@@ -55,12 +51,11 @@ const snapshotTriggers = isAnyOf(
   setBeatZeroId,
   // Warp settings
   setBpm, setMinStretch, setMaxStretch,
-  setLoopBeats, setTrimToLoop, setAddToEnd,
   // Regions (slice metadata mutations)
   addRegion, deleteRegion,
   updateRegionLockedBeats,
   renameRegion, updateRegionBpm,
-  updateRegionStretch, updateRegionTriggerMode,
+  updateRegionStretch,
   // Global lock mode
   setLockMode,
   // Pipeline slice writes — position mutations.
@@ -78,9 +73,6 @@ export function snapshotFromState(state: RootState): HistoryEntry {
     bpm: state.warp.bpm,
     minStretch: state.warp.minStretch,
     maxStretch: state.warp.maxStretch,
-    loopBeats: state.warp.loopBeats,
-    trimToLoop: state.warp.trimToLoop,
-    addToEnd: state.warp.addToEnd,
     regions: state.region.regions,
   }
 }
@@ -121,9 +113,6 @@ function restoreEntry(entry: HistoryEntry, dispatch: (a: unknown) => void) {
     bpm: entry.bpm,
     minStretch: entry.minStretch,
     maxStretch: entry.maxStretch,
-    loopBeats: entry.loopBeats,
-    trimToLoop: entry.trimToLoop,
-    addToEnd: entry.addToEnd,
   }))
   dispatch(setRegions(entry.regions))
   // No setGraph needed — the graph is derived from the slice by the pipeline.

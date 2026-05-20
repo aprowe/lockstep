@@ -46,9 +46,6 @@ function makeState(overrides: {
       maxStretch: 2.0,
       beatZeroId: overrides.beatZeroId ?? null,
       globalMarkers: null,
-      loopBeats: null,
-      trimToLoop: false,
-      addToEnd: false,
       playhead: 0,
     },
     region: {
@@ -151,7 +148,7 @@ describe('selectDimmedAnchorIds', () => {
     const region: Region = {
       id: 'r1', name: 'R', inPoint: 10, outPoint: 20,
       inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
-      bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
+      bpm: 120, minStretch: 0.5, maxStretch: 2,
     }
     const state = makeState({
       origAnchors: [
@@ -173,7 +170,7 @@ describe('selectDimmedAnchorIds', () => {
     const region: Region = {
       id: 'r1', name: 'R', inPoint: 0, outPoint: 60,
       inBeatTime: 0, outBeatTime: 60, defaultLinked: true,
-      bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
+      bpm: 120, minStretch: 0.5, maxStretch: 2,
     }
     const state = makeState({
       origAnchors: [{ id: 1, time: 5 }, { id: 2, time: 30 }],
@@ -193,7 +190,7 @@ describe('selectActiveRegion', () => {
     const region: Region = {
       id: 'r1', name: 'Test', inPoint: 5, outPoint: 25,
       inBeatTime: 5, outBeatTime: 25, defaultLinked: true,
-      bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
+      bpm: 120, minStretch: 0.5, maxStretch: 2,
     }
     const state = makeState({ regions: [region], activeRegionId: 'r1' })
     expect(selectActiveRegion(state)?.id).toBe('r1')
@@ -210,7 +207,7 @@ describe('selectClipIn / selectClipOut', () => {
     const region: Region = {
       id: 'r1', name: 'Test', inPoint: 8, outPoint: 22,
       inBeatTime: 8, outBeatTime: 22, defaultLinked: true,
-      bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
+      bpm: 120, minStretch: 0.5, maxStretch: 2,
     }
     const state = makeState({ regions: [region], activeRegionId: 'r1' })
     expect(selectClipIn(state)).toBe(8)
@@ -227,42 +224,4 @@ describe('selectWarpData', () => {
     expect(data.maxStretch).toBe(2.0)
   })
 
-  it('uses the first beat anchor time as beatZeroTime when no region or beatZeroId', () => {
-    const state = makeState({
-      origAnchors: [{ id: 1, time: 5 }, { id: 2, time: 10 }],
-      beatAnchors: [{ id: 1, time: 6 }, { id: 2, time: 11 }],
-    })
-    expect(selectWarpData(state).beatZeroTime).toBe(6)
-  })
-
-  it('uses the clipIn as beatZeroTime when a region is active but no beatZeroId', () => {
-    const region: Region = {
-      id: 'r1', name: 'R', inPoint: 10, outPoint: 40,
-      inBeatTime: 10, outBeatTime: 40, defaultLinked: true,
-      bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
-    }
-    const state = makeState({
-      origAnchors: [{ id: 1, time: 15 }],
-      beatAnchors: [{ id: 1, time: 16 }],
-      regions: [region],
-      activeRegionId: 'r1',
-    })
-    expect(selectWarpData(state).beatZeroTime).toBe(10)
-  })
-
-  it('uses the designated beatZeroId anchor time when set', () => {
-    const region: Region = {
-      id: 'r1', name: 'R', inPoint: 10, outPoint: 40,
-      inBeatTime: 10, outBeatTime: 40, defaultLinked: true,
-      bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
-    }
-    const state = makeState({
-      origAnchors: [{ id: 1, time: 15 }, { id: 2, time: 20 }],
-      beatAnchors: [{ id: 1, time: 16 }, { id: 2, time: 21 }],
-      beatZeroId: 2,
-      regions: [region],
-      activeRegionId: 'r1',
-    })
-    expect(selectWarpData(state).beatZeroTime).toBe(21)
-  })
 })

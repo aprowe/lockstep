@@ -39,7 +39,7 @@ describe('Clipout body decrement past snap radius — per-frame position trace',
       id: 'r', name: 'r', inPoint: 10, outPoint: 20,
       inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
       bpm: 120, lockedBeats: 20,
-      minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+      minStretch: 0.5, maxStretch: 2.0,
     }
     store.dispatch(addRegion(region))
     store.dispatch(addAnchor({ id: 1, time: 10 }))    // linked, orig=beat=10

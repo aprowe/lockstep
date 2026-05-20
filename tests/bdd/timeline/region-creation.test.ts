@@ -14,7 +14,7 @@ const feature = await loadFeature('./spec/features/timeline/region-creation.feat
 const makeRegion = (id: string, inPoint: number, outPoint: number) => ({
   id, name: id, inPoint, outPoint,
   inBeatTime: inPoint, outBeatTime: outPoint, defaultLinked: true,
-  bpm: 120, minStretch: 0.5, maxStretch: 2, addToEnd: false,
+  bpm: 120, minStretch: 0.5, maxStretch: 2,
 })
 
 describeFeature(feature, ({ ScenarioOutline, Scenario }) => {

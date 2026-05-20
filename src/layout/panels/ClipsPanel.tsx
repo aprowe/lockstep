@@ -72,7 +72,7 @@ export default function ClipsPanel() {
     dispatch(addRegionAction({
       id, name, inPoint, outPoint,
       inBeatTime: inPoint, outBeatTime: outPoint, defaultLinked: true,
-      bpm: warpBpm, minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+      bpm: warpBpm, minStretch: 0.5, maxStretch: 2.0,
     }))
     return id
   }, [dispatch, regions.length, warpBpm])

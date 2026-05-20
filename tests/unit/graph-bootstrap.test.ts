@@ -33,7 +33,7 @@ describe('graph bootstrap', () => {
       id: 'r1', name: 'R',
       inPoint: 10, outPoint: 20,
       inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
-      bpm: 120, minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+      bpm: 120, minStretch: 0.5, maxStretch: 2.0,
     }))
     const ents = selectConstraintGraph(store.getState() as RootState).entities
     expect(ents['r1-in']).toEqual({ kind: 'clip', id: 'r1-in', in: 10, out: 20 })

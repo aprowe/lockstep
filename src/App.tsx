@@ -34,7 +34,6 @@ import {
   setActiveRegionId as setActiveRegionIdAction,
   updateRegionInOut as updateRegionInOutAction,
   updateRegionBeatTimes as updateRegionBeatTimesAction,
-  updateRegionTriggerMode as updateRegionTriggerModeAction,
   renameRegion as renameRegionAction,
 } from './store/slices/regionSlice'
 import {
@@ -107,9 +106,6 @@ export default function App() {
   const activeRegionId = useAppSelector(s => s.region.activeRegionId)
   const activeRegion = useAppSelector(selectActiveRegionRedux)
   const view = useAppSelector(s => s.ui.view)
-  const loopBeats = useAppSelector(s => s.warp.loopBeats)
-  const trimToLoop = useAppSelector(s => s.warp.trimToLoop)
-  const addToEnd = useAppSelector(s => s.warp.addToEnd)
   const videoPath = video?.path ?? null
 
   // ── Dispatch helpers ────────────────────────────────────────────────────
@@ -130,7 +126,7 @@ export default function App() {
     dispatch(addRegionAction({
       id, name, inPoint, outPoint,
       inBeatTime: inPoint, outBeatTime: outPoint, defaultLinked: true,
-      bpm: warpBpm, minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+      bpm: warpBpm, minStretch: 0.5, maxStretch: 2.0,
     }))
     return id
   }
@@ -430,9 +426,6 @@ export default function App() {
         videoPath={video?.path ?? ''}
         originalName={video?.originalName ?? ''}
         videoFps={video?.fps}
-        loopBeats={loopBeats}
-        addToEnd={addToEnd}
-        trimToLoop={trimToLoop}
         regions={regions}
         activeRegionId={activeRegionId}
         selectedClipIds={selectedClipIds}

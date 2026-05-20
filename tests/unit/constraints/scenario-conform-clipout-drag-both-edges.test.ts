@@ -22,7 +22,7 @@ function setupBothEdgesConformed() {
     id: 'r', name: 'r', inPoint: 10, outPoint: 30,
     inBeatTime: 10, outBeatTime: 30, defaultLinked: true,
     bpm: 120, lockedBeats: 40,
-    minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+    minStretch: 0.5, maxStretch: 2.0,
   }
   store.dispatch(addRegion(region))
   // Linked anchors at both edges (orig = beat for each).

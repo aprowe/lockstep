@@ -60,10 +60,6 @@ export interface WarpData {
   bpm: number
   minStretch: number
   maxStretch: number
-  /** Beat-time of the designated beat-zero anchor in the output */
-  beatZeroTime: number
-  /** When true, the pre-beat-zero section is appended to the end of the output */
-  addToEnd: boolean
 }
 
 /** A user-defined sub-region of a video.
@@ -77,7 +73,6 @@ export interface Region {
   bpm: number
   minStretch: number
   maxStretch: number
-  addToEnd: boolean
   /** Beat-space time for the in boundary. Always a concrete number. */
   inBeatTime: number
   /** Beat-space time for the out boundary. Always a concrete number. */
@@ -87,9 +82,6 @@ export interface Region {
   defaultLinked: boolean
   /** Snapshot of beat count when lock='beats' (used to derive BPM on resize) */
   lockedBeats?: number
-  /** When true, export plays each anchor interval at 1.0x (truncating source or
-   *  padding with a freeze-frame) instead of time-warping. No frame interp. */
-  triggerMode?: boolean
   /** Stable seed for the palette swatch (mod 8 → clip-overlay--color-N).
    *  Captured at creation time so deletions and re-orderings don't shuffle
    *  the colors. Optional only for backwards-compat with old saves; the
@@ -131,10 +123,6 @@ export interface SavedVideoState {
     bpm: number
     minStretch: number
     maxStretch: number
-    beatZeroAnchorTime: number | null
-    loopBeats?: number | null
-    trimToLoop?: boolean
-    addToEnd?: boolean
   }
   regions: Region[]
   /** Cached scene detection output — keyed to the threshold it was computed at.

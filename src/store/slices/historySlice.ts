@@ -20,9 +20,6 @@ export interface HistoryEntry {
   bpm: number
   minStretch: number
   maxStretch: number
-  loopBeats: number | null
-  trimToLoop: boolean
-  addToEnd: boolean
   // Regions
   regions: Region[]
 }
@@ -39,9 +36,6 @@ const emptyEntry: HistoryEntry = {
   bpm: 120,
   minStretch: 0.5,
   maxStretch: 2.0,
-  loopBeats: null,
-  trimToLoop: false,
-  addToEnd: false,
   regions: [],
 }
 
@@ -69,9 +63,7 @@ function regionsEqual(a: Region[], b: Region[]): boolean {
     if (ra.inBeatTime !== rb.inBeatTime || ra.outBeatTime !== rb.outBeatTime) return false
     if (ra.bpm !== rb.bpm) return false
     if (ra.minStretch !== rb.minStretch || ra.maxStretch !== rb.maxStretch) return false
-    if (ra.addToEnd !== rb.addToEnd) return false
     if (ra.lockedBeats !== rb.lockedBeats) return false
-    if (ra.triggerMode !== rb.triggerMode) return false
   }
   return true
 }
@@ -80,9 +72,6 @@ function entriesEqual(a: HistoryEntry, b: HistoryEntry): boolean {
   return a.bpm === b.bpm
     && a.minStretch === b.minStretch
     && a.maxStretch === b.maxStretch
-    && a.loopBeats === b.loopBeats
-    && a.trimToLoop === b.trimToLoop
-    && a.addToEnd === b.addToEnd
     && a.beatZeroId === b.beatZeroId
     && anchorsEqual(a.origAnchors, b.origAnchors)
     && anchorsEqual(a.beatAnchors, b.beatAnchors)

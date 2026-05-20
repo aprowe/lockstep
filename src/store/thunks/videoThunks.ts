@@ -5,7 +5,7 @@ import { openVideo, openFolder, loadVideoFromPath, listFolderVideos } from '../.
 import { saveVideoState, loadVideoState, getFileHash } from '../../api/storage'
 import { checkVideoSidecar, deleteVideoSidecar, openJsonFile as openJsonFileApi, readJsonSidecarForVideo, loadLlcProject } from '../../api/warp'
 import { setVideo, clearVideo, setFolderVideos, setMarkerCount, setClipCount, setMarkersLoaded, setDetectingBpm } from '../slices/videoSlice'
-import { loadAnchors, clearAnchors, setBpm, setMinStretch, setMaxStretch, setLoopBeats, setTrimToLoop, setAddToEnd, setGlobalMarkers, setPlayhead, bumpAnchorIdCounter } from '../slices/warpSlice'
+import { loadAnchors, clearAnchors, setBpm, setMinStretch, setMaxStretch, setGlobalMarkers, setPlayhead, bumpAnchorIdCounter } from '../slices/warpSlice'
 import { setRegions, setActiveRegionId } from '../slices/regionSlice'
 import { loadCached as loadCachedScenes, setMinGap as setSceneMinGap } from '../slices/sceneSlice'
 import { resetHistory, pushSnapshot } from '../slices/historySlice'
@@ -159,9 +159,6 @@ export const resetVideoDataThunk = createAsyncThunk(
     dispatch(setRegions([]))
     dispatch(setActiveRegionId(null))
     dispatch(setGlobalMarkers(null))
-    dispatch(setLoopBeats(null))
-    dispatch(setTrimToLoop(false))
-    dispatch(setAddToEnd(false))
 
     const emptyState: SavedVideoState = {
       version: 2,
@@ -238,7 +235,6 @@ export const openLlcProjectThunk = createAsyncThunk(
         bpm,
         minStretch: 0.5,
         maxStretch: 2.0,
-        addToEnd: false,
       }))
       dispatch(setRegions(regions))
       dispatch(setActiveRegionId(null))
@@ -262,9 +258,6 @@ function applyLoadedState(dispatch: any, getState: () => unknown, state: SavedVi
     dispatch(setBpm(dr.bpm ?? 120))
     dispatch(setMinStretch(dr.minStretch ?? 0.5))
     dispatch(setMaxStretch(dr.maxStretch ?? 2.0))
-    dispatch(setLoopBeats(dr.loopBeats ?? null))
-    dispatch(setTrimToLoop(dr.trimToLoop ?? false))
-    dispatch(setAddToEnd(dr.addToEnd ?? false))
   }
 
   // Migrate regions — setRegions backfills missing defaultLinked/inBeatTime/outBeatTime
@@ -279,7 +272,6 @@ function applyLoadedState(dispatch: any, getState: () => unknown, state: SavedVi
     bpm: r.bpm ?? 120,
     minStretch: r.minStretch ?? 0.5,
     maxStretch: r.maxStretch ?? 2.0,
-    addToEnd: r.addToEnd ?? false,
   }))
   dispatch(setRegions(loadedRegions))
   dispatch(setActiveRegionId(null))

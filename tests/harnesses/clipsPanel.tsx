@@ -23,7 +23,7 @@ import { makeStore, makeVideoInfo } from '../helpers/setup'
 const makeRegion = (id: string, name: string, inP: number, outP: number): Region => ({
   id, name, inPoint: inP, outPoint: outP,
   inBeatTime: inP, outBeatTime: outP, defaultLinked: true,
-  bpm: 120, minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+  bpm: 120, minStretch: 0.5, maxStretch: 2.0,
   colorIndex: 0,
 })
 

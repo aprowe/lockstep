@@ -27,9 +27,6 @@ interface WarpState {
   beatZeroId: number | null
   /** Full-video markers snapshot (used when switching between regions and full-video mode) */
   globalMarkers: SavedVideoState['defaultRegion'] | null
-  loopBeats: number | null
-  trimToLoop: boolean
-  addToEnd: boolean
   /** Selected anchor IDs in input (orig) space. An anchor is "fully selected"
    *  only when its id appears in BOTH selectedOrigIds and selectedBeatIds. */
   selectedOrigIds: number[]
@@ -46,9 +43,6 @@ const initialState: WarpState = {
   maxStretch: 2.0,
   beatZeroId: null,
   globalMarkers: null,
-  loopBeats: null,
-  trimToLoop: false,
-  addToEnd: false,
   selectedOrigIds: [],
   selectedBeatIds: [],
   playhead: 0,
@@ -151,16 +145,10 @@ const warpSlice = createSlice({
       bpm: number
       minStretch: number
       maxStretch: number
-      loopBeats: number | null
-      trimToLoop: boolean
-      addToEnd: boolean
     }>) {
       state.bpm = action.payload.bpm
       state.minStretch = action.payload.minStretch
       state.maxStretch = action.payload.maxStretch
-      state.loopBeats = action.payload.loopBeats
-      state.trimToLoop = action.payload.trimToLoop
-      state.addToEnd = action.payload.addToEnd
     },
 
     // ── Settings ──────────────────────────────────────────────────────────
@@ -179,16 +167,6 @@ const warpSlice = createSlice({
     setGlobalMarkers(state, action: PayloadAction<SavedVideoState['defaultRegion'] | null>) {
       state.globalMarkers = action.payload
     },
-    setLoopBeats(state, action: PayloadAction<number | null>) {
-      state.loopBeats = action.payload
-    },
-    setTrimToLoop(state, action: PayloadAction<boolean>) {
-      state.trimToLoop = action.payload
-    },
-    setAddToEnd(state, action: PayloadAction<boolean>) {
-      state.addToEnd = action.payload
-    },
-
     // ── Selection ─────────────────────────────────────────────────────────
     /** Set selected IDs in input (orig) space only. */
     setSelectedOrigIds(state, action: PayloadAction<number[]>) {
@@ -263,9 +241,6 @@ export const {
   setMaxStretch,
   setBeatZeroId,
   setGlobalMarkers,
-  setLoopBeats,
-  setTrimToLoop,
-  setAddToEnd,
   setSelectedOrigIds,
   setSelectedBeatIds,
   setSelectedBothIds,

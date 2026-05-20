@@ -62,7 +62,7 @@ const REGION_BASE = {
   bpm: 120,
   minStretch: 0.5,
   maxStretch: 2.0,
-  addToEnd: false as const,
+
   inBeatTime: 0,
   outBeatTime: 20,
   defaultLinked: true,

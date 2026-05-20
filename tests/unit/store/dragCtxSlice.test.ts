@@ -89,7 +89,6 @@ function makeRegion(overrides: {
     defaultLinked: overrides.defaultLinked ?? true,
     minStretch:    0.5,
     maxStretch:    2.0,
-    addToEnd:      false,
   }
 }
 

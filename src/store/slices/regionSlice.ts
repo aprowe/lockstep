@@ -130,11 +130,6 @@ const regionSlice = createSlice({
         if (action.payload.maxStretch !== undefined) r.maxStretch = action.payload.maxStretch
       }
     },
-    updateRegionTriggerMode(state, action: PayloadAction<{ id: string; triggerMode: boolean }>) {
-      const r = state.regions.find(r => r.id === action.payload.id)
-      if (r) r.triggerMode = action.payload.triggerMode
-    },
-
     // ── Internal: graph → slice projection ─────────────────────────────────
     /** Internal — sync position fields from a graph snapshot.
      *  Dispatched by graphMirrorMiddleware after every `applyOp` / `setGraph`.
@@ -180,7 +175,6 @@ export const {
   renameRegion,
   updateRegionBpm,
   updateRegionStretch,
-  updateRegionTriggerMode,
   _syncRegionPositions,
   _syncRegionMeta,
 } = regionSlice.actions

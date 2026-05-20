@@ -61,7 +61,6 @@ describe('Bug 1 — default-linked clipout follows clipin body pan', () => {
       bpm: 120,
       minStretch: 0.5,
       maxStretch: 2.0,
-      addToEnd: false,
     }))
 
     // Pan clipin +5 (single Move op on r1-in).
@@ -98,7 +97,6 @@ describe('Bug 1 — default-linked clipout follows clipin body pan', () => {
       bpm: 120,
       minStretch: 0.5,
       maxStretch: 2.0,
-      addToEnd: false,
     }))
 
     store.dispatch(applyRegionEntityMove({ id: 'r1', delta: 5 }))
@@ -129,7 +127,6 @@ describe('Bug 1 — default-linked clipout follows clipin body pan', () => {
       bpm: 120,
       minStretch: 0.5,
       maxStretch: 2.0,
-      addToEnd: false,
     }))
 
     // Simulate a drag emitting cumulative deltas from pre-drag baseline.

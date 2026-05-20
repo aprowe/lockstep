@@ -18,7 +18,7 @@ function makeConformedSetup() {
     id: 'r', name: 'r', inPoint: 10, outPoint: 20,
     inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
     bpm: 120, lockedBeats: 20,
-    minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+    minStretch: 0.5, maxStretch: 2.0,
   }
   store.dispatch(addRegion(region))
   // Linked anchor at time=10 — both spaces coincide with clipin.in and clipout.in.

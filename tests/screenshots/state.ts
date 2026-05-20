@@ -43,7 +43,6 @@ export async function seed(page: Page, state: SeedState) {
       bpm: number
       minStretch: number
       maxStretch: number
-      addToEnd: boolean
       colorIndex?: number
     }
     const store = (window as unknown as {
@@ -100,7 +99,6 @@ export async function seed(page: Page, state: SeedState) {
         bpm: r.bpm ?? s.bpm ?? 120,
         minStretch: 0.5,
         maxStretch: 2.0,
-        addToEnd: false,
         colorIndex: i,
       }))
       dispatch({ type: 'region/setRegions', payload: regions })

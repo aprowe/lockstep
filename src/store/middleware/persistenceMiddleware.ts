@@ -17,9 +17,6 @@ import {
   setMinStretch,
   setMaxStretch,
   setBeatZeroId,
-  setLoopBeats,
-  setTrimToLoop,
-  setAddToEnd,
   _syncAnchorPositions,
 } from '../slices/warpSlice'
 import {
@@ -30,7 +27,6 @@ import {
   updateRegionBpm,
   updateRegionLockedBeats,
   updateRegionStretch,
-  updateRegionTriggerMode,
   _syncRegionPositions,
   _syncRegionMeta,
 } from '../slices/regionSlice'
@@ -44,11 +40,10 @@ const shouldSave = isAnyOf(
   setOrigAnchors, setBeatAnchors, addAnchor, removeAnchors,
   resetBeatLinks, clearAnchors, loadAnchors,
   setBpm, setMinStretch, setMaxStretch, setBeatZeroId,
-  setLoopBeats, setTrimToLoop, setAddToEnd,
   // Region state changes (slice metadata mutations)
   setRegions, addRegion, deleteRegion,
   updateRegionLockedBeats,
-  renameRegion, updateRegionBpm, updateRegionStretch, updateRegionTriggerMode,
+  renameRegion, updateRegionBpm, updateRegionStretch,
   // Scene detection results + user edits + min-gap setting
   setScenes, addCut, deleteCut, setSceneMinGap,
   // Pipeline slice writes — position mutations (replaces applyOp trigger)
@@ -89,15 +84,6 @@ persistenceMiddleware.startListening({
       return isLinked ? { id: a.id, time: a.time } : { id: a.id, time: a.time, linked: false }
     })
 
-    // Compute beat-zero anchor time for persistence
-    const sortedOrig = [...matOrigAnchors].sort((a, b) => a.time - b.time)
-    const sortedBeat = sortedOrig.map(oa => matBeatAnchors.find(ba => ba.id === oa.id)).filter(Boolean)
-    let beatZeroTime = sortedBeat[0]?.time ?? 0
-    if (warp.beatZeroId !== null) {
-      const z = sortedBeat.find(a => a?.id === warp.beatZeroId)
-      if (z) beatZeroTime = z.time
-    }
-
     // Materialise region positions from the slice (source of truth).
     const matRegions = state.region.regions.map(r => ({ ...r }))
 
@@ -119,10 +105,6 @@ persistenceMiddleware.startListening({
         bpm: warp.bpm,
         minStretch: warp.minStretch,
         maxStretch: warp.maxStretch,
-        beatZeroAnchorTime: beatZeroTime,
-        loopBeats: warp.loopBeats,
-        trimToLoop: warp.trimToLoop,
-        addToEnd: warp.addToEnd,
       },
       regions: matRegions,
       ...(hasSceneData

@@ -24,7 +24,7 @@ function makeRegion(overrides: Partial<Region> = {}): Region {
     bpm: 120,
     minStretch: 0.5,
     maxStretch: 2.0,
-    addToEnd: false as const,
+
     lockedBeats: 20,
     defaultLinked: true,
     ...overrides,
@@ -43,8 +43,6 @@ function makeWarpData(overrides: Partial<WarpData> = {}): WarpData {
     bpm: 120,
     minStretch: 0.5,
     maxStretch: 2.0,
-    beatZeroTime: 0,
-    addToEnd: false,
     ...overrides,
   }
 }

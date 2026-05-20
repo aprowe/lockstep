@@ -1,5 +1,4 @@
 pub mod commands;
-mod diagnostic;
 pub mod ffmpeg;
 pub mod pchip;
 pub mod pipeline;
@@ -51,7 +50,6 @@ pub fn run() {
             commands::load_video,
             commands::analyze_anchors,
             commands::start_warp,
-            commands::start_diagnostic,
             commands::save_output,
             commands::pick_export_folder,
             commands::save_to_folder,

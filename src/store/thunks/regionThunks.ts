@@ -129,7 +129,6 @@ function makeFreshRegion(
     bpm,
     minStretch: 0.5,
     maxStretch: 2.0,
-    addToEnd: false as const,
   }
 }
 

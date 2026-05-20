@@ -141,12 +141,12 @@ describe('Phase 2.5 — TranslateGroup propagation via single-entity Move op', (
     store.dispatch(addRegion({
       id: 'r1', name: 'R1', inPoint: 0, outPoint: 10,
       inBeatTime: 0, outBeatTime: 10, defaultLinked: true,
-      bpm: 120, minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+      bpm: 120, minStretch: 0.5, maxStretch: 2.0,
     }))
     store.dispatch(addRegion({
       id: 'r2', name: 'R2', inPoint: 20, outPoint: 30,
       inBeatTime: 20, outBeatTime: 30, defaultLinked: true,
-      bpm: 120, minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+      bpm: 120, minStretch: 0.5, maxStretch: 2.0,
     }))
     // Select both clipins → lasso:main has [r1-in, r2-in]
     store.dispatch(setListSelection({ list: 'clipin', ids: ['r1', 'r2'] }))
@@ -189,12 +189,12 @@ describe('Phase 2.5 — TranslateGroup propagation via single-entity Move op', (
     store.dispatch(addRegion({
       id: 'r1', name: 'R1', inPoint: 10, outPoint: 20,
       inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
-      bpm: 120, minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+      bpm: 120, minStretch: 0.5, maxStretch: 2.0,
     }))
     store.dispatch(addRegion({
       id: 'r2', name: 'R2', inPoint: 30, outPoint: 40,
       inBeatTime: 30, outBeatTime: 40, defaultLinked: true,
-      bpm: 120, minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+      bpm: 120, minStretch: 0.5, maxStretch: 2.0,
     }))
     // Select ALL four entities: clipin and clipout of both r1 and r2.
     // lasso:main will contain [r1-in, r2-in, r1-out, r2-out].

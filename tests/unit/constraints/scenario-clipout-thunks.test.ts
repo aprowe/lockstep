@@ -13,7 +13,7 @@ function makeRegion(_lock?: 'beats' | 'bpm') {
     inBeatTime: 10, outBeatTime: 20,
     defaultLinked: true,
     bpm: 120, lockedBeats: 20,
-    minStretch: 0.5, maxStretch: 2, addToEnd: false,
+    minStretch: 0.5, maxStretch: 2,
   }
 }
 
@@ -126,7 +126,7 @@ describe('commitClipoutPan', () => {
       inBeatTime: 10, outBeatTime: 30,
       defaultLinked: false,
       bpm: 120, lockedBeats: 20,
-      minStretch: 0.5, maxStretch: 2, addToEnd: false,
+      minStretch: 0.5, maxStretch: 2,
     }
   }
 
@@ -232,7 +232,7 @@ describe('commitClipoutResize — conformed-marker carry', () => {
       id: 'r', name: 'r', inPoint: 10, outPoint: 20,
       bpm: 120, lockedBeats: 20,
       inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
-      minStretch: 0.5, maxStretch: 2, addToEnd: false,
+      minStretch: 0.5, maxStretch: 2,
     }))
     store.dispatch(addAnchor({ id: 5, time: 10 }))
     store.dispatch(moveBeatAnchor({ id: 5, time: 6 }))
@@ -262,7 +262,7 @@ describe('commitClipoutResize — conformed-marker carry', () => {
       id: 'r', name: 'r', inPoint: 10, outPoint: 20,
       bpm: 120,
       inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
-      minStretch: 0.5, maxStretch: 2, addToEnd: false,
+      minStretch: 0.5, maxStretch: 2,
     }))
     store.dispatch(addAnchor({ id: 7, time: 20 }))
     store.dispatch(moveBeatAnchor({ id: 7, time: 18 }))
@@ -287,7 +287,7 @@ describe('commitClipoutResize — conformed-marker carry', () => {
       id: 'r', name: 'r', inPoint: 10, outPoint: 20,
       bpm: 120, lockedBeats: 20,
       inBeatTime: 10, outBeatTime: 20, defaultLinked: true,
-      minStretch: 0.5, maxStretch: 2, addToEnd: false,
+      minStretch: 0.5, maxStretch: 2,
     }))
     // Anchors inside but not at boundaries
     store.dispatch(setBeatAnchorsFromTimeline([
@@ -313,7 +313,7 @@ describe('commitClipoutPan — conformed-marker carry', () => {
       id: 'r', name: 'r', inPoint: 0, outPoint: 20,
       bpm: 120, lockedBeats: 40,
       inBeatTime: 10, outBeatTime: 30, defaultLinked: false,
-      minStretch: 0.5, maxStretch: 2, addToEnd: false,
+      minStretch: 0.5, maxStretch: 2,
     }))
     store.dispatch(setBeatAnchorsFromTimeline([
       { id: 1, time: 15 },

@@ -33,7 +33,7 @@ describe('Drag orig anchor inside snap radius of clipin.in: snap holds, nothing 
       id: 'r', name: 'r', inPoint: 10, outPoint: 40,
       inBeatTime: 10, outBeatTime: 40, defaultLinked: true,
       bpm: 120, lockedBeats: 60,
-      minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+      minStretch: 0.5, maxStretch: 2.0,
     }
     store.dispatch(addRegion(region))
     store.dispatch(addAnchor({ id: 1, time: 10 }))    // linked, orig=beat=10

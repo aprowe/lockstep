@@ -201,11 +201,6 @@ pub struct WarpRequest {
     pub orig_times: Vec<f64>,
     pub beat_times: Vec<f64>,
     pub bpm: f64,
-    pub beat_zero_time: f64,
-    pub add_to_end: bool,
-    pub trim_to_loop: bool,
-    pub loop_beats: Option<u32>,
-    pub fade_at_loop: bool,
     pub clip_in: Option<f64>,
     pub clip_out: Option<f64>,
     pub interp_fps: Option<u32>,
@@ -213,8 +208,6 @@ pub struct WarpRequest {
     pub interp_method: Option<String>,
     #[serde(default)]
     pub no_smooth: bool,
-    #[serde(default)]
-    pub trigger_mode: bool,
     #[serde(default)]
     pub scene_cuts: Vec<f64>,
     /// "tempo" (default, atempo preserves pitch), "pitch" (asetrate pitches
@@ -232,7 +225,7 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
     let out_path_str = out_path.to_string_lossy().to_string();
 
     log::info!(
-        "start_warp[{job_id}]: path={} bpm={:.3} anchors={} clip={:?}→{:?} interp={:?}@{:?} audio={:?} trim_to_loop={} trigger={}",
+        "start_warp[{job_id}]: path={} bpm={:.3} anchors={} clip={:?}→{:?} interp={:?}@{:?} audio={:?}",
         req.path,
         req.bpm,
         req.orig_times.len(),
@@ -241,8 +234,6 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
         req.interp_method,
         req.interp_fps,
         req.audio_mode,
-        req.trim_to_loop,
-        req.trigger_mode,
     );
 
     let app_clone = app.clone();
@@ -258,17 +249,11 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
             orig_times: req.orig_times,
             beat_times: req.beat_times,
             bpm: req.bpm,
-            beat_zero_time: req.beat_zero_time,
-            add_to_end: req.add_to_end,
-            trim_to_loop: req.trim_to_loop,
-            loop_beats: req.loop_beats,
-            fade_at_loop: req.fade_at_loop,
             clip_in: req.clip_in,
             clip_out: req.clip_out,
             interp_fps: req.interp_fps,
             interp_method: InterpMethod::from_str(req.interp_method.as_deref()),
             no_smooth: req.no_smooth,
-            trigger_mode: req.trigger_mode,
             scene_cuts: req.scene_cuts,
             audio_mode: AudioMode::from_str(req.audio_mode.as_deref()),
         };
@@ -329,106 +314,6 @@ pub async fn start_warp(app: AppHandle, req: WarpRequest) -> Result<String, Stri
                 );
             }
         }
-    });
-
-    Ok(job_id)
-}
-
-// ── Diagnostic / Overlay Video ──────────────────────────────────────────────
-
-#[derive(serde::Deserialize)]
-pub struct DiagnosticRequest {
-    pub path: String,
-    pub bpm: f64,
-    pub beat_zero_time: f64,
-    /// "diagnostic" or "overlay"
-    pub mode: String,
-}
-
-#[tauri::command]
-pub async fn start_diagnostic(app: AppHandle, req: DiagnosticRequest) -> Result<String, String> {
-    let job_id = uuid::Uuid::new_v4().to_string();
-
-    let out_dir = std::env::temp_dir().join("lockstep");
-    std::fs::create_dir_all(&out_dir).map_err(|e| e.to_string())?;
-    let suffix = if req.mode == "overlay" { "overlay" } else { "diagnostic" };
-    let out_path = out_dir.join(format!("{suffix}_{}.mp4", &job_id));
-    let out_path_str = out_path.to_string_lossy().to_string();
-
-    log::info!(
-        "start_diagnostic[{job_id}]: mode={} path={} bpm={:.3} beat_zero={:.3}",
-        req.mode, req.path, req.bpm, req.beat_zero_time
-    );
-
-    let app_clone = app.clone();
-    let jid = job_id.clone();
-    let out_clone = out_path_str.clone();
-
-    tokio::spawn(async move {
-        let app2 = app_clone.clone();
-        let jid2 = jid.clone();
-        let out2 = out_clone.clone();
-        let mode = req.mode.clone();
-
-        let result = tokio::task::spawn_blocking(move || {
-            let progress = {
-                let app = app2.clone();
-                let j = jid2.clone();
-                let m = mode.clone();
-                move |percent: f64, msg: &str| {
-                    let _ = app.emit(
-                        "diagnostic-progress",
-                        serde_json::json!({
-                            "job_id": &j,
-                            "mode": &m,
-                            "percent": percent,
-                            "message": msg,
-                            "status": "running"
-                        }),
-                    );
-                }
-            };
-
-            if req.mode == "overlay" {
-                crate::diagnostic::generate_overlay_video(
-                    &req.path, &out2, req.bpm, req.beat_zero_time, &progress,
-                )
-            } else {
-                crate::diagnostic::generate_diagnostic_video(
-                    &req.path, &out2, req.bpm, req.beat_zero_time, &progress,
-                )
-            }
-        })
-        .await;
-
-        let status_payload = match result {
-            Ok(Ok(())) => {
-                log::info!("start_diagnostic[{jid}]: done → {out_clone}");
-                serde_json::json!({
-                    "job_id": &jid,
-                    "percent": 1.0,
-                    "status": "done",
-                    "output_path": &out_clone
-                })
-            }
-            Ok(Err(e)) => {
-                log::error!("start_diagnostic[{jid}]: failed: {e}");
-                serde_json::json!({
-                    "job_id": &jid,
-                    "status": "error",
-                    "error": e
-                })
-            }
-            Err(e) => {
-                log::error!("start_diagnostic[{jid}]: panicked: {e}");
-                serde_json::json!({
-                    "job_id": &jid,
-                    "status": "error",
-                    "error": e.to_string()
-                })
-            }
-        };
-        let _ = app_clone.emit("diagnostic-progress", status_payload);
     });
 
     Ok(job_id)

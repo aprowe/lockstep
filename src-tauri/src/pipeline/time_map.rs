@@ -126,4 +126,125 @@ mod tests {
             assert!(map.contains(&pt), "smoothed map missing original point {pt:?}");
         }
     }
+
+    // ── Boundary anchor injection: output-duration × BPM checks ──────────────
+    //
+    // The frontend always injects (clipIn → inBeatTime) and (clipOut → outBeatTime)
+    // as boundary anchors before sending to the Rust pipeline. These four cases
+    // verify that the time map's output span equals outBeatTime − inBeatTime (to
+    // floating-point precision), and that the implied beat count matches BPM × span / 60.
+    //
+    // "High degree of tolerance" here means < 1 µs error (pure arithmetic, no I/O).
+
+    const BPM_120: f64 = 120.0;
+
+    fn output_span(map: &TimeMap) -> f64 {
+        map.last().unwrap().1 - map.first().unwrap().1
+    }
+    fn beats_at_120(secs: f64) -> f64 {
+        secs * BPM_120 / 60.0
+    }
+
+    /// Case 1 — Identity: inBeatTime == inPoint, outBeatTime == outPoint.
+    /// The clip runs at 1:1 speed; output duration equals source clip duration.
+    #[test]
+    fn boundary_identity_output_matches_source_duration() {
+        let in_beat = 0.0_f64;
+        let out_beat = 10.0_f64;
+        let map = direct_time_map(&[in_beat, out_beat], &[in_beat, out_beat], in_beat, out_beat);
+        let span = output_span(&map);
+        let expected = out_beat - in_beat; // 10.0 s
+        assert!(
+            (span - expected).abs() < 1e-6,
+            "identity: expected {expected}s output, got {span}",
+        );
+        let expected_beats = beats_at_120(expected); // 20 beats
+        assert!(
+            (beats_at_120(span) - expected_beats).abs() < 1e-6,
+            "identity: expected {expected_beats} beats @ {BPM_120}bpm, got {}",
+            beats_at_120(span),
+        );
+    }
+
+    /// Case 2 — No real markers, clip is warped via boundary anchors only.
+    /// Source 0–1 s stretched to 2 s (0.5× speed); both anchors are boundary injections.
+    #[test]
+    fn boundary_no_markers_clip_warp_output_matches_beat_span() {
+        let clip_in = 0.0_f64;
+        let clip_out = 1.0_f64;
+        let in_beat = 0.0_f64;
+        let out_beat = 2.0_f64; // 2 s = 4 beats @ 120 bpm
+        let map = direct_time_map(&[clip_in, clip_out], &[in_beat, out_beat], clip_in, clip_out);
+        let span = output_span(&map);
+        let expected = out_beat - in_beat;
+        assert!(
+            (span - expected).abs() < 1e-6,
+            "no-markers warp: expected {expected}s output, got {span}",
+        );
+        let expected_beats = beats_at_120(expected); // 4 beats
+        assert!(
+            (beats_at_120(span) - expected_beats).abs() < 1e-6,
+            "no-markers warp: expected {expected_beats} beats, got {}",
+            beats_at_120(span),
+        );
+    }
+
+    /// Case 3 — Real markers covering the full clip, no artificial clip restriction.
+    /// Three anchors produce variable stretch; total beat span is outBeatTime − inBeatTime.
+    #[test]
+    fn boundary_markers_full_clip_output_matches_beat_span() {
+        // Source 0–2 s; marker at 1 s maps to 1.5 s (first half slower, second faster).
+        // Boundary anchors at the clip edges pin the total span to 4 s.
+        let in_beat = 0.0_f64;
+        let out_beat = 4.0_f64; // 8 beats @ 120 bpm
+        let map = direct_time_map(
+            &[0.0, 1.0, 2.0],
+            &[in_beat, 1.5, out_beat],
+            0.0,
+            2.0,
+        );
+        let span = output_span(&map);
+        let expected = out_beat - in_beat;
+        assert!(
+            (span - expected).abs() < 1e-6,
+            "markers full clip: expected {expected}s output, got {span}",
+        );
+        let expected_beats = beats_at_120(expected); // 8 beats
+        assert!(
+            (beats_at_120(span) - expected_beats).abs() < 1e-6,
+            "markers full clip: expected {expected_beats} beats, got {}",
+            beats_at_120(span),
+        );
+    }
+
+    /// Case 4 — Real markers inside a clip window, plus boundary anchors.
+    /// One internal marker makes the stretch non-linear; the boundary anchors
+    /// guarantee the output span is exactly outBeatTime − inBeatTime.
+    #[test]
+    fn boundary_markers_plus_clip_warp_output_matches_beat_span() {
+        // Source 0–2 s; boundary: (0→0, 2→3) = 1.5× average stretch.
+        // Internal marker at 1 s → 1.2 s (faster first half, slower second half).
+        let clip_in = 0.0_f64;
+        let clip_out = 2.0_f64;
+        let in_beat = 0.0_f64;
+        let out_beat = 3.0_f64; // 6 beats @ 120 bpm
+        let map = direct_time_map(
+            &[clip_in, 1.0, clip_out],
+            &[in_beat, 1.2, out_beat],
+            clip_in,
+            clip_out,
+        );
+        let span = output_span(&map);
+        let expected = out_beat - in_beat;
+        assert!(
+            (span - expected).abs() < 1e-6,
+            "markers + clip warp: expected {expected}s output, got {span}",
+        );
+        let expected_beats = beats_at_120(expected); // 6 beats
+        assert!(
+            (beats_at_120(span) - expected_beats).abs() < 1e-6,
+            "markers + clip warp: expected {expected_beats} beats, got {}",
+            beats_at_120(span),
+        );
+    }
 }

@@ -22,7 +22,6 @@ function makeRegion(overrides: Partial<Region> = {}): Region {
     bpm: 120,
     minStretch: 0.5,
     maxStretch: 2.0,
-    addToEnd: false,
     ...overrides,
   }
 }

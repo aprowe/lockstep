@@ -65,8 +65,7 @@ function saveTimelinePrefs(state: UiState) {
  *  - `stop`     — pause at the boundary
  *  - `loop`     — seek back to the in-point and keep playing
  *
- *  This is a *playback* setting; export-time loop behavior lives in
- *  `warp.trimToLoop` / `warp.loopBeats`. */
+ *  This is a *playback* setting. */
 export type PlaybackLoopMode = 'continue' | 'stop' | 'loop'
 
 /** Controls how the video player's playback rate is set during playback:

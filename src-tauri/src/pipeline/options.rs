@@ -52,11 +52,6 @@ pub struct WarpOptions {
     pub orig_times: Vec<f64>,
     pub beat_times: Vec<f64>,
     pub bpm: f64,
-    pub beat_zero_time: f64,
-    pub add_to_end: bool,
-    pub trim_to_loop: bool,
-    pub loop_beats: Option<u32>,
-    pub fade_at_loop: bool,
     /// Start of clip in source video (seconds). None = 0.0
     pub clip_in: Option<f64>,
     /// End of clip in source video (seconds). None = video duration
@@ -67,14 +62,7 @@ pub struct WarpOptions {
     /// Which interpolation algorithm to use when `interp_fps` is Some.
     pub interp_method: InterpMethod,
     /// When true, skip PCHIP smoothing and use the raw piecewise-linear time map.
-    /// Useful for debugging RIFE pair artefacts caused by near-flat densified regions.
     pub no_smooth: bool,
-    /// "No-warp" mode: instead of time-stretching each source interval to its
-    /// beat-space duration, play the source at 1.0x from each anchor's orig_time
-    /// until the next trigger fires. Source is truncated if the output interval
-    /// is shorter, or extended with a freeze-frame + silence pad if longer.
-    /// Implies `no_smooth`; incompatible with RIFE (caller must not set that).
-    pub trigger_mode: bool,
     /// Source-time positions (seconds) of hard scene cuts. RIFE uses this to
     /// avoid blending two frames that straddle a cut — it holds instead.
     /// Empty = no awareness; behaves like before.

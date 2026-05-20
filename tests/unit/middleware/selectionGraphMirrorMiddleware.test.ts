@@ -202,12 +202,12 @@ describe('selectionGraphMirrorMiddleware', () => {
     store.dispatch(addRegion({
       id: 'reg_a', name: 'A', inPoint: 0, outPoint: 1, bpm: 120,
       inBeatTime: 0, outBeatTime: 1, defaultLinked: true,
-      minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+      minStretch: 0.5, maxStretch: 2.0,
     }))
     store.dispatch(addRegion({
       id: 'reg_b', name: 'B', inPoint: 1, outPoint: 2, bpm: 120,
       inBeatTime: 1, outBeatTime: 2, defaultLinked: true,
-      minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+      minStretch: 0.5, maxStretch: 2.0,
     }))
     store.dispatch(setListSelection({ list: 'clipin',  ids: ['reg_a', 'reg_b'] }))
     store.dispatch(setListSelection({ list: 'clipout', ids: ['reg_a', 'reg_b'] }))
@@ -240,7 +240,7 @@ describe('selectionGraphMirrorMiddleware', () => {
     store.dispatch(addRegion({
       id: 'reg_c', name: 'C', inPoint: 0, outPoint: 1, bpm: 120,
       inBeatTime: 0, outBeatTime: 1, defaultLinked: true,
-      minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+      minStretch: 0.5, maxStretch: 2.0,
     }))
     // No selection — lasso is absent.
     expect(getLassoGroup(store)).toBeUndefined()

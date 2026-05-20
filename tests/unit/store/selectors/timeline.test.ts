@@ -24,7 +24,7 @@ const REGION_DEFAULTS = {
   bpm: 120,
   minStretch: 0.5,
   maxStretch: 2.0,
-  addToEnd: false as const,
+
   defaultLinked: true,
 }
 

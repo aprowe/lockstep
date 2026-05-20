@@ -19,14 +19,12 @@ const warpData: WarpData = {
   bpm: 120,
   minStretch: 0.5,
   maxStretch: 2.0,
-  beatZeroTime: 5,
-  addToEnd: false,
 }
 
 const makeRegion = (id: string, inP: number, outP: number, bpm = 120): Region => ({
   id, name: id, inPoint: inP, outPoint: outP, bpm,
   inBeatTime: inP, outBeatTime: outP, defaultLinked: true,
-  minStretch: 0.5, maxStretch: 2.0, addToEnd: false,
+  minStretch: 0.5, maxStretch: 2.0,
 })
 
 function renderDialog(opts: {
@@ -34,7 +32,6 @@ function renderDialog(opts: {
   regions?: Region[]
   activeRegionId?: string | null
   lastExportFolder?: string | null
-  loopBeats?: number | null
 } = {}) {
   const store = makeStore()
   if (opts.lastExportFolder !== undefined) {
@@ -49,9 +46,6 @@ function renderDialog(opts: {
         videoPath="/videos/concert.mp4"
         originalName="concert.mp4"
         videoFps={opts.videoFps}
-        loopBeats={opts.loopBeats ?? null}
-        addToEnd={false}
-        trimToLoop={false}
         regions={opts.regions ?? []}
         activeRegionId={opts.activeRegionId ?? null}
       />
@@ -269,9 +263,6 @@ describeFeature(feature, ({ Scenario, BeforeEachScenario }) => {
         regions: [region],
         activeRegionId: 'verse',
         lastExportFolder: '/dest',
-        // Deliberately set loopBeats to a different number — the bug was that
-        // {beats} resolved to loopBeats rather than the region's own count.
-        loopBeats: 4,
       })
       const patternInput = screen.getByLabelText('Filename Pattern') as HTMLInputElement
       fireEvent.change(patternInput, { target: { value: '{name}_{beats}beats' } })
