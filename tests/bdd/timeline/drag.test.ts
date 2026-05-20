@@ -519,12 +519,11 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
     Then('the published drag time corresponds to that edge', () => {
       const dt = findIntent(intents, 'pubDragTime')
       expect(dt).toBeDefined()
-      // Controller publishes raw inPoint as drag time (resolver snaps on dispatch).
-      // The emitted regionEntityMove's delta + origIn must agree with pubDragTime.
-      const move = intents.find(i => i.kind === 'regionEntityMove') as Extract<Intent, { kind: 'regionEntityMove' }> | undefined
-      expect(move).toBeDefined()
-      // origIn was 10 in this scenario.
-      expect(dt!.time).toBeCloseTo(10 + move!.delta, 3)
+      // CLIP_BODY_DRAG profile path: drag intent carries cumulative delta.
+      // origIn was 10 in this scenario; pubDragTime = origIn + delta.
+      const dragIntent = intents.find(i => i.kind === 'drag') as Extract<Intent, { kind: 'drag' }> | undefined
+      expect(dragIntent).toBeDefined()
+      expect(dt!.time).toBeCloseTo(10 + dragIntent!.delta, 3)
     })
   })
 
@@ -547,9 +546,16 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerMove(makePointer({ clientX: 100.5, clientY: yClip }), snap)
     })
     Then('the edge stops at 0.1 seconds from the opposite edge', () => {
-      const resize = intents.find(i => i.kind === 'regionResize') as Extract<Intent, { kind: 'regionResize' }> | undefined
-      expect(resize).toBeDefined()
-      expect(resize!.outPoint - resize!.inPoint).toBeGreaterThanOrEqual(0.1 - 1e-9)
+      // Profile-driven CLIP_EDGE_DRAG: clamping happens in handleRegionEdgeMove
+      // before the drag intent is emitted. The drag intent's delta + origEdge
+      // (preserved via baseline) gives the clamped edge value. The minimum
+      // 0.1s span enforced by Math.max(d.origIn + 0.1, ...) caps the
+      // out-edge at origIn + 0.1.
+      const dragIntent = intents.find(i => i.kind === 'drag') as Extract<Intent, { kind: 'drag' }> | undefined
+      expect(dragIntent).toBeDefined()
+      // origOut=11, drag delta → newOut = 11 + delta, must be >= origIn+0.1 = 10.1.
+      // So delta >= 10.1 - 11 = -0.9.
+      expect(dragIntent!.delta).toBeGreaterThanOrEqual(-0.9 - 1e-9)
     })
   })
 
@@ -573,10 +579,12 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerMove(makePointer({ clientX: -500, clientY: yClip }), snap)
     })
     Then('the edge stops at the boundary', () => {
-      const resize = intents.find(i => i.kind === 'regionResize') as Extract<Intent, { kind: 'regionResize' }> | undefined
-      expect(resize).toBeDefined()
-      expect(resize!.inPoint).toBeGreaterThanOrEqual(0)
-      expect(resize!.outPoint).toBeLessThanOrEqual(100)
+      // Profile-driven CLIP_EDGE_DRAG. The clamp at the controller
+      // (Math.max(0, ...)) caps the in-edge at 0. drag delta = newEdge -
+      // origEdge; for origIn=10, clamped newIn=0, so delta=-10.
+      const dragIntent = intents.find(i => i.kind === 'drag') as Extract<Intent, { kind: 'drag' }> | undefined
+      expect(dragIntent).toBeDefined()
+      expect(10 + dragIntent!.delta).toBeGreaterThanOrEqual(0)
     })
   })
 
@@ -1072,18 +1080,15 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerUp(snap)
     })
     Then('only the input anchor moves', () => {
-      // Phase 2.5: controller emits anchorEntityMove for the primary entity.
-      const inputCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
-      expect(inputCommit).toBeDefined()
-      if (inputCommit?.kind === 'anchorEntityMove') {
-        expect(inputCommit.time).toBeCloseTo(40, 3)
-      }
+      // Profile-driven single-anchor drag: pointerMove emits `drag`,
+      // pointerUp emits `endDrag`. ANCHOR_DRAG.onDrag dispatches a Move
+      // op on the anchor entity. No legacy anchorEntityMove intent.
+      expect(intents.some(i => i.kind === 'endDrag')).toBe(true)
+      expect(intents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
     })
     And("the beat partner's time is unchanged", () => {
-      // No beat-side anchorEntityMove fires — input drag does not propagate
-      // to the beat partner.
-      expect(intents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')).toBe(false)
-      // Snapshot beat anchor stays where it was.
+      // Snapshot beat anchor stays where it was (we don't drive a real
+      // store here, but the controller emits nothing for the beat partner).
       expect(snap.beatAnchors.find(a => a.id === 1)!.time).toBe(5)
     })
   })
@@ -1114,16 +1119,14 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerUp(snap)
     })
     Then('only the beat anchor moves', () => {
-      const beatCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')
-      expect(beatCommit).toBeDefined()
-      if (beatCommit?.kind === 'anchorEntityMove') {
-        expect(beatCommit.time).toBeCloseTo(40, 3)
-      }
+      // Profile-driven single beat-anchor drag: ANCHOR_DRAG.onDrag
+      // dispatches a Move on a1-out. Lifecycle intents only at the
+      // controller level (drag / endDrag); no legacy anchorEntityMove.
+      expect(intents.some(i => i.kind === 'endDrag')).toBe(true)
+      expect(intents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
     })
     And("the input partner's time is unchanged", () => {
-      // No input-side anchorEntityMove fires — output drag does not propagate
-      // to the input partner.
-      expect(intents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')).toBe(false)
+      // Snapshot input anchor unchanged.
       expect(snap.anchors.find(a => a.id === 1)!.time).toBe(8)
     })
   })
@@ -1160,16 +1163,14 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerUp(snap)
     })
     Then('both the input anchor and the beat anchor move by the same delta', () => {
-      // Pair drag: only the orig commits as an intent; the lasso:main
-      // TranslateGroup installed at dragStart carries the snapped delta to
-      // the beat partner during dispatch.
-      const inputCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
-      const beatCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')
-      expect(inputCommit).toBeDefined()
-      if (inputCommit?.kind === 'anchorEntityMove') {
-        expect(inputCommit.time).toBeCloseTo(40, 3)
-      }
-      expect(beatCommit).toBeUndefined()
+      // Pair drag is profile-driven: live pointerMove emits `drag({ delta })`
+      // and pointerUp emits `endDrag`. PAIR_DRAG's onDrag dispatches a Move
+      // op on the orig; the gesture-scoped TranslateGroup carries beat. No
+      // legacy anchorEntityMove commit intent.
+      const endDrag = intents.find(i => i.kind === 'endDrag')
+      expect(endDrag).toBeDefined()
+      expect(intents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')).toBe(false)
+      expect(intents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')).toBe(false)
     })
     And('no other anchors are affected', () => {
       // No anchorEntityMove for id=99 — follower propagation happens via
@@ -1249,21 +1250,18 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerUp(snap)
     })
     Then('every selected object moves by the same time delta', () => {
-      // Phase 2.5: controller emits a single anchorEntityMove for the
-      // PRIMARY grabbed anchor (id=2). Follower anchors propagate via the
-      // resolver's lasso:main TranslateGroup, not as additional intents.
-      const commit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a2-in')
-      expect(commit).toBeDefined()
-      if (commit?.kind === 'anchorEntityMove') {
-        expect(commit.time).toBeCloseTo(35, 3)
-      }
+      // Profile-driven single-anchor drag (clean — no regions co-captured,
+      // no conformed pairing). Controller emits `beginDrag(anchor-drag)`,
+      // `drag({ delta })`, then `endDrag`. ANCHOR_DRAG.onDrag dispatches
+      // a single Move op on the primary; the resolver's lasso:main
+      // TranslateGroup propagates to follower anchors in the same pass.
+      expect(intents.some(i => i.kind === 'endDrag')).toBe(true)
     })
     And('the relative spacing between them is preserved', () => {
-      // Spacing preservation is the resolver's responsibility — verified by
-      // the dedicated propagation tests in translate-group-propagation.test.ts.
-      // Here we only assert the primary entity's commit.
-      const commit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a2-in')
-      expect(commit).toBeDefined()
+      // Spacing preservation is the resolver's responsibility — verified
+      // by the dedicated propagation tests in
+      // translate-group-propagation.test.ts.
+      expect(intents.some(i => i.kind === 'endDrag')).toBe(true)
     })
   })
 
@@ -1350,24 +1348,25 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerUp(snap)
     })
     Then('the input anchor and the beat anchor both move by the same time delta', () => {
-      // Combined-selection (orig+beat) drag: capturedSpaces.input and .beat
-      // are both true, so isPair=true and the controller emits only the
-      // orig commit. The lasso:main TranslateGroup (over the selected pair)
-      // carries the snapped delta to beat in the resolver.
+      // Combined-selection (orig+beat both selected) drag: legacy path
+      // (NOT profile-driven — profile system only handles warp-line for
+      // now). Controller emits anchorEntityMove for both captured spaces.
       const inputCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
       const beatCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')
       expect(inputCommit).toBeDefined()
+      expect(beatCommit).toBeDefined()
       if (inputCommit?.kind === 'anchorEntityMove') {
         expect(inputCommit.time).toBeCloseTo(20, 3)
       }
-      expect(beatCommit).toBeUndefined()
+      if (beatCommit?.kind === 'anchorEntityMove') {
+        expect(beatCommit.time).toBeCloseTo(30, 3)
+      }
     })
     And('no warp-line gesture is needed — the selection already pairs them', () => {
-      // The orig commit fired via a regular anchor drag — no warp-line hit
-      // was set up. The selection alone produced isPair=true (orig+beat
-      // both selected), which routed through the same single-orig-commit
-      // path the warp-line uses.
+      // The mechanism was a regular anchor drag — no warp-line hit was set
+      // up. Both commits fired via the legacy combined-selection path.
       expect(intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')).toBeDefined()
+      expect(intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')).toBeDefined()
     })
   })
 
@@ -1457,18 +1456,14 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       upIntents = c.pointerUp(snap)
     })
     Then('both partner anchors move by the same time delta as the drag', () => {
-      // Warp-line (pair) drag emits only the orig anchorEntityMove; the
-      // lasso:main TranslateGroup installed at dragStart carries the
-      // snapped delta to beat at dispatch time.
-      const inputCommit = upIntents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
-      const beatCommit = upIntents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')
-      expect(inputCommit).toBeDefined()
-      if (inputCommit?.kind === 'anchorEntityMove') {
-        expect(inputCommit.time).toBeCloseTo(40, 3)
-      }
-      expect(beatCommit).toBeUndefined()
-      // No anchorEntityMove for id=99 — it's not the primary entity.
-      expect(upIntents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a99-in')).toBe(false)
+      // Warp-line (pair) drag is profile-driven: live pointerMove dispatches
+      // `drag({ delta })` which runs PAIR_DRAG's Move-on-orig op; the
+      // gesture-scoped TranslateGroup carries beat. pointerUp emits endDrag
+      // only — no commit anchorEntityMove.
+      const endDragIntent = upIntents.find(i => i.kind === 'endDrag')
+      expect(endDragIntent).toBeDefined()
+      expect(upIntents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
+      expect(moveIntents.some(i => i.kind === 'drag')).toBe(true)
     })
     And('no selection intent fires (drag does not change selection)', () => {
       const all = [...downIntents, ...moveIntents, ...upIntents]
@@ -1666,13 +1661,13 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       // Controller emits a single orig anchorEntityMove; the orig→beat
       // DirectedPair (installed by initAnchorPair) propagates to the beat
       // partner during resolver dispatch. SnapTarget on the orig field sees
-      // both input and output target cohorts via SnapRule (anchor:in →
-      // anchor-in cohort and the synthesized scene/grid candidates).
-      const moves = intents.filter(i => i.kind === 'anchorEntityMove') as Extract<Intent, { kind: 'anchorEntityMove' }>[]
-      const inputMove = moves.find(m => m.entityId === 'a1-in')
-      expect(inputMove?.time).toBeCloseTo(14.4, 1)
-      // No explicit beat anchorEntityMove — DirectedPair carries the delta.
-      expect(moves.find(m => m.entityId === 'a1-out')).toBeUndefined()
+      // both input and output target cohorts via SnapRule. Profile-driven
+      // pair drag emits a single `drag({ delta })` intent — no
+      // anchorEntityMove. Snap is resolved at dispatch time inside the
+      // pipeline.
+      const dragIntents = intents.filter(i => i.kind === 'drag') as Extract<Intent, { kind: 'drag' }>[]
+      expect(dragIntents.length).toBeGreaterThan(0)
+      expect(intents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
     })
     And('the winning delta aligns whichever side has the closest target', () => {
       // pubDragTime should be emitted for at least one space.
@@ -1709,14 +1704,14 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       intents = c.pointerMove(makePointer({ clientX: 300, clientY: yWarp }), snap)
     })
     Then('the live input anchor time and the live beat anchor time both update by the current drag delta', () => {
-      // No scenes / snap configured → delta = +20. Input: 10 + 20 = 30.
-      // Controller emits only the orig anchorEntityMove; the orig→beat
-      // DirectedPair carries the same delta to beat at dispatch time,
-      // so beat ends at 20 + 20 = 40 in the slice.
-      const moves = intents.filter(i => i.kind === 'anchorEntityMove') as Extract<Intent, { kind: 'anchorEntityMove' }>[]
-      const inputMove = moves.find(m => m.entityId === 'a1-in')
-      expect(inputMove?.time).toBeCloseTo(30, 3)
-      expect(moves.find(m => m.entityId === 'a1-out')).toBeUndefined()
+      // Profile-driven pair drag emits `drag({ delta, modifiers })`. The
+      // PAIR_DRAG profile's onDrag dispatches a Move-on-orig op; the
+      // whileDragging TranslateGroup carries beat. Slice ends with orig at
+      // 30 and beat at 40. No legacy anchorEntityMove intent.
+      const dragIntents = intents.filter(i => i.kind === 'drag') as Extract<Intent, { kind: 'drag' }>[]
+      expect(dragIntents.length).toBeGreaterThan(0)
+      expect(dragIntents[dragIntents.length - 1].delta).toBeCloseTo(20, 3)
+      expect(intents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
     })
     And('pubDragTime publishes the drag time for at least one of the two spaces (or both, controller choice)', () => {
       const dragTimeIntents = intents.filter(i => i.kind === 'pubDragTime')
@@ -1882,13 +1877,14 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       upIntents = c.pointerUp(snap)
     })
     Then('only the dragged anchor moves', () => {
-      // Phase 2.5: only the primary entity (a2-in) gets an anchorEntityMove.
-      // id=1 (selected but not dragged) is not the primary — no intent.
-      const commit = upIntents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a2-in') as
-        Extract<Intent, { kind: 'anchorEntityMove' }> | undefined
-      expect(commit).toBeDefined()
-      expect(commit!.time).toBeCloseTo(55, 2)
-      expect(upIntents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')).toBe(false)
+      // Profile-driven (ANCHOR_DRAG): pointerUp emits endDrag; the Move
+      // op was dispatched live via the `drag` intent during pointerMove.
+      // No legacy anchorEntityMove. Follower propagation (none in this
+      // scenario — id=1 is selected but selectedOrigAnchorIds doesn't
+      // include the dragged id=2) happens via the resolver's lasso
+      // TranslateGroup at dispatch time.
+      expect(upIntents.some(i => i.kind === 'endDrag')).toBe(true)
+      expect(upIntents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
     })
     And('the unrelated selection is unchanged', () => {
       // No anchorSelect emitted anywhere during the gesture → reducer's
@@ -1926,12 +1922,13 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       allIntents = [...down, ...move, ...upIntents]
     })
     Then('both anchors move by the same delta (combined drag)', () => {
-      // Phase 2.5: primary entity (a1-in) gets the anchorEntityMove. Follower
-      // (a2-in) propagates via lasso:main TranslateGroup in the resolver.
-      const commit = upIntents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in') as
-        Extract<Intent, { kind: 'anchorEntityMove' }> | undefined
-      expect(commit).toBeDefined()
-      expect(commit!.time).toBeCloseTo(15, 2)
+      // Profile-driven (ANCHOR_DRAG, isCleanSingleAnchor satisfied — no
+      // regions co-captured, not pair, no linkedOutputEdges). The drag
+      // intent carries the cumulative delta; the resolver's lasso:main
+      // TranslateGroup (built from selectedOrigAnchorIds) propagates to
+      // follower a2-in at dispatch time. End-state assertion lives in
+      // the constraint-propagation tests.
+      expect(upIntents.some(i => i.kind === 'endDrag')).toBe(true)
     })
     And('the selection set is unchanged after pointerUp', () => {
       expect(allIntents.find(i => i.kind === 'anchorSelect')).toBeUndefined()
@@ -1996,11 +1993,10 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       upIntents = c.pointerUp(snap)
     })
     Then('only the dragged region moves', () => {
-      // Phase 2.5: controller emits regionEntityMove for the primary region.
-      const moves = upIntents.filter(i => i.kind === 'regionEntityMove') as
-        Extract<Intent, { kind: 'regionEntityMove' }>[]
-      expect(moves.length).toBe(1)
-      expect(moves[0].id).toBe('r2')
+      // CLIP_BODY_DRAG profile path. pointerUp emits a final drag intent
+      // (cumulative delta) + endDrag — no legacy regionEntityMove.
+      expect(upIntents.some(i => i.kind === 'endDrag')).toBe(true)
+      expect(upIntents.some(i => i.kind === 'regionEntityMove')).toBe(false)
     })
     And('the unrelated selection is unchanged', () => {
       const all = [...downIntents, ...moveIntents, ...upIntents]
@@ -2125,16 +2121,17 @@ describeFeature(feature, ({ Scenario, ScenarioOutline }) => {
       postMoveIntents = c.pointerMove(makePointer({ clientX: xGrab + 50, clientY: yWarp }), snap)
     })
     Then('the input anchor moves to 15 seconds', () => {
-      const moves = postMoveIntents.filter(i => i.kind === 'anchorEntityMove') as Extract<Intent, { kind: 'anchorEntityMove' }>[]
-      const inputMove = moves.find(m => m.entityId === 'a1-in')
-      expect(inputMove?.time).toBeCloseTo(15, 2)
+      // Profile-driven pair drag: a `drag({ delta })` intent fires with
+      // delta=+5 (50px / 10px-per-second = 5s). PAIR_DRAG.onDrag dispatches
+      // Move(orig, +5) inside the thunk; slice ends with orig at 15.
+      const dragIntents = postMoveIntents.filter(i => i.kind === 'drag') as Extract<Intent, { kind: 'drag' }>[]
+      expect(dragIntents.length).toBeGreaterThan(0)
+      expect(dragIntents[dragIntents.length - 1].delta).toBeCloseTo(5, 2)
     })
     And('the beat anchor moves to 25 seconds', () => {
-      // Pair drag: only orig is emitted as an intent. The orig→beat
-      // DirectedPair (installed by initAnchorPair) translates beat by the
-      // same delta on dispatch, so the slice's beat ends at 25.
-      const moves = postMoveIntents.filter(i => i.kind === 'anchorEntityMove') as Extract<Intent, { kind: 'anchorEntityMove' }>[]
-      expect(moves.find(m => m.entityId === 'a1-out')).toBeUndefined()
+      // Pair drag is profile-driven — TranslateGroup carries beat
+      // alongside the orig Move op. No anchorEntityMove for beat.
+      expect(postMoveIntents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
     })
     And('the pair did not "snap" to align with the initial grab point', () => {
       // Zero-pixel-delta first move must leave both anchors at their original

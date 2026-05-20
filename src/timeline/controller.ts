@@ -356,28 +356,26 @@ function handleAnchorMove(
   drag.lastTime = t
 
   if (drag.moved) {
-    // Emit single-entity anchorEntityMove for the PRIMARY grabbed anchor's
-    // captured spaces. Followers propagate via lasso:main TranslateGroup.
-    // We derive the new times directly from origTime + delta — for pair
-    // drags, both spaces translate by the same delta from their respective
-    // pre-drag positions stored on drag.partnerOrigTime.
     const origInputT = drag.space === 'input' ? drag.origTime : drag.partnerOrigTime
     const origBeatT  = drag.space === 'output' ? drag.origTime : drag.partnerOrigTime
 
-    // For pair drags (warp-line) the partner is carried by the orig→beat
-    // DirectedPair installed by initAnchorPair — emit only the orig move.
-    // Snap on the orig field corrects the value pre-cascade so the beat
-    // partner ends up at the snapped position too.
-    const emitInput = drag.capturedSpaces.input
-    const emitBeat  = drag.capturedSpaces.beat && !drag.isPair
-
-    if (emitInput) {
-      const newT = Math.max(0, origInputT + delta)
-      intents.push({ kind: 'anchorEntityMove', entityId: anchorInId(drag.id), time: newT })
-    }
-    if (emitBeat) {
-      const newT = Math.max(0, origBeatT + delta)
-      intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(drag.id), time: newT })
+    // Profile-driven drags (e.g. warp-line): emit `drag({ delta, modifiers })`.
+    // The active GestureProfile's onDrag (set by beginDrag at pointerDown)
+    // translates delta to ops; whileDragging supplies the gesture-scoped
+    // constraints. Other drags (single anchor, conformed-input "isPair")
+    // still use the legacy per-captured-space anchorEntityMove emit until
+    // their migration step.
+    if (drag.profileHandle) {
+      intents.push({ kind: 'drag', delta, modifiers: { alt: e.altKey } })
+    } else {
+      if (drag.capturedSpaces.input) {
+        const newT = Math.max(0, origInputT + delta)
+        intents.push({ kind: 'anchorEntityMove', entityId: anchorInId(drag.id), time: newT })
+      }
+      if (drag.capturedSpaces.beat) {
+        const newT = Math.max(0, origBeatT + delta)
+        intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(drag.id), time: newT })
+      }
     }
 
     // Combined anchor+region drag: emit regionEntityMove for the PRIMARY
@@ -454,17 +452,25 @@ function handleRegionEdgeMove(
   drag.lastOut = newOut
 
   if (drag.moved) {
-    intents.push({
-      kind: 'regionResize',
-      id: drag.id,
-      inPoint: newIn,
-      outPoint: newOut,
-      isOutput: drag.isOutput,
-      altKey: drag.lastAltKey,
-    })
+    if (drag.profileHandle) {
+      // CLIP_EDGE_DRAG: drag intent carries cumulative delta (newEdge -
+      // preDragEdge). The profile's onDrag turns it into a SetEdge op.
+      const baseline = drag.edge === 'in' ? drag.origIn : drag.origOut
+      const newEdge = drag.edge === 'in' ? newIn : newOut
+      intents.push({ kind: 'drag', delta: newEdge - baseline, modifiers: { alt: drag.lastAltKey } })
+    } else {
+      intents.push({
+        kind: 'regionResize',
+        id: drag.id,
+        inPoint: newIn,
+        outPoint: newOut,
+        isOutput: drag.isOutput,
+        altKey: drag.lastAltKey,
+      })
+    }
     // Slice B: rescale beat anchors that lay inside [origIn, origOut] when
-    // effectiveAnchorLock && lock='beats'. Otherwise the slice's beatAnchors
-    // remain authoritative (no override needed).
+    // effectiveAnchorLock && lock='beats'. Output-space-only — clipin edge
+    // drag doesn't touch beat anchors.
     if (drag.isOutput && drag.origBeatAnchorTimes) {
       const effectiveAnchorLock = (snap.clipAnchorLock ?? false) !== drag.lastAltKey // XOR
       const shouldRescale = effectiveAnchorLock && snap.clipLock === 'beats'
@@ -528,27 +534,32 @@ function handleRegionMoveMove(
   drag.lastDelta = deltaT
 
   if (drag.moved) {
-    intents.push({
-      kind: 'regionEntityMove',
-      id: drag.id,
-      delta: deltaT,
-      isOutput: drag.isOutput,
-      altKey: drag.lastAltKey,
-    })
-    // Combined region+anchor drag: emit anchorEntityMove for the primary
-    // anchor in each space. Follower anchors propagate via lasso:main.
-    // Input-space only — output-space pans handle anchor translation in commitClipoutPan.
-    if (!drag.isOutput && drag.origInputAnchorTimes && drag.origInputAnchorTimes.size > 0) {
-      const firstInputId = drag.origInputAnchorTimes.keys().next().value as number
-      const orig = drag.origInputAnchorTimes.get(firstInputId)!
-      const newT = Math.max(0, orig + deltaT)
-      intents.push({ kind: 'anchorEntityMove', entityId: anchorInId(firstInputId), time: newT })
-    }
-    if (!drag.isOutput && drag.origBeatAnchorTimes && drag.origBeatAnchorTimes.size > 0) {
-      const firstBeatId = drag.origBeatAnchorTimes.keys().next().value as number
-      const orig = drag.origBeatAnchorTimes.get(firstBeatId)!
-      const newT = Math.max(0, orig + deltaT)
-      intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(firstBeatId), time: newT })
+    if (drag.profileHandle) {
+      // CLIP_BODY_DRAG: emit drag intent; thunk dispatches Move via onDrag.
+      intents.push({ kind: 'drag', delta: deltaT, modifiers: { alt: drag.lastAltKey } })
+    } else {
+      intents.push({
+        kind: 'regionEntityMove',
+        id: drag.id,
+        delta: deltaT,
+        isOutput: drag.isOutput,
+        altKey: drag.lastAltKey,
+      })
+      // Combined region+anchor drag (legacy path only): emit anchorEntityMove
+      // for the primary anchor in each space. Follower anchors propagate via
+      // lasso:main. Input-space only.
+      if (!drag.isOutput && drag.origInputAnchorTimes && drag.origInputAnchorTimes.size > 0) {
+        const firstInputId = drag.origInputAnchorTimes.keys().next().value as number
+        const orig = drag.origInputAnchorTimes.get(firstInputId)!
+        const newT = Math.max(0, orig + deltaT)
+        intents.push({ kind: 'anchorEntityMove', entityId: anchorInId(firstInputId), time: newT })
+      }
+      if (!drag.isOutput && drag.origBeatAnchorTimes && drag.origBeatAnchorTimes.size > 0) {
+        const firstBeatId = drag.origBeatAnchorTimes.keys().next().value as number
+        const orig = drag.origBeatAnchorTimes.get(firstBeatId)!
+        const newT = Math.max(0, orig + deltaT)
+        intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(firstBeatId), time: newT })
+      }
     }
   }
   intents.push({ kind: 'redraw' })
@@ -686,14 +697,25 @@ export function createTimelineController(): Controller {
         }
         if (drag.kind === 'anchor') drag.linkedOutputEdges = linkedOutputEdges
       }
-      intents.push({ kind: 'dragStart' })
-      // Phase 7: install SnapTarget for the dragged anchor (only when the
-      // constraint graph is available in the snapshot).
+      // Profile path for clean single-anchor drags. Combined-selection
+      // (regions co-captured), conformed-input pairing, and
+      // linkedOutputEdges all stay on the legacy path (deferred
+      // combined-gesture audit per the spec).
+      const isCleanSingleAnchor =
+        drag.kind === 'anchor' &&
+        !drag.isPair &&
+        (!drag.regionGroupIds || drag.regionGroupIds.size === 0) &&
+        (!drag.linkedOutputEdges || drag.linkedOutputEdges.length === 0)
+      if (isCleanSingleAnchor && drag.kind === 'anchor') {
+        drag.profileHandle = { kind: 'anchor-drag', anchorId: id, space: space === 'input' ? 'input' : 'beat' }
+        intents.push({ kind: 'beginDrag', handle: drag.profileHandle })
+      } else {
+        intents.push({ kind: 'dragStart' })
+      }
+      // SnapTarget install stays on the legacy path until snap consolidation.
       if (snap.constraintGraph) {
         const pxPerUnit = W / viewSpanI
         const entityId = space === 'input' ? anchorInId(id) : anchorOutId(id)
-        // Input-space anchor: no beat grid. Output-space: include grid only
-        // when the anchor's closure doesn't move the grid.
         const anchorGrid = space === 'output'
           ? computeGridForSnap(snap, anchorOutId(id), 'anchor')
           : undefined
@@ -733,13 +755,19 @@ export function createTimelineController(): Controller {
         dragState.capturedSpaces = { input: true, beat: true }
         dragState.partnerOrigTime = beatAnchor.time
         dragState.isPair = true
+        // profileHandle marks this drag as profile-driven. Distinct from
+        // isPair, which is also set for conformed-input single-anchor drags
+        // (those don't use the profile system yet).
+        dragState.profileHandle = { kind: 'pair-drag', pairId: id }
         drag = dragState
-        intents.push({ kind: 'dragStart' })
-        // Install SnapTarget on the ORIG anchor only. The beat partner follows
-        // via the `pairlink:*` DirectedPair (Translate) installed by
-        // initAnchorPair — so snap evaluates against input-space targets
-        // (anchor-in cohort, clipin cohort, scenes), and the beat anchor
-        // tracks whatever value the orig snaps to.
+        // beginDrag (profile-driven) replaces the legacy dragStart + the
+        // CanvasTimeline-side prePairDragLassoIds extension. The PAIR_DRAG
+        // profile's whileDragging installs the TranslateGroup over both
+        // partners for the gesture duration; clears on endDrag.
+        intents.push({ kind: 'beginDrag', handle: dragState.profileHandle })
+        // Snap install stays on the legacy path until the snap-consolidation
+        // step. SnapTarget on the ORIG anchor — beat partner follows via the
+        // TranslateGroup from PAIR_DRAG.whileDragging.
         if (snap.constraintGraph) {
           const pxPerUnit = W / viewSpanI
           intents.push({ kind: 'snapStart', entityId: anchorInId(id), field: 'time', pxPerUnit, gestureRole: 'anchor' })
@@ -779,7 +807,16 @@ export function createTimelineController(): Controller {
           lastAltKey: e.altKey,
           origBeatAnchorTimes,
         }
-        intents.push({ kind: 'dragStart' })
+        // Profile path for clipin edge drag (input space). Clipout edge
+        // drags stay on the legacy path (output-space rescale logic in
+        // handleRegionEdgeMove + commitClipoutResize thunk).
+        if (!isOutput) {
+          const handleKind = edge === 'in' ? 'clip-in-edge' : 'clip-out-edge'
+          drag.profileHandle = { kind: handleKind, clipId: id, space: 'input' }
+          intents.push({ kind: 'beginDrag', handle: drag.profileHandle })
+        } else {
+          intents.push({ kind: 'dragStart' })
+        }
         // Phase 7: install SnapTarget for the dragged region edge.
         // For output-space edge drags: include grid for 'out' edge only when
         // lockMode='bpm' (grid not in motion). 'in' edge always moves the grid.
@@ -818,14 +855,21 @@ export function createTimelineController(): Controller {
           [{ kind: 'regionSelect', id }],
         )
         if (drag.kind === 'region-move') drag.lastAltKey = e.altKey
-        intents.push({ kind: 'dragStart' })
-        // Phase 7: install ONE body-mode SnapTarget for the dragged region.
-        // Body mode (set by snapToSiblings when gestureRole='body') snaps the
-        // body rigidly: if either edge is near a target, both edges shift by
-        // the same delta — length is preserved. Previously we installed two
-        // separate edge-mode SnapTargets, which fired independently and could
-        // shift each edge by a different amount mid-drag (visible thrash).
-        // No beat-grid snap for body pans (grid moves with the drag).
+        // Profile path for clean single-clipin body drag (input space, no
+        // co-captured anchors / regions). Clipout body drags retain their
+        // commitClipoutPan legacy path (anchor-lock + inner-anchor carry).
+        const isCleanRegionMove =
+          drag.kind === 'region-move' &&
+          !isOutput &&
+          (!drag.groupIds || drag.groupIds.size <= 1) &&
+          (!drag.anchorGroupIds || drag.anchorGroupIds.size === 0)
+        if (isCleanRegionMove && drag.kind === 'region-move') {
+          drag.profileHandle = { kind: 'clip-body', clipId: id, space: 'input' }
+          intents.push({ kind: 'beginDrag', handle: drag.profileHandle })
+        } else {
+          intents.push({ kind: 'dragStart' })
+        }
+        // SnapTarget install stays on the legacy path until snap consolidation.
         if (snap.constraintGraph) {
           const pxPerUnit = W / viewSpanI
           const entityId = isOutput ? regionOutId(id) : regionInId(id)
@@ -1081,20 +1125,24 @@ export function createTimelineController(): Controller {
           const delta = finalT - d.origTime
           const finalInputT = Math.max(0, (d.space === 'input' ? d.origTime : d.partnerOrigTime) + delta)
           const finalBeatT  = Math.max(0, (d.space === 'output' ? d.origTime : d.partnerOrigTime) + delta)
-          // For pair drags (warp-line) emit only the orig — the lasso:main
-          // TranslateGroup (installed via dragStart for pair drags) carries
-          // the snapped delta to beat. Emitting an explicit beat with the
-          // raw cursor position would un-snap beat on commit (the second
-          // dispatch's raw delta diverges from the snapped orig delta,
-          // TranslateGroup bails on the divergence, and beat keeps the raw
-          // value).
-          const emitFinalInput = d.capturedSpaces.input
-          const emitFinalBeat  = d.capturedSpaces.beat && !d.isPair
-          if (emitFinalInput) {
-            intents.push({ kind: 'anchorEntityMove', entityId: anchorInId(d.id), time: finalInputT })
-          }
-          if (emitFinalBeat) {
-            intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(d.id), time: finalBeatT })
+          // Profile-driven drags: re-emit the final `drag(delta)` so the
+          // pointerUp applyIntents's beginReplayFrame reset (which resets
+          // the slice to preDrag) is followed by a final dispatch that
+          // re-applies the cumulative delta. THEN endDrag clears
+          // preDrag + gesture state.
+          if (d.profileHandle) {
+            const finalDelta = (d.lastTime ?? d.origTime) - d.origTime
+            intents.push({ kind: 'drag', delta: finalDelta, modifiers: { alt: false } })
+            intents.push({ kind: 'endDrag' })
+          } else {
+            const emitFinalInput = d.capturedSpaces.input
+            const emitFinalBeat  = d.capturedSpaces.beat
+            if (emitFinalInput) {
+              intents.push({ kind: 'anchorEntityMove', entityId: anchorInId(d.id), time: finalInputT })
+            }
+            if (emitFinalBeat) {
+              intents.push({ kind: 'anchorEntityMove', entityId: anchorOutId(d.id), time: finalBeatT })
+            }
           }
           // Combined anchor+region drag: emit regionEntityMove for the PRIMARY
           // grabbed region using the same delta.
@@ -1123,6 +1171,14 @@ export function createTimelineController(): Controller {
       } else if (d.kind === 'region-edge') {
         if (!d.moved) {
           for (const ps of d.pendingSelect) intents.push(ps)
+        } else if (d.profileHandle) {
+          // CLIP_EDGE_DRAG profile path. Re-emit final cumulative delta so
+          // beginReplayFrame's reset on pointerUp is followed by a
+          // dispatch that re-applies the final edge value. Then endDrag.
+          const baseline = d.edge === 'in' ? d.origIn : d.origOut
+          const newEdge  = d.edge === 'in' ? (d.lastIn ?? d.origIn) : (d.lastOut ?? d.origOut)
+          intents.push({ kind: 'drag', delta: newEdge - baseline, modifiers: { alt: d.lastAltKey } })
+          intents.push({ kind: 'endDrag' })
         } else {
           // Re-emit final regionResize using the controller's last computed bounds.
           const newIn = d.lastIn ?? d.origIn
@@ -1139,6 +1195,13 @@ export function createTimelineController(): Controller {
       } else if (d.kind === 'region-move') {
         if (!d.moved) {
           for (const ps of d.pendingSelect) intents.push(ps)
+        } else if (d.profileHandle) {
+          // Profile-driven (CLIP_BODY_DRAG). Re-emit the cumulative delta
+          // so the pointerUp applyIntents's beginReplayFrame reset is
+          // followed by a final dispatch.
+          const deltaT = d.lastDelta ?? 0
+          intents.push({ kind: 'drag', delta: deltaT, modifiers: { alt: d.lastAltKey } })
+          intents.push({ kind: 'endDrag' })
         } else {
           const deltaT = d.lastDelta ?? 0
           intents.push({
@@ -1189,8 +1252,15 @@ export function createTimelineController(): Controller {
     }
     // dragEnd fires for content-dragging kinds (anchor / region-edge /
     // region-move). Seek, pan, minimap and lasso never fired dragStart so
-    // they must not fire dragEnd either.
-    if (d && (d.kind === 'anchor' || d.kind === 'region-edge' || d.kind === 'region-move')) {
+    // they must not fire dragEnd either. Profile-driven drags emit their
+    // own `endDrag` intent earlier in this branch (replaces dragEnd +
+    // gesture clear) — skip the legacy dragEnd for them.
+    const isProfileDriven = d && (
+      (d.kind === 'anchor' && d.profileHandle !== undefined) ||
+      (d.kind === 'region-edge' && d.profileHandle !== undefined) ||
+      (d.kind === 'region-move' && d.profileHandle !== undefined)
+    )
+    if (d && !isProfileDriven && (d.kind === 'anchor' || d.kind === 'region-edge' || d.kind === 'region-move')) {
       intents.push({ kind: 'dragEnd' })
     }
     // Phase 7: remove SnapTarget constraints installed at pointerDown.

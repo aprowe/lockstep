@@ -12,6 +12,134 @@
 
 ---
 
+## Status — 2026-05-19 (updated)
+
+**Tasks 1–11 complete to varying depths.** Architecture is in place;
+four profiles wired (pair, anchor, clipin body, clipin edge); snap
+install reads from gestureSlice (with legacy fallback). The original
+bug class (pair-drag lasso install/teardown smear across TSX +
+controller + thunks) is structurally fixed.
+
+| Task | Status | Commit |
+|---|---|---|
+| 1. Profile registry scaffold | ✅ | `eb58f05` |
+| 2. Gesture slice | ✅ | `bd336bd` |
+| 3. Drag thunks (beginDrag/drag/endDrag) | ✅ | `2d3458b` |
+| 4. buildGraphFromSlice gesture extension | ✅ | `67efe72` |
+| 5. PAIR_DRAG profile | ✅ | `a4cf76c` |
+| 6. Wire pair-drag through controller + CanvasTimeline | ✅ | `accc5ca` |
+| 7. ANCHOR_DRAG profile + wired for clean single-anchor case | ✅ | `8e34ade` |
+| 9. CLIP_BODY_DRAG profile + wired for clipin body (input space) | ✅ | `1ea4ed6` |
+| 10. CLIP_EDGE_DRAG profile + wired for clipin edge (input space) | ✅ | `f7fe92a` |
+| 11. Snap install moved to gestureSlice (with dragCtx fallback) | ✅ | `76c64eb` |
+| 8. Lasso TranslateGroup from selection slices directly | ✅ | `1019274` |
+| 12a. Anchor-lock segment in clip body / edge profiles | ✅ | `9888db7` |
+| 12b. Wire clipout body / edge drags through profiles | deferred (commitClipout* migration) |
+| 13. Dissolve dragCtxSlice | deferred (blocked on 12b — anchor-lock is the last primary consumer) |
+| 14. Controller cleanup pass | deferred (DragState fields used by legacy paths too) |
+
+**All 1583 tests pass.**
+
+## Migration patterns established
+
+Each profile follows the same shape:
+1. Profile in `src/constraints/profiles/<name>.ts` — pure `onDrag`
+   (returns ops) + `whileDragging` (returns constraints).
+2. Controller's pointerDown branch sets `drag.profileHandle` and emits
+   `beginDrag(handle)` when the case is "clean" (no combined-gesture
+   couplings).
+3. pointerMove handler emits `drag(delta, modifiers)` when
+   `drag.profileHandle` is set; legacy `regionResize` /
+   `anchorEntityMove` otherwise.
+4. pointerUp re-emits the final cumulative `drag(delta)` before
+   `endDrag` — required because applyIntents's `beginReplayFrame`
+   resets the slice to preDrag on every pointer event, including the
+   pointerUp event, so the final state must be re-applied after that
+   reset.
+
+## What's deferred and why
+
+- **Wiring clipout body / edge drags through profiles** (Task 12b):
+  the profile anchor-lock segment is built and tested, but the
+  controller's clipout branches still route through
+  `commitClipoutPan` / `commitClipoutResize` thunks, which dispatch
+  `applyConformedClipout` — a richer write that conformed-marker carry
+  and other clipout-specific semantics rely on. Migrating clipout to
+  the profile path requires either folding those semantics into the
+  profile or running both paths during transition. Designed but not
+  attempted because it needs careful test reconciliation.
+- **`dragCtxSlice` dissolution** (Task 13): blocked on Task 12b. The
+  `anchorLock` field is still the primary source (consumed via
+  `anchorLockMirrorMiddleware`); the `lassoIds` and `snapInstall`
+  fields are fallbacks only. Once the middleware retires, the slice
+  can go.
+- **Controller cleanup** (Task 14): the unused-looking DragState
+  fields (`isPair`, `capturedSpaces`, `partnerOrigTime`,
+  `gestureRole`, `linkedOutputEdges`, `regionGroupIds`) are still
+  consumed by the legacy paths (combined-selection anchor drag,
+  conformed-input anchor drag, beat-anchor + linked clipout edge,
+  clipout drags). They can be stripped once those paths retire. The
+  combined-gesture deferral in the spec covers some; clipout
+  migration covers the rest.
+
+The architecture proves out. Remaining tasks are mostly mechanical
+test reconciliation for the clipout cases and cosmetic cleanup.
+
+## What ships
+
+- Five gesture profiles (`PAIR_DRAG`, `ANCHOR_DRAG`, `CLIP_BODY_DRAG`,
+  `CLIP_EDGE_DRAG`) plus the registry indexed by handle kind. Each is
+  pure data + a small `onDrag` function; each has its own unit test.
+- Profile-driven warp-line pair drag (Task 6) — the freshly-painful
+  bug from the brainstorm is structurally impossible now.
+- Profile-driven clean single-anchor drag (Task 7) — non-coupling
+  cases go through `beginDrag` → `drag` → `endDrag`. The conformed-
+  input and combined-selection cases stay on the legacy path (deferred
+  combined-gesture audit per the spec).
+
+## Remaining work shape
+
+- **Wiring CLIP_BODY_DRAG / CLIP_EDGE_DRAG** (Task 14 cleanup pass) —
+  same mechanical pattern as Task 7: switch the controller branch to
+  emit `beginDrag` with the appropriate handle, update tests that
+  asserted intent shape to assert lifecycle intents instead.
+- **Snap consolidation** (Task 11) — currently profile.whileDragging
+  declares an empty-targets SnapTarget; live snap candidates still come
+  from the legacy `dragCtx.snapInstall` populated by WarpView's
+  `onSnapStart` callback. Consolidation means moving the snap-target
+  computation into the profile, callable from `buildGraphFromSlice`.
+- **dragCtxSlice dissolution** (Task 13) — after Task 11 there are no
+  remaining consumers; the slice + its mirror middleware can be
+  deleted.
+
+The architecture is proven and the highest-value bug class is fixed.
+Remaining work is mechanical and can land incrementally without
+blocking on this PR.
+
+**Key validation:** the warp-line drag is now driven entirely by the
+constraint pipeline — `PAIR_DRAG.whileDragging` injects the
+TranslateGroup over both partners while `gesture.activeHandle` is set,
+vanishes when it's cleared. The `prePairDragLassoIdsRef` snapshot/restore
+hack in CanvasTimeline is gone. The bug class "behavior in TSX install
+logic drifts from the constraint graph" is structurally unrepresentable
+for pair drag.
+
+**DragState gained a `profileHandle` field.** Distinguishes profile-driven
+drags (set by warp-line pointerDown) from legacy drags that happen to
+have `isPair=true` (conformed-input single-anchor drags). Controller
+checks `profileHandle` to decide whether to emit `drag` (profile path)
+or `anchorEntityMove` (legacy path).
+
+**Remaining migrations follow the same pattern.** Each task: write the
+profile (TDD), wire the controller branch to emit `beginDrag` with the
+appropriate handle, update tests. The biggest wrinkle to watch for:
+non-pair anchor drag (Task 7) has a `linkedOutputEdges` secondary
+emission for "beat-anchor + linked clipout edge" coupling — this is the
+deferred combined-gesture case; preserve its legacy path through Task 7
+and don't try to fold it into ANCHOR_DRAG.
+
+---
+
 ## File structure
 
 **New files:**

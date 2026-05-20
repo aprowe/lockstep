@@ -108,7 +108,11 @@ describe('controller.pointerDown', () => {
       makePointerEvent({ clientX: 100, clientY: 200 }),
       snap,
     )
-    expect(intents).toEqual([{ kind: 'dragStart' }])
+    // Clean single-anchor drag → profile path; emits beginDrag(anchor-drag).
+    expect(intents).toEqual([{
+      kind: 'beginDrag',
+      handle: { kind: 'anchor-drag', anchorId: 7, space: 'input' },
+    }])
     const ds = c.getDragState()
     expect(ds?.kind).toBe('anchor')
     if (ds?.kind === 'anchor') {
@@ -116,6 +120,7 @@ describe('controller.pointerDown', () => {
       expect(ds.space).toBe('input')
       expect(ds.origTime).toBe(12.5)
       expect(ds.capturedSpaces).toEqual({ input: true, beat: false })
+      expect(ds.profileHandle).toEqual({ kind: 'anchor-drag', anchorId: 7, space: 'input' })
       // Pending select is the additive-aware anchorSelect that fires on
       // pointerUp click.
       expect(ds.pendingSelect).toEqual([{ kind: 'anchorSelect', id: 7, additive: false }])
@@ -140,12 +145,16 @@ describe('controller.pointerDown', () => {
       makePointerEvent({ clientX: 150, clientY: 200, metaKey: true }),
       snap,
     )
-    expect(intents).toEqual([{ kind: 'dragStart' }])
+    expect(intents).toEqual([{
+      kind: 'beginDrag',
+      handle: { kind: 'anchor-drag', anchorId: 9, space: 'beat' },
+    }])
     const ds = c.getDragState()
     expect(ds?.kind).toBe('anchor')
     if (ds?.kind === 'anchor') {
       expect(ds.space).toBe('output')
       expect(ds.origTime).toBe(4)
+      expect(ds.profileHandle).toEqual({ kind: 'anchor-drag', anchorId: 9, space: 'beat' })
       expect(ds.pendingSelect).toEqual([{ kind: 'beatAnchorSelect', id: 9, additive: true }])
     }
     const up = c.pointerUp(snap)
@@ -182,7 +191,11 @@ describe('controller.pointerDown', () => {
       makePointerEvent({ clientX: 100, clientY: 200 }),
       snap,
     )
-    expect(intents).toEqual([{ kind: 'dragStart' }])
+    // Clipin out-edge → CLIP_EDGE_DRAG profile (clip-out-edge handle).
+    expect(intents).toEqual([{
+      kind: 'beginDrag',
+      handle: { kind: 'clip-out-edge', clipId: 'r1', space: 'input' },
+    }])
     const ds = c.getDragState()
     expect(ds?.kind).toBe('region-edge')
     if (ds?.kind === 'region-edge') {
@@ -191,6 +204,7 @@ describe('controller.pointerDown', () => {
       expect(ds.isOutput).toBe(false)
       expect(ds.origIn).toBe(10)
       expect(ds.origOut).toBe(30)
+      expect(ds.profileHandle).toEqual({ kind: 'clip-out-edge', clipId: 'r1', space: 'input' })
       expect(ds.pendingSelect).toEqual([{ kind: 'regionSelect', id: 'r1' }])
     }
     const up = c.pointerUp(snap)
@@ -207,7 +221,11 @@ describe('controller.pointerDown', () => {
       makePointerEvent({ clientX: 120, clientY: 200 }),
       snap,
     )
-    expect(intents).toEqual([{ kind: 'dragStart' }])
+    // Clean single-clipin body drag → CLIP_BODY_DRAG profile.
+    expect(intents).toEqual([{
+      kind: 'beginDrag',
+      handle: { kind: 'clip-body', clipId: 'r2', space: 'input' },
+    }])
     const ds = c.getDragState()
     expect(ds?.kind).toBe('region-move')
     if (ds?.kind === 'region-move') {
@@ -216,6 +234,7 @@ describe('controller.pointerDown', () => {
       expect(ds.origOut).toBe(20)
       expect(ds.anchorX).toBe(120)
       expect(ds.isOutput).toBe(false)
+      expect(ds.profileHandle).toEqual({ kind: 'clip-body', clipId: 'r2', space: 'input' })
       expect(ds.pendingSelect).toEqual([{ kind: 'regionSelect', id: 'r2' }])
     }
     const up = c.pointerUp(snap)
@@ -574,23 +593,23 @@ describe('controller.cancel', () => {
 // ───────────────────────────────────────────────────────────────────────────
 
 describe('controller.pointerUp', () => {
-  it('anchor (input) drag: emits anchorEntityMove for the primary entity then clears state', () => {
-    // Phase 2.5: pointerUp emits single-entity anchorEntityMove instead of
-    // whole-array anchorsChanged. The resolver propagates to lasso followers.
+  it('anchor (input) drag: emits drag lifecycle (profile path) then clears state', () => {
+    // Clean single-anchor drag → ANCHOR_DRAG profile. pointerUp emits
+    // endDrag. ANCHOR_DRAG.onDrag dispatches the Move op via the drag
+    // intent during pointerMove. No legacy anchorEntityMove or whole-array
+    // anchorsChanged.
     const c = createTimelineController()
     const snap = makeSnapshot({
       anchors: [{ id: 1, time: 0 }],
       hits: [pointHit(0, 200, { kind: 'anchor', id: 1, space: 'input' })],
     })
-    c.pointerDown(makePointerEvent({ clientX: 0, clientY: 200 }), snap)
-    c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
+    const down = c.pointerDown(makePointerEvent({ clientX: 0, clientY: 200 }), snap)
+    expect(down.some(i => i.kind === 'beginDrag')).toBe(true)
+    const move = c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
+    expect(move.some(i => i.kind === 'drag')).toBe(true)
     const intents = c.pointerUp(snap)
-    const commit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
-    expect(commit).toBeDefined()
-    if (commit?.kind === 'anchorEntityMove') {
-      expect(commit.time).toBeCloseTo(50)
-    }
-    // Whole-array intent must NOT be emitted on the new path.
+    expect(intents.some(i => i.kind === 'endDrag')).toBe(true)
+    expect(intents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
     expect(intents.some(i => i.kind === 'anchorsChanged')).toBe(false)
     expect(intents.some(i => i.kind === 'pubClearGesture')).toBe(true)
     expect(intents.some(i => i.kind === 'cursor')).toBe(true)
@@ -599,8 +618,10 @@ describe('controller.pointerUp', () => {
   })
 
   it('anchor (input) drag never moves the same-id beat partner, even when linkedBeatIds includes the id', () => {
-    // Phase 2.5: pointerUp emits anchorEntityMove for the input-space entity only.
-    // The beat-space partner is NOT included unless it was explicitly selected.
+    // Profile-driven single-anchor drag — only the primary anchor's entity
+    // is targeted by the Move op inside ANCHOR_DRAG.onDrag. The beat
+    // partner is unaffected at the controller level; the resolver's
+    // DirectedPair handles linked propagation downstream.
     const c = createTimelineController()
     const snap = makeSnapshot({
       anchors: [{ id: 1, time: 10 }],
@@ -611,20 +632,14 @@ describe('controller.pointerUp', () => {
     c.pointerDown(makePointerEvent({ clientX: 80, clientY: 200 }), snap)
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const intents = c.pointerUp(snap)
-    // Input-space entity move emitted.
-    const inputCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
-    expect(inputCommit).toBeDefined()
-    if (inputCommit?.kind === 'anchorEntityMove') {
-      expect(inputCommit.time).toBeCloseTo(50)
-    }
-    // Beat-space partner must NOT have been pulled in.
-    expect(intents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')).toBe(false)
+    expect(intents.some(i => i.kind === 'endDrag')).toBe(true)
+    expect(intents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
     expect(intents.some(i => i.kind === 'anchorsChanged')).toBe(false)
     expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
   })
 
   it('anchor (output) drag never moves the same-id input partner, even when linkedBeatIds includes the id', () => {
-    // Phase 2.5: pointerUp emits anchorEntityMove for the output-space entity only.
+    // Profile-driven beat-anchor drag — onDrag's Move op targets only a7-out.
     const c = createTimelineController()
     const snap = makeSnapshot({
       anchors: [{ id: 7, time: 8 }],
@@ -635,24 +650,18 @@ describe('controller.pointerUp', () => {
     c.pointerDown(makePointerEvent({ clientX: 96, clientY: 200 }), snap)
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const intents = c.pointerUp(snap)
-    // Output-space entity move emitted.
-    const beatCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a7-out')
-    expect(beatCommit).toBeDefined()
-    if (beatCommit?.kind === 'anchorEntityMove') {
-      expect(beatCommit.time).toBeCloseTo(50)
-    }
-    // Input-space partner must NOT have been pulled in.
-    expect(intents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a7-in')).toBe(false)
+    expect(intents.some(i => i.kind === 'endDrag')).toBe(true)
+    expect(intents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
     expect(intents.some(i => i.kind === 'anchorsChanged')).toBe(false)
     expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
   })
 
-  it('warp-line drag moves both paired anchors by the same delta (orig commit only — beat carried by TranslateGroup)', () => {
-    // Pair drag emits only the ORIG anchorEntityMove at pointerUp; the
-    // lasso:main TranslateGroup installed at dragStart carries the snapped
-    // delta to the beat partner. Emitting an explicit beat would un-snap
-    // beat on commit (raw delta vs snapped orig delta diverge, the resolver
-    // bails on the divergence).
+  it('warp-line drag uses profile lifecycle (beginDrag/drag/endDrag) — no anchorEntityMove', () => {
+    // Pair drag is profile-driven: pointerDown emits beginDrag(pair-drag),
+    // pointerMove emits drag({ delta }), pointerUp emits endDrag. The
+    // PAIR_DRAG profile's onDrag dispatches a Move on the orig; the
+    // gesture-scoped TranslateGroup carries beat. No legacy
+    // anchorEntityMove or whole-array intents.
     const c = createTimelineController()
     const tracks = buildLayout(false, CANVAS_H)
     const warp = tracks.find(t => t.id === 'warp')!
@@ -662,19 +671,16 @@ describe('controller.pointerUp', () => {
       beatAnchors: [{ id: 1, time: 5 }],
       hits: [pointHit(80, warpY, { kind: 'warp-line', id: 1 })],
     })
-    c.pointerDown(makePointerEvent({ clientX: 80, clientY: warpY }), snap)
-    c.pointerMove(makePointerEvent({ clientX: 400, clientY: warpY }), snap)
-    const intents = c.pointerUp(snap)
-    const inputCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')
-    const beatCommit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')
-    expect(inputCommit).toBeDefined()
-    if (inputCommit?.kind === 'anchorEntityMove') {
-      expect(inputCommit.time).toBeCloseTo(50)
-    }
-    // No explicit beat commit — TranslateGroup propagates from the orig move.
-    expect(beatCommit).toBeUndefined()
-    expect(intents.some(i => i.kind === 'anchorsChanged')).toBe(false)
-    expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
+    const down = c.pointerDown(makePointerEvent({ clientX: 80, clientY: warpY }), snap)
+    expect(down.some(i => i.kind === 'beginDrag')).toBe(true)
+    const move = c.pointerMove(makePointerEvent({ clientX: 400, clientY: warpY }), snap)
+    expect(move.some(i => i.kind === 'drag')).toBe(true)
+    const up = c.pointerUp(snap)
+    expect(up.some(i => i.kind === 'endDrag')).toBe(true)
+    const all = [...down, ...move, ...up]
+    expect(all.some(i => i.kind === 'anchorEntityMove')).toBe(false)
+    expect(all.some(i => i.kind === 'anchorsChanged')).toBe(false)
+    expect(all.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
   })
 
   it('warp-line drag is inert when the id has no partner in one of the spaces', () => {
@@ -695,46 +701,51 @@ describe('controller.pointerUp', () => {
     expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
   })
 
-  it('unpaired input anchor drag emits only anchorEntityMove for the input entity (no beat partner)', () => {
-    // Phase 2.5: anchor id 1 has no beat-space partner with the same id →
-    // only an input-space anchorEntityMove (a1-in) is emitted on pointerUp.
+  it('unpaired input anchor drag drives ANCHOR_DRAG profile (no beat partner emitted)', () => {
+    // Anchor id 1 has no beat-space partner. Clean single-anchor drag →
+    // profile path. Only `drag` / `endDrag` lifecycle; ANCHOR_DRAG's
+    // onDrag targets only a1-in.
     const c = createTimelineController()
     const snap = makeSnapshot({
       anchors: [{ id: 1, time: 0 }],
-      // No beatAnchors with id=1
       beatAnchors: [{ id: 99, time: 50 }],
       hits: [pointHit(0, 200, { kind: 'anchor', id: 1, space: 'input' })],
     })
     c.pointerDown(makePointerEvent({ clientX: 0, clientY: 200 }), snap)
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const intents = c.pointerUp(snap)
-    expect(intents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')).toBe(true)
-    expect(intents.some(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-out')).toBe(false)
+    expect(intents.some(i => i.kind === 'endDrag')).toBe(true)
+    expect(intents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
     expect(intents.some(i => i.kind === 'anchorsChanged')).toBe(false)
     expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
   })
 
-  it('anchor (output) drag: emits anchorEntityMove for the primary beat-space entity', () => {
-    // Phase 2.5: pointerUp emits single-entity anchorEntityMove (a9-out) instead
-    // of whole-array beatAnchorsChanged.
+  it('anchor (output) drag drives ANCHOR_DRAG profile (beat-space)', () => {
+    // Clean single beat-anchor drag → profile path.
     const c = createTimelineController()
     const snap = makeSnapshot({
       beatAnchors: [{ id: 9, time: 0 }],
       hits: [pointHit(0, 200, { kind: 'anchor', id: 9, space: 'output' })],
     })
-    c.pointerDown(makePointerEvent({ clientX: 0, clientY: 200 }), snap)
+    const down = c.pointerDown(makePointerEvent({ clientX: 0, clientY: 200 }), snap)
+    expect(down.some(i =>
+      i.kind === 'beginDrag' &&
+      i.handle.kind === 'anchor-drag' &&
+      i.handle.anchorId === 9 &&
+      i.handle.space === 'beat',
+    )).toBe(true)
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const intents = c.pointerUp(snap)
-    const commit = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a9-out')
-    expect(commit).toBeDefined()
-    if (commit?.kind === 'anchorEntityMove') {
-      expect(commit.time).toBeCloseTo(50)
-    }
+    expect(intents.some(i => i.kind === 'endDrag')).toBe(true)
+    expect(intents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
     expect(intents.some(i => i.kind === 'beatAnchorsChanged')).toBe(false)
     expect(c.getDragState()).toBeNull()
   })
 
-  it('region-edge drag: emits regionResize with liveRegion + isOutput flag', () => {
+  it('region-edge drag (clipin): emits drag lifecycle (profile path)', () => {
+    // CLIP_EDGE_DRAG profile path for clipin edge drag (input space).
+    // pointerUp emits a final drag intent with the cumulative delta plus
+    // endDrag. origOut=30, new edge target=50 → delta=20.
     const c = createTimelineController()
     const snap = makeSnapshot({
       regions: [{ id: 'r1', inPoint: 10, outPoint: 30 }],
@@ -743,20 +754,18 @@ describe('controller.pointerUp', () => {
     c.pointerDown(makePointerEvent({ clientX: 240, clientY: 200 }), snap)
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const intents = c.pointerUp(snap)
-    const commit = intents.find(i => i.kind === 'regionResize')!
-    expect(commit).toBeDefined()
-    if (commit.kind === 'regionResize') {
-      expect(commit.id).toBe('r1')
-      expect(commit.inPoint).toBe(10)
-      expect(commit.outPoint).toBeCloseTo(50)
-      expect(commit.isOutput).toBe(false)
-    }
+    const dragFinal = intents.find(i => i.kind === 'drag') as Extract<Intent, { kind: 'drag' }> | undefined
+    expect(dragFinal).toBeDefined()
+    expect(dragFinal!.delta).toBeCloseTo(20)
+    expect(intents.some(i => i.kind === 'endDrag')).toBe(true)
+    expect(intents.some(i => i.kind === 'regionResize')).toBe(false)
     expect(c.getDragState()).toBeNull()
   })
 
-  it('region-move drag: emits regionEntityMove with delta on pointerUp', () => {
-    // Phase 2.5: pointerUp emits single-entity regionEntityMove (with delta)
-    // instead of the whole-array regionMove for every captured region.
+  it('region-move drag: emits drag lifecycle (profile path)', () => {
+    // CLIP_BODY_DRAG profile path: pointerUp emits a final drag with the
+    // cumulative delta (so beginReplayFrame's reset is followed by the
+    // final state) plus endDrag.
     const c = createTimelineController()
     const snap = makeSnapshot({
       regions: [{ id: 'r1', inPoint: 10, outPoint: 30 }],
@@ -764,16 +773,13 @@ describe('controller.pointerUp', () => {
     })
     c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
     // clientX 160→400 = +240px in 800px canvas over 100s view = +30s delta.
-    // newIn = Math.max(0, Math.min(100-20=80, 10+30)) = 40; newOut = 60.
     c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const intents = c.pointerUp(snap)
-    const commit = intents.find(i => i.kind === 'regionEntityMove' && i.id === 'r1')
-    expect(commit).toBeDefined()
-    if (commit?.kind === 'regionEntityMove') {
-      expect(commit.delta).toBeCloseTo(30)
-      expect(commit.isOutput).toBe(false)
-    }
-    expect(intents.some(i => i.kind === 'regionMove')).toBe(false)
+    const dragFinal = intents.find(i => i.kind === 'drag') as Extract<Intent, { kind: 'drag' }> | undefined
+    expect(dragFinal).toBeDefined()
+    expect(dragFinal!.delta).toBeCloseTo(30)
+    expect(intents.some(i => i.kind === 'endDrag')).toBe(true)
+    expect(intents.some(i => i.kind === 'regionEntityMove')).toBe(false)
   })
 
   it('lasso (active) drag: emits clip/scene/connector selection changes', () => {
@@ -1234,14 +1240,14 @@ describe('controller.pointerMove — minimap drag', () => {
 })
 
 describe('controller.pointerMove — anchor drag', () => {
-  it('emits anchorEntityMove with new time, plus pubDragTime + pubSnapHints + redraw (input space, no snap)', () => {
+  it('emits drag({ delta }) plus pubDragTime + pubSnapHints + redraw (input space, profile path)', () => {
     const c = createTimelineController()
     const snap = makeSnapshot({
       anchors: [{ id: 1, time: 0 }],
       hits: [pointHit(0, 200, { kind: 'anchor', id: 1, space: 'input' })],
     })
     c.pointerDown(makePointerEvent({ clientX: 0, clientY: 200 }), snap)
-    // Move to x=400 → raw time = 50
+    // Move to x=400 → raw time = 50; delta = 50 - 0 = 50
     const intents = c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
     const t = intents.find(i => i.kind === 'pubDragTime')!
     if (t.kind === 'pubDragTime') {
@@ -1250,8 +1256,9 @@ describe('controller.pointerMove — anchor drag', () => {
     }
     expect(intents.some(i => i.kind === 'pubSnapHints')).toBe(true)
     expect(intents.some(i => i.kind === 'redraw')).toBe(true)
-    const move = intents.find(i => i.kind === 'anchorEntityMove' && i.entityId === 'a1-in')!
-    if (move.kind === 'anchorEntityMove') expect(move.time).toBeCloseTo(50)
+    const dragIntent = intents.find(i => i.kind === 'drag')!
+    if (dragIntent.kind === 'drag') expect(dragIntent.delta).toBeCloseTo(50)
+    expect(intents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
   })
 
   it('publishes raw drag time (snap is handled by resolver, not controller)', () => {
@@ -1289,22 +1296,21 @@ describe('controller.pointerMove — anchor drag', () => {
 })
 
 describe('controller.pointerMove — region-edge drag', () => {
-  it('emits regionResize on edge drag (input, edge=out)', () => {
+  it('emits drag intent on edge drag (input, edge=out) — profile path', () => {
     const c = createTimelineController()
     const snap = makeSnapshot({
       regions: [{ id: 'r1', inPoint: 10, outPoint: 30 }],
       hits: [pointHit(240, 200, { kind: 'region-edge', id: 'r1', edge: 'out', isOutput: false })],
     })
     c.pointerDown(makePointerEvent({ clientX: 240, clientY: 200 }), snap)
-    // Move to x=400 → raw=50
+    // Move to x=400 → raw=50; origOut=30 → delta=20
     const intents = c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
-    const resize = intents.find(i => i.kind === 'regionResize')!
-    if (resize.kind === 'regionResize') {
-      expect(resize.id).toBe('r1')
-      expect(resize.inPoint).toBe(10)
-      expect(resize.outPoint).toBeCloseTo(50)
-      expect(resize.isOutput).toBe(false)
+    const dragIntent = intents.find(i => i.kind === 'drag')
+    expect(dragIntent).toBeDefined()
+    if (dragIntent?.kind === 'drag') {
+      expect(dragIntent.delta).toBeCloseTo(20)
     }
+    expect(intents.some(i => i.kind === 'regionResize')).toBe(false)
   })
 
   it('publishes raw drag time for edge (snap is handled by resolver)', () => {
@@ -1315,10 +1321,13 @@ describe('controller.pointerMove — region-edge drag', () => {
       hits: [pointHit(240, 200, { kind: 'region-edge', id: 'r1', edge: 'out', isOutput: false })],
     })
     c.pointerDown(makePointerEvent({ clientX: 240, clientY: 200 }), snap)
-    // Move to x=400 → raw=50; controller emits raw position (resolver snaps on dispatch)
+    // Move to x=400 → raw=50; origOut=30 → delta=50
     const intents = c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
-    const resize = intents.find(i => i.kind === 'regionResize')!
-    if (resize.kind === 'regionResize') expect(resize.outPoint).toBeCloseTo(50)
+    const dragIntent = intents.find(i => i.kind === 'drag')
+    expect(dragIntent).toBeDefined()
+    if (dragIntent?.kind === 'drag') {
+      expect(dragIntent.delta).toBeCloseTo(20)
+    }
   })
 
   it('output region-edge emits regionResize with isOutput=true', () => {
@@ -1343,7 +1352,7 @@ describe('controller.pointerMove — region-edge drag', () => {
 })
 
 describe('controller.pointerMove — region-move drag', () => {
-  it('emits regionEntityMove with delta preserving duration', () => {
+  it('emits drag intent with delta preserving duration (profile path)', () => {
     const c = createTimelineController()
     const snap = makeSnapshot({
       regions: [{ id: 'r1', inPoint: 10, outPoint: 30 }],
@@ -1351,13 +1360,14 @@ describe('controller.pointerMove — region-move drag', () => {
     })
     // anchorX = 160 (= t=20 in view 0..100, W=800)
     c.pointerDown(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
-    // Drag to x=400 (t=50) → delta=30 → new in=40, out=60
+    // Drag to x=400 (t=50) → delta=30
     const intents = c.pointerMove(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
-    const move = intents.find(i => i.kind === 'regionEntityMove' && i.id === 'r1')!
-    if (move.kind === 'regionEntityMove') {
-      expect(move.delta).toBeCloseTo(30)
-      expect(move.isOutput).toBe(false)
+    const dragIntent = intents.find(i => i.kind === 'drag')
+    expect(dragIntent).toBeDefined()
+    if (dragIntent?.kind === 'drag') {
+      expect(dragIntent.delta).toBeCloseTo(30)
     }
+    expect(intents.some(i => i.kind === 'regionEntityMove')).toBe(false)
   })
 
   it('publishes raw drag position (snap is handled by resolver)', () => {
@@ -1992,38 +2002,38 @@ describe('controller — Slice C: anchorsChanged emitted live during anchor drag
     })
   }
 
-  it('input anchor dragged to coincide with region inPoint emits anchorEntityMove with live position', () => {
-    // Phase 2.5: controller emits anchorEntityMove (single-entity op) instead
-    // of anchorsChanged (whole array). The resolver's lasso:main TranslateGroup
-    // propagates the delta to other selected entities.
+  it('input anchor dragged to coincide with region inPoint emits drag intent with live delta', () => {
+    // ANCHOR_DRAG profile (clean single-anchor drag, not pre-conformed at
+    // pointerDown). drag intent carries the cumulative delta; the resolver
+    // applies the Move through ANCHOR_DRAG.onDrag at dispatch time.
     const c = createTimelineController()
     const snap = makeSliceCInputSnap()
     c.pointerDown(makePointerEvent({ clientX: 40, clientY: 200 }), snap)
-    // Move to x=80 → t = 80/800*100 = 10 (= inPoint of the active region)
+    // Move to x=80 → t=10; delta = 10 - 5 = 5
     const intents = c.pointerMove(makePointerEvent({ clientX: 80, clientY: 200 }), snap)
-    const moved = intents.find(i => i.kind === 'anchorEntityMove')
-    expect(moved).toBeDefined()
-    if (moved?.kind === 'anchorEntityMove') {
-      expect(moved.entityId).toBe('a1-in')
-      expect(moved.time).toBeCloseTo(10) // anchor dragged to inPoint
+    const dragIntent = intents.find(i => i.kind === 'drag')
+    expect(dragIntent).toBeDefined()
+    if (dragIntent?.kind === 'drag') {
+      expect(dragIntent.delta).toBeCloseTo(5)
     }
+    expect(intents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
   })
 
-  it('input anchor NOT coincident with region boundary → anchorEntityMove still emitted with live position', () => {
+  it('input anchor NOT coincident with region boundary → drag intent still emitted with live delta', () => {
     const c = createTimelineController()
     const snap = makeSliceCInputSnap()
     c.pointerDown(makePointerEvent({ clientX: 40, clientY: 200 }), snap)
-    // Move to x=200 → t=25 (NOT near inPoint=10 or outPoint=20)
+    // Move to x=200 → t=25; delta = 25 - 5 = 20
     const intents = c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
-    const moved = intents.find(i => i.kind === 'anchorEntityMove')
-    expect(moved).toBeDefined()
-    if (moved?.kind === 'anchorEntityMove') {
-      expect(moved.entityId).toBe('a1-in')
-      expect(moved.time).toBeCloseTo(25) // anchor at new position
+    const dragIntent = intents.find(i => i.kind === 'drag')
+    expect(dragIntent).toBeDefined()
+    if (dragIntent?.kind === 'drag') {
+      expect(dragIntent.delta).toBeCloseTo(20)
     }
+    expect(intents.some(i => i.kind === 'anchorEntityMove')).toBe(false)
   })
 
-  it('input anchor dragged to coincide with region outPoint emits anchorEntityMove with live position', () => {
+  it('input anchor dragged to coincide with region outPoint emits drag intent with live delta', () => {
     const c = createTimelineController()
     const snap = makeSnapshot({
       view: { start: 0, end: 100 },
@@ -2042,18 +2052,17 @@ describe('controller — Slice C: anchorsChanged emitted live during anchor drag
       hits: [pointHit(40, 200, { kind: 'anchor', id: 2, space: 'input' })],
     })
     c.pointerDown(makePointerEvent({ clientX: 40, clientY: 200 }), snap)
-    // Move to x=160 → t = 160/800*100 = 20 (= outPoint of active region)
+    // Move to x=160 → t=20; delta = 20 - 5 = 15
     const intents = c.pointerMove(makePointerEvent({ clientX: 160, clientY: 200 }), snap)
-    const moved = intents.find(i => i.kind === 'anchorEntityMove')
-    expect(moved).toBeDefined()
-    if (moved?.kind === 'anchorEntityMove') {
-      expect(moved.entityId).toBe('a2-in')
-      expect(moved.time).toBeCloseTo(20) // anchor dragged to outPoint
+    const dragIntent = intents.find(i => i.kind === 'drag')
+    expect(dragIntent).toBeDefined()
+    if (dragIntent?.kind === 'drag') {
+      expect(dragIntent.delta).toBeCloseTo(15)
     }
   })
 
-  it('output anchor dragged to coincide with inBeatTime emits anchorEntityMove with live position', () => {
-    // Phase 2.5: controller emits anchorEntityMove for beat anchors too.
+  it('output anchor dragged to coincide with inBeatTime emits drag intent with live delta', () => {
+    // Profile-driven beat-anchor drag (clean single-anchor).
     const c = createTimelineController()
     const snap = makeSnapshot({
       view: { start: 0, end: 20 },
@@ -2073,13 +2082,12 @@ describe('controller — Slice C: anchorsChanged emitted live during anchor drag
       hits: [pointHit(400, 200, { kind: 'anchor', id: 3, space: 'output' })],
     })
     c.pointerDown(makePointerEvent({ clientX: 400, clientY: 200 }), snap)
-    // Move to beat=5 → pixel = (5/20)*800 = 200
+    // Move to beat=5 → pixel = (5/20)*800 = 200; delta = 5 - 10 = -5
     const intents = c.pointerMove(makePointerEvent({ clientX: 200, clientY: 200 }), snap)
-    const moved = intents.find(i => i.kind === 'anchorEntityMove')
-    expect(moved).toBeDefined()
-    if (moved?.kind === 'anchorEntityMove') {
-      expect(moved.entityId).toBe('a3-out')
-      expect(moved.time).toBeCloseTo(5) // beat anchor dragged to inBeatTime
+    const dragIntent = intents.find(i => i.kind === 'drag')
+    expect(dragIntent).toBeDefined()
+    if (dragIntent?.kind === 'drag') {
+      expect(dragIntent.delta).toBeCloseTo(-5)
     }
   })
 })

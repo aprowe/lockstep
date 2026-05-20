@@ -152,6 +152,13 @@ export type DragState =
        *  id). Pair drags translate by cursor pixel delta, not by snapped
        *  input-time delta from the grabbed anchor's origTime. */
       isPair: boolean
+      /** Profile handle for the active drag, set at pointerDown only by
+       *  branches that emit `beginDrag` (warp-line currently; other handle
+       *  kinds migrate one at a time). When set, handleAnchorDrag emits the
+       *  profile-driven `drag` intent instead of legacy `anchorEntityMove`.
+       *  Distinct from `isPair` because `isPair` is also true for
+       *  conformed-input single-anchor drags that do NOT use profiles. */
+      profileHandle?: import('../constraints/profiles/types').Handle
       /** Same-space anchor ids that participate in this drag (multi-select).
        *  Always includes the dragged id; size > 1 means the user grabbed an
        *  already-selected anchor. Each moves by the same time delta. */
@@ -214,6 +221,10 @@ export type DragState =
        *  to re-emit the final regionResize commit. */
       lastIn?: number
       lastOut?: number
+      /** Profile handle when this drag is profile-driven (clean single-edge
+       *  drag). Combined-gesture or coupled cases stay on the legacy
+       *  regionResize emit path. */
+      profileHandle?: import('../constraints/profiles/types').Handle
     }
   | {
       kind: 'region-move'
@@ -243,6 +254,10 @@ export type DragState =
       /** Last computed delta from pointerMove. Used by pointerUp to re-emit
        *  the final regionEntityMove commit. */
       lastDelta?: number
+      /** Profile handle when this drag is profile-driven (clean single-clip
+       *  body drag). Combined-gesture cases stay on the legacy
+       *  regionEntityMove emit path. */
+      profileHandle?: import('../constraints/profiles/types').Handle
     }
   | {
       kind: 'lasso'
@@ -340,6 +355,13 @@ export type Intent =
   | { kind: 'dragStart' }
   | { kind: 'dragEnd' }
   | { kind: 'dragCancel' }
+  /** Profile-driven drag lifecycle (replaces the per-handle intents above
+   *  one profile at a time). `beginDrag` snapshots preDrag and records the
+   *  active handle; `drag` carries the cumulative delta from drag start
+   *  and the current modifier state; `endDrag` clears gesture state. */
+  | { kind: 'beginDrag'; handle: import('../constraints/profiles/types').Handle }
+  | { kind: 'drag';      delta: number; modifiers: { alt: boolean } }
+  | { kind: 'endDrag' }
   // canvas-side hints
   | { kind: 'cursor'; cursor: '' | 'grab' | 'grabbing' | 'ew-resize' | 'pointer' }
   | { kind: 'redraw' }

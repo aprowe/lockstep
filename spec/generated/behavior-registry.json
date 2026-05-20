@@ -1153,7 +1153,7 @@
         "And the region is reported as default-linked"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 20
+      "line": 18
     },
     "clip-bounds::5097f090": {
       "feature": "Clip Bounds",
@@ -1166,7 +1166,7 @@
         "And clipout's out-edge displays at outPoint"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 26
+      "line": 24
     },
     "clip-bounds::9395ff6f": {
       "feature": "Clip Bounds",
@@ -1179,7 +1179,7 @@
         "And clipin and clipout no longer share horizontal positions"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 32
+      "line": 30
     },
     "clip-bounds::5a8b1c35": {
       "feature": "Clip Bounds",
@@ -1192,7 +1192,7 @@
         "Then the region's start is 10"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 41,
+      "line": 39,
       "tests": [
         "tests/bdd/timeline/clip-bounds.test.ts"
       ]
@@ -1208,7 +1208,7 @@
         "Then the region's start is 10"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 47
+      "line": 45
     },
     "clip-bounds::81a824ce": {
       "feature": "Clip Bounds",
@@ -1220,7 +1220,7 @@
         "Then the region moves to (25,35) so its length is unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 53
+      "line": 51
     },
     "clip-bounds::1e62c5a7": {
       "feature": "Clip Bounds",
@@ -1232,7 +1232,7 @@
         "Then a new region is created starting at 20."
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 58
+      "line": 56
     },
     "clip-bounds::a08c0625": {
       "feature": "Clip Bounds",
@@ -1244,7 +1244,7 @@
         "Then a new region is created starting at 30."
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 63
+      "line": 61
     },
     "clip-bounds::06c30b25": {
       "feature": "Clip Bounds",
@@ -1256,7 +1256,7 @@
         "Then the region span is now <c> to <d> seconds"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 68
+      "line": 66
     },
     "clip-bounds::8636d673": {
       "feature": "Clip Bounds",
@@ -1268,7 +1268,7 @@
         "Then the zoom action is called"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 79
+      "line": 77
     },
     "clip-bounds::05c4aa04": {
       "feature": "Clip Bounds",
@@ -1280,7 +1280,7 @@
         "Then the zoom and bounds are set so the region is 100% of the timeline"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 84
+      "line": 82
     },
     "clip-bounds::dee40ba3": {
       "feature": "Clip Bounds",
@@ -1293,7 +1293,7 @@
         "Then the zoom and bounds are set to what they were before the first zoom"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 89
+      "line": 87
     },
     "clip-bounds::cace54c4": {
       "feature": "Clip Bounds",
@@ -1307,7 +1307,7 @@
         "And only the anchor moves"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 100
+      "line": 98
     },
     "clip-bounds::d53a858f": {
       "feature": "Clip Bounds",
@@ -1321,7 +1321,7 @@
         "And only the clip boundaries move"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 107
+      "line": 105
     },
     "clip-bounds::2af351c2": {
       "feature": "Clip Bounds",
@@ -1333,7 +1333,7 @@
         "Then clip out edges move as well, since they are linked"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 114
+      "line": 112
     },
     "clip-bounds::cc923ff9": {
       "feature": "Clip Bounds",
@@ -1345,7 +1345,7 @@
         "Then the region's in-edge is reported as input-linked to that anchor"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 137
+      "line": 135
     },
     "clip-bounds::c4dc46fe": {
       "feature": "Clip Bounds",
@@ -1357,7 +1357,7 @@
         "Then the region's out-edge is reported as input-linked to that anchor"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 142
+      "line": 140
     },
     "clip-bounds::f6af8104": {
       "feature": "Clip Bounds",
@@ -1370,7 +1370,7 @@
         "And inBeatTime keeps its last committed value (no auto-revert)"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 147
+      "line": 145
     },
     "clip-bounds::ab18be68": {
       "feature": "Clip Bounds",
@@ -1383,7 +1383,7 @@
         "Then the region's in-edge becomes input-linked to that new anchor"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 153
+      "line": 151
     },
     "clip-bounds::0d279ada": {
       "feature": "Clip Bounds",
@@ -1395,7 +1395,7 @@
         "Then the in-edge is reported as input-linked to the anchor with pair id 3"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 159
+      "line": 157
     },
     "clip-bounds::cedbf97a": {
       "feature": "Clip Bounds",
@@ -1408,7 +1408,7 @@
         "And the clipout's in-edge displays at the beat anchor's beat time"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 166
+      "line": 164
     },
     "clip-bounds::cfd0b60b": {
       "feature": "Clip Bounds",
@@ -1420,7 +1420,7 @@
         "Then the region's out-edge is reported as output-linked to that beat anchor"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 172
+      "line": 170
     },
     "clip-bounds::030eeecd": {
       "feature": "Clip Bounds",
@@ -1433,7 +1433,7 @@
         "And outBeatTime keeps its last committed value (no auto-revert)"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 177
+      "line": 175
     },
     "clip-bounds::fc32d974": {
       "feature": "Clip Bounds",
@@ -1446,7 +1446,7 @@
         "Then the region's out-edge becomes output-linked to that new beat anchor"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 183
+      "line": 181
     },
     "clip-bounds::5fcca95f": {
       "feature": "Clip Bounds",
@@ -1458,7 +1458,7 @@
         "Then the out-edge is reported as output-linked to the anchor with pair id 3"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 189
+      "line": 187
     },
     "clip-bounds::a7c3e530": {
       "feature": "Clip Bounds",
@@ -1471,7 +1471,7 @@
         "And the in-edge is reported as output-linked to the paired beat anchor"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 194
+      "line": 192
     },
     "clip-bounds::de128f69": {
       "feature": "Clip Bounds",
@@ -1487,7 +1487,7 @@
         "And nothing has yet been committed to undoable state"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 212,
+      "line": 210,
       "todo": true,
       "tags": [
         "@ignore"
@@ -1507,7 +1507,7 @@
         "And lock is unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 221
+      "line": 219
     },
     "clip-bounds::e2c70d37": {
       "feature": "Clip Bounds",
@@ -1521,7 +1521,7 @@
         "And inBeatTime, outBeatTime, BPM, lockedBeats all match pre-drag values"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 231,
+      "line": 229,
       "todo": true,
       "tags": [
         "@ignore"
@@ -1540,7 +1540,7 @@
         "And lock stays at <lock>"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 238
+      "line": 236
     },
     "clip-bounds::2acee4ea": {
       "feature": "Clip Bounds",
@@ -1555,7 +1555,7 @@
         "And BPM is unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 250
+      "line": 248
     },
     "clip-bounds::e12f10b0": {
       "feature": "Clip Bounds",
@@ -1572,7 +1572,7 @@
         "And BPM is unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 258
+      "line": 256
     },
     "clip-bounds::8d1af4ca": {
       "feature": "Clip Bounds",
@@ -1587,7 +1587,7 @@
         "And lockedBeats recomputes (BPM stays — even though lock='beats')"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 268
+      "line": 266
     },
     "clip-bounds::a6f4c36c": {
       "feature": "Clip Bounds",
@@ -1603,7 +1603,7 @@
         "And nothing has yet been committed to undoable state"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 282
+      "line": 280
     },
     "clip-bounds::b8e81d29": {
       "feature": "Clip Bounds",
@@ -1619,7 +1619,7 @@
         "And lock is unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 291
+      "line": 289
     },
     "clip-bounds::ba5066a5": {
       "feature": "Clip Bounds",
@@ -1633,7 +1633,7 @@
         "And outBeatTime, BPM, lockedBeats all match pre-drag values"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 300
+      "line": 298
     },
     "clip-bounds::9681d7b6": {
       "feature": "Clip Bounds",
@@ -1648,7 +1648,7 @@
         "And lock stays at <lock>"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 307
+      "line": 305
     },
     "clip-bounds::6aca21d6": {
       "feature": "Clip Bounds",
@@ -1663,7 +1663,7 @@
         "And BPM is unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 319
+      "line": 317
     },
     "clip-bounds::048403db": {
       "feature": "Clip Bounds",
@@ -1678,7 +1678,7 @@
         "And lockedBeats recomputes (BPM stays — linking event always behaves like lock='bpm')"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 327
+      "line": 325
     },
     "clip-bounds::a1d78742": {
       "feature": "Clip Bounds",
@@ -1691,7 +1691,7 @@
         "And lockedBeats recomputes to 30 from the new clipout length"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 335
+      "line": 333
     },
     "clip-bounds::f0e33aba": {
       "feature": "Clip Bounds",
@@ -1705,7 +1705,7 @@
         "And nothing is committed until pointerUp"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 347
+      "line": 345
     },
     "clip-bounds::196667f4": {
       "feature": "Clip Bounds",
@@ -1721,7 +1721,7 @@
         "And lockedBeats becomes 16"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 354
+      "line": 352
     },
     "clip-bounds::eedb788e": {
       "feature": "Clip Bounds",
@@ -1737,7 +1737,7 @@
         "And BPM becomes 150"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 363
+      "line": 361
     },
     "clip-bounds::7fd0d32d": {
       "feature": "Clip Bounds",
@@ -1750,7 +1750,7 @@
         "And the lock-dependent value (BPM or lockedBeats) updates"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 372
+      "line": 370
     },
     "clip-bounds::01e85177": {
       "feature": "Clip Bounds",
@@ -1764,7 +1764,7 @@
         "And BPM and lockedBeats are unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 378
+      "line": 376
     },
     "clip-bounds::293237ae": {
       "feature": "Clip Bounds",
@@ -1778,7 +1778,7 @@
         "And nothing is committed until pointerUp"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 390
+      "line": 388
     },
     "clip-bounds::4577f792": {
       "feature": "Clip Bounds",
@@ -1792,7 +1792,7 @@
         "And inPoint and outPoint are unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 397
+      "line": 395
     },
     "clip-bounds::509fff08": {
       "feature": "Clip Bounds",
@@ -1807,7 +1807,7 @@
         "And inPoint and outPoint are unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 410
+      "line": 408
     },
     "clip-bounds::5c6f942f": {
       "feature": "Clip Bounds",
@@ -1820,7 +1820,7 @@
         "And the link is preserved at the new position (inBeatTime = the anchor's beat time)"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 418
+      "line": 416
     },
     "clip-bounds::9577055c": {
       "feature": "Clip Bounds",
@@ -1834,7 +1834,7 @@
         "And not to scene cuts (scenes live in input space)"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 425,
+      "line": 423,
       "todo": true,
       "tags": [
         "@ignore"
@@ -1850,7 +1850,7 @@
         "Then the moving edge stops at 0.1 seconds from the opposite edge"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 433,
+      "line": 431,
       "todo": true,
       "tags": [
         "@ignore"
@@ -1866,7 +1866,7 @@
         "Then the edge clamps to the boundary"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 439,
+      "line": 437,
       "todo": true,
       "tags": [
         "@ignore"
@@ -1886,7 +1886,7 @@
         "And clipoutLength, BPM, and lockedBeats all stay unchanged in the preview"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 448
+      "line": 446
     },
     "clip-bounds::06d6d8b1": {
       "feature": "Clip Bounds",
@@ -1902,7 +1902,7 @@
         "And inPoint and outPoint are unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 454
+      "line": 452
     },
     "clip-bounds::0f219604": {
       "feature": "Clip Bounds",
@@ -1915,7 +1915,7 @@
         "And the links are preserved at the new positions"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 463
+      "line": 461
     },
     "clip-bounds::46814eb5": {
       "feature": "Clip Bounds",
@@ -1927,7 +1927,7 @@
         "And the other edge translates by the same delta"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 470,
+      "line": 468,
       "todo": true,
       "tags": [
         "@ignore"
@@ -1943,7 +1943,7 @@
         "Then the body clamps so both edges remain inside the bounds"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 476,
+      "line": 474,
       "todo": true,
       "tags": [
         "@ignore"
@@ -1962,7 +1962,7 @@
         "Then the BPM tick grid repositions in real time to reflect the new clip in point"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 484,
+      "line": 482,
       "todo": true,
       "tags": [
         "@ignore"
@@ -1979,7 +1979,7 @@
         "Then the BPM tick grid repositions in real time to reflect the anchor's current beat position"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 490,
+      "line": 488,
       "todo": true,
       "tags": [
         "@ignore"
@@ -1997,7 +1997,7 @@
         "And BPM, lockedBeats, and clipout length are otherwise unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 504
+      "line": 502
     },
     "clip-bounds::563261aa": {
       "feature": "Clip Bounds",
@@ -2010,7 +2010,7 @@
         "And lockedBeats and clipout length are unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 511
+      "line": 509
     },
     "clip-bounds::c44357be": {
       "feature": "Clip Bounds",
@@ -2022,7 +2022,7 @@
         "Then lock remains 'beats' afterward"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 517
+      "line": 515
     },
     "clip-bounds::371413d9": {
       "feature": "Clip Bounds",
@@ -2035,7 +2035,7 @@
         "And the eventual commit (pointerUp) uses the lock value at commit time"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 523,
+      "line": 521,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2054,7 +2054,7 @@
         "And inPoint and outPoint stay unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 542
+      "line": 540
     },
     "clip-bounds::3a323e38": {
       "feature": "Clip Bounds",
@@ -2069,7 +2069,7 @@
         "And inner beat anchors rescale proportionally around inBeatTime"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 551,
+      "line": 549,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2088,7 +2088,7 @@
         "And inBeatTime stays at 5 and the region remains diverged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 559
+      "line": 557
     },
     "clip-bounds::4c0606b3": {
       "feature": "Clip Bounds",
@@ -2104,7 +2104,7 @@
         "And inBeatTime stays at 5 and the region remains diverged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 567
+      "line": 565
     },
     "clip-bounds::5a81fd24": {
       "feature": "Clip Bounds",
@@ -2119,7 +2119,7 @@
         "And inPoint and outPoint stay unchanged (diverged region)"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 576
+      "line": 574
     },
     "clip-bounds::d3fdfab8": {
       "feature": "Clip Bounds",
@@ -2134,7 +2134,7 @@
         "And BPM stays at 120"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 585,
+      "line": 583,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2151,7 +2151,7 @@
         "Then the shared anchor is rescaled as part of the active region's clipout"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 594,
+      "line": 592,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2170,7 +2170,7 @@
         "And clipin (inPoint/outPoint) stays unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 601,
+      "line": 599,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2188,7 +2188,7 @@
         "And BPM and lockedBeats are unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 619
+      "line": 617
     },
     "clip-bounds::345274d2": {
       "feature": "Clip Bounds",
@@ -2201,7 +2201,7 @@
         "And inBeatTime keeps its last committed value"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 626
+      "line": 624
     },
     "clip-bounds::5e32172b": {
       "feature": "Clip Bounds",
@@ -2215,7 +2215,7 @@
         "And no auto-revert to inPoint occurs"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 632
+      "line": 630
     },
     "clip-bounds::34c0c63f": {
       "feature": "Clip Bounds",
@@ -2230,7 +2230,7 @@
         "And BPM is unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 639
+      "line": 637
     },
     "clip-bounds::a613bbbd": {
       "feature": "Clip Bounds",
@@ -2245,7 +2245,7 @@
         "Then state.ui.anchorLock becomes false"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 667,
+      "line": 665,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2264,7 +2264,7 @@
         "Then the button returns to its normal (OFF) display"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 676,
+      "line": 674,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2281,7 +2281,7 @@
         "And state.ui.anchorLock is still true (no persistent change)"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 685,
+      "line": 683,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2299,7 +2299,7 @@
         "And state.ui.anchorLock stays at false after pointerUp"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 691
+      "line": 689
     },
     "clip-bounds::3a3a8ceb": {
       "feature": "Clip Bounds",
@@ -2313,7 +2313,7 @@
         "And state.ui.anchorLock stays at false after pointerUp"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 698
+      "line": 696
     },
     "clip-bounds::72d82c96": {
       "feature": "Clip Bounds",
@@ -2329,7 +2329,7 @@
         "And the beat anchors rescale proportionally around inBeatTime (12 → 11.6, 16 → 14.8)"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 705
+      "line": 703
     },
     "clip-bounds::7cef4a91": {
       "feature": "Clip Bounds",
@@ -2345,7 +2345,7 @@
         "And the beat anchors stay at beat times 12 and 16 (unchanged)"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 714
+      "line": 712
     },
     "clip-bounds::17ce6ab7": {
       "feature": "Clip Bounds",
@@ -2361,7 +2361,7 @@
         "And the beat anchors stay at beat times 12 and 16"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 723
+      "line": 721
     },
     "clip-bounds::13a9236b": {
       "feature": "Clip Bounds",
@@ -2377,7 +2377,7 @@
         "And anchors outside the original clipout window are unchanged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 732
+      "line": 730
     },
     "clip-bounds::453661d7": {
       "feature": "Clip Bounds",
@@ -2392,7 +2392,7 @@
         "And the beat anchors stay at 12, 18, and 25"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 741
+      "line": 739
     },
     "clip-bounds::a24479ad": {
       "feature": "Clip Bounds",
@@ -2406,7 +2406,7 @@
         "Then the shared anchor moves with the active region"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 750,
+      "line": 748,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2423,7 +2423,7 @@
         "And no commit enters the undo stack"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 762
+      "line": 760
     },
     "clip-bounds::4b3a2daa": {
       "feature": "Clip Bounds",
@@ -2438,7 +2438,7 @@
         "And clipin and clipout render at the same horizontal positions"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 782,
+      "line": 780,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2453,7 +2453,7 @@
         "Then the Reset Boundary button is disabled (not clickable)"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 791,
+      "line": 789,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2471,7 +2471,7 @@
         "And the region is reported as diverged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 796,
+      "line": 794,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2489,7 +2489,7 @@
         "And no drag has yet committed"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 810,
+      "line": 808,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2506,7 +2506,7 @@
         "Then region B becomes the active region immediately"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 818,
+      "line": 816,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2524,7 +2524,7 @@
         "And region B's in-edge is not dragged"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 825,
+      "line": 823,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2541,7 +2541,7 @@
         "Then the hit is resolved to region B's edge"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 833,
+      "line": 831,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2559,7 +2559,7 @@
         "And the undo stack has no new entry"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 848,
+      "line": 846,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2578,7 +2578,7 @@
         "And the commit enters the undo stack at pointerUp"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 856,
+      "line": 854,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2596,7 +2596,7 @@
         "And the paired beat anchor at beatTime 18 carries with the clipout body translation"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 865,
+      "line": 863,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2613,7 +2613,7 @@
         "And other regions' clipout edges still appear as snap targets"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 880,
+      "line": 878,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2629,7 +2629,7 @@
         "Then the region's own clipin projected bounds (10 and 20, in beat-space coords) are offered as snap targets"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 887,
+      "line": 885,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2648,7 +2648,7 @@
         "And no new region is created"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 900,
+      "line": 898,
       "todo": true,
       "tags": [
         "@ignore"
@@ -2667,7 +2667,7 @@
         "And no new region is created"
       ],
       "file": "spec/features/timeline/clip-bounds.feature",
-      "line": 909,
+      "line": 907,
       "todo": true,
       "tags": [
         "@ignore"

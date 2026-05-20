@@ -55,6 +55,13 @@ export interface PipelineSlice {
       clipout: string[]
     }
   }
+  /** Selected anchor IDs per space, mirrored into the lasso TranslateGroup
+   *  by buildGraphFromSlice. Read directly from warp slice — no separate
+   *  mirror in dragCtxSlice. */
+  selection?: {
+    orig: number[]
+    beat: number[]
+  }
   /** Scene cut times for the active video, in seconds. Synthesized into
    *  anchor-like entities at build time so the snap engine can target them. */
   scenes?: number[]
@@ -396,9 +403,24 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
 
   // ── Transient (dragCtx) constraints ──────────────────────────────────────
 
-  // 8. Lasso TranslateGroup — from dragCtx.lassoIds (written by selectionGraphMirrorMiddleware).
-  if (dragCtx.lassoIds.length > 0) {
-    state = reduce(state, lasso('main', dragCtx.lassoIds))
+  // 8. Lasso TranslateGroup — preferred source: slice selection (read
+  //    directly from warp.selectedOrigIds + warp.selectedBeatIds +
+  //    lists.selection.clipin + clipout). Legacy fallback: dragCtx.lassoIds
+  //    (still populated by selectionGraphMirrorMiddleware, kept for the
+  //    transitional period).
+  let lassoIds: EntityId[] = []
+  if (slice.selection) {
+    for (const n of slice.selection.orig)  lassoIds.push(anchorInId(n))
+    for (const n of slice.selection.beat)  lassoIds.push(anchorOutId(n))
+    for (const s of slice.lists.selection.clipin)  lassoIds.push(regionInId(s))
+    for (const s of slice.lists.selection.clipout) lassoIds.push(regionOutId(s))
+    lassoIds = [...new Set(lassoIds)]
+  }
+  if (lassoIds.length === 0 && dragCtx.lassoIds.length > 0) {
+    lassoIds = dragCtx.lassoIds
+  }
+  if (lassoIds.length > 0) {
+    state = reduce(state, lasso('main', lassoIds))
   }
 
   // 9. (SnapTarget moved to step 3b above — must install before MirrorPair
@@ -572,20 +594,32 @@ export function extractDragCtxFromSlice(state: {
   gesture?: {
     activeHandle: import('./profiles/types').Handle | null
     modifiers:    { alt: boolean }
+    snapInstall?: {
+      entityId: string
+      field: 'time' | 'in' | 'out'
+      threshold: number
+      grid?: { interval: number; offset: number }
+      mode?: 'edge' | 'body'
+      targets?: Array<{ entityId: string; field: 'time' | 'in' | 'out' }>
+    } | null
   }
 }): DragCtx {
   const dc = state.dragCtx
   const g  = state.gesture
+  // Snap install: prefer gesture.snapInstall (new path), fall back to
+  // dragCtx.snapInstall during the transitional period.
+  const snapInstall = g?.snapInstall ?? dc?.snapInstall ?? undefined
   if (!dc) {
     return {
       lassoIds: [],
+      snapInstall:  snapInstall ?? undefined,
       activeHandle: g?.activeHandle ?? null,
       modifiers:    g?.modifiers    ?? { alt: false },
     }
   }
   return {
     lassoIds:     dc.lassoIds,
-    snapInstall:  dc.snapInstall ?? undefined,
+    snapInstall:  snapInstall ?? undefined,
     anchorLock:   dc.anchorLock  ?? undefined,
     activeHandle: g?.activeHandle ?? null,
     modifiers:    g?.modifiers    ?? { alt: false },

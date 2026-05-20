@@ -30,7 +30,7 @@ export function extractSliceForPipeline(state: RootState): PipelineSlice {
   // `state` is typed as RootState but test stores may be narrower objects.
   // Use optional chaining + nullish fallbacks for resilience.
   const s = state as unknown as {
-    warp?:       { origAnchors?: Array<{ id: number; time: number }>; beatAnchors?: Array<{ id: number; time: number; linked?: boolean }> }
+    warp?:       { origAnchors?: Array<{ id: number; time: number }>; beatAnchors?: Array<{ id: number; time: number; linked?: boolean }>; selectedOrigIds?: number[]; selectedBeatIds?: number[] }
     region?:     { regions?: Array<{ id: string; inPoint: number; outPoint: number; inBeatTime: number; outBeatTime: number; bpm?: number; lockedBeats?: number; defaultLinked: boolean }>; activeRegionId?: string | null }
     ui?:         { anchorLock?: boolean; anchorLockGestureOverride?: boolean | null; lockMode?: 'bpm' | 'beats' }
     lists?:      { selection?: { clipin?: string[]; clipout?: string[] } }
@@ -77,6 +77,10 @@ export function extractSliceForPipeline(state: RootState): PipelineSlice {
         clipin:  s.lists?.selection?.clipin  ?? [],
         clipout: s.lists?.selection?.clipout ?? [],
       },
+    },
+    selection: {
+      orig: s.warp?.selectedOrigIds ?? [],
+      beat: s.warp?.selectedBeatIds ?? [],
     },
     scenes,
   }

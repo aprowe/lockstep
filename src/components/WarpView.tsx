@@ -53,10 +53,7 @@ import { moveAnchors, moveBeatAnchors } from '../store/thunks/regionThunks'
 import { applyAnchorEntityMove, applyRegionEntityMove } from '../store/thunks/entityWriteThunks'
 import { beginReplayFrame } from '../constraints/pipelineDispatch'
 import { snapToSiblings } from '../constraints/recipes'
-import {
-  setSnapInstall,
-  clearSnapInstall,
-} from '../store/slices/dragCtxSlice'
+import { setGestureSnapInstall } from '../store/slices/gestureSlice'
 import {
   origToBeat as beatMapOrigToBeat,
   beatToOrig as beatMapBeatToOrig,
@@ -666,7 +663,10 @@ export default function WarpView({
               grid?: { interval: number; offset: number }; mode?: 'edge' | 'body'
               targets: Array<{ entityId: string; field: 'time' | 'in' | 'out' }>
             }
-            dispatch(setSnapInstall({
+            // Write to gestureSlice (new path). dragCtx.snapInstall is no
+            // longer the source of truth — extractDragCtxFromSlice prefers
+            // gesture.snapInstall.
+            dispatch(setGestureSnapInstall({
               entityId:  snap.id,
               field:     snap.field,
               threshold: snap.threshold,
@@ -677,7 +677,7 @@ export default function WarpView({
           }
         }}
         onSnapEnd={(_entityId, _field) => {
-          dispatch(clearSnapInstall())
+          dispatch(setGestureSnapInstall(null))
         }}
         constraintGraph={constraintGraph}
         onRegionZoom={onClipOverlayZoom}

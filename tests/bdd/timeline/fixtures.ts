@@ -14,7 +14,12 @@ import { moveAnchors, moveBeatAnchors, moveRegionBounds } from '../../../src/sto
 import { commitClipoutResize, commitClipoutPan } from '../../../src/store/thunks/clipoutThunks'
 import { applyRegionEntityMove, applyAnchorEntityMove } from '../../../src/store/thunks/entityWriteThunks'
 import { dragStart, dragEnd } from '../../../src/store/slices/dragSlice'
-import { cancelDrag, snapshotPreDragState } from '../../../src/store/thunks/dragThunks'
+import {
+  cancelDrag, snapshotPreDragState,
+  beginDrag as beginDragThunk,
+  drag as dragThunk,
+  endDrag as endDragThunk,
+} from '../../../src/store/thunks/dragThunks'
 
 const DEFAULT_CANVAS = { width: 1000, height: 600 }
 const DEFAULT_VIEW: View = { start: 0, end: 100 }
@@ -314,6 +319,15 @@ export function driveController(opts: DriverOptions): DriverHandle {
           break
         case 'dragCancel':
           store.dispatch(cancelDrag())
+          break
+        case 'beginDrag':
+          store.dispatch(beginDragThunk({ handle: i.handle }))
+          break
+        case 'drag':
+          store.dispatch(dragThunk({ delta: i.delta, modifiers: i.modifiers }))
+          break
+        case 'endDrag':
+          store.dispatch(endDragThunk())
           break
         case 'pubModifierKeys':
           break

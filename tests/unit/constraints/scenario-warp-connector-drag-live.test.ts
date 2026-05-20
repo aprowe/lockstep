@@ -68,6 +68,56 @@ describe('Warp-connector drag: live per-frame propagation to beat partner', () =
     }
   })
 
+  it('PROFILE PATH: beginDrag → drag → endDrag drives PAIR_DRAG correctly', async () => {
+    const { beginDrag, drag: dragThunk, endDrag } = await import('../../../src/store/thunks/dragThunks')
+    const { beginReplayFrame } = await import('../../../src/constraints/pipelineDispatch')
+    const store = makeStore()
+    store.dispatch(addAnchor({ id: 1, time: 10 }))
+
+    store.dispatch(beginDrag({ handle: { kind: 'pair-drag', pairId: 1 } }))
+    expect(store.getState().gesture.activeHandle).toEqual({ kind: 'pair-drag', pairId: 1 })
+    expect(store.getState().drag.preDrag).toBeTruthy()
+
+    for (const delta of [1, 2, 3, 4, 5]) {
+      store.dispatch((d, gs) => beginReplayFrame(d, gs))
+      store.dispatch(dragThunk({ delta, modifiers: { alt: false } }))
+
+      const s = store.getState()
+      const expected = 10 + delta
+      expect(s.warp.origAnchors.find(a => a.id === 1)?.time, `orig delta=${delta}`).toBeCloseTo(expected, 6)
+      expect(s.warp.beatAnchors.find(a => a.id === 1)?.time, `beat delta=${delta}`).toBeCloseTo(expected, 6)
+    }
+
+    store.dispatch(endDrag())
+    expect(store.getState().gesture.activeHandle).toBeNull()
+    expect(store.getState().drag.preDrag).toBeNull()
+  })
+
+  it('PROFILE PATH: unlinked pair, beat still tracks orig (gesture TranslateGroup)', async () => {
+    const { beginDrag, drag: dragThunk, endDrag } = await import('../../../src/store/thunks/dragThunks')
+    const { beginReplayFrame } = await import('../../../src/constraints/pipelineDispatch')
+    const store = makeStore()
+    store.dispatch(addAnchor({ id: 1, time: 10 }))
+    // Unlink the pair so the DirectedPair from initAnchorPair is NOT installed.
+    store.dispatch(moveBeatAnchor({ id: 1, time: 30 }))
+    expect(store.getState().warp.beatAnchors[0].linked).toBe(false)
+
+    store.dispatch(beginDrag({ handle: { kind: 'pair-drag', pairId: 1 } }))
+
+    for (const delta of [1, 2, 3, 4]) {
+      store.dispatch((d, gs) => beginReplayFrame(d, gs))
+      store.dispatch(dragThunk({ delta, modifiers: { alt: false } }))
+
+      const s = store.getState()
+      const expectedOrig = 10 + delta
+      const expectedBeat = 30 + delta
+      expect(s.warp.origAnchors.find(a => a.id === 1)?.time).toBeCloseTo(expectedOrig, 6)
+      expect(s.warp.beatAnchors.find(a => a.id === 1)?.time).toBeCloseTo(expectedBeat, 6)
+    }
+
+    store.dispatch(endDrag())
+  })
+
   it('with SnapTarget installed on orig (warp-line gesture): beat still updates live', () => {
     const store = makeStore()
     store.dispatch(addAnchor({ id: 1, time: 10 }))

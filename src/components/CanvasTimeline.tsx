@@ -7,10 +7,8 @@ import { buildAnchorPairs } from '../timeline/model/beatMap'
 import { clipHsl } from '../timeline/palette'
 import { gesture, useGesture } from '../store/gesture'
 import { dragStart, dragEnd } from '../store/slices/dragSlice'
-import { setLassoIds } from '../store/slices/dragCtxSlice'
 import { setActiveRegionId as setActiveRegionIdAction } from '../store/slices/regionSlice'
-import { anchorInId, anchorOutId } from '../constraints/ids'
-import { cancelDrag, snapshotPreDragState } from '../store/thunks/dragThunks'
+import { cancelDrag, snapshotPreDragState, beginDrag, drag, endDrag } from '../store/thunks/dragThunks'
 import { store } from '../store/store'
 import { getUiScale } from '../uiScale'
 import { useSetThumbnailHover } from './ThumbnailPopup'
@@ -195,12 +193,6 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
   const [containerH, setContainerH] = useState(0)
   const [rowOverrides, setRowOverrides] = useState<Record<string, number>>({})
   const rowResizeRef = useRef<{ aboveId: string; belowId: string; startY: number; hAbove: number; hBelow: number } | null>(null)
-  // Snapshot of dragCtx.lassoIds taken at dragStart for pair (warp-line)
-  // drags, so dragEnd / dragCancel can restore it. Pair drags temporarily
-  // extend lassoIds with both partners so the resolver installs a
-  // TranslateGroup over them; without this snapshot, the extension would
-  // persist and couple subsequent solo-anchor drags to their partners.
-  const prePairDragLassoIdsRef = useRef<string[] | null>(null)
 
   const setThumbnailHover = useSetThumbnailHover()
 
@@ -1334,37 +1326,25 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
           if (ds && (ds.kind === 'region-edge' || ds.kind === 'region-move')) {
             dispatch(setActiveRegionIdAction(ds.id))
           }
-          // Pair (warp-line) drag: extend dragCtx.lassoIds with both partners
-          // so the pipeline installs a TranslateGroup over the pair — same
-          // mechanism as dragging a lassoed orig+beat selection. Without
-          // this, the beat partner only follows when the pair is linked
-          // (via the initAnchorPair DirectedPair); unlinked pairs would
-          // update only at pointerUp. Snapshot the pre-drag value so
-          // dragEnd / dragCancel can restore it cleanly.
-          if (ds && ds.kind === 'anchor' && ds.isPair) {
-            const existing = store.getState().dragCtx.lassoIds
-            prePairDragLassoIdsRef.current = existing
-            const pair = [anchorInId(ds.id), anchorOutId(ds.id)]
-            const merged = [...new Set([...existing, ...pair])]
-            dispatch(setLassoIds(merged))
-          }
           break
         }
         case 'dragEnd':
           dispatch(dragEnd())
-          // Restore lassoIds snapshot from a prior pair drag (if any) so the
-          // pair entries don't leak into subsequent solo-anchor drags.
-          if (prePairDragLassoIdsRef.current !== null) {
-            dispatch(setLassoIds(prePairDragLassoIdsRef.current))
-            prePairDragLassoIdsRef.current = null
-          }
           break
         case 'dragCancel':
           dispatch(cancelDrag())
-          if (prePairDragLassoIdsRef.current !== null) {
-            dispatch(setLassoIds(prePairDragLassoIdsRef.current))
-            prePairDragLassoIdsRef.current = null
-          }
+          break
+        // Profile-driven drag lifecycle. beginDrag / drag / endDrag replace
+        // the legacy dragStart + per-handle move/commit intents one gesture
+        // class at a time. Pair (warp-line) drag is the first migration.
+        case 'beginDrag':
+          dispatch(beginDrag({ handle: i.handle }))
+          break
+        case 'drag':
+          dispatch(drag({ delta: i.delta, modifiers: i.modifiers }))
+          break
+        case 'endDrag':
+          dispatch(endDrag())
           break
         case 'pubModifierKeys': break
         case 'pubHoveredAnchor': gesture.setHoveredAnchor(i.id); break
