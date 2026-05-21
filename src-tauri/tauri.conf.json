@@ -37,9 +37,6 @@
         "resources": {
             "binaries/rife-v4.6/*": "rife-v4.6/"
         },
-        "macOS": {
-            "entitlements": "entitlements.plist"
-        },
         "windows": {
             "digestAlgorithm": "sha256",
             "timestampUrl": "http://timestamp.sectigo.com"
