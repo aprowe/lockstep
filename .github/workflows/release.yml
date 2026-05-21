@@ -41,6 +41,26 @@ jobs:
                   workspaces: "./src-tauri -> target"
                   key: ${{ matrix.target }}
 
+            - name: Import Windows signing certificate
+              if: matrix.platform == 'windows-latest'
+              shell: pwsh
+              env:
+                  WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+                  WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+              run: |
+                  if (-not $env:WINDOWS_CERTIFICATE) {
+                    Write-Host "WINDOWS_CERTIFICATE secret not set — skipping signing setup."
+                    exit 0
+                  }
+                  $bytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+                  $path  = "$env:RUNNER_TEMP\cert.pfx"
+                  [IO.File]::WriteAllBytes($path, $bytes)
+                  $pwd  = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+                  $cert = Import-PfxCertificate -FilePath $path -CertStoreLocation Cert:\CurrentUser\My -Password $pwd -Exportable
+                  Remove-Item $path -Force
+                  "TAURI_SIGNING_WINDOWS_CERTIFICATE_THUMBPRINT=$($cert.Thumbprint)" |
+                    Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
             - name: Download FFmpeg binaries — Windows (BtbN static)
               if: matrix.platform == 'windows-latest'
               shell: bash
@@ -73,13 +93,19 @@ jobs:
                   cp "$RIFE_DIR/rife-v4.6/flownet.bin" src-tauri/binaries/rife-v4.6/
                   cp "$RIFE_DIR/rife-v4.6/flownet.param" src-tauri/binaries/rife-v4.6/
 
-            - name: Install FFmpeg — macOS (homebrew)
+            - name: Download FFmpeg binaries — macOS arm64 (martin-riedl static)
               if: matrix.platform == 'macos-latest'
               run: |
-                  brew install ffmpeg
+                  # martin-riedl.de is the BtbN equivalent for macOS arm64: statically
+                  # compiled, pre-signed with an Apple Developer ID, no Homebrew deps.
+                  # The redirect/latest/ path is a documented CI permalink.
                   mkdir -p src-tauri/binaries
-                  cp "$(brew --prefix)/bin/ffmpeg"  src-tauri/binaries/ffmpeg-${{ matrix.target }}
-                  cp "$(brew --prefix)/bin/ffprobe" src-tauri/binaries/ffprobe-${{ matrix.target }}
+                  curl -L "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/ffmpeg.zip" -o ffmpeg.zip
+                  unzip ffmpeg.zip -d ffmpeg_out
+                  cp ffmpeg_out/ffmpeg src-tauri/binaries/ffmpeg-${{ matrix.target }}
+                  curl -L "https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/release/ffprobe.zip" -o ffprobe.zip
+                  unzip ffprobe.zip -d ffprobe_out
+                  cp ffprobe_out/ffprobe src-tauri/binaries/ffprobe-${{ matrix.target }}
                   chmod +x src-tauri/binaries/ffmpeg-${{ matrix.target }}
                   chmod +x src-tauri/binaries/ffprobe-${{ matrix.target }}
 
@@ -104,6 +130,13 @@ jobs:
             - uses: tauri-apps/tauri-action@v0
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  # macOS signing + notarization
+                  APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+                  APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+                  APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+                  APPLE_ID: ${{ secrets.APPLE_ID }}
+                  APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+                  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
               with:
                   tagName: ${{ github.ref_name }}
                   releaseName: "Lockstep ${{ github.ref_name }}"
