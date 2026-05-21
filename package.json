@@ -11,6 +11,8 @@
         "test": "npm run test:unit && npm run test:rs",
         "test:unit": "vitest run",
         "test:unit:watch": "vitest",
+        "bench": "vitest bench --run",
+        "bench:sweep": "tsx scripts/bench-constraints.ts",
         "test:rs": "cargo test --manifest-path src-tauri/Cargo.toml --target-dir src-tauri/target-test",
         "test:rs:heavy": "cargo test --manifest-path src-tauri/Cargo.toml --target-dir src-tauri/target-test -- --ignored",
         "screenshots": "playwright test --config playwright.screenshots.config.ts",
