@@ -10,7 +10,7 @@ import type { Derived, EntityId, Field, Op, SnapTarget, State } from "./types";
 import { ConstraintKind, OpKind, PairMode, PreserveMode, Role, EntityKind } from "./types";
 import { bpmDerivedConstraint } from "./resolver";
 import { movementClosure } from "./closure";
-import { buildSnapIndex } from "./snap-index";
+import { constraintsByKind, snapIndexFor } from "./derived-index";
 import { SNAP_CONDITIONS } from "./snap-rules";
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────
@@ -202,7 +202,7 @@ export function setBpm(clipId: EntityId, newBpm: number, state: State): Op[] {
     const clip = state.entities[clipId];
     if (!clip || clip.kind !== EntityKind.Clip) return [];
 
-    const derived = state.constraints.find(
+    const derived = constraintsByKind(state, ConstraintKind.Derived).find(
         (c) => c.kind === ConstraintKind.Derived && c.tag === `bpm:${clipId}`,
     ) as Derived | undefined;
     const fixed = derived?.meta?.fixed as "bpm" | "beats" | undefined;
@@ -230,7 +230,7 @@ export function setLockedBeats(clipId: EntityId, newBeats: number, state: State)
     const clip = state.entities[clipId];
     if (!clip || clip.kind !== EntityKind.Clip) return [];
 
-    const derived = state.constraints.find(
+    const derived = constraintsByKind(state, ConstraintKind.Derived).find(
         (c) => c.kind === ConstraintKind.Derived && c.tag === `bpm:${clipId}`,
     ) as Derived | undefined;
     const fixed = derived?.meta?.fixed as "bpm" | "beats" | undefined;
@@ -384,8 +384,9 @@ export function snapToSiblings(
 ): Op {
     const exclusion = movementClosure(state, draggedId);
 
-    // Build the snap index from the current graph state (cheap, no caching needed).
-    const index = buildSnapIndex(state);
+    // Cached snap index — reused across calls within a single drag frame as
+    // long as state.constraints doesn't change (it doesn't, mid-drag).
+    const index = snapIndexFor(state);
 
     // Resolve the dragger cohorts for this entity + role.
     const baseCohorts = index.cohortsByEntity.get(draggedId) ?? [];
@@ -439,8 +440,16 @@ export function snapToSiblings(
     // Materialize targets from the collected cohorts.
     const targets: SnapTarget["targets"] = [];
     const seen = new Set<string>(); // deduplicate (entityId, field) pairs
+    let sceneTimes: Float64Array | undefined;
 
     for (const cohort of targetCohorts) {
+        // `scenes` is a synthetic cohort backed by the State.scenes sidecar
+        // instead of materialized entities. Read it by reference — the
+        // resolver's evaluateSnap binary-searches it directly.
+        if (cohort === "scenes") {
+            if (state.scenes && state.scenes.length > 0) sceneTimes = state.scenes;
+            continue;
+        }
         const ids = index.idsByCohort.get(cohort) ?? [];
         for (const id of ids) {
             if (id === draggedId || exclusion.has(id)) continue;
@@ -483,6 +492,7 @@ export function snapToSiblings(
             grid: effectiveGrid,
             mode,
             tag: `snap:${draggedId}:${field}`,
+            ...(sceneTimes ? { sceneTimes } : {}),
         },
     };
 }

@@ -70,12 +70,20 @@ export const ConstraintKind = {
     SingleOfKind: "single_of_kind",
     DeleteGroup: "delete_group",
     HighlightGroup: "highlight_group",
-    ConformVisual: "conform_visual",
-    ConformRedirect: "conform_redirect",
+    ConformRule: "conform_rule",
     SnapCohort: "snap_cohort",
     SnapRule: "snap_rule",
 } as const;
 export type ConstraintKind = (typeof ConstraintKind)[keyof typeof ConstraintKind];
+
+/** Discriminator for ConformRule. */
+export const ConformMode = {
+    /** Anchor-coincidence → clipout assertion (formerly `conform_visual`). */
+    Visual: "visual",
+    /** User clipout write → anchor.beat rewrite (formerly `conform_redirect`). */
+    Redirect: "redirect",
+} as const;
+export type ConformMode = (typeof ConformMode)[keyof typeof ConformMode];
 
 export const Phase = {
     /** Constraints SPAWN writes from a seeded op. */
@@ -150,6 +158,12 @@ export interface State {
     constraints: Constraint[];
     meta: Record<EntityId, EntityMeta>;
     globals: GraphGlobals;
+    /** Sorted, read-only proximity targets that never move and don't
+     *  participate in any constraint. Currently used for scene markers —
+     *  kept out of `entities` so the per-Move state clone doesn't scale
+     *  with scene count, and consulted directly by `evaluateSnap` via a
+     *  binary search instead of materialized as `SnapCohort` entities. */
+    scenes?: Float64Array;
 }
 
 // ─── Operations ───────────────────────────────────────────────────────────
@@ -313,6 +327,12 @@ export interface SnapTarget {
      *  `in` and `out` of the dragged clip so the body translates rigidly.
      *  Only meaningful for Clip entities. */
     mode?: "edge" | "body";
+    /** Pre-sorted scene-marker times. Resolved by `snapToSiblings` when
+     *  the SNAP_RULES table targets the synthetic `scenes` cohort. Held
+     *  by reference to `state.scenes`, so `evaluateSnap` can binary-
+     *  search it directly without a per-Move sort and without an entity
+     *  lookup per candidate. */
+    sceneTimes?: Float64Array;
     tag?: string;
 }
 
@@ -359,25 +379,11 @@ export interface SnapRule {
     tag?: string;
 }
 
-/** One-way conform binding: when the clipin's edge value (txn-aware)
- *  coincides with anchor-in.time, write `anchor-out.time` to the matching
- *  clipout edge. Purely transient and one-way (anchor → clip): the handler
- *  re-checks coincidence every pipeline pass, so it engages while the user
- *  is on the conform position and disengages when they move past — without
- *  ever writing back to the anchor side (symmetric coupling would let raw
- *  cursor values leak through the default-link cascade into the anchor).
- *
- *  Use case: dragging clipin across a marker should visually show the
- *  clipout edge snap to the paired beat anchor's time as clipin lands on
- *  the orig anchor, then release when clipin moves past.
- *
- *  `clipId` is the clipin entity (input-side); `clipOutId` is the
- *  beat-space clip that receives the write on coincidence.  When
- *  coincidence is broken the handler is silent — the clipout's edge sticks
- *  at its last value (which for a default-linked region is whatever the
- *  defaultlink DirectedPair cascaded into it). */
-export interface ConformVisual {
-    kind: typeof ConstraintKind.ConformVisual;
+/** A single (region, anchor, edge) binding inside a `ConformRule`. The rule
+ *  iterates these tuples in a tight loop instead of materializing one
+ *  constraint per binding, so the resolver pays one handler dispatch per
+ *  Propose iter regardless of project size. */
+export interface ConformTuple {
     anchorInId: EntityId;
     anchorOutId: EntityId;
     clipId: EntityId;
@@ -385,31 +391,45 @@ export interface ConformVisual {
     edge: "in" | "out";
 }
 
-/** ConformRedirect — Propose-phase rule that routes user-seeded clipout
- *  writes into anchor.beat writes while input coincidence holds.
+/** Batched conform binding rule. Two variants share this shape via the
+ *  `mode` discriminator:
  *
- *  Same fan-out shape as ConformVisual (per region × anchor × edge), but
- *  fires in the opposite direction: when a user gesture has written
- *  clipout.edge directly (no seedTag = user intent, not a cascade), and
- *  the input-space coincidence `clipin.edge ≈ anchor.orig` still holds,
- *  the write is rewritten as an anchor.beat write with the same delta. On
- *  the next pass, ConformVisual writes clipout = anchor.beat, asserting
- *  the invariant.
+ *  - `visual`: when a tuple's clipin-edge value (txn-aware) coincides with
+ *    its anchor-in.time, write `anchor-out.time` to the matching clipout
+ *    edge. Purely transient and one-way (anchor → clip): the handler
+ *    re-checks coincidence every pipeline pass, so it engages while the
+ *    user is on the conform position and disengages when they move past —
+ *    without ever writing back to the anchor side (symmetric coupling
+ *    would let raw cursor values leak through the default-link cascade
+ *    into the anchor).
  *
- *  Skipped when:
- *   - the clipout write is tagged (seedTag set) — it's a cascade, not user
- *     intent; let ConformVisual handle clipout from anchor.beat.
- *   - anchor.beat already has a write — the user is moving anchor directly
- *     (don't double-write).
+ *  - `redirect`: when a user gesture has written a tuple's clipout.edge
+ *    directly (no seedTag = user intent, not a cascade), and the input-
+ *    space coincidence `clipin.edge ≈ anchor.orig` still holds, the write
+ *    is rewritten as an anchor.beat write with the same delta. On the next
+ *    pass, the visual handler writes clipout = anchor.beat, asserting the
+ *    invariant. Skipped when the clipout write is tagged (it's a cascade,
+ *    not user intent), or when anchor.beat already has a write.
+ *
+ *  Insertion order requirements survive intact: install one `mode:
+ *  "redirect"` rule before one `mode: "visual"` rule and the per-iter
+ *  ordering invariant (redirect first, then visual) is preserved.
  *
  *  See: docs/superpowers/specs/2026-05-20-conform-invariant-restructure-design.md */
-export interface ConformRedirect {
-    kind: typeof ConstraintKind.ConformRedirect;
-    anchorInId: EntityId;
-    anchorOutId: EntityId;
-    clipId: EntityId;
-    clipOutId: EntityId;
-    edge: "in" | "out";
+export interface ConformRule {
+    kind: typeof ConstraintKind.ConformRule;
+    mode: ConformMode;
+    tuples: readonly ConformTuple[];
+    /** Derived index built alongside `tuples`: entity ID → tuple indices
+     *  that reference it. Lets the handler iterate only the tuples that
+     *  could possibly fire given the current txn (those whose endpoints
+     *  have writes), reducing the per-call cost from O(tuples) to
+     *  O(touched · avgFanOut). When two rules (redirect + visual) share
+     *  the same tuple table they share this Map by reference. Optional —
+     *  rules constructed without an index get a lazy fallback inside the
+     *  handler. */
+    byEntity?: ReadonlyMap<EntityId, readonly number[]>;
+    tag?: string;
 }
 
 export type Constraint =
@@ -423,8 +443,7 @@ export type Constraint =
     | SingleOfKind
     | DeleteGroup
     | HighlightGroup
-    | ConformVisual
-    | ConformRedirect
+    | ConformRule
     | SnapCohort
     | SnapRule;
 

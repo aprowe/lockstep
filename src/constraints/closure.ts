@@ -1,5 +1,6 @@
 import type { EntityId, State } from "./types";
 import { ConstraintKind } from "./types";
+import { constraintsTouchingEntity } from "./derived-index";
 
 /**
  * BFS the constraint graph from `seed` and return every entity that would
@@ -17,6 +18,11 @@ import { ConstraintKind } from "./types";
  * SingleOfKind, DeleteGroup, HighlightGroup, ConformVisual,
  * ConformRedirect, SnapCohort, SnapRule) are ignored — they don't
  * propagate a translate-shaped delta.
+ *
+ * Performance: uses the reverse `entity → constraints` index so each BFS
+ * step consults only constraints that mention the dequeued entity, not the
+ * full constraint list. Cost per drag is O(|closure| · avgDegree) instead of
+ * O(|closure| · |constraints|).
  */
 export function movementClosure(state: State, seed: EntityId): Set<EntityId> {
     const closure = new Set<EntityId>([seed]);
@@ -24,7 +30,7 @@ export function movementClosure(state: State, seed: EntityId): Set<EntityId> {
 
     while (queue.length > 0) {
         const id = queue.shift()!;
-        for (const c of state.constraints) {
+        for (const c of constraintsTouchingEntity(state, id)) {
             let followers: readonly EntityId[] = [];
 
             switch (c.kind) {

@@ -12,8 +12,8 @@
 
 import type {
     Clamp,
-    ConformRedirect,
-    ConformVisual,
+    ConformRule,
+    ConformTuple,
     Constraint,
     DirectedPair,
     Derived,
@@ -28,8 +28,21 @@ import type {
     TranslateGroup,
     Write,
 } from "./types";
-import { ConstraintKind, EntityKind, Field, OpKind, PairMode, Phase, PreserveMode } from "./types";
+import {
+    ConformMode,
+    ConstraintKind,
+    EntityKind,
+    Field,
+    OpKind,
+    PairMode,
+    Phase,
+    PreserveMode,
+} from "./types";
 import { edgeField, findWrite, findWriteIndex, hasWrite, txnValue } from "./txn";
+import { activeConstraintsFor, constraintEntities, constraintsByKind } from "./derived-index";
+import { movementClosure } from "./closure";
+import { lowerBoundBy, lowerBoundNumber } from "./binary-search";
+import { pushToBucket } from "./multimap";
 import { mapValues } from "es-toolkit";
 
 // ─── Top-level reducer ────────────────────────────────────────────────────
@@ -90,13 +103,22 @@ const PROPOSE_MAX_ITERATIONS = 16;
 function runPipeline(state: State, op: Op): State {
     let txn = seedWrites(state, op);
 
+    // Compute the active constraint subset once: the entities reachable from
+    // the op's seed via write-propagating edges, plus one expansion through
+    // the other endpoints of constraints they touch (so e.g. an anchor drag
+    // also activates the conform bindings into its region clipouts). For
+    // small drag closures this cuts the per-phase constraint count by 1-2
+    // orders of magnitude vs. iterating `state.constraints`.
+    const closure = seedClosure(state, op);
+    const active = activeConstraintsFor(state, closure);
+
     // Propose: iterate to fixed point. Constraint propagations can chain —
     // a write spawned by handler N can be the seed for handler M, and we
     // need to keep cycling through all propose handlers until nothing new
     // appears.
     let previousSignature = txnSignature(txn);
     for (let i = 0; i < PROPOSE_MAX_ITERATIONS; i++) {
-        txn = runPhase(state, txn, Phase.Propose);
+        txn = runPhase(active, txn, Phase.Propose, state);
         const currentSignature = txnSignature(txn);
         if (currentSignature === previousSignature) break;
         previousSignature = currentSignature;
@@ -104,24 +126,45 @@ function runPipeline(state: State, op: Op): State {
 
     // Restrict / finalize each run exactly once. They modify or remove
     // existing writes; they don't open new propagation paths.
-    txn = runPhase(state, txn, Phase.Restrict);
-    txn = runPhase(state, txn, Phase.Finalize);
+    txn = runPhase(active, txn, Phase.Restrict, state);
+    txn = runPhase(active, txn, Phase.Finalize, state);
 
     // Commit position writes BEFORE running derive — derived lambdas read
     // state.entities and need the post-commit values to compute their
     // outputs (e.g., the bpm-derived constraint reads the new clip length).
     applyWrites(state, txn);
-    runPhase(state, txn, Phase.Derive);
+    runPhase(active, txn, Phase.Derive, state);
     return state;
 }
 
-function runPhase(state: State, txn: Txn, phase: Phase): Txn {
+/** Seed entity set for the active-constraint computation. For Move/SetEdge/
+ *  SetValue the seed is the op's target; movementClosure expands through
+ *  write-propagating edges so transitive translates / scales / directed-pair
+ *  cascades are covered. */
+function seedClosure(state: State, op: Op): Set<EntityId> {
+    if (op.kind === OpKind.Move || op.kind === OpKind.SetEdge || op.kind === OpKind.SetValue) {
+        return movementClosure(state, op.id);
+    }
+    return new Set();
+}
+
+function runPhase(
+    constraints: readonly Constraint[],
+    txn: Txn,
+    phase: Phase,
+    state: State,
+): Txn {
     let result = txn;
-    for (const constraint of state.constraints) {
-        for (const handler of HANDLERS) {
-            if (handler.kind !== constraint.kind) continue;
-            if (handler.phase !== phase) continue;
-            result = handler.apply(state, constraint as never, result);
+    const handlerMap = HANDLERS_BY_PHASE_KIND[phase];
+    if (handlerMap.size === 0) return result;
+    // Preserve original cross-kind iteration order (constraints in array
+    // order) while dispatching via the kind table — this skips the inner
+    // O(|HANDLERS|) scan that fired on every constraint.
+    for (const constraint of constraints) {
+        const handlers = handlerMap.get(constraint.kind);
+        if (!handlers) continue;
+        for (const apply of handlers) {
+            result = apply(state, constraint as never, result);
         }
     }
     return result;
@@ -221,11 +264,12 @@ function applyWrites(state: State, txn: Txn): State {
 
 function propagateDelete(state: State, id: EntityId): State {
     const doomed = new Set([id]);
+    const deleteGroups = constraintsByKind(state, ConstraintKind.DeleteGroup);
 
     let grew = true;
     while (grew) {
         grew = false;
-        for (const constraint of state.constraints) {
+        for (const constraint of deleteGroups) {
             if (constraint.kind !== ConstraintKind.DeleteGroup) continue;
             if (!constraint.ids.some((x) => doomed.has(x))) continue;
             for (const x of constraint.ids) {
@@ -241,9 +285,13 @@ function propagateDelete(state: State, id: EntityId): State {
         delete state.meta[x];
     }
 
-    state.constraints = state.constraints.filter((c) =>
-        constraintEntities(c).every((x) => !doomed.has(x)),
-    );
+    state.constraints = state.constraints.filter((c) => {
+        // Cohorts persist when their members die — the cohort tag is what
+        // matters, not its current membership. Every other constraint kind
+        // is dropped if any entity it references has been doomed.
+        if (c.kind === ConstraintKind.SnapCohort) return true;
+        return constraintEntities(c).every((x) => !doomed.has(x));
+    });
 
     return state;
 }
@@ -287,7 +335,13 @@ const HANDLERS: HandlerEntry[] = [
     },
 
     /** directed_pair (translate): translate-shaped seed on `from` propagates
-     *  to `to`. */
+     *  to `to`. Skips the merge when `to` already carries a write reflecting
+     *  the same delta — the common case during a lasso group-pan where the
+     *  TranslateGroup over both endpoints has already produced the target
+     *  write, so the DP would just re-emit it. Without this gate, every
+     *  anchor-pair DP fires its own `mergeWrites` call per Propose iter,
+     *  and the O(W) array copy each call makes turns into O(A·W) per
+     *  iter — quadratic in anchor count for the lasso case. */
     {
         kind: ConstraintKind.DirectedPair,
         phase: Phase.Propose,
@@ -296,6 +350,29 @@ const HANDLERS: HandlerEntry[] = [
             if (pair.mode !== PairMode.Translate) return txn;
             const delta = findTranslateDelta(state, [pair.from], txn, pair.from);
             if (delta === null) return txn;
+            const to = state.entities[pair.to];
+            if (to !== undefined) {
+                if (to.kind === EntityKind.Anchor) {
+                    const existing = findWrite(txn, pair.to, Field.Time);
+                    if (
+                        existing !== undefined &&
+                        Math.abs(existing.to - existing.from - delta) < REDUNDANT_EPSILON
+                    ) {
+                        return txn;
+                    }
+                } else {
+                    const inWrite = findWrite(txn, pair.to, Field.In);
+                    const outWrite = findWrite(txn, pair.to, Field.Out);
+                    if (
+                        inWrite !== undefined &&
+                        outWrite !== undefined &&
+                        Math.abs(inWrite.to - inWrite.from - delta) < REDUNDANT_EPSILON &&
+                        Math.abs(outWrite.to - outWrite.from - delta) < REDUNDANT_EPSILON
+                    ) {
+                        return txn;
+                    }
+                }
+            }
             return mergeWrites(
                 txn,
                 makeTranslateWrites(state, [pair.to], delta, "directedpair-translate"),
@@ -346,126 +423,30 @@ const HANDLERS: HandlerEntry[] = [
         },
     },
 
-    /** conform_visual: one-way coincidence-triggered conform asserting the
-     *  invariant "when anchor.orig coincides with clipin.edge, clipout.edge =
-     *  anchor.beat". Fires on ANY relevant write — clipin.edge, anchor.orig,
-     *  anchor.beat, or clipout.edge — so the invariant holds at every fixed-
-     *  point pass regardless of which entity the user is dragging. The output
-     *  is one-way: anchor-side endpoints are never written here. User clipout
-     *  drags are redirected to anchor.beat by ConformRedirect (which runs
-     *  before this rule), so by the time this fires, the only clipout write
-     *  it might override is a default-link cascade. */
+    /** conform_rule: a single batched constraint covering every
+     *  (region × anchor × edge) binding. The handler walks `rule.tuples`
+     *  internally and gates each tuple on a per-entity write check — one
+     *  rule instance per mode dispatched per Propose iter, regardless of
+     *  project size.
+     *
+     *  `mode === "visual"` asserts the invariant "when anchor.orig
+     *  coincides with clipin.edge, clipout.edge = anchor.beat" — one-way
+     *  (anchor → clip). `mode === "redirect"` routes user-seeded clipout
+     *  writes into anchor.beat writes while input coincidence holds, so
+     *  drag-clipout is interpreted as drag-anchor.beat.
+     *
+     *  Within each Propose iter the redirect rule runs before the visual
+     *  rule (install order in `pipeline.buildGraphFromSlice`), preserving
+     *  the snap → redirect → visual ordering invariant. */
     {
-        kind: ConstraintKind.ConformVisual,
+        kind: ConstraintKind.ConformRule,
         phase: Phase.Propose,
         apply: (state, c: never, txn) => {
-            const cv = c as ConformVisual;
-            const anchorIn = state.entities[cv.anchorInId];
-            const anchorOut = state.entities[cv.anchorOutId];
-            const clipOut = state.entities[cv.clipOutId];
-            if (!anchorIn || anchorIn.kind !== EntityKind.Anchor) return txn;
-            if (!anchorOut || anchorOut.kind !== EntityKind.Anchor) return txn;
-            if (!clipOut || clipOut.kind !== EntityKind.Clip) return txn;
-
-            const edge = edgeField(cv.edge);
-            const clipIn = state.entities[cv.clipId];
-            if (!clipIn || clipIn.kind !== EntityKind.Clip) return txn;
-            const clipInCurrent = cv.edge === "in" ? clipIn.in : clipIn.out;
-            const clipOutCurrent = cv.edge === "in" ? clipOut.in : clipOut.out;
-
-            // Gate: fire whenever ANY input that could affect the answer has a
-            // write this txn. Without this gate, ConformVisual would fire on
-            // every empty-txn pass and clamp clipout to anchor.beat even when
-            // no relevant write occurred.
-            const clipInEdge = txnValue(txn, cv.clipId, edge, clipInCurrent);
-            const anchorInTime = txnValue(txn, cv.anchorInId, Field.Time, anchorIn.time);
-            const anchorOutTime = txnValue(txn, cv.anchorOutId, Field.Time, anchorOut.time);
-            const clipOutEffective = txnValue(txn, cv.clipOutId, edge, clipOutCurrent);
-            const anyWrite =
-                hasWrite(txn, cv.clipId, edge) ||
-                hasWrite(txn, cv.anchorInId, Field.Time) ||
-                hasWrite(txn, cv.anchorOutId, Field.Time) ||
-                hasWrite(txn, cv.clipOutId, edge);
-            if (!anyWrite) return txn;
-
-            // Coincidence check (input space, txn-aware).
-            if (Math.abs(clipInEdge - anchorInTime) > CONFORM_EPSILON) return txn;
-
-            // Coincident — write anchor-out.time to the clipout's matching edge.
-            if (Math.abs(clipOutEffective - anchorOutTime) < EPSILON) return txn;
-
-            return mergeWrites(txn, [
-                {
-                    entityId: cv.clipOutId,
-                    field: edge,
-                    from: clipOutCurrent,
-                    to: anchorOutTime,
-                    seedTag: "conform",
-                },
-            ]);
-        },
-    },
-
-    /** conform_redirect: when a user gesture has written clipout.edge
-     *  directly AND input coincidence (clipin.edge ≈ anchor.orig) holds,
-     *  rewrite the clipout write as an anchor.beat write with the same
-     *  delta. ConformVisual then asserts clipout = anchor.beat on a later
-     *  pass.
-     *
-     *  This implements "drag clipout = drag anchor.beat" while keeping the
-     *  conform invariant strictly directed (anchor → clipout, never the
-     *  reverse) — symmetric coupling would let raw cursor values leak
-     *  through the default-link cascade into the anchor.
-     *
-     *  Skipped when:
-     *   - clipout write is tagged (seedTag set) — it's a cascade, not user
-     *     intent. ConformVisual handles overriding cascades.
-     *   - anchor.beat already has a write — user is moving anchor directly. */
-    {
-        kind: ConstraintKind.ConformRedirect,
-        phase: Phase.Propose,
-        apply: (state, c: never, txn) => {
-            const cr = c as ConformRedirect;
-            const anchorIn = state.entities[cr.anchorInId];
-            const anchorOut = state.entities[cr.anchorOutId];
-            const clipIn = state.entities[cr.clipId];
-            const clipOut = state.entities[cr.clipOutId];
-            if (!anchorIn || anchorIn.kind !== EntityKind.Anchor) return txn;
-            if (!anchorOut || anchorOut.kind !== EntityKind.Anchor) return txn;
-            if (!clipIn || clipIn.kind !== EntityKind.Clip) return txn;
-            if (!clipOut || clipOut.kind !== EntityKind.Clip) return txn;
-
-            const edge = edgeField(cr.edge);
-            const clipOutIdx = findWriteIndex(txn, cr.clipOutId, edge);
-            if (clipOutIdx < 0) return txn;
-            const clipOutWrite = txn[clipOutIdx];
-
-            // Skip cascade writes (only redirect user intent).
-            if (clipOutWrite.seedTag) return txn;
-
-            // Don't double-write anchor.beat if user is already moving it.
-            if (hasWrite(txn, cr.anchorOutId, Field.Time)) return txn;
-
-            // Coincidence check (input space, txn-aware).
-            const clipInCurrent = cr.edge === "in" ? clipIn.in : clipIn.out;
-            const clipInEdge = txnValue(txn, cr.clipId, edge, clipInCurrent);
-            const anchorInTime = txnValue(txn, cr.anchorInId, Field.Time, anchorIn.time);
-            if (Math.abs(clipInEdge - anchorInTime) > CONFORM_EPSILON) return txn;
-
-            // Coincidence holds. Rewrite clipout write → anchor.beat write,
-            // preserving delta. Drop the clipout write (ConformVisual will
-            // re-add it from the new anchor.beat value on the next pass).
-            const delta = clipOutWrite.to - clipOutWrite.from;
-            const newAnchorTo = anchorOut.time + delta;
-            const filtered = txn.filter((_, i) => i !== clipOutIdx);
-            return mergeWrites(filtered, [
-                {
-                    entityId: cr.anchorOutId,
-                    field: Field.Time,
-                    from: anchorOut.time,
-                    to: newAnchorTo,
-                },
-            ]);
+            const rule = c as ConformRule;
+            if (rule.tuples.length === 0) return txn;
+            return rule.mode === ConformMode.Visual
+                ? applyConformVisualRule(state, rule, txn)
+                : applyConformRedirectRule(state, rule, txn);
         },
     },
 
@@ -715,6 +696,228 @@ const HANDLERS: HandlerEntry[] = [
     // These live in state.constraints but have no resolver handlers.
 ];
 
+/** Precomputed dispatch table: phase → kind → handler[]. Built once at module
+ *  load. Replaces the inner `for (const handler of HANDLERS)` scan in
+ *  `runPhase` — at N=5000 markers with 30k+ constraints, that scan was the
+ *  hottest loop in the system. */
+const HANDLERS_BY_PHASE_KIND: Record<Phase, Map<ConstraintKind, Handler[]>> = (() => {
+    const out = {} as Record<Phase, Map<ConstraintKind, Handler[]>>;
+    for (const phase of Object.values(Phase)) {
+        out[phase] = new Map();
+    }
+    for (const entry of HANDLERS) {
+        const m = out[entry.phase];
+        let arr = m.get(entry.kind);
+        if (!arr) {
+            arr = [];
+            m.set(entry.kind, arr);
+        }
+        arr.push(entry.apply);
+    }
+    return out;
+})();
+
+// ─── Conform rule batched handlers ────────────────────────────────────────
+
+/** Collect the tuple indices that could be affected by writes in `txn`,
+ *  using the rule's precomputed `byEntity` map. Falls back to a lazy build
+ *  if a rule was constructed without one. */
+const LAZY_TUPLE_INDEX_CACHE = new WeakMap<
+    readonly ConformTuple[],
+    Map<EntityId, number[]>
+>();
+
+function getTupleIndex(rule: ConformRule): ReadonlyMap<EntityId, readonly number[]> {
+    if (rule.byEntity) return rule.byEntity;
+    let idx = LAZY_TUPLE_INDEX_CACHE.get(rule.tuples);
+    if (idx) return idx;
+    idx = new Map();
+    for (let i = 0; i < rule.tuples.length; i++) {
+        const t = rule.tuples[i];
+        pushToBucket(idx, t.anchorInId, i);
+        pushToBucket(idx, t.anchorOutId, i);
+        pushToBucket(idx, t.clipId, i);
+        pushToBucket(idx, t.clipOutId, i);
+    }
+    LAZY_TUPLE_INDEX_CACHE.set(rule.tuples, idx);
+    return idx;
+}
+
+/** True iff the txn is a pure uniform translation across every entity the
+ *  rule cares about — same delta on every write AND every conform-mentioned
+ *  entity is in the txn. Under that condition the rule's input-space
+ *  coincidence relations are guaranteed to be preserved (every endpoint
+ *  shifts by the same amount), so the entire rule body can be skipped.
+ *
+ *  This is the common case for lasso group-pan: the TranslateGroup handler
+ *  propagates a single delta to every member before the conform handler
+ *  runs, leaving the txn uniform and saturating the conform entity set.
+ *  Without this skip, the handler walks every tuple to confirm "nothing
+ *  changed."
+ *
+ *  Cheap check: O(|txn| + |conform entities|). Conform entities is the
+ *  byEntity map's key count (≈ 4·N for a project with N regions+anchors,
+ *  i.e. linear), so this is a small constant fraction of the work we'd
+ *  otherwise do per-tuple. */
+function isUniformAcrossRuleEntities(rule: ConformRule, txn: Txn): boolean {
+    if (txn.length === 0) return true;
+    // Saturation prefilter: if there are fewer writes than there are conform-
+    // mentioned entities, the txn can't possibly cover them — bail out before
+    // walking the entity set. This catches every non-lasso gesture in O(1)
+    // and keeps the check from adding overhead to anchor/region drags.
+    const idx = getTupleIndex(rule);
+    if (txn.length < idx.size) return false;
+
+    const d = txn[0].to - txn[0].from;
+    const written = new Set<EntityId>();
+    written.add(txn[0].entityId);
+    for (let i = 1; i < txn.length; i++) {
+        if (Math.abs(txn[i].to - txn[i].from - d) > 1e-9) return false;
+        written.add(txn[i].entityId);
+    }
+    for (const id of idx.keys()) {
+        if (!written.has(id)) return false;
+    }
+    return true;
+}
+
+/** Collect candidate tuple indices touched by any txn write. Each writer
+ *  entity may map to a list of tuples; we union them into a Set so each
+ *  candidate is evaluated once regardless of how many of its endpoints
+ *  share writes. */
+function candidateTuples(rule: ConformRule, txn: Txn): Set<number> {
+    const out = new Set<number>();
+    if (txn.length === 0) return out;
+    const idx = getTupleIndex(rule);
+    for (let i = 0; i < txn.length; i++) {
+        const matches = idx.get(txn[i].entityId);
+        if (!matches) continue;
+        for (const m of matches) out.add(m);
+    }
+    return out;
+}
+
+/**
+ * Apply the per-tuple ConformVisual body: when input coincidence holds,
+ * write anchorOut.time to the matching clipout edge. Iterates only the
+ * tuples whose endpoints have writes in the current txn — for an anchor
+ * drag at N=100 this collapses ~40k tuples to ~400.
+ */
+function applyConformVisualRule(state: State, rule: ConformRule, txn: Txn): Txn {
+    // Fast path: uniform translation across every conform entity preserves
+    // every coincidence relation (every endpoint shifts by the same amount),
+    // so the rule body would be a guaranteed no-op. This catches lasso
+    // group-pan in particular, where the TranslateGroup handler has just
+    // produced a uniform-delta txn covering every selected entity.
+    if (isUniformAcrossRuleEntities(rule, txn)) return txn;
+
+    const candidates = candidateTuples(rule, txn);
+    if (candidates.size === 0) return txn;
+
+    let result = txn;
+    const tuples = rule.tuples;
+    for (const i of candidates) {
+        const t = tuples[i];
+        const anchorIn = state.entities[t.anchorInId];
+        const anchorOut = state.entities[t.anchorOutId];
+        const clipIn = state.entities[t.clipId];
+        const clipOut = state.entities[t.clipOutId];
+        if (!anchorIn || anchorIn.kind !== EntityKind.Anchor) continue;
+        if (!anchorOut || anchorOut.kind !== EntityKind.Anchor) continue;
+        if (!clipIn || clipIn.kind !== EntityKind.Clip) continue;
+        if (!clipOut || clipOut.kind !== EntityKind.Clip) continue;
+
+        const edge = edgeField(t.edge);
+        const clipInCurrent = t.edge === "in" ? clipIn.in : clipIn.out;
+        const clipOutCurrent = t.edge === "in" ? clipOut.in : clipOut.out;
+
+        const clipInEdge = txnValue(result, t.clipId, edge, clipInCurrent);
+        const anchorInTime = txnValue(result, t.anchorInId, Field.Time, anchorIn.time);
+
+        // Coincidence (input-space, txn-aware).
+        if (Math.abs(clipInEdge - anchorInTime) > CONFORM_EPSILON) continue;
+
+        const anchorOutTime = txnValue(result, t.anchorOutId, Field.Time, anchorOut.time);
+        const clipOutEffective = txnValue(result, t.clipOutId, edge, clipOutCurrent);
+        if (Math.abs(clipOutEffective - anchorOutTime) < EPSILON) continue;
+
+        result = mergeWrites(result, [
+            {
+                entityId: t.clipOutId,
+                field: edge,
+                from: clipOutCurrent,
+                to: anchorOutTime,
+                seedTag: "conform",
+            },
+        ]);
+    }
+    return result;
+}
+
+/**
+ * Apply the per-tuple ConformRedirect body: when a user-seeded clipout
+ * write is in the txn AND input coincidence holds, rewrite it as an
+ * anchor.beat write of the same delta. Iterates only tuples whose
+ * endpoints have writes; the per-tuple gate then checks whether the
+ * write specifically is on the clipout edge.
+ */
+function applyConformRedirectRule(state: State, rule: ConformRule, txn: Txn): Txn {
+    // Same fast path as the visual rule — uniform translation can't produce
+    // a user-seeded clipout write that wasn't already cascaded, so the
+    // redirect body would short-circuit anyway. Skipping the candidate scan
+    // saves the per-tuple loop entirely.
+    if (isUniformAcrossRuleEntities(rule, txn)) return txn;
+
+    const candidates = candidateTuples(rule, txn);
+    if (candidates.size === 0) return txn;
+
+    let result = txn;
+    const tuples = rule.tuples;
+    for (const i of candidates) {
+        const t = tuples[i];
+        const edge = edgeField(t.edge);
+
+        // Fast gate: redirect requires an existing clipout write.
+        const clipOutIdx = findWriteIndex(result, t.clipOutId, edge);
+        if (clipOutIdx < 0) continue;
+        const clipOutWrite = result[clipOutIdx];
+
+        // Skip cascade writes — only user intent gets redirected.
+        if (clipOutWrite.seedTag) continue;
+
+        // Don't double-write anchor.beat if user is already moving it.
+        if (hasWrite(result, t.anchorOutId, Field.Time)) continue;
+
+        const anchorIn = state.entities[t.anchorInId];
+        const anchorOut = state.entities[t.anchorOutId];
+        const clipIn = state.entities[t.clipId];
+        const clipOut = state.entities[t.clipOutId];
+        if (!anchorIn || anchorIn.kind !== EntityKind.Anchor) continue;
+        if (!anchorOut || anchorOut.kind !== EntityKind.Anchor) continue;
+        if (!clipIn || clipIn.kind !== EntityKind.Clip) continue;
+        if (!clipOut || clipOut.kind !== EntityKind.Clip) continue;
+
+        const clipInCurrent = t.edge === "in" ? clipIn.in : clipIn.out;
+        const clipInEdge = txnValue(result, t.clipId, edge, clipInCurrent);
+        const anchorInTime = txnValue(result, t.anchorInId, Field.Time, anchorIn.time);
+        if (Math.abs(clipInEdge - anchorInTime) > CONFORM_EPSILON) continue;
+
+        // Rewrite clipout write → anchor.beat write, preserving delta.
+        const delta = clipOutWrite.to - clipOutWrite.from;
+        const newAnchorTo = anchorOut.time + delta;
+        const filtered = result.filter((_, idx) => idx !== clipOutIdx);
+        result = mergeWrites(filtered, [
+            {
+                entityId: t.anchorOutId,
+                field: Field.Time,
+                from: anchorOut.time,
+                to: newAnchorTo,
+            },
+        ]);
+    }
+    return result;
+}
+
 // ─── Built-in derived constraint factories ────────────────────────────────
 
 /** BPM × lockedBeats × length tradeoff. The lambda escape hatch — this
@@ -759,6 +962,11 @@ const CONFORM_EPSILON = 1e-6;
  *  ConformVisual to engage. With EPSILON (1e-3) this created a visible dead
  *  zone where snap wouldn't fire but conform would also miss. */
 const SNAP_NOOP_EPSILON = 1e-9;
+/** Tolerance for "this DP write would be a no-op against the existing
+ *  txn entry" in the DirectedPair-Translate handler. Tight — we only skip
+ *  when the values literally match, never coalesce semantically distinct
+ *  writes. */
+const REDUNDANT_EPSILON = 1e-9;
 
 export function emptyState(): State {
     return {
@@ -816,29 +1024,72 @@ export function evaluateSnap(
     const out: SnapCandidate[] = [];
     const effectiveThreshold = snap.threshold * thresholdMultiplier;
 
-    for (const target of snap.targets) {
-        const e = state.entities[target.entityId];
-        if (!e) continue;
-        const targetValue = readField(e, target.field);
-        if (targetValue === undefined) continue;
+    // Pull a value-sorted index of the targets so we can binary-search the
+    // snap-radius window. The cache is keyed on `snap.targets` (a fresh
+    // array per Move op), so first call in a Move pays O(N log N) to build
+    // and every subsequent call inside the Propose loop is O(log N + k).
+    const sorted = sortedTargets(state, snap.targets);
 
+    let lo: number;
+    let hi: number;
+    if (drag.kind === "edge") {
+        lo = drag.value - effectiveThreshold;
+        hi = drag.value + effectiveThreshold;
+    } else {
+        lo = Math.min(drag.inValue, drag.outValue) - effectiveThreshold;
+        hi = Math.max(drag.inValue, drag.outValue) + effectiveThreshold;
+    }
+
+    const start = lowerBoundBy(sorted, lo, (t) => t.value);
+    for (let i = start; i < sorted.length; i++) {
+        const item = sorted[i];
+        if (item.value > hi) break;
         let bestShift: number;
         if (drag.kind === "edge") {
-            bestShift = targetValue - drag.value;
+            bestShift = item.value - drag.value;
         } else {
-            const dIn = targetValue - drag.inValue;
-            const dOut = targetValue - drag.outValue;
+            const dIn = item.value - drag.inValue;
+            const dOut = item.value - drag.outValue;
             bestShift = Math.abs(dIn) <= Math.abs(dOut) ? dIn : dOut;
         }
         const distance = Math.abs(bestShift);
         if (distance > effectiveThreshold) continue;
         out.push({
-            entityId: target.entityId,
-            field: target.field,
-            value: targetValue,
+            entityId: item.entityId,
+            field: item.field,
+            value: item.value,
             distance,
             shift: bestShift,
         });
+    }
+
+    // Scenes sidecar — pre-sorted, no per-Move sort, no entity lookup.
+    // The whole point of holding scenes outside `state.entities` is so this
+    // path is independent of scene count beyond the binary-search window.
+    if (snap.sceneTimes !== undefined && snap.sceneTimes.length > 0) {
+        const times = snap.sceneTimes;
+        const startScene = lowerBoundNumber(times, lo);
+        for (let i = startScene; i < times.length; i++) {
+            const v = times[i];
+            if (v > hi) break;
+            let bestShift: number;
+            if (drag.kind === "edge") {
+                bestShift = v - drag.value;
+            } else {
+                const dIn = v - drag.inValue;
+                const dOut = v - drag.outValue;
+                bestShift = Math.abs(dIn) <= Math.abs(dOut) ? dIn : dOut;
+            }
+            const distance = Math.abs(bestShift);
+            if (distance > effectiveThreshold) continue;
+            out.push({
+                entityId: `scene:${i}`,
+                field: Field.Time,
+                value: v,
+                distance,
+                shift: bestShift,
+            });
+        }
     }
 
     if (snap.grid && snap.grid.interval > 0) {
@@ -861,6 +1112,43 @@ export function evaluateSnap(
 
     return out.sort((a, b) => a.distance - b.distance);
 }
+
+interface SortedSnapTarget {
+    entityId: EntityId;
+    field: Field;
+    value: number;
+}
+
+const SORTED_TARGETS_CACHE = new WeakMap<
+    readonly { entityId: EntityId; field: Field }[],
+    SortedSnapTarget[]
+>();
+
+/** Build (and memoize) a value-sorted copy of `targets`. Target positions
+ *  are read from `state.entities` and remain stable across the Propose
+ *  fixed-point loop within a single Move op (handlers only mutate the
+ *  in-flight txn, not committed entity positions), so caching by the
+ *  `targets` array reference is safe — a new SnapTarget per Move gets a
+ *  fresh cache miss; subsequent calls reuse. */
+function sortedTargets(
+    state: State,
+    targets: readonly { entityId: EntityId; field: Field }[],
+): SortedSnapTarget[] {
+    let cached = SORTED_TARGETS_CACHE.get(targets);
+    if (cached) return cached;
+    cached = [];
+    for (const target of targets) {
+        const e = state.entities[target.entityId];
+        if (!e) continue;
+        const value = readField(e, target.field);
+        if (value === undefined) continue;
+        cached.push({ entityId: target.entityId, field: target.field, value });
+    }
+    cached.sort((a, b) => a.value - b.value);
+    SORTED_TARGETS_CACHE.set(targets, cached);
+    return cached;
+}
+
 
 /** Find snap candidates for an entity that's currently being dragged.
  *  Walks every `snap_target` constraint for `draggedId` and returns the
@@ -888,7 +1176,7 @@ export function findSnapCandidates(
     thresholdMultiplier = 1,
 ): SnapCandidate[] {
     const result: SnapCandidate[] = [];
-    for (const constraint of state.constraints) {
+    for (const constraint of constraintsByKind(state, ConstraintKind.SnapTarget)) {
         if (constraint.kind !== ConstraintKind.SnapTarget) continue;
         if (constraint.id !== draggedId) continue;
 
@@ -910,49 +1198,6 @@ export function findSnapCandidates(
     return result.sort((a, b) => a.distance - b.distance);
 }
 
-function constraintEntities(constraint: Constraint): EntityId[] {
-    switch (constraint.kind) {
-        case ConstraintKind.TranslateGroup:
-        case ConstraintKind.ScaleGroup:
-        case ConstraintKind.DeleteGroup:
-        case ConstraintKind.HighlightGroup:
-            return constraint.ids;
-
-        case ConstraintKind.DirectedPair:
-            return [constraint.from, constraint.to];
-
-        case ConstraintKind.Derived:
-            return constraint.watches;
-
-        case ConstraintKind.Clamp:
-            return [constraint.entityId];
-
-        case ConstraintKind.PreserveLength:
-            return [constraint.clipId];
-
-        case ConstraintKind.SnapTarget:
-            return [constraint.id, ...constraint.targets.map((t) => t.entityId)];
-
-        case ConstraintKind.SingleOfKind:
-            return constraint.activeId ? [constraint.activeId] : [];
-
-        case ConstraintKind.ConformVisual:
-        case ConstraintKind.ConformRedirect:
-            return [
-                constraint.anchorInId,
-                constraint.anchorOutId,
-                constraint.clipId,
-                constraint.clipOutId,
-            ];
-
-        // SnapCohort and SnapRule are metadata constraints — they don't bind to
-        // specific entities for dependency-tracking purposes; the dependency tracker
-        // skips them by returning an empty list.
-        case ConstraintKind.SnapCohort:
-        case ConstraintKind.SnapRule:
-            return [];
-    }
-}
 
 /** Returns the txn's delta IFF every member with writes looks like a
  *  translate seed AND they're all at the same delta. Catches:
@@ -1089,11 +1334,23 @@ function makeTranslateWrites(
 }
 
 function mergeWrites(txn: Txn, additions: Write[]): Txn {
+    if (additions.length === 0) return txn;
     const merged = [...txn];
+    // Local index — the WeakMap-cached findWriteIndex can't track our
+    // mid-mutation pushes, so we maintain our own.
+    const localIdx = new Map<string, number>();
+    for (let i = 0; i < merged.length; i++) {
+        localIdx.set(`${merged[i].entityId} ${merged[i].field}`, i);
+    }
     for (const addition of additions) {
-        const existing = findWriteIndex(merged, addition.entityId, addition.field);
-        if (existing >= 0) merged[existing] = addition;
-        else merged.push(addition);
+        const key = `${addition.entityId} ${addition.field}`;
+        const existing = localIdx.get(key);
+        if (existing !== undefined) {
+            merged[existing] = addition;
+        } else {
+            localIdx.set(key, merged.length);
+            merged.push(addition);
+        }
     }
     return merged;
 }
@@ -1144,5 +1401,8 @@ function clone(state: State): State {
         ),
         meta: mapValues(state.meta, (m) => ({ ...m })),
         globals: { ...state.globals },
+        // scenes is immutable; share by reference — the whole point of the
+        // sidecar is that it never gets copied per-Move.
+        scenes: state.scenes,
     };
 }

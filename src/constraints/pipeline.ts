@@ -7,14 +7,23 @@
  * of external state.
  */
 
-import { reduce, emptyState, bpmDerivedConstraint } from "./resolver";
-import type { State, Op, EntityId } from "./types";
-import { ConstraintKind, OpKind, PairMode } from "./types";
+import { reduce, bpmDerivedConstraint } from "./resolver";
+import type {
+    Constraint,
+    ConformTuple,
+    Entity,
+    EntityId,
+    EntityMeta,
+    Op,
+    State,
+} from "./types";
+import { ConformMode, ConstraintKind, EntityKind, OpKind, PairMode } from "./types";
 import { keyBy } from "es-toolkit";
 import { anchorInId, anchorOutId, regionInId, regionOutId } from "./ids";
 import { initAnchorPair, lasso, lockOn } from "./recipes";
 import { SNAP_RULES } from "./snap-rules";
 import { lookupProfile } from "./profiles";
+import { pushToBucket } from "./multimap";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -109,50 +118,54 @@ export interface PipelineOutput {
  *
  * Derives all constraints from slice state: anchor pairs, default-link
  * DirectedPairs, SnapRules, space cohorts, twin cohorts, lasso
- * TranslateGroup, anchorLock TranslateGroup/ScaleGroup, and the
- * ConformRedirect + ConformVisual bindings (one pair per region × anchor ×
- * edge).
+ * TranslateGroup, anchorLock TranslateGroup/ScaleGroup, and a batched
+ * `ConformRule` (one rule per mode × shared tuple table) covering the
+ * (region × anchor × edge) conform bindings.
+ *
+ * Performance: the build is intentionally non-immutable — we accumulate
+ * directly into `entities`, `constraints`, `meta` and return a fresh
+ * `State` at the end, instead of routing each addition through
+ * `reduce(state, op)` (which deep-clones the entire state per call). The
+ * conform-binding install alone touches `O(R·A)` constraint entries; the
+ * recipes used at build time (`initAnchorPair`, `lasso`, `lockOn`) only
+ * emit `AddConstraint` ops with no propagation, so the reduce / clone
+ * roundtrip would be pure overhead.
  */
 export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): State {
-    let state = emptyState();
+    const entities: Record<EntityId, Entity> = {};
+    const constraints: Constraint[] = [];
+    const meta: Record<EntityId, EntityMeta> = {};
 
-    state.globals.lockMode = slice.ui.lockMode;
+    const addConstraintOp = (op: Op): void => {
+        if (op.kind === OpKind.AddConstraint) constraints.push(op.constraint);
+    };
 
     // ── Entities ──────────────────────────────────────────────────────────────
 
     // Anchor pairs
     for (const a of slice.warp.origAnchors) {
-        state.entities[anchorInId(a.id)] = {
-            kind: "anchor",
-            id: anchorInId(a.id),
-            time: a.time,
-        };
+        const id = anchorInId(a.id);
+        entities[id] = { kind: EntityKind.Anchor, id, time: a.time };
     }
     for (const a of slice.warp.beatAnchors) {
-        state.entities[anchorOutId(a.id)] = {
-            kind: "anchor",
-            id: anchorOutId(a.id),
-            time: a.time,
-        };
+        const id = anchorOutId(a.id);
+        entities[id] = { kind: EntityKind.Anchor, id, time: a.time };
     }
 
     // Region clip pairs
     for (const r of slice.region.regions) {
-        state.entities[regionInId(r.id)] = {
-            kind: "clip",
-            id: regionInId(r.id),
-            in: r.inPoint,
-            out: r.outPoint,
-        };
-        state.entities[regionOutId(r.id)] = {
-            kind: "clip",
-            id: regionOutId(r.id),
+        const inId = regionInId(r.id);
+        const outId = regionOutId(r.id);
+        entities[inId] = { kind: EntityKind.Clip, id: inId, in: r.inPoint, out: r.outPoint };
+        entities[outId] = {
+            kind: EntityKind.Clip,
+            id: outId,
             in: r.inBeatTime,
             out: r.outBeatTime,
         };
         // Seed meta for bpmDerivedConstraint
         if (r.bpm !== undefined || r.lockedBeats !== undefined) {
-            state.meta[regionOutId(r.id)] = {
+            meta[outId] = {
                 ...(r.bpm !== undefined ? { bpm: r.bpm } : {}),
                 ...(r.lockedBeats !== undefined ? { lockedBeats: r.lockedBeats } : {}),
             };
@@ -169,18 +182,14 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
         const isLinked = !beat || beat.linked !== false;
         if (isLinked) {
             for (const op of initAnchorPair(anchorInId(a.id), anchorOutId(a.id))) {
-                state = reduce(state, op);
+                addConstraintOp(op);
             }
         }
     }
 
     // 2. BPM derived constraint — one per region clipout.
     for (const r of slice.region.regions) {
-        const outId = regionOutId(r.id);
-        state = reduce(state, {
-            kind: OpKind.AddConstraint,
-            constraint: bpmDerivedConstraint(outId, slice.ui.lockMode),
-        });
+        constraints.push(bpmDerivedConstraint(regionOutId(r.id), slice.ui.lockMode));
     }
 
     // 3. Default-link (clipin → clipout): two MirrorEdges (per-edge value
@@ -194,9 +203,8 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     //    conformed value + delta, which is what Translate would yield).
     for (const r of slice.region.regions) {
         if (r.defaultLinked) {
-            state = reduce(state, {
-                kind: OpKind.AddConstraint,
-                constraint: {
+            constraints.push(
+                {
                     kind: ConstraintKind.DirectedPair,
                     from: regionInId(r.id),
                     to: regionOutId(r.id),
@@ -204,10 +212,7 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
                     fromEdge: "in",
                     tag: `defaultlink:${regionInId(r.id)}:in`,
                 },
-            });
-            state = reduce(state, {
-                kind: OpKind.AddConstraint,
-                constraint: {
+                {
                     kind: ConstraintKind.DirectedPair,
                     from: regionInId(r.id),
                     to: regionOutId(r.id),
@@ -215,85 +220,72 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
                     fromEdge: "out",
                     tag: `defaultlink:${regionInId(r.id)}:out`,
                 },
-            });
+            );
         }
     }
 
     // 4. ConformVisual + ConformRedirect — installed after step 11 below so
     //    they fire AFTER SnapTarget in each Propose fixed-point iteration.
-    //    Insertion order matters: SnapTarget restricts the seed write first,
-    //    ConformRedirect rewrites user clipout writes into anchor.beat writes,
-    //    then ConformVisual asserts clipout = anchor.beat.
-    //    See block after step 11 for the install loop.
 
     // 5. SnapRule constraints — derived from SNAP_RULES table.
     for (const spec of SNAP_RULES) {
         const tag = spec.condition
             ? `rule:${spec.dragger}->${spec.target}:${spec.condition}`
             : `rule:${spec.dragger}->${spec.target}`;
-        state = reduce(state, {
-            kind: OpKind.AddConstraint,
-            constraint: {
-                kind: ConstraintKind.SnapRule,
-                dragger: spec.dragger,
-                target: spec.target,
-                condition: spec.condition,
-                tag,
-            },
+        constraints.push({
+            kind: ConstraintKind.SnapRule,
+            dragger: spec.dragger,
+            target: spec.target,
+            condition: spec.condition,
+            tag,
         });
     }
 
-    // 6. Space cohorts (anchor-in / anchor-out / clipin / clipout) — derived from slice.
-    const cohorts: Record<string, EntityId[]> = {
-        "anchor-in": slice.warp.origAnchors.map((a) => anchorInId(a.id)),
-        "anchor-out": slice.warp.beatAnchors.map((a) => anchorOutId(a.id)),
-        clipin: slice.region.regions.map((r) => regionInId(r.id)),
-        clipout: slice.region.regions.map((r) => regionOutId(r.id)),
-    };
-    for (const [tag, ids] of Object.entries(cohorts)) {
-        // Remove any existing cohort with this tag, then add fresh.
-        state = reduce(state, {
-            kind: OpKind.RemoveConstraint,
-            predicate: (c) =>
-                c.kind === ConstraintKind.SnapCohort && (c as { tag?: string }).tag === tag,
-        });
-        state = reduce(state, {
-            kind: OpKind.AddConstraint,
-            constraint: { kind: ConstraintKind.SnapCohort, tag, ids },
-        });
-    }
+    // 6. Space cohorts (anchor-in / anchor-out / clipin / clipout). Pushed
+    //    in a single shot — we start from an empty constraint list, so no
+    //    remove-before-add dance is needed.
+    constraints.push(
+        {
+            kind: ConstraintKind.SnapCohort,
+            tag: "anchor-in",
+            ids: slice.warp.origAnchors.map((a) => anchorInId(a.id)),
+        },
+        {
+            kind: ConstraintKind.SnapCohort,
+            tag: "anchor-out",
+            ids: slice.warp.beatAnchors.map((a) => anchorOutId(a.id)),
+        },
+        {
+            kind: ConstraintKind.SnapCohort,
+            tag: "clipin",
+            ids: slice.region.regions.map((r) => regionInId(r.id)),
+        },
+        {
+            kind: ConstraintKind.SnapCohort,
+            tag: "clipout",
+            ids: slice.region.regions.map((r) => regionOutId(r.id)),
+        },
+    );
 
-    // 6b. Scenes — synthesize anchor-like entities, populate `scenes` cohort.
-    //     Scenes aren't real anchor pairs (no beat side, no DeleteGroup), so
-    //     they're conjured purely for snap-target purposes at build time.
+    // 6b. Scenes — pure read-only proximity targets. Stored as a sorted
+    //     Float64Array sidecar on `State`, NOT as entities + SnapCohort.
+    //     This keeps the per-Move state clone independent of scene count
+    //     and lets `evaluateSnap` binary-search the cuts directly. Snap
+    //     resolution for the `scenes` cohort tag is special-cased in
+    //     `snapToSiblings`, which reads the sidecar.
+    let sceneSidecar: Float64Array | undefined;
     if (slice.scenes && slice.scenes.length > 0) {
-        const sceneIds: EntityId[] = [];
-        for (let i = 0; i < slice.scenes.length; i++) {
-            const id: EntityId = `scene:${i}`;
-            state = reduce(state, { kind: OpKind.AddAnchor, id, time: slice.scenes[i] });
-            sceneIds.push(id);
-        }
-        state = reduce(state, {
-            kind: OpKind.RemoveConstraint,
-            predicate: (c) =>
-                c.kind === ConstraintKind.SnapCohort && (c as { tag?: string }).tag === "scenes",
-        });
-        state = reduce(state, {
-            kind: OpKind.AddConstraint,
-            constraint: { kind: ConstraintKind.SnapCohort, tag: "scenes", ids: sceneIds },
-        });
+        sceneSidecar = new Float64Array(slice.scenes);
+        sceneSidecar.sort();
     }
 
     // 7. Twin cohorts (twin:{regionId}) — derived for diverged (defaultLinked === false) regions.
     for (const r of slice.region.regions) {
         if (r.defaultLinked === false) {
-            state = reduce(state, {
-                kind: OpKind.AddConstraint,
-                constraint: {
-                    kind: ConstraintKind.SnapCohort,
-                    tag: `twin:${r.id}`,
-                    ids: [regionInId(r.id), regionOutId(r.id)],
-                },
+            constraints.push({
+                kind: ConstraintKind.SnapCohort,
+                tag: `twin:${r.id}`,
+                ids: [regionInId(r.id), regionOutId(r.id)],
             });
         }
     }
@@ -311,7 +303,7 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
         lassoIds = [...new Set(lassoIds)];
     }
     if (lassoIds.length > 0) {
-        state = reduce(state, lasso("main", lassoIds));
+        addConstraintOp(lasso("main", lassoIds));
     }
 
     // 10. Anchor-lock constraints — derived directly from slice state.
@@ -341,17 +333,14 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
                 const lockMode = slice.ui.lockMode;
                 if (lockMode === "beats") {
                     for (const op of lockOn(clipOutId, innerAnchorOutIds)) {
-                        state = reduce(state, op);
+                        addConstraintOp(op);
                     }
                 } else {
-                    state = reduce(state, {
-                        kind: OpKind.AddConstraint,
-                        constraint: {
-                            kind: ConstraintKind.TranslateGroup,
-                            ids: [clipOutId, ...innerAnchorOutIds],
-                            driver: clipOutId,
-                            tag: `lock:${clipOutId}`,
-                        },
+                    constraints.push({
+                        kind: ConstraintKind.TranslateGroup,
+                        ids: [clipOutId, ...innerAnchorOutIds],
+                        driver: clipOutId,
+                        tag: `lock:${clipOutId}`,
                     });
                 }
             }
@@ -359,11 +348,10 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
     }
 
     // 11. Gesture-scoped constraints — declared by the active drag handle's
-    //     GestureProfile.whileDragging. These exist exactly for the
-    //     pipeline-cycles where state.gesture.activeHandle points at them.
-    //     Profiles receive the partial graph state so they can use
-    //     `snapToSiblings` (and friends) to compute SnapTarget targets
-    //     dynamically.
+    //     GestureProfile.whileDragging. The profile is read against a
+    //     snapshot of the partially-built state (it may call `snapToSiblings`
+    //     and friends), so we hand it a synthesized read-only view rather
+    //     than mutate the accumulator.
     if (dragCtx.activeHandle) {
         const profile = lookupProfile(dragCtx.activeHandle);
         if (profile) {
@@ -378,68 +366,100 @@ export function buildGraphFromSlice(slice: PipelineSlice, dragCtx: DragCtx): Sta
                 pxPerUnit: dragCtx.pxPerUnit ?? 0,
                 grid: dragCtx.grid ?? undefined,
             };
-            for (const constraint of profile.whileDragging(dragCtx.activeHandle, ctx, state)) {
-                state = reduce(state, { kind: OpKind.AddConstraint, constraint });
+            // The profile may consult the partial graph (e.g. snapToSiblings
+            // walks SnapCohorts / SnapRules). We hand it a snapshot of the
+            // constraints array because derived-index.ts caches its bundles
+            // keyed on the array reference — if we passed the live array,
+            // any later mutation (step 12's conform bindings, or even the
+            // profile-emitted constraints below) would leave the cached
+            // bundle stale.
+            const profileView: State = {
+                entities,
+                constraints: [...constraints],
+                meta,
+                globals: { lockMode: slice.ui.lockMode },
+                scenes: sceneSidecar,
+            };
+            for (const constraint of profile.whileDragging(
+                dragCtx.activeHandle,
+                ctx,
+                profileView,
+            )) {
+                constraints.push(constraint);
             }
         }
     }
 
-    // 12. ConformRedirect + ConformVisual — installed LAST so that within
-    //     each Propose fixed-point iteration, the rule order is:
-    //       (a) Default-link (step 3b)         — clipin → clipout cascade
+    // 12. ConformRule (redirect + visual) — installed LAST so that within
+    //     each Propose fixed-point iteration the order is:
+    //       (a) Default-link (step 3)         — clipin → clipout cascade
     //       (b) ... other Propose rules ...
-    //       (c) SnapTarget (step 11, gesture)  — restricts seed write
-    //       (d) ConformRedirect (this step)    — rewrites user clipout
-    //                                            writes as anchor.beat writes
-    //       (e) ConformVisual (this step)      — asserts clipout = anchor.beat
+    //       (c) SnapTarget (step 11, gesture) — restricts seed write
+    //       (d) ConformRule mode=redirect     — rewrites user clipout
+    //                                           writes as anchor.beat writes
+    //       (e) ConformRule mode=visual       — asserts clipout = anchor.beat
     //
     //     Order matters because state.constraints iterates by insertion order
-    //     within each Propose pass. ConformRedirect must see the snapped
-    //     value (so the anchor.beat write carries the snapped value, not the
-    //     raw cursor). ConformVisual must run after ConformRedirect so the
-    //     clipout it writes reflects the redirected anchor.beat.
+    //     within each Propose pass. Redirect must see the snapped value (so
+    //     the anchor.beat write carries the snapped value, not the raw
+    //     cursor). Visual must run after Redirect so the clipout it writes
+    //     reflects the redirected anchor.beat.
     //
-    //     Both rules fan out per (region × anchor × edge). The conform
-    //     coupling is strictly directed (anchor → clipout); ConformRedirect
-    //     handles user clipout drags by rewriting them into anchor.beat writes.
+    //     Both modes iterate the same per (region × anchor × edge) tuple
+    //     table internally. The conform coupling is strictly directed
+    //     (anchor → clipout); the redirect mode handles user clipout drags
+    //     by rewriting them into anchor.beat writes.
     //
     //     See: docs/superpowers/specs/2026-05-20-conform-invariant-restructure-design.md
-    // Install both ConformRedirect and ConformVisual for every
-    // (region × anchor-pair × edge). Order matters within each Propose
-    // iteration: Redirect runs first (rewrites user clipout writes →
-    // anchor.beat), then Visual asserts clipout = anchor.beat. Insertion
-    // order here = iteration order in the Propose loop, so we install
-    // all Redirects across regions/anchors first, then all Visuals.
-    const conformBindingFields = (
-        r: PipelineSlice["region"]["regions"][number],
-        origId: number,
-        edge: "in" | "out",
-    ) => ({
-        anchorInId: anchorInId(origId),
-        anchorOutId: anchorOutId(origId),
-        clipId: regionInId(r.id),
-        clipOutId: regionOutId(r.id),
-        edge,
-    });
-    const conformInstallKinds = [
-        ConstraintKind.ConformRedirect,
-        ConstraintKind.ConformVisual,
-    ] as const;
-    for (const kind of conformInstallKinds) {
-        for (const r of slice.region.regions) {
-            for (const orig of slice.warp.origAnchors) {
-                if (!beatById[orig.id]) continue;
-                for (const edge of ["in", "out"] as const) {
-                    state = reduce(state, {
-                        kind: OpKind.AddConstraint,
-                        constraint: { kind, ...conformBindingFields(r, orig.id, edge) },
-                    });
-                }
+    const linkedOrigAnchors = slice.warp.origAnchors.filter((a) => beatById[a.id]);
+    const conformTuples: ConformTuple[] = [];
+    const conformByEntity = new Map<EntityId, number[]>();
+    for (const r of slice.region.regions) {
+        const clipId = regionInId(r.id);
+        const clipOutId = regionOutId(r.id);
+        for (const orig of linkedOrigAnchors) {
+            const aInId = anchorInId(orig.id);
+            const aOutId = anchorOutId(orig.id);
+            for (const edge of ["in", "out"] as const) {
+                const i = conformTuples.length;
+                conformTuples.push({
+                    anchorInId: aInId,
+                    anchorOutId: aOutId,
+                    clipId,
+                    clipOutId,
+                    edge,
+                });
+                pushToBucket(conformByEntity, aInId, i);
+                pushToBucket(conformByEntity, aOutId, i);
+                pushToBucket(conformByEntity, clipId, i);
+                pushToBucket(conformByEntity, clipOutId, i);
             }
         }
     }
+    if (conformTuples.length > 0) {
+        constraints.push(
+            {
+                kind: ConstraintKind.ConformRule,
+                mode: ConformMode.Redirect,
+                tuples: conformTuples,
+                byEntity: conformByEntity,
+            },
+            {
+                kind: ConstraintKind.ConformRule,
+                mode: ConformMode.Visual,
+                tuples: conformTuples,
+                byEntity: conformByEntity,
+            },
+        );
+    }
 
-    return state;
+    return {
+        entities,
+        constraints,
+        meta,
+        globals: { lockMode: slice.ui.lockMode },
+        scenes: sceneSidecar,
+    };
 }
 
 // ─── Extract diffs ────────────────────────────────────────────────────────────
