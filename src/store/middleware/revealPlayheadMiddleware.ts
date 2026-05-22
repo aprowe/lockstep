@@ -7,7 +7,8 @@ import { scrollViewToTime } from "../../utils/view";
 /**
  * Auto-scroll the timeline view to keep the playhead visible after a
  * deliberate seek (panel activation, toolbar nav, keyboard shortcut, region
- * zoom). See the listener below for the seek-vs-drift heuristic.
+ * zoom). Gated by the `timelineFollowPlayhead` toolbar toggle. See the
+ * listener below for the seek-vs-drift heuristic.
  */
 export const revealPlayheadMiddleware = createListenerMiddleware();
 
@@ -43,6 +44,7 @@ revealPlayheadMiddleware.startListening({
         const time = action.payload;
         const delta = Math.abs(time - prevPlayhead);
         prevPlayhead = time;
+        if (!state.ui.timelineFollowPlayhead) return;
         if (state.ui.playing) return;
         if (delta < 0.5) return;
         const duration = state.video.video?.duration ?? 0;

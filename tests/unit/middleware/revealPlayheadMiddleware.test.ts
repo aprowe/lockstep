@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { configureStore, type EnhancedStore } from "@reduxjs/toolkit";
 import videoReducer, { setVideo } from "../../../src/store/slices/videoSlice";
-import uiReducer, { setView, setPlaying } from "../../../src/store/slices/uiSlice";
+import uiReducer, {
+    setView,
+    setPlaying,
+    setTimelineFollowPlayhead,
+} from "../../../src/store/slices/uiSlice";
 import warpReducer, { setPlayhead } from "../../../src/store/slices/warpSlice";
 import regionReducer from "../../../src/store/slices/regionSlice";
 import historyReducer from "../../../src/store/slices/historySlice";
@@ -44,6 +48,7 @@ describe("revealPlayheadMiddleware", () => {
             }),
         );
         store.dispatch(setView({ start: 10, end: 20 }));
+        store.dispatch(setTimelineFollowPlayhead(true));
     });
 
     it("leaves the view alone when the playhead is inside it", () => {
@@ -92,8 +97,16 @@ describe("revealPlayheadMiddleware", () => {
             middleware: (getDefault) => getDefault().prepend(revealPlayheadMiddleware.middleware),
         });
         bare.dispatch(setView({ start: 10, end: 20 }));
+        bare.dispatch(setTimelineFollowPlayhead(true));
         bare.dispatch(setPlayhead(50));
         const view = (bare.getState() as any).ui.view;
+        expect(view).toEqual({ start: 10, end: 20 });
+    });
+
+    it("is a no-op when the follow-playhead toggle is off", () => {
+        store.dispatch(setTimelineFollowPlayhead(false));
+        store.dispatch(setPlayhead(50));
+        const view = (store.getState() as any).ui.view;
         expect(view).toEqual({ start: 10, end: 20 });
     });
 

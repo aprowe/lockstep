@@ -214,6 +214,26 @@
     background: rgba(var(--accent-rgb), 0.16);
 }
 
+/* ── Follow-playhead toggle ──────────────────────────────── */
+.tb-btn--follow {
+    color: var(--fg-3);
+    border-color: var(--border-hi);
+    background: transparent;
+}
+.tb-btn--follow:hover:not(:disabled) {
+    color: var(--fg-1);
+    background: var(--bg-hover);
+}
+.tb-btn--follow--active {
+    color: var(--playhead);
+    border-color: color-mix(in srgb, var(--playhead) 45%, transparent);
+    background: color-mix(in srgb, var(--playhead) 12%, transparent);
+}
+.tb-btn--follow--active:hover:not(:disabled) {
+    color: var(--playhead);
+    background: color-mix(in srgb, var(--playhead) 18%, transparent);
+}
+
 /* ── Time display ────────────────────────────────────────── */
 .tb-time {
     display: flex;

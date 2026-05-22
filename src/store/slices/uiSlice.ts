@@ -10,6 +10,7 @@ interface TimelinePrefs {
     gridDiv: number;
     thumbShow: boolean;
     followDrag: boolean;
+    followPlayhead: boolean;
     alwaysAnchors: boolean;
     alwaysRegions: boolean;
     alwaysScenes: boolean;
@@ -20,6 +21,7 @@ const DEFAULT_TIMELINE_PREFS: TimelinePrefs = {
     gridDiv: 1,
     thumbShow: false,
     followDrag: true,
+    followPlayhead: false,
     alwaysAnchors: true,
     alwaysRegions: false,
     alwaysScenes: false,
@@ -42,6 +44,10 @@ function loadTimelinePrefs(): TimelinePrefs {
                 typeof p.followDrag === "boolean"
                     ? p.followDrag
                     : DEFAULT_TIMELINE_PREFS.followDrag,
+            followPlayhead:
+                typeof p.followPlayhead === "boolean"
+                    ? p.followPlayhead
+                    : DEFAULT_TIMELINE_PREFS.followPlayhead,
             alwaysAnchors:
                 typeof p.alwaysAnchors === "boolean"
                     ? p.alwaysAnchors
@@ -67,6 +73,7 @@ function saveTimelinePrefs(state: UiState) {
             gridDiv: state.gridDiv,
             thumbShow: state.timelineThumbShow,
             followDrag: state.timelineFollowDrag,
+            followPlayhead: state.timelineFollowPlayhead,
             alwaysAnchors: state.timelineAlwaysAnchors,
             alwaysRegions: state.timelineAlwaysRegions,
             alwaysScenes: state.timelineAlwaysScenes,
@@ -114,6 +121,10 @@ interface UiState {
     gridDiv: number;
     timelineThumbShow: boolean;
     timelineFollowDrag: boolean;
+    /** When true, deliberate seeks (panel activation, toolbar nav, keyboard
+     *  shortcut, region zoom) scroll the timeline view to keep the playhead
+     *  on screen. When false, the view stays put. See `revealPlayheadMiddleware`. */
+    timelineFollowPlayhead: boolean;
     timelineAlwaysAnchors: boolean;
     timelineAlwaysRegions: boolean;
     timelineAlwaysScenes: boolean;
@@ -170,6 +181,7 @@ const initialState: UiState = {
     gridDiv: _prefs.gridDiv,
     timelineThumbShow: _prefs.thumbShow,
     timelineFollowDrag: _prefs.followDrag,
+    timelineFollowPlayhead: _prefs.followPlayhead,
     timelineAlwaysAnchors: _prefs.alwaysAnchors,
     timelineAlwaysRegions: _prefs.alwaysRegions,
     timelineAlwaysScenes: _prefs.alwaysScenes,
@@ -221,6 +233,10 @@ const uiSlice = createSlice({
         },
         setTimelineFollowDrag(state, action: PayloadAction<boolean>) {
             state.timelineFollowDrag = action.payload;
+            saveTimelinePrefs(state);
+        },
+        setTimelineFollowPlayhead(state, action: PayloadAction<boolean>) {
+            state.timelineFollowPlayhead = action.payload;
             saveTimelinePrefs(state);
         },
         setTimelineAlwaysAnchors(state, action: PayloadAction<boolean>) {
@@ -282,6 +298,7 @@ export const {
     setGridDiv,
     setTimelineThumbShow,
     setTimelineFollowDrag,
+    setTimelineFollowPlayhead,
     setTimelineAlwaysAnchors,
     setTimelineAlwaysRegions,
     setTimelineAlwaysScenes,

@@ -248,6 +248,14 @@
         {
           "items": [
             {
+              "id": "follow-playhead",
+              "label": "Follow Playhead"
+            }
+          ]
+        },
+        {
+          "items": [
+            {
               "id": "speed",
               "label": "Speed"
             }

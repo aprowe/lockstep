@@ -979,3 +979,25 @@ export function IconFilterClip({ size = 14, ...props }: IconProps) {
         </svg>
     );
 }
+
+/** Viewport brackets following a vertical playhead — the view tracks the
+ *  current playhead position. */
+export function IconFollowPlayhead({ size = 18, ...props }: IconProps) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            {...props}
+        >
+            <path d="M3,4 L1.5,4 L1.5,12 L3,12" strokeWidth="1.4" />
+            <path d="M13,4 L14.5,4 L14.5,12 L13,12" strokeWidth="1.4" />
+            <line x1="8" y1="2" x2="8" y2="14" strokeWidth="1.5" />
+            <polygon points="6,2 10,2 8,4.5" fill="currentColor" stroke="none" />
+        </svg>
+    );
+}
