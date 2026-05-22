@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildAnchorPairs, origToBeat, anchorBeatAt } from "../../../../src/timeline/model/beatMap";
+import {
+    anchorBeatAt,
+    beatRateAt,
+    buildAnchorPairs,
+    origToBeat,
+} from "../../../../src/timeline/model/beatMap";
 import type { Anchor } from "../../../../src/types";
 
 describe("buildAnchorPairs", () => {
@@ -87,5 +92,47 @@ describe("anchorBeatAt", () => {
 
     it("returns undefined when the anchor has no beat pair", () => {
         expect(anchorBeatAt(10, anchors, [])).toBeUndefined();
+    });
+});
+
+describe("beatRateAt", () => {
+    // Two segments: [0..10] orig stretches to [0..5] beat (2× faster than beat),
+    // [10..20] orig stretches to [5..20] beat (1.5× slower than beat).
+    const anchors: Anchor[] = [
+        { id: 1, time: 0 },
+        { id: 2, time: 10 },
+        { id: 3, time: 20 },
+    ];
+    const beatAnchors: Anchor[] = [
+        { id: 1, time: 0 },
+        { id: 2, time: 5 },
+        { id: 3, time: 20 },
+    ];
+
+    it("returns origSpan / beatSpan inside each segment", () => {
+        expect(beatRateAt(5, anchors, beatAnchors)).toBe(2);
+        expect(beatRateAt(15, anchors, beatAnchors)).toBeCloseTo(10 / 15);
+    });
+
+    it("returns 1 outside the anchor range", () => {
+        expect(beatRateAt(-1, anchors, beatAnchors)).toBe(1);
+        expect(beatRateAt(25, anchors, beatAnchors)).toBe(1);
+    });
+
+    it("returns 1 with fewer than two anchors", () => {
+        expect(beatRateAt(5, [], [])).toBe(1);
+        expect(beatRateAt(5, [{ id: 1, time: 0 }], [{ id: 1, time: 0 }])).toBe(1);
+    });
+
+    it("returns 1 on a degenerate zero-length segment", () => {
+        const a: Anchor[] = [
+            { id: 1, time: 5 },
+            { id: 2, time: 5 },
+        ];
+        const b: Anchor[] = [
+            { id: 1, time: 0 },
+            { id: 2, time: 1 },
+        ];
+        expect(beatRateAt(5, a, b)).toBe(1);
     });
 });

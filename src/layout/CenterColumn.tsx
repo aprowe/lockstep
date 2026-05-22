@@ -43,6 +43,7 @@ import {
 } from "../store/slices/sceneSlice";
 import { setListSelection, setPendingEdit } from "../store/slices/listsSlice";
 import { calcZoomToRegion } from "../utils/view";
+import { beatRateAt } from "../timeline/model/beatMap";
 import { calcNewRegionBoundsFromScenes } from "../timeline/model/newRegionBounds";
 import { findPreviousTarget } from "../utils/navigation";
 import { visibleSceneCuts } from "../utils/sceneFilter";
@@ -176,61 +177,40 @@ export default function CenterColumn() {
     // Tracks the speed-dropdown multiplier set in Toolbar (default 1×).
     const speedRef = useRef(1);
 
-    useEffect(() => {
-        /** Given the sorted orig/beat anchor arrays and the current video time,
-         *  return the playbackRate that makes beat-time advance at 1×.
-         *  Returns 1 when outside the anchor range or when < 2 anchors exist. */
-        function computeBeatRate(currentTime: number): number {
-            const oAnchors = origAnchorsRef.current;
-            const bAnchors = beatAnchorsRef.current;
-            if (oAnchors.length < 2) return 1;
-            // Build sorted pairs
-            const sorted = [...oAnchors]
-                .sort((a, b) => a.time - b.time)
-                .map((oa) => {
-                    const ba = bAnchors.find((b) => b.id === oa.id);
-                    return { origTime: oa.time, beatTime: ba ? ba.time : oa.time };
-                });
-            // Find the segment containing currentTime
-            for (let i = 0; i < sorted.length - 1; i++) {
-                const o0 = sorted[i].origTime;
-                const o1 = sorted[i + 1].origTime;
-                if (currentTime >= o0 && currentTime <= o1) {
-                    const origSpan = o1 - o0;
-                    const beatSpan = sorted[i + 1].beatTime - sorted[i].beatTime;
-                    if (beatSpan <= 0 || origSpan <= 0) return 1;
-                    // rate = origSpan / beatSpan → beat advances 1s per 1s of wall-clock
-                    return origSpan / beatSpan;
-                }
-            }
-            return 1; // outside anchor range
-        }
+    // The single source of truth for "what rate should playback advance at
+    // right now". Beat mode walks the orig→beat anchor map (per-segment
+    // linear slope); orig mode is the dropdown multiplier directly. Both
+    // players (HTML5 and snappy) consume this same function so they warp
+    // identically.
+    const getEffectiveRate = useCallback((mediaTime: number): number => {
+        const dropdownSpeed = speedRef.current;
+        if (playbackModeRef.current !== "beat") return dropdownSpeed;
+        return (
+            beatRateAt(mediaTime, origAnchorsRef.current, beatAnchorsRef.current) * dropdownSpeed
+        );
+    }, []);
 
+    useEffect(() => {
         const v = playerRef.current?.videoElement;
         if (!v) return;
 
+        // HTML5 path: drive the rate from `timeupdate` events on the
+        // underlying <video>. Browser clamp on playbackRate is 0.0625–16.
         const handleTimeUpdate = () => {
-            const dropdownSpeed = speedRef.current;
-            if (playbackModeRef.current === "beat") {
-                const beatRate = computeBeatRate(v.currentTime) * dropdownSpeed;
-                // Clamp to browser-supported range (most browsers: 0.0625–16)
-                v.playbackRate = Math.max(0.0625, Math.min(16, beatRate));
-            } else {
-                if (v.playbackRate !== dropdownSpeed) v.playbackRate = dropdownSpeed;
-            }
+            const rate = Math.max(0.0625, Math.min(16, getEffectiveRate(v.currentTime)));
+            if (v.playbackRate !== rate) v.playbackRate = rate;
         };
 
         v.addEventListener("timeupdate", handleTimeUpdate);
-        // Apply immediately in case mode changes while paused
         handleTimeUpdate();
         return () => {
             v.removeEventListener("timeupdate", handleTimeUpdate);
-            // Restore native rate when effect is cleaned up
             if (v.playbackRate !== 1) v.playbackRate = 1;
         };
-        // Re-attach whenever the video element changes (new src load) or mode changes.
-        // Anchor changes are picked up via refs — no need to re-run the effect.
-    }, [playerRef, playbackMode, video?.path]);
+        // Re-attach when the underlying <video> element changes (new src
+        // load) or when the player implementation swaps. Anchor + mode
+        // changes are picked up through refs.
+    }, [playerRef, playbackMode, video?.path, getEffectiveRate]);
 
     // ── Empty / loading state ─────────────────────────────────────────────────
     // Rendered in the center slot whenever there's no usable video, so the
@@ -345,6 +325,7 @@ export default function CenterColumn() {
                             duration={video.duration}
                             fps={video.fps}
                             audioUrl={video.videoUrl}
+                            getRate={getEffectiveRate}
                             onTimeUpdate={(t) => {
                                 if (playbackLoopMode !== "continue" && playing) {
                                     const inPoint = activeRegion?.inPoint ?? 0;

@@ -89,3 +89,29 @@ export function anchorBeatAt(
     const b = beatAnchors.find((b) => b.id === a.id);
     return b?.time;
 }
+
+/**
+ * Local playback rate that makes beat-time advance at 1× given the source
+ * time. In each segment between two anchor pairs the warp is linear, so the
+ * rate is the slope `origSpan / beatSpan` — playing the source that fast
+ * makes one second of beat-time elapse per wall-clock second. Returns 1
+ * outside the covered range or when fewer than two pairs exist.
+ *
+ * Used by the playback rate effect in CenterColumn (HTML5 path) and by the
+ * snappy player's cache walker (canvas path) so both players warp identically.
+ */
+export function beatRateAt(time: number, anchors: Anchor[], beatAnchors: Anchor[]): number {
+    if (anchors.length < 2) return 1;
+    const pairs = buildAnchorPairs(anchors, beatAnchors);
+    for (let i = 0; i < pairs.length - 1; i++) {
+        const o0 = pairs[i].inT;
+        const o1 = pairs[i + 1].inT;
+        if (time >= o0 && time <= o1) {
+            const origSpan = o1 - o0;
+            const beatSpan = pairs[i + 1].outT - pairs[i].outT;
+            if (beatSpan <= 0 || origSpan <= 0) return 1;
+            return origSpan / beatSpan;
+        }
+    }
+    return 1;
+}

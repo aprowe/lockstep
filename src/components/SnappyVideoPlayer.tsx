@@ -22,8 +22,6 @@ import "./VideoPlayer.css";
  * Known gaps (documented in docs/SNAPPY_PLAYER_NOTES.md):
  * - Audio comes from a sibling `<audio>` element. Sync is best-effort and
  *   drifts under heavy scrub.
- * - `setPlaybackRate` only affects the cache walker (and the audio element);
- *   speeds > ~2× outrun the prefetch window on long clips.
  * - First paint of a new window costs one ffmpeg startup + first-frame
  *   decode (~150 ms on a warm SSD).
  */
@@ -36,6 +34,13 @@ interface SnappyVideoPlayerProps {
     fps: number;
     /** `convertFileSrc(path)` — only used by the sibling `<audio>` element. */
     audioUrl: string;
+    /** Optional rate-at-time callback. Called once per animation frame with
+     *  the current media time; the cache walker advances by `wall_elapsed *
+     *  getRate(t)` and the audio element tracks the same rate. Used for
+     *  beat-time playback, where the rate varies along an orig→beat anchor
+     *  map. When omitted, the imperative `setPlaybackRate` value is used as
+     *  a constant rate. */
+    getRate?: (mediaTime: number) => number;
     onTimeUpdate?: (time: number) => void;
     onPlayStateChange?: (playing: boolean) => void;
 }
@@ -56,7 +61,7 @@ interface CachedFrame {
 }
 
 export default forwardRef<VideoPlayerHandle, SnappyVideoPlayerProps>(function SnappyVideoPlayer(
-    { path, duration, fps, audioUrl, onTimeUpdate, onPlayStateChange },
+    { path, duration, fps, audioUrl, getRate, onTimeUpdate, onPlayStateChange },
     ref,
 ) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -83,6 +88,10 @@ export default forwardRef<VideoPlayerHandle, SnappyVideoPlayerProps>(function Sn
     onTimeUpdateRef.current = onTimeUpdate;
     const onPlayStateChangeRef = useRef(onPlayStateChange);
     onPlayStateChangeRef.current = onPlayStateChange;
+    // Rate callback lives in a ref so updates don't re-render or invalidate
+    // the memoised tick. The cache walker reads the latest value each frame.
+    const getRateRef = useRef(getRate);
+    getRateRef.current = getRate;
 
     const [status, setStatus] = useState<"idle" | "decoding" | "ready" | "error">("idle");
     const [error, setError] = useState<string | null>(null);
@@ -249,11 +258,32 @@ export default forwardRef<VideoPlayerHandle, SnappyVideoPlayerProps>(function Sn
         const now = performance.now() / 1000;
         const clock = playClockRef.current;
         if (clock) {
-            const elapsed = (now - clock.wall) * playbackRateRef.current;
+            // Variable-rate playback: re-evaluate the effective rate at the
+            // current media time on every frame so beat-warped playback
+            // (where the rate changes piecewise along the anchor map) stays
+            // accurate without overshooting at segment boundaries. The
+            // browser clamp on HTMLMediaElement.playbackRate is 0.0625–16;
+            // mirror that here so the wall-clock estimate and the audio
+            // element agree.
+            const rawRate = getRateRef.current?.(currentTimeRef.current) ?? playbackRateRef.current;
+            const rate = Math.max(0.0625, Math.min(16, rawRate));
+            const elapsed = (now - clock.wall) * rate;
             const next = Math.min(duration, clock.media + elapsed);
+            // Re-anchor every frame. With a constant rate this is a no-op
+            // (next - media == elapsed); with a variable rate it stops the
+            // formula from compounding stale-rate × stale-elapsed across
+            // segment boundaries.
+            clock.wall = now;
+            clock.media = next;
             currentTimeRef.current = next;
             paintNearest(next);
             onTimeUpdateRef.current?.(next);
+            // Keep the audio element matched to the same rate so the
+            // pitched-up/down audio stays in sync with the visual clock.
+            // Setting playbackRate every frame is cheap and idempotent.
+            if (audioRef.current && audioRef.current.playbackRate !== rate) {
+                audioRef.current.playbackRate = rate;
+            }
             if (next >= duration - 1e-4) {
                 playingRef.current = false;
                 onPlayStateChangeRef.current?.(false);

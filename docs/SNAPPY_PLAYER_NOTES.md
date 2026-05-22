@@ -74,6 +74,12 @@ with no chunking visible to the consumer.
 - Play / pause / seek all go through `VideoPlayerHandle`, same interface
   as the existing `VideoPlayer.tsx`, so `CenterColumn` swaps the two
   components without any other wiring changes.
+- **Beat-time playback**: the player accepts an optional `getRate(t)`
+  callback. The cache walker reads it on every animation frame, re-anchors
+  the play clock, and pushes the same rate onto the `<audio>` element —
+  so warped playback follows the orig→beat anchor map identically to the
+  HTML5 player path. Both players source the rate from
+  `beatRateAt()` in `src/timeline/model/beatMap.ts`.
 
 ## Known gaps
 
@@ -81,13 +87,11 @@ with no chunking visible to the consumer.
   the `<audio>` element is told to track via `currentTime = ...` on seek
   but drifts under heavy scrub. A proper fix would use a single shared
   AudioContext clock or hand audio decoding to Rust as well.
-- **Beat-time playback rate doesn't apply.** The beat-rate effect in
-  `CenterColumn` looks up `playerRef.current.videoElement` and attaches a
-  `timeupdate` listener. The snappy player returns `null` from
-  `videoElement`, so the effect short-circuits and the player plays at 1×
-  regardless of `playbackMode`. Adding a synthesized `videoElement`-like
-  surface, or moving beat-rate logic into the player itself, would fix
-  this.
+- **Beat-time prefetch is rate-blind.** When playback hits a fast segment
+  (orig 2× beat), the cache empties twice as quickly but the prefetch
+  margin is still in seconds-of-source. Long fast segments can outrun
+  the decode and stall briefly at the window edge. Scaling the margin by
+  the local rate would fix this.
 - **Window-edge stalls.** Crossing into a not-yet-decoded region costs one
   ffmpeg spawn + first-frame decode (~150 ms on a warm SSD). The window
   is sized at 6 seconds (= ~180 frames at 30 fps), so most scrubs stay
@@ -101,15 +105,16 @@ with no chunking visible to the consumer.
 
 ## Files
 
-| File                                            | Role                                                                                 |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `src-tauri/src/frame_stream.rs`                 | ffmpeg subprocess, MJPEG parser, frame message encoder, Tauri Channel send loop.     |
-| `src/api/frameStream.ts`                        | Frontend invoke wrapper + Channel binary decoder.                                    |
-| `src/components/SnappyVideoPlayer.tsx`          | Cache, prefetch logic, canvas paint, imperative VideoPlayerHandle surface.           |
-| `src/components/VideoPlayer.css`                | Shared player styles + `.video-player--snappy` overrides.                            |
-| `src/store/slices/settingsSlice.ts`             | `snappyPlayer` toggle, persisted to localStorage.                                    |
-| `src/components/SettingsDialog.tsx`             | Toggle UI under the General section.                                                 |
-| `src/layout/CenterColumn.tsx`                   | Branches on `snappyPlayer` to pick the component.                                    |
+| File                                   | Role                                                                             |
+| -------------------------------------- | -------------------------------------------------------------------------------- |
+| `src-tauri/src/frame_stream.rs`        | ffmpeg subprocess, MJPEG parser, frame message encoder, Tauri Channel send loop. |
+| `src/api/frameStream.ts`               | Frontend invoke wrapper + Channel binary decoder.                                |
+| `src/components/SnappyVideoPlayer.tsx` | Cache, prefetch logic, canvas paint, imperative VideoPlayerHandle surface.       |
+| `src/components/VideoPlayer.css`       | Shared player styles + `.video-player--snappy` overrides.                        |
+| `src/store/slices/settingsSlice.ts`    | `snappyPlayer` toggle, persisted to localStorage.                                |
+| `src/components/SettingsDialog.tsx`    | Toggle UI under the General section.                                             |
+| `src/layout/CenterColumn.tsx`          | Branches on `snappyPlayer` to pick the component; supplies `getRate` callback.   |
+| `src/timeline/model/beatMap.ts`        | `beatRateAt(t)` — segment-local playback rate, consumed by both player paths.    |
 
 ## Tuning knobs
 
@@ -129,10 +134,10 @@ Open questions before promoting past "experimental":
 
 1. **Audio strategy.** Hand audio to Rust + a shared AudioContext clock, or
    keep the `<audio>` hack and document the drift?
-2. **Beat-time playback.** Move beat-rate logic into the player, or expose
-   a synthetic `videoElement` shim?
-3. **Cache lifetime across video switches.** Currently nuked on `path`
+2. **Cache lifetime across video switches.** Currently nuked on `path`
    change. A small per-path LRU would make tab-switching feel free.
-4. **VFR support.** Switch from `fps=N` resampling to reading source pts
+3. **VFR support.** Switch from `fps=N` resampling to reading source pts
    from ffmpeg's `-showinfo` output or moving to raw frame extraction +
    `pts_time` parsing.
+4. **Rate-aware prefetch.** Scale the prefetch margin by the local rate so
+   fast beat segments don't drain the cache before the next stream lands.
