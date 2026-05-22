@@ -179,6 +179,10 @@
     padding: 0 var(--sp-2) var(--sp-2);
 }
 
+.list-panel__rows[data-view="grid"] .clip-row .clip-row__range {
+    display: none;
+}
+
 .list-panel__rows[data-view="grid"] .clip-row .list-panel__row-thumb {
     width: 100%;
     border-radius: 0;
