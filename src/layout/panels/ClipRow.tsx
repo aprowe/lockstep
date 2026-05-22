@@ -50,7 +50,6 @@ export default function ClipRow({
         <RowShell
             kind="clip-row"
             ctx={ctx}
-            checkboxLabel="Select clip"
             deleteLabel="Delete clip"
             onDelete={onDelete}
             onDoubleClick={onDoubleClick}

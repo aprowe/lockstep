@@ -35,7 +35,6 @@ export default function SceneRow({ data, ctx, onDelete }: Props) {
         <RowShell
             kind="scene-row"
             ctx={ctx}
-            checkboxLabel="Select scene"
             deleteLabel={`Delete scene ${data.index + 1}`}
             onDelete={data.canDelete ? onDelete : undefined}
             title={`Scene ${data.index + 1}: ${formatTime(data.start)} → ${formatTime(data.end)}`}

@@ -44,13 +44,6 @@
 }
 
 /* ── Row content ─────────────────────────────────────────────────────────*/
-.clip-row__check {
-    margin: 0;
-    accent-color: var(--accent);
-    flex-shrink: 0;
-    cursor: pointer;
-}
-
 /* Color comes from the .clip-overlay--color-N modifier set in JSX, which
  * supplies --clip-h/s/l. Single source of truth for clip palette. */
 .clip-row__swatch {
@@ -142,13 +135,13 @@
 }
 
 /* ── Grid mode ────────────────────────────────────────────────────────────
- * Tile layout: thumbnail on top, name + range stacked below. The colored
- * swatch becomes a corner accent strip so the row's clip identity is still
- * legible at a glance. */
+ * Tile layout: thumbnail on top, name underneath. Colored swatch becomes a
+ * thin strip at the top so the row's clip identity is still legible. Chrome
+ * is intentionally compact so the tile sits close to the thumbnail's 16:9. */
 .list-panel__rows[data-view="grid"] .clip-row {
     flex-direction: column;
     align-items: stretch;
-    gap: var(--sp-1);
+    gap: 0;
     padding: 0;
     border-left: none;
     border-radius: 4px;
@@ -176,7 +169,12 @@
 }
 
 .list-panel__rows[data-view="grid"] .clip-row .clip-row__body {
-    padding: 0 var(--sp-2) var(--sp-2);
+    padding: 2px var(--sp-2);
+    gap: 0;
+}
+
+.list-panel__rows[data-view="grid"] .clip-row .clip-row__name {
+    font-size: var(--t-xs);
 }
 
 .list-panel__rows[data-view="grid"] .clip-row .clip-row__range {

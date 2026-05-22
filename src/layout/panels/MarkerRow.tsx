@@ -44,7 +44,6 @@ export default function MarkerRow({ data, ctx, onDelete, onDoubleClick, dim }: P
             kind="marker-row"
             className={dim ? "marker-row--dim" : undefined}
             ctx={ctx}
-            checkboxLabel="Select anchor"
             deleteLabel="Delete anchor"
             onDelete={onDelete}
             onDoubleClick={onDoubleClick}
@@ -64,11 +63,11 @@ export default function MarkerRow({ data, ctx, onDelete, onDoubleClick, dim }: P
             ) : (
                 <span className="marker-row__beat">—</span>
             )}
-            {data.stretch !== null && (
-                <span className={`marker-row__stretch${stretchClass}`}>
-                    {data.stretch.toFixed(2)}×
-                </span>
-            )}
+            {/* Always render the cell so rows align column-to-column; the last
+             *  anchor has no successor and shows blank. */}
+            <span className={`marker-row__stretch${stretchClass}`}>
+                {data.stretch !== null ? `${data.stretch.toFixed(2)}×` : ""}
+            </span>
         </RowShell>
     );
 }

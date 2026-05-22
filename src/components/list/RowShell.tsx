@@ -1,11 +1,12 @@
 import { type ReactNode } from "react";
 import type { RowContext } from "./ListPanel";
-import { IconTrash } from "../icons";
+import { IconPlay, IconTrash } from "../icons";
 
 /**
  * Boilerplate every list row shares: container with active/selected
- * modifiers, click + hover wiring, optional checkbox in multi-select mode,
- * optional inline thumbnail in list/grid modes, and a trailing trash button.
+ * modifiers, click + hover wiring, optional inline thumbnail in list/grid
+ * modes, and a trailing trash button. Selection is expressed purely via
+ * the row's selected modifier — no per-row checkbox.
  *
  * Each row file (ClipRow, MarkerRow, SceneRow) just supplies its
  * type-specific cells as `children`. Modifier classes are namespaced via
@@ -19,8 +20,6 @@ interface RowShellProps {
     ctx: RowContext;
     children: ReactNode;
 
-    /** Aria label for the per-row checkbox (defaults to "Select item"). */
-    checkboxLabel?: string;
     /** Aria label for the per-row trash button (defaults to "Delete item"). */
     deleteLabel?: string;
     /** When omitted, no trash button renders — for rows like the Scenes
@@ -39,7 +38,6 @@ export default function RowShell({
     kind,
     ctx,
     children,
-    checkboxLabel = "Select item",
     deleteLabel = "Delete item",
     onDelete,
     onDoubleClick,
@@ -49,14 +47,13 @@ export default function RowShell({
 }: RowShellProps) {
     const {
         isActive,
+        isPlaying,
         isSelected,
         viewMode,
         thumbnailSrc,
-        multiSelectMode,
         onRowClick,
         onRowMouseEnter,
         onRowMouseLeave,
-        onToggleSelection,
     } = ctx;
 
     const cls = [kind, isActive && `${kind}--active`, isSelected && `${kind}--selected`, className]
@@ -73,28 +70,29 @@ export default function RowShell({
             onMouseLeave={onRowMouseLeave}
             title={title}
         >
-            {multiSelectMode && (
-                <input
-                    type="checkbox"
-                    className={`${kind}__check`}
-                    checked={isSelected}
-                    onChange={onToggleSelection}
-                    onClick={(e) => e.stopPropagation()}
-                    aria-label={checkboxLabel}
-                />
+            {viewMode !== "none" && (
+                <div className="list-panel__row-thumb-wrap">
+                    {thumbnailSrc ? (
+                        <img
+                            className="list-panel__row-thumb"
+                            src={thumbnailSrc}
+                            alt=""
+                            draggable={false}
+                        />
+                    ) : (
+                        <div className="list-panel__row-thumb list-panel__row-thumb--placeholder" />
+                    )}
+                    {isPlaying && (
+                        <span className="list-panel__row-thumb-play" aria-hidden>
+                            <IconPlay size={20} />
+                        </span>
+                    )}
+                </div>
             )}
-            {viewMode !== "none" &&
-                (thumbnailSrc ? (
-                    <img
-                        className="list-panel__row-thumb"
-                        src={thumbnailSrc}
-                        alt=""
-                        draggable={false}
-                    />
-                ) : (
-                    <div className="list-panel__row-thumb list-panel__row-thumb--placeholder" />
-                ))}
             {children}
+            <span className="list-panel__row-active-mark" aria-hidden>
+                {isPlaying && <IconPlay size={11} />}
+            </span>
             {onDelete && (
                 <button
                     type="button"

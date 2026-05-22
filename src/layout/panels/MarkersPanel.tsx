@@ -90,6 +90,20 @@ export default function MarkersPanel() {
         getRange: useCallback((m: MarkerRowData) => ({ start: m.time, end: m.time }), []),
     });
 
+    // Active anchor = the latest one the playhead has passed (anchor.time ≤
+    // playhead). Same "stays active until the next one" model as scenes —
+    // `items` is sorted by time, so we keep updating `active` while we're
+    // before the playhead and break the moment we step past it.
+    const playhead = useAppSelector((s) => s.warp.playhead);
+    const activeAnchorId = useMemo<string | null>(() => {
+        let active: string | null = null;
+        for (const it of items) {
+            if (it.time <= playhead) active = it.id;
+            else break;
+        }
+        return active;
+    }, [items, playhead]);
+
     const onActivate = useCallback(
         (id: string) => {
             const data = items.find((r) => r.id === id);
@@ -170,6 +184,7 @@ export default function MarkersPanel() {
         <ListPanel
             listId="markers"
             items={items}
+            activeId={activeAnchorId}
             onActivate={onActivate}
             onDelete={onDelete}
             selectedIdsOverride={selectedIdsOverride}

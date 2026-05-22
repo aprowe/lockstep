@@ -104,6 +104,20 @@ export default function ScenesPanel() {
         getRange: useCallback((s: SceneRowData) => ({ start: s.start, end: s.end }), []),
     });
 
+    // Active scene = the [start, end) the playhead currently sits in. Boundaries
+    // are stored sorted by start, and a passed boundary stays active until the
+    // next one — so a simple linear scan over `items` finds the right row, or
+    // the last row when the playhead is past every boundary.
+    const playhead = useAppSelector((s) => s.warp.playhead);
+    const activeSceneId = useMemo<string | null>(() => {
+        if (items.length === 0) return null;
+        for (const it of items) {
+            if (playhead >= it.start && playhead < it.end) return it.id;
+        }
+        const last = items[items.length - 1];
+        return playhead >= last.end ? last.id : null;
+    }, [items, playhead]);
+
     const onActivate = useCallback(
         (id: string) => {
             const data = items.find((r) => r.id === id);
@@ -243,6 +257,7 @@ export default function ScenesPanel() {
         <ListPanel
             listId="scenes"
             items={items}
+            activeId={activeSceneId}
             onActivate={onActivate}
             onDelete={onDelete}
             selectedIdsOverride={lassoSceneIdSet}

@@ -5,7 +5,7 @@
     gap: var(--sp-2);
     padding: var(--sp-1) var(--sp-3);
     cursor: pointer;
-    border-left: 3px solid transparent;
+    border-left: 5px solid transparent;
     font-size: var(--t-sm);
     color: var(--fg-2);
     transition:
@@ -27,13 +27,6 @@
 
 .scene-row--active {
     border-left-color: var(--accent);
-}
-
-.scene-row__check {
-    margin: 0;
-    accent-color: var(--accent);
-    flex-shrink: 0;
-    cursor: pointer;
 }
 
 /* Default to neutral when no region claims this scene; the
@@ -66,13 +59,23 @@
     text-align: right;
 }
 
+/* Each numeric column claims an equal share of the row's free space via
+ * `flex: 1 1 0`, so widths disperse evenly across the panel and the
+ * column boundaries land at the same x on every row. Center-aligning the
+ * text within each share keeps the two values visually balanced; left +
+ * right alignment made them hug the row edges with a void in the middle. */
 .scene-row__time {
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
     font-variant-numeric: tabular-nums;
     color: var(--fg-1);
 }
 
 .scene-row__len {
-    margin-left: auto;
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
     color: var(--fg-4);
     font-variant-numeric: tabular-nums;
 }
@@ -115,11 +118,12 @@
 
 /* ── Grid mode ────────────────────────────────────────────────────────────
  * Tile layout. Color strip on top (mirrors the timeline region tint),
- * thumbnail, then index + start time. Duration hides at thumbnail scale. */
+ * thumbnail, then start time. Index + duration hide so the tile stays
+ * close to the thumbnail's aspect ratio. */
 .list-panel__rows[data-view="grid"] .scene-row {
     flex-direction: column;
     align-items: stretch;
-    gap: var(--sp-1);
+    gap: 0;
     padding: 0;
     border-left: none;
     border-radius: 4px;
@@ -135,9 +139,18 @@
     background: rgba(var(--accent-rgb), 0.22);
 }
 
-.list-panel__rows[data-view="grid"] .scene-row.scene-row--active {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
+/* Active tile gets a full accent border via a ::after overlay. Inset
+ * box-shadow gets painted with the tile background, so the color strip,
+ * thumbnail and label sitting on top cover most of it and only the
+ * uncovered row edges read as a "partial" border. The pseudo-element
+ * sits on top of every child and follows the tile's rounded corners. */
+.list-panel__rows[data-view="grid"] .scene-row.scene-row--active::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 2px solid var(--accent);
+    border-radius: 4px;
+    pointer-events: none;
 }
 
 .list-panel__rows[data-view="grid"] .scene-row .scene-row__color {
@@ -151,16 +164,13 @@
     border-radius: 0;
 }
 
-.list-panel__rows[data-view="grid"] .scene-row .scene-row__idx,
 .list-panel__rows[data-view="grid"] .scene-row .scene-row__time {
     width: auto;
-    padding: 0 var(--sp-2);
+    padding: 2px var(--sp-2);
+    font-size: var(--t-xs);
 }
 
-.list-panel__rows[data-view="grid"] .scene-row .scene-row__time {
-    padding-bottom: var(--sp-1);
-}
-
+.list-panel__rows[data-view="grid"] .scene-row .scene-row__idx,
 .list-panel__rows[data-view="grid"] .scene-row .scene-row__len {
     display: none;
 }

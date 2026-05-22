@@ -92,12 +92,23 @@
 
 /* Grid layout — auto-fills columns at the panel's chosen thumbnail width.
  * The CSS var on .list-panel cascades in, so the same slider drives row
- * thumb size in list mode and tile size here. */
+ * thumb size in list mode and tile size here.
+ *
+ * `grid-auto-rows: min-content` is load-bearing: with the default `auto`,
+ * the implicit row tracks inside a flex-bounded grid get squeezed down to
+ * fit the parent's height instead of overflowing it, which collapses every
+ * tile to a few pixels tall. Pinning rows to their content size lets the
+ * container actually overflow so `overflow-y: auto` has something to scroll.
+ * `align-content: start` keeps rows packed at the top in the under-filled
+ * case so leftover space doesn't redistribute back onto the rows. */
 .list-panel__rows[data-view="grid"] {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(var(--list-thumb-w, 96px), 1fr));
+    grid-auto-rows: min-content;
     gap: var(--sp-2);
     padding: var(--sp-2);
+    align-content: start;
+    overflow-y: auto;
 }
 
 .list-panel__empty {
@@ -108,13 +119,22 @@
     text-align: center;
 }
 
+/* Inline thumbnail wrapper — provides the positioning context for the
+ * "active row" play overlay so the icon sits cleanly over the image. The
+ * wrapper has no intrinsic size; the inner thumb's width / aspect-ratio
+ * define the box, and the overlay covers it via inset:0. */
+.list-panel__row-thumb-wrap {
+    position: relative;
+    flex-shrink: 0;
+    display: block;
+}
+
 /* Inline thumbnail — width comes from the panel-level CSS var so the
  * slider drives sizing in both list and grid modes. 16:9 aspect ratio
  * keeps things sane across panel widths. In grid mode the tile width
  * stretches via `1fr`, so the override below lets height follow the
  * actual rendered width instead of the slider value. */
 .list-panel__row-thumb {
-    flex-shrink: 0;
     display: block;
     width: var(--list-thumb-w, 96px);
     aspect-ratio: 16 / 9;
@@ -127,8 +147,45 @@
     background: repeating-linear-gradient(45deg, var(--bg-2) 0 4px, var(--bg-3) 4px 8px);
 }
 
-/* In list mode the slider drives row thumb width directly, with the
- * 16:9 height derived above. */
+/* Play icon overlaid on the thumbnail of the currently-playing row (see
+ * RowContext.isPlaying — clips diverge from the active row to track the
+ * playhead). Drop shadow + soft dim keeps the glyph legible against any
+ * frame content. */
+.list-panel__row-thumb-play {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--fg-1);
+    background: rgba(0, 0, 0, 0.25);
+    pointer-events: none;
+    border-radius: 2px;
+}
+
+.list-panel__row-thumb-play svg {
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.75));
+}
+
+/* Inline active marker — a small accent-tinted play glyph that rides
+ * alongside the row's text labels, between the rightmost data column and
+ * the trash button. The slot is always present at a fixed width even when
+ * the row is inactive so the trash button keeps a stable x-position across
+ * rows; only the glyph content swaps in. Skipped in grid mode where the
+ * thumbnail overlay already carries the cue, otherwise it would land
+ * awkwardly above the tile label in the column flex. */
+.list-panel__row-active-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 14px;
+    color: var(--accent);
+}
+
+.list-panel__rows[data-view="grid"] .list-panel__row-active-mark {
+    display: none;
+}
 
 /* Generic small "+" button used by panels in their headerActions slot.
  * Sized to match the view-mode toggle so the right-aligned cluster stays

@@ -41,20 +41,20 @@ export interface ListItem {
 export interface RowContext {
     isActive: boolean;
     isSelected: boolean;
+    /** True when this row is "currently playing" — drives the inline +
+     *  thumbnail play icon. Distinct from `isActive` (visual selection) so
+     *  the clips list can highlight the user-picked clip while only the
+     *  region containing the playhead shows the play indicator. For
+     *  scenes / markers the panel doesn't pass `playingId` so this falls
+     *  back to `isActive`. */
+    isPlaying: boolean;
     viewMode: ListViewMode;
     thumbnailSrc: string | null;
-    /** True when more than one item is currently selected — rows can use this
-     *  to surface a checkbox affordance only when the user is actively in a
-     *  multi-select gesture, instead of cluttering single-select layouts. */
-    multiSelectMode: boolean;
     /** Wire onto the row's outermost element so click/keyboard semantics
      *  flow through useListSelection. */
     onRowClick: (e: React.MouseEvent) => void;
     onRowMouseEnter: (e: React.MouseEvent) => void;
     onRowMouseLeave: () => void;
-    /** Toggle this row in/out of the selection without activating it.
-     *  Drives the per-row checkbox in multi-select mode. */
-    onToggleSelection: () => void;
 }
 
 interface ListPanelProps<T extends ListItem> {
@@ -63,6 +63,11 @@ interface ListPanelProps<T extends ListItem> {
     /** Currently-active id (single-select concept that drives the timeline,
      *  separate from the multi-selection set). */
     activeId?: string | null;
+    /** Row whose range the playhead is currently inside — drives the play
+     *  icon independently from `activeId`. Omit (or pass `undefined`) to
+     *  let it fall back to `activeId`; pass `null` to explicitly disable
+     *  the play indicator for every row. */
+    playingId?: string | null;
     onActivate?: (id: string) => void;
     onDelete?: (ids: string[]) => void;
     /** Render the row content. The wrapping div + classes are provided. */
@@ -99,6 +104,7 @@ export default function ListPanel<T extends ListItem>({
     listId,
     items,
     activeId,
+    playingId,
     onActivate,
     onDelete,
     renderRow,
@@ -181,19 +187,15 @@ export default function ListPanel<T extends ListItem>({
 
     const multiSelectMode = selectedSet.size >= 2;
 
-    const toggleSelection = useCallback(
-        (id: string) => {
-            const next = new Set(selectedSet);
-            if (next.has(id)) next.delete(id);
-            else next.add(id);
-            onSelectionChange([...next]);
-        },
-        [selectedSet, onSelectionChange],
-    );
+    // `playingId === undefined` means the panel didn't pass the prop — fall
+    // back to `activeId` so scenes / markers (whose active row already tracks
+    // the playhead) keep showing the play icon without ceremony.
+    const effectivePlayingId = playingId === undefined ? (activeId ?? null) : playingId;
 
     const buildCtx = useCallback(
         (item: T): RowContext => {
             const isActive = activeId != null && activeId === item.id;
+            const isPlaying = effectivePlayingId != null && effectivePlayingId === item.id;
             const isSelected = selectedSet.has(item.id);
             const thumbFrame =
                 item.thumbnailTime != null && fps > 0
@@ -204,10 +206,10 @@ export default function ListPanel<T extends ListItem>({
 
             return {
                 isActive,
+                isPlaying,
                 isSelected,
                 viewMode,
                 thumbnailSrc,
-                multiSelectMode,
                 onRowClick: (e) => handleRowClick(item.id, e),
                 onRowMouseEnter: (e) => {
                     if (viewMode !== "none" || item.thumbnailTime == null) return;
@@ -219,19 +221,17 @@ export default function ListPanel<T extends ListItem>({
                 onRowMouseLeave: () => {
                     if (viewMode === "none") setHover(null);
                 },
-                onToggleSelection: () => toggleSelection(item.id),
             };
         },
         [
             activeId,
+            effectivePlayingId,
             selectedSet,
             viewMode,
             thumbPaths,
             fps,
             handleRowClick,
             setHover,
-            multiSelectMode,
-            toggleSelection,
         ],
     );
 

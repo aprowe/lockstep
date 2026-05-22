@@ -29,13 +29,6 @@
     border-left-color: var(--accent);
 }
 
-.marker-row__check {
-    margin: 0;
-    accent-color: var(--accent);
-    flex-shrink: 0;
-    cursor: pointer;
-}
-
 .marker-row__idx {
     width: 22px;
     flex-shrink: 0;
@@ -44,24 +37,28 @@
     text-align: right;
 }
 
+/* Numeric columns share the row's free space evenly via `flex: 1 1 0`
+ * (idx stays narrow as a fixed gutter). The matching shares mean
+ * column boundaries land at the same x on every row, so the list reads
+ * as a table. */
 .marker-row__time {
-    width: 68px;
-    flex-shrink: 0;
+    flex: 1 1 0;
+    min-width: 0;
     font-variant-numeric: tabular-nums;
     color: var(--fg-1);
 }
 
 .marker-row__frame {
-    width: 48px;
-    flex-shrink: 0;
+    flex: 1 1 0;
+    min-width: 0;
     color: var(--fg-4);
     font-variant-numeric: tabular-nums;
 }
 
 .marker-row__beat,
 .marker-row__beat0 {
-    width: 40px;
-    flex-shrink: 0;
+    flex: 1 1 0;
+    min-width: 0;
     font-variant-numeric: tabular-nums;
 }
 
@@ -74,10 +71,14 @@
     font-weight: 600;
 }
 
+/* Stretch takes the same proportional share as the other numeric columns
+ * so all five line up at the same column boundaries across rows. */
 .marker-row__stretch {
-    margin-left: auto;
+    flex: 1 1 0;
+    min-width: 0;
     color: var(--fg-3);
     font-variant-numeric: tabular-nums;
+    text-align: right;
 }
 
 .marker-row__stretch--high {
@@ -128,12 +129,12 @@
 }
 
 /* ── Grid mode ────────────────────────────────────────────────────────────
- * Tile layout. Compact label set: index + time + (B0/beat) under the thumb.
- * Frame and stretch columns hide — they're noise at thumbnail scale. */
+ * Tile layout. Compact label set: time + (B0/beat) under the thumb. Index,
+ * frame and stretch hide so the tile stays close to the thumbnail's 16:9. */
 .list-panel__rows[data-view="grid"] .marker-row {
     flex-direction: column;
     align-items: stretch;
-    gap: var(--sp-1);
+    gap: 0;
     padding: 0;
     border-left: none;
     border-radius: 4px;
@@ -149,9 +150,15 @@
     background: rgba(var(--accent-rgb), 0.22);
 }
 
-.list-panel__rows[data-view="grid"] .marker-row.marker-row--active {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
+/* Active tile border via a ::after overlay so it paints on top of the
+ * thumbnail + label children — see SceneRow for the full reasoning. */
+.list-panel__rows[data-view="grid"] .marker-row.marker-row--active::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 2px solid var(--accent);
+    border-radius: 4px;
+    pointer-events: none;
 }
 
 .list-panel__rows[data-view="grid"] .marker-row .list-panel__row-thumb {
@@ -159,21 +166,22 @@
     border-radius: 0;
 }
 
-.list-panel__rows[data-view="grid"] .marker-row .marker-row__idx,
-.list-panel__rows[data-view="grid"] .marker-row .marker-row__time,
 .list-panel__rows[data-view="grid"] .marker-row .marker-row__beat,
 .list-panel__rows[data-view="grid"] .marker-row .marker-row__beat0 {
-    width: auto;
-    padding: 0 var(--sp-2);
+    flex: 0 0 auto;
+    min-width: 0;
+    padding: 2px var(--sp-2);
+    font-size: var(--t-xs);
+    text-align: left;
 }
 
+/* Tile chrome is intentionally minimal — just the beat label under the
+ * thumbnail. Time / index / frame / stretch are noise at thumbnail scale. */
+.list-panel__rows[data-view="grid"] .marker-row .marker-row__idx,
+.list-panel__rows[data-view="grid"] .marker-row .marker-row__time,
 .list-panel__rows[data-view="grid"] .marker-row .marker-row__frame,
 .list-panel__rows[data-view="grid"] .marker-row .marker-row__stretch {
     display: none;
-}
-
-.list-panel__rows[data-view="grid"] .marker-row .marker-row__time {
-    padding-bottom: var(--sp-1);
 }
 
 .list-panel__rows[data-view="grid"] .marker-row .marker-row__del {

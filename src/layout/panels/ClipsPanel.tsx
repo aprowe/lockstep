@@ -33,7 +33,7 @@ export default function ClipsPanel() {
     const video = useAppSelector((s) => s.video.video);
     const regions = useAppSelector((s) => s.region.regions);
     const activeRegionId = useAppSelector((s) => s.region.activeRegionId);
-    const _playhead = useAppSelector((s) => s.warp.playhead);
+    const playhead = useAppSelector((s) => s.warp.playhead);
     const _view = useAppSelector((s) => s.ui.view);
     const warpBpm = useAppSelector((s) => s.warp.bpm);
     const videoPath = video?.path;
@@ -59,6 +59,15 @@ export default function ClipsPanel() {
         () => regions.map((r) => ({ ...r, thumbnailTime: r.inPoint })),
         [regions],
     );
+
+    // "Playing" = the region whose source-time range contains the playhead.
+    // Distinct from `activeRegionId` (user pick): scrubbing into a different
+    // clip should move the play indicator without disturbing the selection.
+    const playingRegionId = useMemo<string | null>(() => {
+        const hit = regions.find((r) => playhead >= r.inPoint && playhead < r.outPoint);
+        return hit?.id ?? null;
+    }, [regions, playhead]);
+
     // Clips list hides the 'clip' filter tab (filtering clips by themselves
     // is meaningless) but the hook still treats 'clip' mode as no-window →
     // returns []. Force 'global' here so a stale Redux value can't surface.
@@ -215,6 +224,7 @@ export default function ClipsPanel() {
                 listId="clips"
                 items={items}
                 activeId={activeRegionId}
+                playingId={playingRegionId}
                 onActivate={onActivate}
                 onDelete={onDelete}
                 hideClipFilter
