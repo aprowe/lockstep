@@ -43,7 +43,13 @@ import {
 } from "../store/slices/sceneSlice";
 import { setListSelection, setPendingEdit } from "../store/slices/listsSlice";
 import { calcZoomToRegion } from "../utils/view";
-import { beatRateAt } from "../timeline/model/beatMap";
+import {
+    beatRateAt,
+    beatToOrig,
+    buildAnchorPairs,
+    origToBeat,
+    type AnchorPair,
+} from "../timeline/model/beatMap";
 import { calcNewRegionBoundsFromScenes } from "../timeline/model/newRegionBounds";
 import { findPreviousTarget } from "../utils/navigation";
 import { visibleSceneCuts } from "../utils/sceneFilter";
@@ -177,17 +183,50 @@ export default function CenterColumn() {
     // Tracks the speed-dropdown multiplier set in Toolbar (default 1×).
     const speedRef = useRef(1);
 
+    // Anchor pairs are derived from origAnchors + beatAnchors; memoise so
+    // the snappy player's per-frame projection doesn't re-sort the lists on
+    // every animation tick (with thousands of markers this would dominate).
+    const anchorPairs = useMemo(
+        () => buildAnchorPairs(origAnchors, beatAnchors),
+        [origAnchors, beatAnchors],
+    );
+    const anchorPairsRef = useRef<AnchorPair[]>(anchorPairs);
+    anchorPairsRef.current = anchorPairs;
+
     // The single source of truth for "what rate should playback advance at
     // right now". Beat mode walks the orig→beat anchor map (per-segment
-    // linear slope); orig mode is the dropdown multiplier directly. Both
-    // players (HTML5 and snappy) consume this same function so they warp
-    // identically.
+    // linear slope); orig mode is the dropdown multiplier directly. Used
+    // by the HTML5 path's `timeupdate` handler.
     const getEffectiveRate = useCallback((mediaTime: number): number => {
         const dropdownSpeed = speedRef.current;
         if (playbackModeRef.current !== "beat") return dropdownSpeed;
         return (
             beatRateAt(mediaTime, origAnchorsRef.current, beatAnchorsRef.current) * dropdownSpeed
         );
+    }, []);
+
+    // Closed-form wall→source projection for the snappy player. The cache
+    // walker evaluates this once per animation frame to figure out exactly
+    // which source frame should be on screen — no per-tick rate × dt
+    // integration, so the result is frame-perfect at segment boundaries.
+    //
+    //   orig mode: source = anchor + speed * elapsed
+    //   beat mode: source = beatToOrig(origToBeat(anchor) + speed * elapsed)
+    //
+    // where `elapsed` is wall-clock seconds since the player anchored
+    // (last play / seek / resume / rate change). Speed is the toolbar
+    // dropdown multiplier (1× by default). When beat anchors don't cover
+    // the current time, `beatToOrig`/`origToBeat` are identity, so this
+    // gracefully degrades to orig-mode behaviour.
+    const mapWallToSource = useCallback((anchorSource: number, wallElapsed: number): number => {
+        const dropdownSpeed = speedRef.current;
+        if (playbackModeRef.current !== "beat") {
+            return anchorSource + dropdownSpeed * wallElapsed;
+        }
+        const pairs = anchorPairsRef.current;
+        if (pairs.length < 2) return anchorSource + dropdownSpeed * wallElapsed;
+        const beatStart = origToBeat(anchorSource, pairs);
+        return beatToOrig(beatStart + dropdownSpeed * wallElapsed, pairs);
     }, []);
 
     useEffect(() => {
@@ -325,7 +364,7 @@ export default function CenterColumn() {
                             duration={video.duration}
                             fps={video.fps}
                             audioUrl={video.videoUrl}
-                            getRate={getEffectiveRate}
+                            mapWallToSource={mapWallToSource}
                             onTimeUpdate={(t) => {
                                 if (playbackLoopMode !== "continue" && playing) {
                                     const inPoint = activeRegion?.inPoint ?? 0;

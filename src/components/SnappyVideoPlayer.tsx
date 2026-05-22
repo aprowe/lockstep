@@ -34,13 +34,22 @@ interface SnappyVideoPlayerProps {
     fps: number;
     /** `convertFileSrc(path)` — only used by the sibling `<audio>` element. */
     audioUrl: string;
-    /** Optional rate-at-time callback. Called once per animation frame with
-     *  the current media time; the cache walker advances by `wall_elapsed *
-     *  getRate(t)` and the audio element tracks the same rate. Used for
-     *  beat-time playback, where the rate varies along an orig→beat anchor
-     *  map. When omitted, the imperative `setPlaybackRate` value is used as
-     *  a constant rate. */
-    getRate?: (mediaTime: number) => number;
+    /** Optional **direct** wall→source projection. Given the source time
+     *  the playhead was anchored at (last play/seek) and the wall-clock
+     *  seconds elapsed since that anchor, return the source time the
+     *  canvas should be showing **right now**. Called once per animation
+     *  frame.
+     *
+     *  This is the "frame-perfect" entry point: in beat mode the caller
+     *  inverts the warp so the displayed source frame is exactly where it
+     *  should sit on the wall clock, with no per-frame rate-times-dt
+     *  integration drift across segment boundaries. The local playback
+     *  rate (needed by the `<audio>` element) is recovered numerically
+     *  from the slope of consecutive samples.
+     *
+     *  When omitted, the imperative `setPlaybackRate` value is applied as
+     *  a constant rate: `source = anchor + rate * wallElapsed`. */
+    mapWallToSource?: (anchorSource: number, wallElapsed: number) => number;
     onTimeUpdate?: (time: number) => void;
     onPlayStateChange?: (playing: boolean) => void;
 }
@@ -61,7 +70,7 @@ interface CachedFrame {
 }
 
 export default forwardRef<VideoPlayerHandle, SnappyVideoPlayerProps>(function SnappyVideoPlayer(
-    { path, duration, fps, audioUrl, getRate, onTimeUpdate, onPlayStateChange },
+    { path, duration, fps, audioUrl, mapWallToSource, onTimeUpdate, onPlayStateChange },
     ref,
 ) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -79,19 +88,28 @@ export default forwardRef<VideoPlayerHandle, SnappyVideoPlayerProps>(function Sn
     }>({ seq: 0, id: null, start: 0, end: 0 });
     const playingRef = useRef(false);
     const currentTimeRef = useRef(0);
+    /** Fallback playback rate used when `mapWallToSource` is not supplied —
+     *  set imperatively via `setPlaybackRate(rate)` from the Toolbar. */
     const playbackRateRef = useRef(1);
-    // Wall-clock anchor for the cache-walker loop: when we last advanced the
-    // playhead during playback, what (wall, media) pair did we use?
-    const playClockRef = useRef<{ wall: number; media: number } | null>(null);
+    /** Playback anchor: where the playhead sat (`source`) on the wall clock
+     *  (`wall`) the last time the user pressed play, seeked, or resumed.
+     *  Every tick computes `source = mapWallToSource(anchor.source, now -
+     *  anchor.wall)`, so there is **zero** per-frame integration of
+     *  rate × dt — segment boundaries don't drift. */
+    const playClockRef = useRef<{ wall: number; source: number } | null>(null);
+    /** Last (wall, source) we sampled in `tick`. Used to recover the local
+     *  playback rate as a numerical slope and feed it to the audio element
+     *  so the pitched audio tracks the visual warp. */
+    const lastSampleRef = useRef<{ wall: number; source: number } | null>(null);
     const rafRef = useRef<number | null>(null);
     const onTimeUpdateRef = useRef(onTimeUpdate);
     onTimeUpdateRef.current = onTimeUpdate;
     const onPlayStateChangeRef = useRef(onPlayStateChange);
     onPlayStateChangeRef.current = onPlayStateChange;
-    // Rate callback lives in a ref so updates don't re-render or invalidate
-    // the memoised tick. The cache walker reads the latest value each frame.
-    const getRateRef = useRef(getRate);
-    getRateRef.current = getRate;
+    // Projection callback lives in a ref so updates don't re-render or
+    // invalidate the memoised tick. Read on every animation frame.
+    const mapWallToSourceRef = useRef(mapWallToSource);
+    mapWallToSourceRef.current = mapWallToSource;
 
     const [status, setStatus] = useState<"idle" | "decoding" | "ready" | "error">("idle");
     const [error, setError] = useState<string | null>(null);
@@ -249,6 +267,23 @@ export default forwardRef<VideoPlayerHandle, SnappyVideoPlayerProps>(function Sn
     }, [path, clearCache, requestWindow]);
 
     // ── Playback loop ────────────────────────────────────────────────────────
+    //
+    // Frame-perfect timing model:
+    //
+    //   source(wall_now) = mapWallToSource(anchor.source, wall_now - anchor.wall)
+    //
+    // The projection is evaluated **directly** every animation frame — we
+    // never integrate `rate * dt` across ticks, so there is no error
+    // accumulation as the warp crosses segment boundaries. The anchor is
+    // only updated on play / seek / resume; while playing, the closed-form
+    // projection is the single source of truth for "what source frame
+    // should be on screen right now".
+    //
+    // The audio element wants an instantaneous playback rate (it can't
+    // re-project an entire media clock per frame), so we recover the local
+    // rate as the numerical slope between the previous and current
+    // projection samples — naturally tracks the warp through every
+    // segment and audio stays pitched-in-sync with the visual.
 
     const tick = useCallback(() => {
         if (!playingRef.current) {
@@ -258,32 +293,35 @@ export default forwardRef<VideoPlayerHandle, SnappyVideoPlayerProps>(function Sn
         const now = performance.now() / 1000;
         const clock = playClockRef.current;
         if (clock) {
-            // Variable-rate playback: re-evaluate the effective rate at the
-            // current media time on every frame so beat-warped playback
-            // (where the rate changes piecewise along the anchor map) stays
-            // accurate without overshooting at segment boundaries. The
-            // browser clamp on HTMLMediaElement.playbackRate is 0.0625–16;
-            // mirror that here so the wall-clock estimate and the audio
-            // element agree.
-            const rawRate = getRateRef.current?.(currentTimeRef.current) ?? playbackRateRef.current;
-            const rate = Math.max(0.0625, Math.min(16, rawRate));
-            const elapsed = (now - clock.wall) * rate;
-            const next = Math.min(duration, clock.media + elapsed);
-            // Re-anchor every frame. With a constant rate this is a no-op
-            // (next - media == elapsed); with a variable rate it stops the
-            // formula from compounding stale-rate × stale-elapsed across
-            // segment boundaries.
-            clock.wall = now;
-            clock.media = next;
+            const elapsed = now - clock.wall;
+            const projected =
+                mapWallToSourceRef.current?.(clock.source, elapsed) ??
+                clock.source + elapsed * playbackRateRef.current;
+            const next = Math.max(0, Math.min(duration, projected));
             currentTimeRef.current = next;
             paintNearest(next);
             onTimeUpdateRef.current?.(next);
-            // Keep the audio element matched to the same rate so the
-            // pitched-up/down audio stays in sync with the visual clock.
-            // Setting playbackRate every frame is cheap and idempotent.
-            if (audioRef.current && audioRef.current.playbackRate !== rate) {
-                audioRef.current.playbackRate = rate;
+
+            // Audio rate = local slope d(source)/d(wall). Reuses the
+            // already-projected `next` rather than re-evaluating the map at
+            // (now + ε), which would double the projection cost per frame
+            // for no extra accuracy. Falls back to the fallback constant
+            // rate before we've sampled at least one prior frame.
+            const last = lastSampleRef.current;
+            if (audioRef.current) {
+                let localRate = playbackRateRef.current;
+                if (last && now > last.wall) {
+                    localRate = (next - last.source) / (now - last.wall);
+                }
+                // HTMLMediaElement clamps to 0.0625–16; mirror that explicitly
+                // so the assignment is idempotent across browsers.
+                const clamped = Math.max(0.0625, Math.min(16, localRate || 1));
+                if (Math.abs(audioRef.current.playbackRate - clamped) > 1e-3) {
+                    audioRef.current.playbackRate = clamped;
+                }
             }
+            lastSampleRef.current = { wall: now, source: next };
+
             if (next >= duration - 1e-4) {
                 playingRef.current = false;
                 onPlayStateChangeRef.current?.(false);
@@ -299,10 +337,9 @@ export default forwardRef<VideoPlayerHandle, SnappyVideoPlayerProps>(function Sn
     }, [duration, paintNearest, requestWindow]);
 
     const startTicking = useCallback(() => {
-        playClockRef.current = {
-            wall: performance.now() / 1000,
-            media: currentTimeRef.current,
-        };
+        const wall = performance.now() / 1000;
+        playClockRef.current = { wall, source: currentTimeRef.current };
+        lastSampleRef.current = { wall, source: currentTimeRef.current };
         if (rafRef.current === null) rafRef.current = requestAnimationFrame(tick);
     }, [tick]);
 
@@ -312,6 +349,7 @@ export default forwardRef<VideoPlayerHandle, SnappyVideoPlayerProps>(function Sn
             rafRef.current = null;
         }
         playClockRef.current = null;
+        lastSampleRef.current = null;
     }, []);
 
     useEffect(() => {
@@ -343,10 +381,9 @@ export default forwardRef<VideoPlayerHandle, SnappyVideoPlayerProps>(function Sn
                 // jump forward by however long the last wall-clock interval
                 // was.
                 if (playingRef.current) {
-                    playClockRef.current = {
-                        wall: performance.now() / 1000,
-                        media: clamped,
-                    };
+                    const wall = performance.now() / 1000;
+                    playClockRef.current = { wall, source: clamped };
+                    lastSampleRef.current = { wall, source: clamped };
                 }
             },
             play() {
@@ -377,14 +414,18 @@ export default forwardRef<VideoPlayerHandle, SnappyVideoPlayerProps>(function Sn
                 }
             },
             setPlaybackRate(rate: number) {
+                // Fallback constant rate, used only when no `mapWallToSource`
+                // is supplied. When one is supplied, the projection captures
+                // the speed multiplier itself and this is ignored.
                 playbackRateRef.current = rate;
                 if (audioRef.current) audioRef.current.playbackRate = rate;
-                // Re-anchor so the new rate applies from "now", not retroactively.
                 if (playingRef.current) {
-                    playClockRef.current = {
-                        wall: performance.now() / 1000,
-                        media: currentTimeRef.current,
-                    };
+                    // Re-anchor so the new rate applies from "now", not
+                    // retroactively. With a projection in place, the new
+                    // speed shows up at the next tick via the supplied map.
+                    const wall = performance.now() / 1000;
+                    playClockRef.current = { wall, source: currentTimeRef.current };
+                    lastSampleRef.current = { wall, source: currentTimeRef.current };
                 }
             },
             get currentTime() {

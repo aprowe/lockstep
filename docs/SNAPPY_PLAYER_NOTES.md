@@ -74,12 +74,28 @@ with no chunking visible to the consumer.
 - Play / pause / seek all go through `VideoPlayerHandle`, same interface
   as the existing `VideoPlayer.tsx`, so `CenterColumn` swaps the two
   components without any other wiring changes.
-- **Beat-time playback**: the player accepts an optional `getRate(t)`
-  callback. The cache walker reads it on every animation frame, re-anchors
-  the play clock, and pushes the same rate onto the `<audio>` element —
-  so warped playback follows the orig→beat anchor map identically to the
-  HTML5 player path. Both players source the rate from
-  `beatRateAt()` in `src/timeline/model/beatMap.ts`.
+- **Beat-time playback, frame-perfect.** The player accepts an optional
+  `mapWallToSource(anchorSource, wallElapsed)` callback — a closed-form
+  projection from "wall-clock seconds since the user pressed play / seeked"
+  to "source-time the canvas should be painting right now". The cache
+  walker calls it once per animation frame and paints the nearest cached
+  pts. **No `rate × dt` integration is performed across ticks**, so the
+  result is exact at segment boundaries instead of drifting by whatever
+  fraction of a frame the segment edge happened to fall inside.
+
+    In beat mode `CenterColumn` supplies:
+
+    ```
+    source(elapsed) = beatToOrig(origToBeat(anchor, pairs) + speed * elapsed, pairs)
+    ```
+
+    i.e. convert the anchor to beat-time, advance beat-time linearly at
+    `speed × 1×`, convert back. The audio element's `playbackRate` is
+    recovered numerically each tick as `(next - last) / wallΔ`, so the
+    pitched audio tracks every segment without a separate rate evaluation.
+    The HTML5 path (when the snappy toggle is off) keeps using
+    `beatRateAt()` directly via `timeupdate` — the browser owns its clock
+    there, so we can't do the closed-form trick.
 
 ## Known gaps
 
