@@ -1,4 +1,4 @@
-import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
+import { useEffect, useImperativeHandle, useRef, forwardRef, useState } from "react";
 import {
     DockviewReact,
     type DockviewApi,
@@ -9,6 +9,8 @@ import {
 } from "dockview";
 import "dockview/dist/styles/dockview.css";
 import "./PanelDock.css";
+import ContextMenu, { type ContextMenuState } from "../components/ContextMenu";
+import PanelMoveOverlay from "./PanelMoveOverlay";
 
 /** Custom theme object — dockview's `theme` option drives which className it
  *  pins on its root element. Without this it falls back to themeAbyss and
@@ -200,6 +202,12 @@ const PanelDock = forwardRef<PanelDockHandle, PanelDockProps>(function PanelDock
 ) {
     const apiRef = useRef<DockviewApi | null>(null);
 
+    // Right-click on a tab opens a context menu with "Move panel" — see
+    // onContextMenu below. Native dockview drag is disabled via the
+    // `disableDnd` prop, so this is the only way to relocate a panel.
+    const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+    const [movingPanelId, setMovingPanelId] = useState<string | null>(null);
+
     useEffect(
         () => () => {
             apiRef.current = null;
@@ -302,9 +310,59 @@ const PanelDock = forwardRef<PanelDockHandle, PanelDockProps>(function PanelDock
         emitPanels();
     };
 
+    const onContextMenuCapture = (e: React.MouseEvent) => {
+        const api = apiRef.current;
+        if (!api) return;
+        const tabEl = (e.target as HTMLElement).closest(".dv-tab") as HTMLElement | null;
+        if (!tabEl) return; // Right-click outside a tab — let inner panels handle it.
+        const container = tabEl.parentElement;
+        if (!container) return;
+        // Tab index within its strip → matches the group's panel ordering.
+        const tabs = Array.from(container.children).filter((el): el is HTMLElement =>
+            el instanceof HTMLElement && el.classList.contains("dv-tab"),
+        );
+        const idx = tabs.indexOf(tabEl);
+        if (idx < 0) return;
+        const group = api.groups.find((g) => g.element.contains(tabEl));
+        if (!group) return;
+        const panel = group.panels[idx];
+        if (!panel) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setContextMenu({
+            x: e.clientX,
+            y: e.clientY,
+            title: panel.title ?? panel.id,
+            items: [
+                {
+                    label: "Move panel",
+                    action: () => setMovingPanelId(panel.id),
+                },
+            ],
+        });
+    };
+
     return (
-        <div className={`panel-dock ${className ?? ""}`}>
-            <DockviewReact components={components} onReady={onReady} theme={lockstepTheme} />
+        <div
+            className={`panel-dock ${className ?? ""}`}
+            onContextMenuCapture={onContextMenuCapture}
+        >
+            <DockviewReact
+                components={components}
+                onReady={onReady}
+                theme={lockstepTheme}
+                disableDnd
+            />
+            {contextMenu && (
+                <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />
+            )}
+            {movingPanelId && apiRef.current && (
+                <PanelMoveOverlay
+                    api={apiRef.current}
+                    panelId={movingPanelId}
+                    onExit={() => setMovingPanelId(null)}
+                />
+            )}
         </div>
     );
 });

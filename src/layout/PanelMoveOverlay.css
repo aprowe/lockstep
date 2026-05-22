@@ -1,0 +1,65 @@
+/* Fullscreen overlay that sits above the dock during move-mode. Catches
+   pointer events so background panels don't react to hover/clicks while
+   the user is placing a panel. */
+.panel-move-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: rgba(0, 0, 0, 0.18);
+    cursor: crosshair;
+}
+
+/* Per-group target layer. SVG so we can use polygons for the triangular
+   edge zones; sized + positioned to match the underlying dockview group. */
+.panel-move-overlay__group {
+    position: absolute;
+    overflow: visible;
+    pointer-events: none; /* polygons inside re-enable pointer events */
+}
+
+.panel-move-overlay__group-outline {
+    fill: rgba(var(--accent-rgb), 0.04);
+    stroke: rgba(var(--accent-rgb), 0.45);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+    pointer-events: none;
+}
+
+.panel-move-overlay__zone {
+    fill: rgba(var(--accent-rgb), 0.05);
+    stroke: rgba(var(--accent-rgb), 0.35);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+    pointer-events: auto;
+    cursor: pointer;
+    transition: fill 0.08s ease;
+}
+
+.panel-move-overlay__zone--hover {
+    fill: rgba(var(--accent-rgb), 0.4);
+    stroke: var(--accent);
+    stroke-width: 2;
+}
+
+/* The center zone of the source group is a no-op — dim it to signal that. */
+.panel-move-overlay__zone--source {
+    fill: rgba(var(--accent-rgb), 0.02);
+    stroke: rgba(var(--accent-rgb), 0.18);
+    cursor: default;
+}
+
+/* Cursor-anchored label showing the panel being placed. */
+.panel-move-overlay__ghost {
+    position: fixed;
+    pointer-events: none;
+    background: var(--bg-5);
+    color: var(--fg-1);
+    font-family: var(--font-family);
+    font-size: var(--t-base);
+    padding: var(--sp-1) var(--sp-3);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    white-space: nowrap;
+    z-index: 9001;
+}
