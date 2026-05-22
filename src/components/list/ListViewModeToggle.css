@@ -1,4 +1,4 @@
-.list-thumb-toggle {
+.list-view-toggle {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -17,7 +17,7 @@
         border-color 0.08s;
 }
 
-.list-thumb-toggle:hover {
+.list-view-toggle:hover {
     background: var(--bg-hover);
     color: var(--fg-1);
     border-color: var(--border);

@@ -4,9 +4,10 @@ import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
     setListFilterMode,
     setListSelection,
-    setListThumbnailMode,
+    setListThumbnailSize,
+    setListViewMode,
     type ListId,
-    type ListThumbnailMode,
+    type ListViewMode,
 } from "../../store/slices/listsSlice";
 import { selectActiveRegion } from "../../store/selectors";
 import { formatTime } from "../../utils/time";
@@ -14,7 +15,8 @@ import { setStripFrames, selectThumbnailPathsFor } from "../../store/slices/thum
 import { useSetThumbnailHover } from "../ThumbnailPopup";
 import { IconDeselect, IconTrash } from "../icons";
 import ListFilterTabs from "./ListFilterTabs";
-import ListThumbnailToggle from "./ListThumbnailToggle";
+import ListViewModeToggle from "./ListViewModeToggle";
+import ListThumbnailSizeSlider from "./ListThumbnailSizeSlider";
 import { useListSelection } from "./useListSelection";
 import "./ListPanel.css";
 
@@ -22,7 +24,7 @@ import "./ListPanel.css";
  * Generic list panel used by Clips / Markers / Scenes. Owns:
  *   - selection (multi-select, click + shift + ctrl)
  *   - keyboard delete
- *   - per-list thumbnail mode (none / hover / always)
+ *   - per-list view mode (none / list / grid) + thumbnail size slider
  *   - hover popup wiring + always-on inline thumbnail rendering
  *
  * The caller supplies type-specific row content via `renderRow`. Anything
@@ -39,7 +41,7 @@ export interface ListItem {
 export interface RowContext {
     isActive: boolean;
     isSelected: boolean;
-    thumbnailMode: ListThumbnailMode;
+    viewMode: ListViewMode;
     thumbnailSrc: string | null;
     /** True when more than one item is currently selected — rows can use this
      *  to surface a checkbox affordance only when the user is actively in a
@@ -71,7 +73,7 @@ interface ListPanelProps<T extends ListItem> {
     prefixRows?: ReactNode;
     /** Empty-state hint when items.length === 0. */
     emptyHint?: ReactNode;
-    /** Header right-side action slot (e.g. an "+" add button). The thumbnail
+    /** Header right-side action slot (e.g. an "+" add button). The view-mode
      *  toggle is always rendered; this sits to its left. */
     headerActions?: ReactNode;
     /** Optional block rendered between the header bar and the scrollable
@@ -93,12 +95,6 @@ interface ListPanelProps<T extends ListItem> {
     clipFilterDisabled?: boolean;
 }
 
-const HEIGHT_FOR_MODE: Record<ListThumbnailMode, number> = {
-    none: 0,
-    small: 36,
-    large: 54,
-};
-
 export default function ListPanel<T extends ListItem>({
     listId,
     items,
@@ -119,7 +115,8 @@ export default function ListPanel<T extends ListItem>({
     const setHover = useSetThumbnailHover();
     const video = useAppSelector((s) => s.video.video);
     const thumbPaths = useAppSelector(selectThumbnailPathsFor(video?.fileHash));
-    const thumbnailMode = useAppSelector((s) => s.lists.thumbnailMode[listId]);
+    const viewMode = useAppSelector((s) => s.lists.viewMode[listId]);
+    const thumbnailSize = useAppSelector((s) => s.lists.thumbnailSize[listId]);
     const filterMode = useAppSelector((s) => s.lists.filterMode[listId]);
     const view = useAppSelector((s) => s.ui.view);
     const activeRegion = useAppSelector(selectActiveRegion);
@@ -153,20 +150,20 @@ export default function ListPanel<T extends ListItem>({
     });
 
     // ── Always-on thumbnail wiring ────────────────────────────────────────
-    // When mode === 'always', push every item's frame to the backend
-    // thumbnail queue so the strip-tier scoring covers them. Hover mode
-    // doesn't push anything; the hover popup uses the standard score.
+    // When viewMode is list or grid, push every item's frame to the backend
+    // thumbnail queue so the strip-tier scoring covers them. In `none` mode
+    // we push nothing; the hover popup uses the standard score.
     const fps = video?.fps ?? 0;
     const stripFrames = useMemo(() => {
-        if (thumbnailMode === "none" || fps <= 0) return [];
+        if (viewMode === "none" || fps <= 0) return [];
         return items
             .map((i) => i.thumbnailTime)
             .filter((t): t is number => typeof t === "number")
             .map((t) => Math.max(0, Math.floor(t * fps)));
-    }, [items, thumbnailMode, fps]);
+    }, [items, viewMode, fps]);
 
     // Push the always-on frames into the thumbnail strip queue so the
-    // backend prioritises them. Hover mode pushes nothing — the popup hits
+    // backend prioritises them. None mode pushes nothing — the popup hits
     // the standard scoring path. Source-keyed so each list panel doesn't
     // overwrite the others' contributions, and clears its source on unmount
     // so closing a panel via View → Panels stops polluting the cache.
@@ -208,19 +205,19 @@ export default function ListPanel<T extends ListItem>({
             return {
                 isActive,
                 isSelected,
-                thumbnailMode,
+                viewMode,
                 thumbnailSrc,
                 multiSelectMode,
                 onRowClick: (e) => handleRowClick(item.id, e),
                 onRowMouseEnter: (e) => {
-                    if (thumbnailMode !== "none" || item.thumbnailTime == null) return;
+                    if (viewMode !== "none" || item.thumbnailTime == null) return;
                     // Anchor the popup to the row's right edge so it doesn't hide the
                     // list while hovering — keeps the click target visible.
                     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                     setHover({ time: item.thumbnailTime, x: rect.right, y: rect.top });
                 },
                 onRowMouseLeave: () => {
-                    if (thumbnailMode === "none") setHover(null);
+                    if (viewMode === "none") setHover(null);
                 },
                 onToggleSelection: () => toggleSelection(item.id),
             };
@@ -228,7 +225,7 @@ export default function ListPanel<T extends ListItem>({
         [
             activeId,
             selectedSet,
-            thumbnailMode,
+            viewMode,
             thumbPaths,
             fps,
             handleRowClick,
@@ -248,7 +245,7 @@ export default function ListPanel<T extends ListItem>({
             }}
             style={
                 {
-                    "--list-row-min-height": `${HEIGHT_FOR_MODE[thumbnailMode]}px`,
+                    "--list-thumb-w": `${thumbnailSize}px`,
                 } as React.CSSProperties
             }
         >
@@ -287,9 +284,17 @@ export default function ListPanel<T extends ListItem>({
                 </div>
                 <div className="list-panel__header-actions">
                     {headerActions}
-                    <ListThumbnailToggle
-                        mode={thumbnailMode}
-                        onChange={(mode) => dispatch(setListThumbnailMode({ list: listId, mode }))}
+                    {viewMode !== "none" && (
+                        <ListThumbnailSizeSlider
+                            size={thumbnailSize}
+                            onChange={(size) =>
+                                dispatch(setListThumbnailSize({ list: listId, size }))
+                            }
+                        />
+                    )}
+                    <ListViewModeToggle
+                        mode={viewMode}
+                        onChange={(mode) => dispatch(setListViewMode({ list: listId, mode }))}
                     />
                 </div>
             </div>
@@ -310,7 +315,7 @@ export default function ListPanel<T extends ListItem>({
                     <span className="list-panel__filter-context-name">{activeRegion.name}</span>
                 </div>
             )}
-            <div className="list-panel__rows">
+            <div className="list-panel__rows" data-view={viewMode}>
                 {prefixRows}
                 {items.map((item) => renderRow(item, buildCtx(item)))}
                 {items.length === 0 && emptyHint && (

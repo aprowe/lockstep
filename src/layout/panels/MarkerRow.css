@@ -127,6 +127,63 @@
     opacity: 0.4;
 }
 
+/* ── Grid mode ────────────────────────────────────────────────────────────
+ * Tile layout. Compact label set: index + time + (B0/beat) under the thumb.
+ * Frame and stretch columns hide — they're noise at thumbnail scale. */
+.list-panel__rows[data-view="grid"] .marker-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-1);
+    padding: 0;
+    border-left: none;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--bg-2);
+}
+
+.list-panel__rows[data-view="grid"] .marker-row:hover {
+    background: var(--bg-3);
+}
+
+.list-panel__rows[data-view="grid"] .marker-row.marker-row--selected {
+    background: rgba(var(--accent-rgb), 0.22);
+}
+
+.list-panel__rows[data-view="grid"] .marker-row.marker-row--active {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.list-panel__rows[data-view="grid"] .marker-row .list-panel__row-thumb {
+    width: 100%;
+    border-radius: 0;
+}
+
+.list-panel__rows[data-view="grid"] .marker-row .marker-row__idx,
+.list-panel__rows[data-view="grid"] .marker-row .marker-row__time,
+.list-panel__rows[data-view="grid"] .marker-row .marker-row__beat,
+.list-panel__rows[data-view="grid"] .marker-row .marker-row__beat0 {
+    width: auto;
+    padding: 0 var(--sp-2);
+}
+
+.list-panel__rows[data-view="grid"] .marker-row .marker-row__frame,
+.list-panel__rows[data-view="grid"] .marker-row .marker-row__stretch {
+    display: none;
+}
+
+.list-panel__rows[data-view="grid"] .marker-row .marker-row__time {
+    padding-bottom: var(--sp-1);
+}
+
+.list-panel__rows[data-view="grid"] .marker-row .marker-row__del {
+    position: absolute;
+    top: var(--sp-1);
+    right: var(--sp-1);
+    background: rgba(0, 0, 0, 0.55);
+    color: var(--fg-1);
+}
+
 /* ── Marker panel actions bar ─────────────────────────────────────────────── */
 
 .markers-panel__actions {

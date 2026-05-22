@@ -816,7 +816,7 @@ export function IconThumbNone({ size = 14, ...props }: IconProps) {
     );
 }
 
-export function IconThumbSmall({ size = 14, ...props }: IconProps) {
+export function IconThumbList({ size = 14, ...props }: IconProps) {
     return (
         <svg
             width={size}
@@ -827,16 +827,17 @@ export function IconThumbSmall({ size = 14, ...props }: IconProps) {
             strokeLinejoin="round"
             {...props}
         >
-            <rect x="1" y="3.5" width="14" height="9" rx="0.8" strokeWidth="1.2" />
-            <line x1="4.5" y1="3.5" x2="4.5" y2="12.5" strokeWidth="0.9" strokeOpacity="0.6" />
-            <line x1="8" y1="3.5" x2="8" y2="12.5" strokeWidth="0.9" strokeOpacity="0.6" />
-            <line x1="11.5" y1="3.5" x2="11.5" y2="12.5" strokeWidth="0.9" strokeOpacity="0.6" />
-            <line x1="1" y1="8" x2="15" y2="8" strokeWidth="0.9" />
+            <rect x="1.5" y="2.5" width="4" height="3" rx="0.6" strokeWidth="1.1" />
+            <rect x="1.5" y="6.75" width="4" height="3" rx="0.6" strokeWidth="1.1" />
+            <rect x="1.5" y="11" width="4" height="3" rx="0.6" strokeWidth="1.1" />
+            <line x1="7" y1="4" x2="14.5" y2="4" strokeWidth="1" />
+            <line x1="7" y1="8.25" x2="14.5" y2="8.25" strokeWidth="1" />
+            <line x1="7" y1="12.5" x2="14.5" y2="12.5" strokeWidth="1" />
         </svg>
     );
 }
 
-export function IconThumbLarge({ size = 14, ...props }: IconProps) {
+export function IconThumbGrid({ size = 14, ...props }: IconProps) {
     return (
         <svg
             width={size}
@@ -847,8 +848,10 @@ export function IconThumbLarge({ size = 14, ...props }: IconProps) {
             strokeLinejoin="round"
             {...props}
         >
-            <rect x="1" y="3.5" width="14" height="9" rx="0.8" strokeWidth="1.2" />
-            <line x1="8" y1="3.5" x2="8" y2="12.5" strokeWidth="0.9" strokeOpacity="0.6" />
+            <rect x="1.5" y="1.5" width="5.5" height="5.5" rx="0.7" strokeWidth="1.1" />
+            <rect x="9" y="1.5" width="5.5" height="5.5" rx="0.7" strokeWidth="1.1" />
+            <rect x="1.5" y="9" width="5.5" height="5.5" rx="0.7" strokeWidth="1.1" />
+            <rect x="9" y="9" width="5.5" height="5.5" rx="0.7" strokeWidth="1.1" />
         </svg>
     );
 }

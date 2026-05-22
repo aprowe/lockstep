@@ -5,7 +5,7 @@ import { IconTrash } from "../icons";
 /**
  * Boilerplate every list row shares: container with active/selected
  * modifiers, click + hover wiring, optional checkbox in multi-select mode,
- * optional inline thumbnail in 'always' mode, and a trailing trash button.
+ * optional inline thumbnail in list/grid modes, and a trailing trash button.
  *
  * Each row file (ClipRow, MarkerRow, SceneRow) just supplies its
  * type-specific cells as `children`. Modifier classes are namespaced via
@@ -50,7 +50,7 @@ export default function RowShell({
     const {
         isActive,
         isSelected,
-        thumbnailMode,
+        viewMode,
         thumbnailSrc,
         multiSelectMode,
         onRowClick,
@@ -83,18 +83,16 @@ export default function RowShell({
                     aria-label={checkboxLabel}
                 />
             )}
-            {thumbnailMode !== "none" &&
+            {viewMode !== "none" &&
                 (thumbnailSrc ? (
                     <img
-                        className={`list-panel__row-thumb${thumbnailMode === "large" ? " list-panel__row-thumb--large" : ""}`}
+                        className="list-panel__row-thumb"
                         src={thumbnailSrc}
                         alt=""
                         draggable={false}
                     />
                 ) : (
-                    <div
-                        className={`list-panel__row-thumb list-panel__row-thumb--placeholder${thumbnailMode === "large" ? " list-panel__row-thumb--large" : ""}`}
-                    />
+                    <div className="list-panel__row-thumb list-panel__row-thumb--placeholder" />
                 ))}
             {children}
             {onDelete && (

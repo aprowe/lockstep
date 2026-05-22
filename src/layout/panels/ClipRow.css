@@ -140,3 +140,54 @@
 .clip-row--full {
     border-bottom: 1px solid var(--border);
 }
+
+/* ── Grid mode ────────────────────────────────────────────────────────────
+ * Tile layout: thumbnail on top, name + range stacked below. The colored
+ * swatch becomes a corner accent strip so the row's clip identity is still
+ * legible at a glance. */
+.list-panel__rows[data-view="grid"] .clip-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-1);
+    padding: 0;
+    border-left: none;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--bg-2);
+}
+
+.list-panel__rows[data-view="grid"] .clip-row:hover {
+    background: var(--bg-3);
+}
+
+.list-panel__rows[data-view="grid"] .clip-row.clip-row--selected {
+    background: rgba(var(--accent-rgb), 0.22);
+}
+
+.list-panel__rows[data-view="grid"] .clip-row.clip-row--active {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.list-panel__rows[data-view="grid"] .clip-row .clip-row__swatch {
+    width: 100%;
+    height: 3px;
+    border-radius: 0;
+}
+
+.list-panel__rows[data-view="grid"] .clip-row .clip-row__body {
+    padding: 0 var(--sp-2) var(--sp-2);
+}
+
+.list-panel__rows[data-view="grid"] .clip-row .list-panel__row-thumb {
+    width: 100%;
+    border-radius: 0;
+}
+
+.list-panel__rows[data-view="grid"] .clip-row .clip-row__del {
+    position: absolute;
+    top: var(--sp-1);
+    right: var(--sp-1);
+    background: rgba(0, 0, 0, 0.55);
+    color: var(--fg-1);
+}

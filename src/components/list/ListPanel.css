@@ -90,6 +90,16 @@
     overflow-y: auto;
 }
 
+/* Grid layout — auto-fills columns at the panel's chosen thumbnail width.
+ * The CSS var on .list-panel cascades in, so the same slider drives row
+ * thumb size in list mode and tile size here. */
+.list-panel__rows[data-view="grid"] {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--list-thumb-w, 96px), 1fr));
+    gap: var(--sp-2);
+    padding: var(--sp-2);
+}
+
 .list-panel__empty {
     padding: var(--sp-4);
     color: var(--fg-4);
@@ -98,18 +108,14 @@
     text-align: center;
 }
 
-/* Inline thumbnail rendered by the row in `always` mode — sized by the
- * caller, but a default min-height keeps the row tall enough that the
- * thumbnail isn't squashed when present. */
-.list-panel__rows > * {
-    min-height: var(--list-row-min-height, 0);
-}
-
+/* Inline thumbnail — width comes from the panel-level CSS var so the
+ * slider drives sizing in both list and grid modes. 16:9 aspect ratio
+ * keeps things sane across panel widths. */
 .list-panel__row-thumb {
     flex-shrink: 0;
     display: block;
-    width: 64px;
-    height: 36px;
+    width: var(--list-thumb-w, 96px);
+    height: calc(var(--list-thumb-w, 96px) * 9 / 16);
     object-fit: cover;
     background: var(--bg-2);
     border-radius: 2px;
@@ -119,13 +125,11 @@
     background: repeating-linear-gradient(45deg, var(--bg-2) 0 4px, var(--bg-3) 4px 8px);
 }
 
-.list-panel__row-thumb--large {
-    width: 96px;
-    height: 54px;
-}
+/* In list mode the slider drives row thumb width directly, with the
+ * 16:9 height derived above. */
 
 /* Generic small "+" button used by panels in their headerActions slot.
- * Sized to match the thumbnail-toggle so the right-aligned cluster stays
+ * Sized to match the view-mode toggle so the right-aligned cluster stays
  * visually balanced. */
 .list-panel-add {
     display: inline-flex;
