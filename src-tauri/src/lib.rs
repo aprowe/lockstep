@@ -1,5 +1,6 @@
 pub mod commands;
 pub mod ffmpeg;
+pub mod frame_stream;
 pub mod pchip;
 pub mod pipeline;
 pub mod processor;
@@ -42,6 +43,7 @@ pub fn run() {
         })
         .manage(thumbnails::ThumbnailsState::new())
         .manage(commands::SceneDetectionState::default())
+        .manage(frame_stream::FrameStreamsState::new())
         .invoke_handler(tauri::generate_handler![
             commands::open_video,
             commands::open_folder,
@@ -72,6 +74,8 @@ pub fn run() {
             thumbnails::get_thumbnail_queue_stats,
             thumbnails::clear_thumbnails,
             thumbnails::clear_all_thumbnails,
+            frame_stream::start_frame_stream,
+            frame_stream::cancel_frame_stream,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -36,6 +36,10 @@ interface SettingsState {
     geminiModel: string;
     /** Lerp-animate the timeline view window when scrolling/panning. */
     smoothPan: boolean;
+    /** Experimental: replace the HTML5 `<video>` element with an ffmpeg-fed
+     *  canvas player for snappier scrub. Audio is best-effort; see
+     *  docs/SNAPPY_PLAYER_NOTES.md for known gaps. */
+    snappyPlayer: boolean;
 }
 
 const DEFAULTS: SettingsState = {
@@ -47,6 +51,7 @@ const DEFAULTS: SettingsState = {
     geminiApiKey: "",
     geminiModel: "gemini-2.5-flash",
     smoothPan: true,
+    snappyPlayer: false,
 };
 
 const STORAGE_KEY = "lockstep.settings.v1";
@@ -86,6 +91,10 @@ function loadFromStorage(): SettingsState {
                     : DEFAULTS.geminiModel,
             smoothPan:
                 typeof parsed.smoothPan === "boolean" ? parsed.smoothPan : DEFAULTS.smoothPan,
+            snappyPlayer:
+                typeof parsed.snappyPlayer === "boolean"
+                    ? parsed.snappyPlayer
+                    : DEFAULTS.snappyPlayer,
         };
     } catch {
         return DEFAULTS;
@@ -136,6 +145,10 @@ const settingsSlice = createSlice({
             state.smoothPan = action.payload;
             saveToStorage(state);
         },
+        setSnappyPlayer(state, action: PayloadAction<boolean>) {
+            state.snappyPlayer = action.payload;
+            saveToStorage(state);
+        },
         resetSettings(state) {
             state.thumbWidth = DEFAULTS.thumbWidth;
             state.maxCachedFrames = DEFAULTS.maxCachedFrames;
@@ -157,6 +170,7 @@ export const {
     setGeminiApiKey,
     setGeminiModel,
     setSmoothPan,
+    setSnappyPlayer,
     resetSettings,
 } = settingsSlice.actions;
 export default settingsSlice.reducer;

@@ -9,6 +9,7 @@ import {
     setGeminiApiKey,
     setGeminiModel,
     setSmoothPan,
+    setSnappyPlayer,
     resetSettings,
     THEMES,
     type Theme,
@@ -65,6 +66,7 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     const maxCachedFrames = useAppSelector((s) => s.settings.maxCachedFrames);
     const theme = useAppSelector((s) => s.settings.theme);
     const smoothPan = useAppSelector((s) => s.settings.smoothPan);
+    const snappyPlayer = useAppSelector((s) => s.settings.snappyPlayer);
     const apiKey = useAppSelector((s) => s.settings.anthropicApiKey);
     const assistantModel = useAppSelector((s) => s.settings.assistantModel);
     const geminiKey = useAppSelector((s) => s.settings.geminiApiKey);
@@ -151,6 +153,26 @@ export default function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                                     type="checkbox"
                                     checked={smoothPan}
                                     onChange={(e) => dispatch(setSmoothPan(e.target.checked))}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="settings-row">
+                            <label className="settings-row__label" htmlFor="snappy-player-toggle">
+                                <span className="settings-row__title">
+                                    Snappy player (experimental)
+                                </span>
+                                <span className="settings-row__hint">
+                                    Replace the HTML5 video element with an ffmpeg-fed canvas
+                                    player. Faster scrub; audio sync is best-effort.
+                                </span>
+                            </label>
+                            <div className="settings-row__control">
+                                <input
+                                    id="snappy-player-toggle"
+                                    type="checkbox"
+                                    checked={snappyPlayer}
+                                    onChange={(e) => dispatch(setSnappyPlayer(e.target.checked))}
                                 />
                             </div>
                         </div>

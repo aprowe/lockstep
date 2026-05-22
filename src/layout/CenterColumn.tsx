@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import VideoPlayer from "../components/VideoPlayer";
+import SnappyVideoPlayer from "../components/SnappyVideoPlayer";
 import Filmstrip from "../components/Filmstrip";
 import WarpView from "../components/WarpView";
 import Toolbar from "../components/Toolbar";
@@ -76,6 +77,7 @@ export default function CenterColumn() {
     const playbackLoopMode = useAppSelector((s) => s.ui.playbackLoopMode);
     const view = useAppSelector((s) => s.ui.view);
     const timelineHeight = useAppSelector((s) => s.ui.timelineHeight);
+    const snappyPlayer = useAppSelector((s) => s.settings.snappyPlayer);
 
     const warpData = useAppSelector(selectWarpData);
     const origAnchors = useAppSelector((s) => s.warp.origAnchors);
@@ -336,36 +338,65 @@ export default function CenterColumn() {
             </div>
             <div className="vj-player">
                 <div className="vj-player__video">
-                    <VideoPlayer
-                        ref={playerRef}
-                        src={video.videoUrl}
-                        duration={video.duration}
-                        onTimeUpdate={(t) => {
-                            // Apply the playback loop mode at the active region's outPoint
-                            // (or video duration when no region is active). The HTML5 video
-                            // element keeps rolling past the end on its own — we intercept
-                            // here, *before* publishing the playhead, so the timeline
-                            // doesn't overshoot the boundary even for a frame.
-                            if (playbackLoopMode !== "continue" && playing) {
-                                const inPoint = activeRegion?.inPoint ?? 0;
-                                const outPoint = activeRegion?.outPoint ?? video.duration;
-                                if (t >= outPoint - 0.001 && outPoint > inPoint) {
-                                    if (playbackLoopMode === "loop") {
-                                        playerRef.current?.seek(inPoint);
-                                        dispatch(setPlayheadAction(inPoint));
+                    {snappyPlayer ? (
+                        <SnappyVideoPlayer
+                            ref={playerRef}
+                            path={video.path}
+                            duration={video.duration}
+                            fps={video.fps}
+                            audioUrl={video.videoUrl}
+                            onTimeUpdate={(t) => {
+                                if (playbackLoopMode !== "continue" && playing) {
+                                    const inPoint = activeRegion?.inPoint ?? 0;
+                                    const outPoint = activeRegion?.outPoint ?? video.duration;
+                                    if (t >= outPoint - 0.001 && outPoint > inPoint) {
+                                        if (playbackLoopMode === "loop") {
+                                            playerRef.current?.seek(inPoint);
+                                            dispatch(setPlayheadAction(inPoint));
+                                            return;
+                                        }
+                                        playerRef.current?.pause();
+                                        playerRef.current?.seek(outPoint);
+                                        dispatch(setPlayheadAction(outPoint));
                                         return;
                                     }
-                                    // 'stop' — pause at the boundary, snap the playhead exactly.
-                                    playerRef.current?.pause();
-                                    playerRef.current?.seek(outPoint);
-                                    dispatch(setPlayheadAction(outPoint));
-                                    return;
                                 }
-                            }
-                            dispatch(setPlayheadAction(t));
-                        }}
-                        onPlayStateChange={(v) => dispatch(setPlayingAction(v))}
-                    />
+                                dispatch(setPlayheadAction(t));
+                            }}
+                            onPlayStateChange={(v) => dispatch(setPlayingAction(v))}
+                        />
+                    ) : (
+                        <VideoPlayer
+                            ref={playerRef}
+                            src={video.videoUrl}
+                            duration={video.duration}
+                            onTimeUpdate={(t) => {
+                                // Apply the playback loop mode at the active region's outPoint
+                                // (or video duration when no region is active). The HTML5 video
+                                // element keeps rolling past the end on its own — we intercept
+                                // here, *before* publishing the playhead, so the timeline
+                                // doesn't overshoot the boundary even for a frame.
+                                if (playbackLoopMode !== "continue" && playing) {
+                                    const inPoint = activeRegion?.inPoint ?? 0;
+                                    const outPoint = activeRegion?.outPoint ?? video.duration;
+                                    if (t >= outPoint - 0.001 && outPoint > inPoint) {
+                                        if (playbackLoopMode === "loop") {
+                                            playerRef.current?.seek(inPoint);
+                                            dispatch(setPlayheadAction(inPoint));
+                                            return;
+                                        }
+                                        // 'stop' — pause at the boundary, snap the playhead exactly.
+                                        playerRef.current?.pause();
+                                        playerRef.current?.seek(outPoint);
+                                        dispatch(setPlayheadAction(outPoint));
+                                        return;
+                                    }
+                                }
+                                dispatch(setPlayheadAction(t));
+                            }}
+                            onPlayStateChange={(v) => dispatch(setPlayingAction(v))}
+                        />
+                    )}
                 </div>
                 <Filmstrip
                     onSeekFrame={(frame) => {
