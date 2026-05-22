@@ -110,12 +110,14 @@
 
 /* Inline thumbnail — width comes from the panel-level CSS var so the
  * slider drives sizing in both list and grid modes. 16:9 aspect ratio
- * keeps things sane across panel widths. */
+ * keeps things sane across panel widths. In grid mode the tile width
+ * stretches via `1fr`, so the override below lets height follow the
+ * actual rendered width instead of the slider value. */
 .list-panel__row-thumb {
     flex-shrink: 0;
     display: block;
     width: var(--list-thumb-w, 96px);
-    height: calc(var(--list-thumb-w, 96px) * 9 / 16);
+    aspect-ratio: 16 / 9;
     object-fit: cover;
     background: var(--bg-2);
     border-radius: 2px;
