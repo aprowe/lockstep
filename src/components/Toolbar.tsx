@@ -20,11 +20,8 @@ import {
     IconLoopStop,
     IconLoopRepeat,
     IconLoopContinue,
-    IconFollowPlayhead,
 } from "./icons";
 import type { PlaybackLoopMode, PlaybackMode } from "../store/slices/uiSlice";
-import { setTimelineFollowPlayhead } from "../store/slices/uiSlice";
-import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { secondsToFrames } from "../utils/time";
 import { tooltipFor } from "../hotkeys";
 import { useGesture } from "../store/gesture";
@@ -103,8 +100,6 @@ export default function Toolbar({
 }: ToolbarProps) {
     const scrubTime = useGesture((s) => s.scrubTime);
     const displayTime = scrubTime ?? currentTime;
-    const dispatch = useAppDispatch();
-    const followPlayhead = useAppSelector((s) => s.ui.timelineFollowPlayhead);
 
     const [speed, setSpeed] = useState(1);
     const [editingFrame, setEditingFrame] = useState(false);
@@ -458,25 +453,8 @@ export default function Toolbar({
             {/* invisible group boundary marker for layout tests */}
             <span data-layout-sep aria-hidden="true" style={{ display: "none" }} />
 
-            {/* ── Right: follow toggle + speed ── */}
+            {/* ── Right: speed ── */}
             <div className="tb-side tb-side--right">
-                <div className="tb-group">
-                    <span className="tb-group-label">Follow</span>
-                    <button
-                        data-layout-id="follow-playhead"
-                        className={`tb-btn tb-btn--follow${followPlayhead ? " tb-btn--follow--active" : ""}`}
-                        onClick={() => dispatch(setTimelineFollowPlayhead(!followPlayhead))}
-                        title={
-                            followPlayhead
-                                ? "Follow playhead: on — view scrolls to keep the playhead visible on seek (click to turn off)"
-                                : "Follow playhead: off — view stays put on seek (click to turn on)"
-                        }
-                        aria-pressed={followPlayhead}
-                    >
-                        <IconFollowPlayhead size={18} />
-                    </button>
-                </div>
-                <span data-layout-sep aria-hidden="true" style={{ display: "none" }} />
                 <div className="tb-group">
                     <span data-layout-id="speed" className="tb-label">
                         Speed

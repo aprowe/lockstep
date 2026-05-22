@@ -167,7 +167,8 @@
 .ct-btn--thumbs {
     --btn-color: var(--scene-cut);
 }
-.ct-btn--follow {
+.ct-btn--follow,
+.ct-btn--follow-playhead {
     --btn-color: var(--playhead);
 }
 .ct-btn--anchors {

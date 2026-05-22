@@ -982,7 +982,7 @@ export function IconFilterClip({ size = 14, ...props }: IconProps) {
 
 /** Viewport brackets following a vertical playhead — the view tracks the
  *  current playhead position. */
-export function IconFollowPlayhead({ size = 18, ...props }: IconProps) {
+export function IconFollowPlayhead({ size = 14, ...props }: IconProps) {
     return (
         <svg
             width={size}

@@ -40,6 +40,4 @@ groups:
       - Frame Count
       - Beat Count (clip based)
 
-    - - Follow Playhead
-
     - - Speed

@@ -3,6 +3,7 @@ import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
     setTimelineThumbShow,
     setTimelineFollowDrag,
+    setTimelineFollowPlayhead,
     setTimelineAlwaysAnchors,
     setTimelineAlwaysRegions,
     setTimelineAlwaysScenes,
@@ -15,6 +16,7 @@ import {
     IconAlwaysScenes,
     IconThumbStrip,
     IconFollowDrag,
+    IconFollowPlayhead,
     IconZoomToRegion,
     IconLockClosed,
 } from "./icons";
@@ -51,6 +53,7 @@ export function CanvasTimelineToolbar({
     const alwaysRegions = useAppSelector((s) => s.ui.timelineAlwaysRegions);
     const alwaysScenes = useAppSelector((s) => s.ui.timelineAlwaysScenes);
     const followDrag = useAppSelector((s) => s.ui.timelineFollowDrag);
+    const followPlayhead = useAppSelector((s) => s.ui.timelineFollowPlayhead);
     const thumbMode = useAppSelector((s) => (s.ui.timelineThumbShow ? "show" : "none"));
     const anchorLock = useAppSelector((s) => s.ui.anchorLock);
 
@@ -143,6 +146,19 @@ export function CanvasTimelineToolbar({
                 title="Playhead follows dragged anchors"
             >
                 <IconFollowDrag size={iconSize} />
+            </button>
+            <button
+                type="button"
+                className={`ct-btn ct-btn--follow-playhead${followPlayhead ? " ct-btn--active" : ""}`}
+                onClick={() => dispatch(setTimelineFollowPlayhead(!followPlayhead))}
+                title={
+                    followPlayhead
+                        ? "View follows playhead: ON — view scrolls to keep the playhead visible on seek (click to turn off)"
+                        : "View follows playhead: OFF — view stays put on seek (click to turn on)"
+                }
+                aria-pressed={followPlayhead}
+            >
+                <IconFollowPlayhead size={iconSize} />
             </button>
 
             <span className="ct-sep" />
