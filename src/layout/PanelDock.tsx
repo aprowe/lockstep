@@ -9,7 +9,6 @@ import {
 } from "dockview";
 import "dockview/dist/styles/dockview.css";
 import "./PanelDock.css";
-import ContextMenu, { type ContextMenuState } from "../components/ContextMenu";
 import PanelMoveOverlay from "./PanelMoveOverlay";
 
 /** Custom theme object — dockview's `theme` option drives which className it
@@ -202,10 +201,9 @@ const PanelDock = forwardRef<PanelDockHandle, PanelDockProps>(function PanelDock
 ) {
     const apiRef = useRef<DockviewApi | null>(null);
 
-    // Right-click on a tab opens a context menu with "Move panel" — see
-    // onContextMenu below. Native dockview drag is disabled via the
-    // `disableDnd` prop, so this is the only way to relocate a panel.
-    const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+    // Tab mousedown + ≥THRESHOLD movement enters "fake drag" mode: a
+    // PanelMoveOverlay mounts and the drop is finalized on mouseup. Pure
+    // pointer events — dockview's HTML5 drag is off (`disableDnd`).
     const [movingPanelId, setMovingPanelId] = useState<string | null>(null);
 
     useEffect(
@@ -310,11 +308,18 @@ const PanelDock = forwardRef<PanelDockHandle, PanelDockProps>(function PanelDock
         emitPanels();
     };
 
-    const onContextMenuCapture = (e: React.MouseEvent) => {
+    // Movement threshold (px) before a tab mousedown turns into a "drag".
+    // Below this, the mousedown→mouseup is treated as a click and dockview's
+    // default tab-switch behaviour runs.
+    const DRAG_THRESHOLD = 5;
+
+    const onMouseDownCapture = (e: React.MouseEvent) => {
+        if (e.button !== 0) return; // left button only
+        if (movingPanelId) return; // already mid-drag
         const api = apiRef.current;
         if (!api) return;
         const tabEl = (e.target as HTMLElement).closest(".dv-tab") as HTMLElement | null;
-        if (!tabEl) return; // Right-click outside a tab — let inner panels handle it.
+        if (!tabEl) return; // Mousedown outside a tab — let panel content handle it.
         const container = tabEl.parentElement;
         if (!container) return;
         // Tab index within its strip → matches the group's panel ordering.
@@ -327,35 +332,40 @@ const PanelDock = forwardRef<PanelDockHandle, PanelDockProps>(function PanelDock
         if (!group) return;
         const panel = group.panels[idx];
         if (!panel) return;
-        e.preventDefault();
-        e.stopPropagation();
-        setContextMenu({
-            x: e.clientX,
-            y: e.clientY,
-            title: panel.title ?? panel.id,
-            items: [
-                {
-                    label: "Move panel",
-                    action: () => setMovingPanelId(panel.id),
-                },
-            ],
-        });
+
+        const startX = e.clientX;
+        const startY = e.clientY;
+
+        const cleanup = () => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+        };
+        const onMove = (ev: MouseEvent) => {
+            if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD) return;
+            cleanup();
+            setMovingPanelId(panel.id);
+            // Suppress the trailing click so dockview doesn't switch tabs
+            // when the drag ends — the user committed to a move, not a click.
+            const suppressClick = (ev2: MouseEvent) => {
+                ev2.preventDefault();
+                ev2.stopPropagation();
+                window.removeEventListener("click", suppressClick, true);
+            };
+            window.addEventListener("click", suppressClick, true);
+        };
+        const onUp = () => cleanup();
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
     };
 
     return (
-        <div
-            className={`panel-dock ${className ?? ""}`}
-            onContextMenuCapture={onContextMenuCapture}
-        >
+        <div className={`panel-dock ${className ?? ""}`} onMouseDownCapture={onMouseDownCapture}>
             <DockviewReact
                 components={components}
                 onReady={onReady}
                 theme={lockstepTheme}
                 disableDnd
             />
-            {contextMenu && (
-                <ContextMenu menu={contextMenu} onClose={() => setContextMenu(null)} />
-            )}
             {movingPanelId && apiRef.current && (
                 <PanelMoveOverlay
                     api={apiRef.current}

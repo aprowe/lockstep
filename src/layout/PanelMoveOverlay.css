@@ -6,7 +6,7 @@
     inset: 0;
     z-index: 9000;
     background: rgba(0, 0, 0, 0.18);
-    cursor: crosshair;
+    cursor: grabbing;
 }
 
 /* Per-group target layer. SVG so we can use polygons for the triangular
