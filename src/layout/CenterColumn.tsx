@@ -341,15 +341,18 @@ export default function CenterColumn() {
                         src={video.videoUrl}
                         duration={video.duration}
                         onTimeUpdate={(t) => {
-                            // Apply the playback loop mode at the active region's outPoint
-                            // (or video duration when no region is active). The HTML5 video
-                            // element keeps rolling past the end on its own — we intercept
-                            // here, *before* publishing the playhead, so the timeline
-                            // doesn't overshoot the boundary even for a frame.
+                            // Trigger loop / stop only on the actual crossing of the active
+                            // region's outPoint (previous playhead before it, current tick at
+                            // or past). Without the `playhead < outPoint` guard, any tick past
+                            // the boundary fires — so starting playback with the playhead
+                            // already past the clip yanks it back to inPoint and traps it
+                            // inside, preventing playback outside the active clip.
                             if (playbackLoopMode !== "continue" && playing) {
                                 const inPoint = activeRegion?.inPoint ?? 0;
                                 const outPoint = activeRegion?.outPoint ?? video.duration;
-                                if (t >= outPoint - 0.001 && outPoint > inPoint) {
+                                const justCrossed =
+                                    t >= outPoint - 0.001 && playhead < outPoint - 0.001;
+                                if (justCrossed && outPoint > inPoint) {
                                     if (playbackLoopMode === "loop") {
                                         playerRef.current?.seek(inPoint);
                                         dispatch(setPlayheadAction(inPoint));
