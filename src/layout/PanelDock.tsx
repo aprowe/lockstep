@@ -1,4 +1,4 @@
-import { useEffect, useImperativeHandle, useRef, forwardRef } from "react";
+import { useCallback, useEffect, useImperativeHandle, useRef, forwardRef, useState } from "react";
 import {
     DockviewReact,
     type DockviewApi,
@@ -9,6 +9,8 @@ import {
 } from "dockview";
 import "dockview/dist/styles/dockview.css";
 import "./PanelDock.css";
+import PanelMoveOverlay from "./PanelMoveOverlay";
+import ContextMenu, { type ContextMenuState } from "../components/ContextMenu";
 
 /** Custom theme object — dockview's `theme` option drives which className it
  *  pins on its root element. Without this it falls back to themeAbyss and
@@ -200,6 +202,16 @@ const PanelDock = forwardRef<PanelDockHandle, PanelDockProps>(function PanelDock
 ) {
     const apiRef = useRef<DockviewApi | null>(null);
 
+    // Tab mousedown + ≥THRESHOLD movement enters "fake drag" mode: a
+    // PanelMoveOverlay mounts and the drop is finalized on mouseup. Pure
+    // pointer events — dockview's HTML5 drag is off (`disableDnd`).
+    const [movingPanelId, setMovingPanelId] = useState<string | null>(null);
+    const [tabMenu, setTabMenu] = useState<ContextMenuState | null>(null);
+    // Stable identity so the overlay's window listeners don't churn on every
+    // PanelDock re-render — listener tear-down/re-attach could otherwise drop
+    // a mouseup that lands in the gap.
+    const exitMove = useCallback(() => setMovingPanelId(null), []);
+
     useEffect(
         () => () => {
             apiRef.current = null;
@@ -302,9 +314,107 @@ const PanelDock = forwardRef<PanelDockHandle, PanelDockProps>(function PanelDock
         emitPanels();
     };
 
+    // Movement threshold (px) before a tab mousedown turns into a "drag".
+    // Below this, the mousedown→mouseup is treated as a click and dockview's
+    // default tab-switch behaviour runs.
+    const DRAG_THRESHOLD = 5;
+
+    // Resolve which dockview panel a DOM .dv-tab corresponds to. Returns null
+    // for elements outside the tab strip or when the api isn't ready.
+    const panelFromTab = (target: EventTarget | null) => {
+        const api = apiRef.current;
+        if (!api) return null;
+        const tabEl = (target as HTMLElement | null)?.closest?.(".dv-tab") as HTMLElement | null;
+        if (!tabEl) return null;
+        const container = tabEl.parentElement;
+        if (!container) return null;
+        const tabs = Array.from(container.children).filter(
+            (el): el is HTMLElement =>
+                el instanceof HTMLElement && el.classList.contains("dv-tab"),
+        );
+        const idx = tabs.indexOf(tabEl);
+        if (idx < 0) return null;
+        const group = api.groups.find((g) => g.element.contains(tabEl));
+        if (!group) return null;
+        return group.panels[idx] ?? null;
+    };
+
+    const onMouseDownCapture = (e: React.MouseEvent) => {
+        if (e.button !== 0) return; // left button only
+        if (movingPanelId) return; // already mid-drag
+        const panel = panelFromTab(e.target);
+        if (!panel) return;
+
+        const startX = e.clientX;
+        const startY = e.clientY;
+
+        const cleanup = () => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+        };
+        const onMove = (ev: MouseEvent) => {
+            if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD) return;
+            cleanup();
+            setMovingPanelId(panel.id);
+            // Suppress the trailing click so dockview doesn't switch tabs
+            // when the drag ends — the user committed to a move, not a click.
+            const suppressClick = (ev2: MouseEvent) => {
+                ev2.preventDefault();
+                ev2.stopPropagation();
+                window.removeEventListener("click", suppressClick, true);
+            };
+            window.addEventListener("click", suppressClick, true);
+        };
+        const onUp = () => cleanup();
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+    };
+
+    const onContextMenu = (e: React.MouseEvent) => {
+        const api = apiRef.current;
+        if (!api) return;
+        const panel = panelFromTab(e.target);
+        // The locked center (player) group has its header hidden anyway, but
+        // guard explicitly so a stray right-click can't ever remove it.
+        if (!panel || panel.id === "center") return;
+        e.preventDefault();
+        e.stopPropagation();
+        setTabMenu({
+            x: e.clientX,
+            y: e.clientY,
+            title: panel.title ?? PANEL_TITLES[panel.id] ?? panel.id,
+            items: [
+                {
+                    label: "Hide panel",
+                    action: () => {
+                        const live = api.getPanel(panel.id);
+                        if (live) api.removePanel(live);
+                    },
+                },
+            ],
+        });
+    };
+
     return (
-        <div className={`panel-dock ${className ?? ""}`}>
-            <DockviewReact components={components} onReady={onReady} theme={lockstepTheme} />
+        <div
+            className={`panel-dock ${className ?? ""}`}
+            onMouseDownCapture={onMouseDownCapture}
+            onContextMenu={onContextMenu}
+        >
+            <DockviewReact
+                components={components}
+                onReady={onReady}
+                theme={lockstepTheme}
+                disableDnd
+            />
+            {movingPanelId && apiRef.current && (
+                <PanelMoveOverlay
+                    api={apiRef.current}
+                    panelId={movingPanelId}
+                    onExit={exitMove}
+                />
+            )}
+            {tabMenu && <ContextMenu menu={tabMenu} onClose={() => setTabMenu(null)} />}
         </div>
     );
 });

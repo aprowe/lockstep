@@ -1,0 +1,62 @@
+/* Fullscreen overlay above the dock during move-mode. Catches pointer
+   events so background panels don't react while the user is placing a panel. */
+.panel-move-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: rgba(0, 0, 0, 0.18);
+    cursor: grabbing;
+}
+
+/* SVG containers for the per-group and outer-perimeter hit-test polygons.
+   The SVGs themselves don't take pointer events — only their child polygons. */
+.panel-move-overlay__group,
+.panel-move-overlay__perimeter {
+    position: absolute;
+    overflow: visible;
+    pointer-events: none;
+}
+
+/* Zones are invisible — visual feedback comes from a single highlight rect
+   (`.panel-move-overlay__highlight`) keyed to the hovered zone. `transparent`
+   fill (not `none`) is required so SVG polygons stay hit-testable. */
+.panel-move-overlay__zone {
+    fill: transparent;
+    stroke: none;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+/* Highlight rendered on top of the hit-test layer for the currently hovered
+   zone — half-group fill for inner edges, whole-group fill for inner center,
+   thin border strip for outer-perimeter edges. */
+.panel-move-overlay__highlight {
+    position: fixed;
+    pointer-events: none;
+    background: rgba(var(--accent-rgb), 0.28);
+    border: 2px solid var(--accent);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+    box-sizing: border-box;
+    z-index: 9000;
+    transition:
+        left 0.08s ease,
+        top 0.08s ease,
+        width 0.08s ease,
+        height 0.08s ease;
+}
+
+/* Cursor-anchored label showing what's being placed. */
+.panel-move-overlay__ghost {
+    position: fixed;
+    pointer-events: none;
+    background: var(--bg-5);
+    color: var(--fg-1);
+    font-family: var(--font-family);
+    font-size: var(--t-base);
+    padding: var(--sp-1) var(--sp-3);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    white-space: nowrap;
+    z-index: 9001;
+}
