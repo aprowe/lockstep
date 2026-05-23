@@ -50,22 +50,9 @@
     --dv-active-sash-transition-duration: 0.1s;
     --dv-active-sash-transition-delay: 0s;
 
-    /* Drag / drop affordances */
-    --dv-drag-over-background-color: rgba(var(--accent-rgb), 0.18);
-    --dv-drag-over-border-color: var(--accent);
-    --dv-floating-box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-
     /* Misc chrome */
     --dv-tabs-container-scrollbar-color: var(--fg-5);
     --dv-icon-hover-background-color: var(--bg-hover);
-}
-
-/* Drop-target overlay anchor — fade in cleanly so it doesn't flash. */
-.dockview-theme-lockstep
-    .dv-drop-target-container
-    .dv-drop-target-anchor.dv-drop-target-anchor-container-changed {
-    opacity: 0;
-    transition: none;
 }
 
 /* Slightly more breathing room in each tab. */

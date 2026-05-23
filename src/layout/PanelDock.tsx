@@ -1,4 +1,4 @@
-import { useEffect, useImperativeHandle, useRef, forwardRef, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useRef, forwardRef, useState } from "react";
 import {
     DockviewReact,
     type DockviewApi,
@@ -205,6 +205,10 @@ const PanelDock = forwardRef<PanelDockHandle, PanelDockProps>(function PanelDock
     // PanelMoveOverlay mounts and the drop is finalized on mouseup. Pure
     // pointer events — dockview's HTML5 drag is off (`disableDnd`).
     const [movingPanelId, setMovingPanelId] = useState<string | null>(null);
+    // Stable identity so the overlay's window listeners don't churn on every
+    // PanelDock re-render — listener tear-down/re-attach could otherwise drop
+    // a mouseup that lands in the gap.
+    const exitMove = useCallback(() => setMovingPanelId(null), []);
 
     useEffect(
         () => () => {
@@ -370,7 +374,7 @@ const PanelDock = forwardRef<PanelDockHandle, PanelDockProps>(function PanelDock
                 <PanelMoveOverlay
                     api={apiRef.current}
                     panelId={movingPanelId}
-                    onExit={() => setMovingPanelId(null)}
+                    onExit={exitMove}
                 />
             )}
         </div>

@@ -63,12 +63,10 @@ export default function PanelMoveOverlay({ api, panelId, onExit }: PanelMoveOver
     // first paint doesn't flash at (0,0).
     const [cursor, setCursor] = useState<{ x: number; y: number }>({ x: -9999, y: -9999 });
 
-    // Hovered drop target (groupId + position). The mouseup handler needs
-    // the latest value synchronously, so we mirror it into a ref — React
-    // state alone would stale-close the listener.
+    // Hovered drop target (groupId + position). Used purely for visual
+    // highlight — the drop itself reads from elementFromPoint at mouseup,
+    // so React batching of hover state can't make us miss a fast release.
     const [hover, setHover] = useState<{ groupId: string; position: Position } | null>(null);
-    const hoverRef = useRef<{ groupId: string; position: Position } | null>(null);
-    hoverRef.current = hover;
 
     // Group rects + zone polygons, recomputed when the overlay mounts and on
     // window resize. We deliberately don't recompute on every mousemove —
@@ -131,30 +129,39 @@ export default function PanelMoveOverlay({ api, panelId, onExit }: PanelMoveOver
             e.preventDefault();
             onExit();
         };
-        // Pointer release IS the drop. If a zone is hovered, commit the move;
-        // otherwise cancel. We swallow the event so the click that would
-        // normally follow doesn't switch tabs underneath us.
+        // Pointer release IS the drop. Hit-test via elementFromPoint rather
+        // than reading hover state — React may batch hover updates past a
+        // fast mouseup, but the DOM hit-test is always current.
         const onUp = (e: MouseEvent) => {
             e.preventDefault();
             e.stopPropagation();
-            const target = hoverRef.current;
-            if (target) {
-                dispatchMoveRef.current(target.groupId, target.position);
+            const el = document.elementFromPoint(e.clientX, e.clientY);
+            const poly = el && el.tagName.toLowerCase() === "polygon" ? el : null;
+            const groupId = poly?.getAttribute("data-group-id");
+            const position = poly?.getAttribute("data-position") as Position | null;
+            if (groupId && position) {
+                dispatchMoveRef.current(groupId, position);
             } else {
                 onExit();
             }
         };
+        // If the window loses focus mid-drag (release over OS chrome, alt-tab,
+        // etc.) the mouseup may never reach us — cancel so the overlay isn't
+        // left stuck open.
+        const onBlur = () => onExit();
         window.addEventListener("mousemove", onMove);
         window.addEventListener("mouseup", onUp, true);
         window.addEventListener("keydown", onKey, true);
         window.addEventListener("resize", onResize);
         window.addEventListener("contextmenu", onContext, true);
+        window.addEventListener("blur", onBlur);
         return () => {
             window.removeEventListener("mousemove", onMove);
             window.removeEventListener("mouseup", onUp, true);
             window.removeEventListener("keydown", onKey, true);
             window.removeEventListener("resize", onResize);
             window.removeEventListener("contextmenu", onContext, true);
+            window.removeEventListener("blur", onBlur);
         };
     }, [onExit]);
 
@@ -194,6 +201,8 @@ export default function PanelMoveOverlay({ api, panelId, onExit }: PanelMoveOver
                             <polygon
                                 key={pos}
                                 points={t.zones[pos]}
+                                data-group-id={t.groupId}
+                                data-position={pos}
                                 className={[
                                     "panel-move-overlay__zone",
                                     isHover ? "panel-move-overlay__zone--hover" : "",
