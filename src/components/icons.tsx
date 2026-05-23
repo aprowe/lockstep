@@ -957,6 +957,27 @@ export function IconFilterView({ size = 14, ...props }: IconProps) {
 }
 
 /** Show items inside the active clip/region. */
+export function IconTracks({ size = 14, ...props }: IconProps) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            {...props}
+        >
+            <line x1="2" y1="4" x2="14" y2="4" strokeWidth="1.4" />
+            <line x1="2" y1="8" x2="14" y2="8" strokeWidth="1.4" />
+            <line x1="2" y1="12" x2="14" y2="12" strokeWidth="1.4" />
+            <circle cx="4.5" cy="4" r="1.3" fill="currentColor" stroke="none" />
+            <circle cx="10" cy="8" r="1.3" fill="currentColor" stroke="none" />
+            <circle cx="6.5" cy="12" r="1.3" fill="currentColor" stroke="none" />
+        </svg>
+    );
+}
+
 export function IconFilterClip({ size = 14, ...props }: IconProps) {
     return (
         <svg

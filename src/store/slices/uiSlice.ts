@@ -13,6 +13,7 @@ interface TimelinePrefs {
     alwaysAnchors: boolean;
     alwaysRegions: boolean;
     alwaysScenes: boolean;
+    hiddenTracks: string[];
 }
 
 const DEFAULT_TIMELINE_PREFS: TimelinePrefs = {
@@ -23,6 +24,7 @@ const DEFAULT_TIMELINE_PREFS: TimelinePrefs = {
     alwaysAnchors: true,
     alwaysRegions: false,
     alwaysScenes: false,
+    hiddenTracks: [],
 };
 
 function loadTimelinePrefs(): TimelinePrefs {
@@ -54,6 +56,10 @@ function loadTimelinePrefs(): TimelinePrefs {
                 typeof p.alwaysScenes === "boolean"
                     ? p.alwaysScenes
                     : DEFAULT_TIMELINE_PREFS.alwaysScenes,
+            hiddenTracks:
+                Array.isArray(p.hiddenTracks) && p.hiddenTracks.every((x: unknown) => typeof x === "string")
+                    ? p.hiddenTracks
+                    : DEFAULT_TIMELINE_PREFS.hiddenTracks,
         };
     } catch {
         return DEFAULT_TIMELINE_PREFS;
@@ -70,6 +76,7 @@ function saveTimelinePrefs(state: UiState) {
             alwaysAnchors: state.timelineAlwaysAnchors,
             alwaysRegions: state.timelineAlwaysRegions,
             alwaysScenes: state.timelineAlwaysScenes,
+            hiddenTracks: state.timelineHiddenTracks,
         };
         localStorage.setItem(TIMELINE_PREFS_KEY, JSON.stringify(prefs));
     } catch {
@@ -117,6 +124,10 @@ interface UiState {
     timelineAlwaysAnchors: boolean;
     timelineAlwaysRegions: boolean;
     timelineAlwaysScenes: boolean;
+    /** Track IDs (matching `ALL_TRACKS` in `timeline/layout.ts`) that the user
+     *  has hidden from the timeline. Visible = `ALL_TRACKS` minus this set
+     *  (after the warp-collapsed filter). */
+    timelineHiddenTracks: string[];
     /** Global anchor-lock toggle (§13). When true, beat anchors inside the active
      *  clipout window are position-locked: resize (lock='beats') keeps them in
      *  beat-space; body-pan carries them with the clip. Alt inverts this for a
@@ -173,6 +184,7 @@ const initialState: UiState = {
     timelineAlwaysAnchors: _prefs.alwaysAnchors,
     timelineAlwaysRegions: _prefs.alwaysRegions,
     timelineAlwaysScenes: _prefs.alwaysScenes,
+    timelineHiddenTracks: _prefs.hiddenTracks,
     anchorLock: false,
     anchorLockGestureOverride: null,
     playing: false,
@@ -235,6 +247,18 @@ const uiSlice = createSlice({
             state.timelineAlwaysScenes = action.payload;
             saveTimelinePrefs(state);
         },
+        setTimelineHiddenTracks(state, action: PayloadAction<string[]>) {
+            state.timelineHiddenTracks = action.payload;
+            saveTimelinePrefs(state);
+        },
+        toggleTimelineTrackVisibility(state, action: PayloadAction<string>) {
+            const id = action.payload;
+            const set = new Set(state.timelineHiddenTracks);
+            if (set.has(id)) set.delete(id);
+            else set.add(id);
+            state.timelineHiddenTracks = Array.from(set);
+            saveTimelinePrefs(state);
+        },
         setAnchorLock(state, action: PayloadAction<boolean>) {
             state.anchorLock = action.payload;
         },
@@ -285,6 +309,8 @@ export const {
     setTimelineAlwaysAnchors,
     setTimelineAlwaysRegions,
     setTimelineAlwaysScenes,
+    setTimelineHiddenTracks,
+    toggleTimelineTrackVisibility,
     setAnchorLock,
     setAnchorLockGestureOverride,
     setPlaying,

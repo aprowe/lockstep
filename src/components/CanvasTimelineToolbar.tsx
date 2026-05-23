@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
     setTimelineThumbShow,
@@ -6,8 +6,11 @@ import {
     setTimelineAlwaysAnchors,
     setTimelineAlwaysRegions,
     setTimelineAlwaysScenes,
+    setTimelineHiddenTracks,
+    toggleTimelineTrackVisibility,
     setAnchorLock,
 } from "../store/slices/uiSlice";
+import { ALL_TRACKS } from "../timeline/layout";
 import {
     IconWarpToggle,
     IconAlwaysAnchors,
@@ -17,6 +20,7 @@ import {
     IconFollowDrag,
     IconZoomToRegion,
     IconLockClosed,
+    IconTracks,
 } from "./icons";
 import { getUiScale } from "../uiScale";
 
@@ -53,6 +57,19 @@ export function CanvasTimelineToolbar({
     const followDrag = useAppSelector((s) => s.ui.timelineFollowDrag);
     const thumbMode = useAppSelector((s) => (s.ui.timelineThumbShow ? "show" : "none"));
     const anchorLock = useAppSelector((s) => s.ui.anchorLock);
+    const hiddenTrackList = useAppSelector((s) => s.ui.timelineHiddenTracks);
+    const hiddenTracks = new Set(hiddenTrackList);
+
+    const [tracksMenuOpen, setTracksMenuOpen] = useState(false);
+    const tracksMenuRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (!tracksMenuOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (!tracksMenuRef.current?.contains(e.target as Node)) setTracksMenuOpen(false);
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, [tracksMenuOpen]);
 
     // Alt-held preview: flip the visual while Alt is held anywhere in the app.
     // Use document listeners (broader than window) + pointermove to catch Alt
@@ -171,6 +188,60 @@ export function CanvasTimelineToolbar({
             >
                 <IconAlwaysScenes size={iconSize} />
             </button>
+
+            <span className="ct-sep" />
+
+            <div className="ct-tracks-menu" ref={tracksMenuRef}>
+                <button
+                    type="button"
+                    className={`ct-btn ct-btn--tracks${tracksMenuOpen ? " ct-btn--active" : ""}${hiddenTracks.size > 0 ? " ct-btn--has-hidden" : ""}`}
+                    onClick={() => setTracksMenuOpen((v) => !v)}
+                    title="Toggle track visibility"
+                    aria-expanded={tracksMenuOpen}
+                    aria-haspopup="true"
+                >
+                    <IconTracks size={iconSize} />
+                </button>
+                {tracksMenuOpen && (
+                    <div className="ct-tracks-popover" role="menu">
+                        <div className="ct-tracks-popover__header">
+                            <span className="ct-tracks-popover__title">Tracks</span>
+                            <button
+                                type="button"
+                                className="ct-tracks-popover__reset"
+                                disabled={hiddenTracks.size === 0}
+                                onClick={() => dispatch(setTimelineHiddenTracks([]))}
+                                title="Show all tracks"
+                            >
+                                Show all
+                            </button>
+                        </div>
+                        <ul className="ct-tracks-popover__list">
+                            {ALL_TRACKS.map((t) => {
+                                const visible = !hiddenTracks.has(t.id);
+                                return (
+                                    <li key={t.id}>
+                                        <label className="ct-tracks-popover__item">
+                                            <input
+                                                type="checkbox"
+                                                checked={visible}
+                                                onChange={() =>
+                                                    dispatch(
+                                                        toggleTimelineTrackVisibility(t.id),
+                                                    )
+                                                }
+                                            />
+                                            <span className="ct-tracks-popover__label">
+                                                {t.label}
+                                            </span>
+                                        </label>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </div>
+                )}
+            </div>
 
             <span className="ct-sep" />
 

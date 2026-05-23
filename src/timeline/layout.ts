@@ -26,8 +26,11 @@ export function buildLayout(
     warpCollapsed: boolean,
     totalH: number,
     overrides: Record<string, number> = {},
+    hiddenTracks: ReadonlySet<string> = new Set(),
 ): LayoutTrack[] {
-    const visible = ALL_TRACKS.filter((def) => !(warpCollapsed && def.space !== "input"));
+    const visible = ALL_TRACKS.filter(
+        (def) => !(warpCollapsed && def.space !== "input") && !hiddenTracks.has(def.id),
+    );
     const available = totalH - MINIMAP_H - 1 - visible.length; // gaps between rows
 
     let usedH = 0;
