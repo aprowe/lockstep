@@ -60,7 +60,7 @@ describe("buildLayout", () => {
     });
 
     it("uses default height when no override is provided", () => {
-        const layout = buildLayout(false, 200, { time: 50 });
+        const layout = buildLayout(false, 600, { time: 50 });
         expect(layout.find((t) => t.id === "time")!.h).toBe(50);
         // Other flex-0 row should be at default height
         expect(layout.find((t) => t.id === "scenes")!.h).toBe(18);
@@ -71,5 +71,17 @@ describe("buildLayout", () => {
         const layout = buildLayout(false, totalH);
         const last = layout[layout.length - 1];
         expect(last.y + last.h).toBeLessThanOrEqual(totalH);
+    });
+
+    it("scales every row proportionally when totalH is too small for the preferred sum", () => {
+        // 200px isn't enough for the default + override (~266px) — without
+        // proportional scaling, the bottom tracks would spill past totalH.
+        const totalH = 200;
+        const layout = buildLayout(false, totalH, { time: 50 });
+        const last = layout[layout.length - 1];
+        expect(last.y + last.h).toBeLessThanOrEqual(totalH);
+        // Override is scaled along with everything else (preserves the
+        // relative proportions between rows).
+        expect(layout.find((t) => t.id === "time")!.h).toBeLessThan(50);
     });
 });

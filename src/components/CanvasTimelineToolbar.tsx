@@ -8,6 +8,7 @@ import {
     setTimelineAlwaysScenes,
     setTimelineHiddenTracks,
     toggleTimelineTrackVisibility,
+    resetTimelineRowHeights,
     setAnchorLock,
 } from "../store/slices/uiSlice";
 import { ALL_TRACKS } from "../timeline/layout";
@@ -59,13 +60,43 @@ export function CanvasTimelineToolbar({
     const anchorLock = useAppSelector((s) => s.ui.anchorLock);
     const hiddenTrackList = useAppSelector((s) => s.ui.timelineHiddenTracks);
     const hiddenTracks = new Set(hiddenTrackList);
+    const hasRowHeightOverrides = useAppSelector(
+        (s) => Object.keys(s.ui.timelineRowHeights).length > 0,
+    );
 
     const [tracksMenuOpen, setTracksMenuOpen] = useState(false);
     const tracksMenuRef = useRef<HTMLDivElement>(null);
+    const tracksBtnRef = useRef<HTMLButtonElement>(null);
+    // Captured at open-time so the fixed-positioned popover renders at the
+    // right viewport coords. Re-measured each open — the popover doesn't
+    // follow the trigger during scroll, but the menu closes on outside
+    // click anyway so stale rects don't survive long enough to matter.
+    const [tracksMenuAnchor, setTracksMenuAnchor] = useState<{
+        left: number;
+        bottom: number;
+    } | null>(null);
     useEffect(() => {
-        if (!tracksMenuOpen) return;
+        if (!tracksMenuOpen) {
+            setTracksMenuAnchor(null);
+            return;
+        }
+        const rect = tracksBtnRef.current?.getBoundingClientRect();
+        if (rect) {
+            setTracksMenuAnchor({
+                left: rect.left,
+                // CSS uses `bottom` so the popover grows upward — distance
+                // from the bottom of the viewport to the top of the trigger,
+                // plus a 6px gap.
+                bottom: window.innerHeight - rect.top + 6,
+            });
+        }
         const handler = (e: MouseEvent) => {
-            if (!tracksMenuRef.current?.contains(e.target as Node)) setTracksMenuOpen(false);
+            if (
+                !tracksMenuRef.current?.contains(e.target as Node) &&
+                !tracksBtnRef.current?.contains(e.target as Node)
+            ) {
+                setTracksMenuOpen(false);
+            }
         };
         document.addEventListener("mousedown", handler);
         return () => document.removeEventListener("mousedown", handler);
@@ -191,8 +222,9 @@ export function CanvasTimelineToolbar({
 
             <span className="ct-sep" />
 
-            <div className="ct-tracks-menu" ref={tracksMenuRef}>
+            <div className="ct-tracks-menu">
                 <button
+                    ref={tracksBtnRef}
                     type="button"
                     className={`ct-btn ct-btn--tracks${tracksMenuOpen ? " ct-btn--active" : ""}${hiddenTracks.size > 0 ? " ct-btn--has-hidden" : ""}`}
                     onClick={() => setTracksMenuOpen((v) => !v)}
@@ -202,10 +234,29 @@ export function CanvasTimelineToolbar({
                 >
                     <IconTracks size={iconSize} />
                 </button>
-                {tracksMenuOpen && (
-                    <div className="ct-tracks-popover" role="menu">
+                {tracksMenuOpen && tracksMenuAnchor && (
+                    <div
+                        ref={tracksMenuRef}
+                        className="ct-tracks-popover"
+                        role="menu"
+                        style={{
+                            left: tracksMenuAnchor.left,
+                            bottom: tracksMenuAnchor.bottom,
+                        }}
+                    >
                         <div className="ct-tracks-popover__header">
                             <span className="ct-tracks-popover__title">Tracks</span>
+                        </div>
+                        <div className="ct-tracks-popover__actions">
+                            <button
+                                type="button"
+                                className="ct-tracks-popover__reset"
+                                disabled={!hasRowHeightOverrides}
+                                onClick={() => dispatch(resetTimelineRowHeights())}
+                                title="Reset all track heights to defaults"
+                            >
+                                Reset sizes
+                            </button>
                             <button
                                 type="button"
                                 className="ct-tracks-popover__reset"

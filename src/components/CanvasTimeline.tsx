@@ -9,6 +9,14 @@ import { gesture, useGesture } from "../store/gesture";
 import { dragStart, dragEnd } from "../store/slices/dragSlice";
 import { setActiveRegionId as setActiveRegionIdAction } from "../store/slices/regionSlice";
 import {
+    setTimelineRowHeights,
+    clearTimelineRowHeight,
+    resetTimelineRowHeights,
+    toggleTimelineTrackVisibility,
+    setTimelineHiddenTracks,
+} from "../store/slices/uiSlice";
+import ContextMenu, { type ContextMenuState } from "./ContextMenu";
+import {
     cancelDrag,
     snapshotPreDragState,
     beginDrag,
@@ -20,6 +28,7 @@ import { getUiScale } from "../uiScale";
 import { useSetThumbnailHover } from "./ThumbnailPopup";
 import {
     MINIMAP_H,
+    MINIMAP_KEY,
     TRI_HALF,
     TRI_H,
     FONT,
@@ -204,7 +213,10 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
 
     // ── Track layout ────────────────────────────────────────
     const [containerH, setContainerH] = useState(0);
-    const [rowOverrides, setRowOverrides] = useState<Record<string, number>>({});
+    // Row heights live in the ui slice so the rail context menu and the
+    // toolbar tracks popover can read/write the same map (and so manual
+    // sizing persists across sessions).
+    const rowOverrides = useAppSelector((s) => s.ui.timelineRowHeights);
     const rowResizeRef = useRef<{
         aboveId: string;
         belowId: string;
@@ -212,6 +224,8 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
         hAbove: number;
         hBelow: number;
     } | null>(null);
+    // Context menu fired by right-clicking a rail row label.
+    const [railMenu, setRailMenu] = useState<ContextMenuState | null>(null);
 
     const setThumbnailHover = useSetThumbnailHover();
 
@@ -239,6 +253,13 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
     );
     const tracksRef = useRef<LayoutTrack[]>([]);
     tracksRef.current = tracks;
+    // Minimap (overview) height — resizable via the grip below the rail
+    // label. Stored under MINIMAP_KEY in the same `rowOverrides` map as
+    // every other resizable row. Stash on a ref so the per-frame draw
+    // closures pick up the current value without rewiring callbacks.
+    const minimapH = rowOverrides[MINIMAP_KEY] ?? MINIMAP_H;
+    const minimapHRef = useRef(minimapH);
+    minimapHRef.current = minimapH;
 
     // ── Theme colors (read once, updated on theme change) ───
     const themeRef = useRef({
@@ -468,11 +489,16 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
 
         // ── Minimap ──────────────────────────────────────────
         function layerMinimap() {
+            const mH = minimapHRef.current;
             const maxDur = Math.max(p.duration, p.outputDuration);
             ctx.fillStyle = th.bgInset;
-            ctx.fillRect(0, 0, W, MINIMAP_H);
-            const barH = 6,
-                barY = Math.round((MINIMAP_H - barH) / 2);
+            ctx.fillRect(0, 0, W, mH);
+            // Region/anchor bars scale with the overview height but keep
+            // visible padding around them — the bar takes ~40% of the
+            // overview, leaving roughly the same proportion of padding above
+            // and below regardless of how tall the user resizes the overview.
+            const barH = Math.max(4, Math.round(mH * 0.4));
+            const barY = Math.round((mH - barH) / 2);
             for (const r of regions) {
                 const x1 = (r.inPoint / maxDur) * W;
                 const x2 = (r.outPoint / maxDur) * W;
@@ -499,10 +525,13 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
             if (maxDur > 0 && visibleSpan < maxDur - 0.001) {
                 const vx1 = (view.start / maxDur) * W;
                 const vx2 = (view.end / maxDur) * W;
-                const vInset = 2;
+                // Thin frame around the whole overview — scales gently so
+                // the viewport rect doesn't feel rigid on a tall overview
+                // (vs. the fixed 2px it used at a single 24px height).
+                const vInset = Math.max(2, Math.round(mH * 0.08));
                 const { beatRgb } = th;
                 ctx.fillStyle = `rgba(${beatRgb},0.1)`;
-                ctx.fillRect(vx1, vInset, vx2 - vx1, MINIMAP_H - vInset * 2);
+                ctx.fillRect(vx1, vInset, vx2 - vx1, mH - vInset * 2);
                 ctx.strokeStyle = `rgba(${beatRgb},0.75)`;
                 ctx.lineWidth = 1;
                 ctx.beginPath();
@@ -510,24 +539,24 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                     vx1 + 0.5,
                     vInset + 0.5,
                     Math.max(0, vx2 - vx1 - 1),
-                    MINIMAP_H - vInset * 2 - 1,
+                    mH - vInset * 2 - 1,
                     4,
                 );
                 ctx.stroke();
             }
             const phm = ((p.playhead ?? 0) / maxDur) * W;
             ctx.fillStyle = pal.playhead;
-            ctx.fillRect(Math.round(phm), 0, 1, MINIMAP_H);
+            ctx.fillRect(Math.round(phm), 0, 1, mH);
             ctx.fillStyle = th.border;
-            ctx.fillRect(0, MINIMAP_H, W, 1);
-            addHit(0, 0, W, MINIMAP_H, { kind: "minimap" });
+            ctx.fillRect(0, mH, W, 1);
+            addHit(0, 0, W, mH, { kind: "minimap" });
         }
         layerMinimap();
 
         // ── Clip into canvas area ─────────────────────────────
         ctx.save();
         ctx.beginPath();
-        ctx.rect(0, MINIMAP_H + 1, W, H);
+        ctx.rect(0, minimapHRef.current + 1, W, H);
         ctx.clip();
 
         // ── Time ruler ───────────────────────────────────────
@@ -1345,7 +1374,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
             ctx.strokeStyle = "rgba(226,219,210,0.08)";
             ctx.lineWidth = 1;
             ctx.beginPath();
-            ctx.moveTo(hoverX.current + 0.5, MINIMAP_H + 1);
+            ctx.moveTo(hoverX.current + 0.5, minimapHRef.current + 1);
             ctx.lineTo(hoverX.current + 0.5, bot);
             ctx.stroke();
         }
@@ -1491,6 +1520,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
             warpCollapsed: p.warpCollapsed ?? false,
             canvas: { width: rect.width, height: rect.height },
             tracks: tracksRef.current,
+            minimapH: minimapHRef.current,
             hits: hitsBuilderRef.current.result(),
             playhead: p.playhead,
             constraintGraph: p.constraintGraph,
@@ -1761,16 +1791,54 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
         }
     }
 
+    function openRailContextMenu(trackId: string, trackLabel: string, x: number, y: number) {
+        const hasOverride = trackId in rowOverrides;
+        const hasAnyOverride = Object.keys(rowOverrides).length > 0;
+        const anyHidden = hiddenTracks.size > 0;
+        setRailMenu({
+            x,
+            y,
+            title: trackLabel,
+            items: [
+                {
+                    label: "Hide Track",
+                    action: () => dispatch(toggleTimelineTrackVisibility(trackId)),
+                },
+                {
+                    label: "Reset Size",
+                    action: () => dispatch(clearTimelineRowHeight(trackId)),
+                    disabled: !hasOverride,
+                },
+                { separator: true },
+                {
+                    label: "Show All Tracks",
+                    action: () => dispatch(setTimelineHiddenTracks([])),
+                    disabled: !anyHidden,
+                },
+                {
+                    label: "Reset All Sizes",
+                    action: () => dispatch(resetTimelineRowHeights()),
+                    disabled: !hasAnyOverride,
+                },
+            ],
+        });
+    }
+
     function handleGripMouseDown(aboveId: string, belowId: string, e: React.MouseEvent) {
         e.preventDefault();
-        const above = tracksRef.current.find((t) => t.id === aboveId);
+        // Minimap row isn't in tracksRef — its current height lives in
+        // rowOverrides under MINIMAP_KEY (falling back to MINIMAP_H).
+        const hAbove =
+            aboveId === MINIMAP_KEY
+                ? minimapHRef.current
+                : tracksRef.current.find((t) => t.id === aboveId)?.h;
         const below = tracksRef.current.find((t) => t.id === belowId);
-        if (!above || !below) return;
+        if (hAbove === undefined || !below) return;
         rowResizeRef.current = {
             aboveId,
             belowId,
             startY: e.clientY,
-            hAbove: above.h,
+            hAbove,
             hBelow: below.h,
         };
     }
@@ -1812,7 +1880,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                 const dy = e.clientY - startY;
                 const newAbove = Math.max(MIN_PX, Math.min(hSum - MIN_PX, hAbove + dy));
                 const newBelow = hSum - newAbove;
-                setRowOverrides((prev) => ({ ...prev, [aboveId]: newAbove, [belowId]: newBelow }));
+                dispatch(setTimelineRowHeights({ [aboveId]: newAbove, [belowId]: newBelow }));
                 return;
             }
             const canvas = canvasRef.current;
@@ -1898,13 +1966,25 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
         <div className="canvas-timeline" tabIndex={0} onKeyDown={handleKeyDown}>
             <div className="canvas-timeline__body">
                 <div className="canvas-timeline__rail">
-                    <div className="canvas-timeline__rail-minimap">OVERVIEW</div>
-                    <div className="canvas-timeline__rail-sep" />
+                    <div className="canvas-timeline__rail-minimap" style={{ height: minimapH }}>
+                        OVERVIEW
+                    </div>
+                    {tracks.length > 0 && (
+                        <div
+                            className="canvas-timeline__rail-grip"
+                            onMouseDown={(e) => handleGripMouseDown(MINIMAP_KEY, tracks[0].id, e)}
+                        />
+                    )}
                     {tracks.map((tr, i) => (
                         <Fragment key={tr.id}>
                             <div
                                 className={`canvas-timeline__rail-row${hoverTrackId === tr.id ? " canvas-timeline__rail-row--hover" : ""}`}
                                 style={{ height: tr.h }}
+                                onContextMenu={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    openRailContextMenu(tr.id, tr.label, e.clientX, e.clientY);
+                                }}
                             >
                                 {tr.label.toUpperCase()}
                             </div>
@@ -1962,6 +2042,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                     }}
                 />
             </div>
+            {railMenu && <ContextMenu menu={railMenu} onClose={() => setRailMenu(null)} />}
         </div>
     );
 }

@@ -27,7 +27,7 @@
 }
 
 .canvas-timeline__rail-minimap {
-    height: 24px;
+    /* Height set inline from minimapH state — grip below resizes it. */
     flex-shrink: 0;
     background: var(--bg-4);
     display: flex;
@@ -38,12 +38,6 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
     user-select: none;
-}
-
-.canvas-timeline__rail-sep {
-    height: 1px;
-    background: var(--border);
-    flex-shrink: 0;
 }
 
 .canvas-timeline__rail-row {
@@ -250,9 +244,11 @@
 }
 
 .ct-tracks-popover {
-    position: absolute;
-    bottom: calc(100% + 6px);
-    left: 0;
+    /* `fixed` (not `absolute`) so the popover escapes its ancestors'
+       `overflow: hidden` — without this it gets clipped at the top edge
+       of the `.vj-timeline` container as it opens upward. Coordinates
+       (`left`, `bottom`) are set inline from the trigger button's rect. */
+    position: fixed;
     min-width: calc(160px * var(--ui-scale));
     background: var(--bg-4);
     border: 1px solid var(--border);
@@ -264,20 +260,24 @@
 }
 
 .ct-tracks-popover__header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: calc(8px * var(--ui-scale));
-    padding: calc(4px * var(--ui-scale)) calc(10px * var(--ui-scale))
-        calc(6px * var(--ui-scale));
-    border-bottom: 1px solid var(--border);
-    margin-bottom: calc(2px * var(--ui-scale));
+    padding: calc(4px * var(--ui-scale)) calc(10px * var(--ui-scale));
 }
 .ct-tracks-popover__title {
     font: calc(10px * var(--ui-scale))/1 var(--font-family);
     letter-spacing: 0.08em;
     color: var(--fg-4);
     text-transform: uppercase;
+}
+/* Action buttons row beneath the title — Reset sizes / Show all. The
+   row's bottom border separates the bulk-actions from the per-track
+   visibility checkbox list. */
+.ct-tracks-popover__actions {
+    display: flex;
+    gap: calc(4px * var(--ui-scale));
+    padding: calc(2px * var(--ui-scale)) calc(8px * var(--ui-scale))
+        calc(6px * var(--ui-scale));
+    border-bottom: 1px solid var(--border);
+    margin-bottom: calc(2px * var(--ui-scale));
 }
 .ct-tracks-popover__reset {
     font: calc(10px * var(--ui-scale))/1 var(--font-family);

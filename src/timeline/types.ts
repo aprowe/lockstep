@@ -88,6 +88,11 @@ export interface Snapshot {
     warpCollapsed: boolean;
     canvas: { width: number; height: number };
     tracks: LayoutTrack[];
+    /** Current minimap (overview) height in canvas pixels. The controller
+     *  uses this to bound the minimap click zone — when the overview is
+     *  resized, the click zone must grow with it. Defaults to the
+     *  `MINIMAP_H` constant when absent (older snapshots / fixtures). */
+    minimapH?: number;
     hits: HitEntry[];
     playhead?: number;
     /** Constraint graph at snapshot time. The controller calls

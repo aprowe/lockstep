@@ -650,8 +650,10 @@ export function createTimelineController(): Controller {
         const W = snap.canvas.width || 1;
         const viewSpanI = snap.view.end - snap.view.start;
 
-        // 1) Minimap
-        if (y >= 0 && y < MINIMAP_H) {
+        // 1) Minimap — bounded by the snapshot's current minimap height
+        // (resizable via the rail grip), falling back to the constant.
+        const mH = snap.minimapH ?? MINIMAP_H;
+        if (y >= 0 && y < mH) {
             const nextView = minimapRecenter(snap.view, x, snap.canvas.width, snap.maxDuration);
             intents.push({ kind: "viewChange", view: nextView });
             drag = { kind: "minimap", startClientX: e.clientX, startView: snap.view };

@@ -14,6 +14,10 @@ interface TimelinePrefs {
     alwaysRegions: boolean;
     alwaysScenes: boolean;
     hiddenTracks: string[];
+    /** Per-track height overrides keyed by track id (matching `ALL_TRACKS` in
+     *  `timeline/layout.ts`). The sentinel `__minimap__` key carries the
+     *  overview band's height. Absent ids fall back to the layout default. */
+    rowHeights: Record<string, number>;
 }
 
 const DEFAULT_TIMELINE_PREFS: TimelinePrefs = {
@@ -25,6 +29,7 @@ const DEFAULT_TIMELINE_PREFS: TimelinePrefs = {
     alwaysRegions: false,
     alwaysScenes: false,
     hiddenTracks: [],
+    rowHeights: {},
 };
 
 function loadTimelinePrefs(): TimelinePrefs {
@@ -60,6 +65,15 @@ function loadTimelinePrefs(): TimelinePrefs {
                 Array.isArray(p.hiddenTracks) && p.hiddenTracks.every((x: unknown) => typeof x === "string")
                     ? p.hiddenTracks
                     : DEFAULT_TIMELINE_PREFS.hiddenTracks,
+            rowHeights:
+                p.rowHeights && typeof p.rowHeights === "object" && !Array.isArray(p.rowHeights)
+                    ? (Object.fromEntries(
+                          Object.entries(p.rowHeights as Record<string, unknown>).filter(
+                              (e): e is [string, number] =>
+                                  typeof e[1] === "number" && Number.isFinite(e[1]),
+                          ),
+                      ) as Record<string, number>)
+                    : DEFAULT_TIMELINE_PREFS.rowHeights,
         };
     } catch {
         return DEFAULT_TIMELINE_PREFS;
@@ -77,6 +91,7 @@ function saveTimelinePrefs(state: UiState) {
             alwaysRegions: state.timelineAlwaysRegions,
             alwaysScenes: state.timelineAlwaysScenes,
             hiddenTracks: state.timelineHiddenTracks,
+            rowHeights: state.timelineRowHeights,
         };
         localStorage.setItem(TIMELINE_PREFS_KEY, JSON.stringify(prefs));
     } catch {
@@ -128,6 +143,9 @@ interface UiState {
      *  has hidden from the timeline. Visible = `ALL_TRACKS` minus this set
      *  (after the warp-collapsed filter). */
     timelineHiddenTracks: string[];
+    /** Per-row height overrides keyed by track id (and `MINIMAP_KEY` for the
+     *  overview band). Absent ids fall back to the layout's preferred height. */
+    timelineRowHeights: Record<string, number>;
     /** Global anchor-lock toggle (§13). When true, beat anchors inside the active
      *  clipout window are position-locked: resize (lock='beats') keeps them in
      *  beat-space; body-pan carries them with the clip. Alt inverts this for a
@@ -185,6 +203,7 @@ const initialState: UiState = {
     timelineAlwaysRegions: _prefs.alwaysRegions,
     timelineAlwaysScenes: _prefs.alwaysScenes,
     timelineHiddenTracks: _prefs.hiddenTracks,
+    timelineRowHeights: _prefs.rowHeights,
     anchorLock: false,
     anchorLockGestureOverride: null,
     playing: false,
@@ -259,6 +278,33 @@ const uiSlice = createSlice({
             state.timelineHiddenTracks = Array.from(set);
             saveTimelinePrefs(state);
         },
+        /** Merge a set of row id → height entries into the override map.
+         *  Used by the rail-grip drag, which writes two ids (above + below)
+         *  in one move. Persists on every drag tick — heavy but bounded. */
+        setTimelineRowHeights(state, action: PayloadAction<Record<string, number>>) {
+            state.timelineRowHeights = {
+                ...state.timelineRowHeights,
+                ...action.payload,
+            };
+            saveTimelinePrefs(state);
+        },
+        /** Drop a single row's override (restores its layout default). */
+        clearTimelineRowHeight(state, action: PayloadAction<string>) {
+            if (action.payload in state.timelineRowHeights) {
+                const next = { ...state.timelineRowHeights };
+                delete next[action.payload];
+                state.timelineRowHeights = next;
+                saveTimelinePrefs(state);
+            }
+        },
+        /** Drop every row override — restores all rows (including the
+         *  overview band) to their layout defaults. */
+        resetTimelineRowHeights(state) {
+            if (Object.keys(state.timelineRowHeights).length > 0) {
+                state.timelineRowHeights = {};
+                saveTimelinePrefs(state);
+            }
+        },
         setAnchorLock(state, action: PayloadAction<boolean>) {
             state.anchorLock = action.payload;
         },
@@ -311,6 +357,9 @@ export const {
     setTimelineAlwaysScenes,
     setTimelineHiddenTracks,
     toggleTimelineTrackVisibility,
+    setTimelineRowHeights,
+    clearTimelineRowHeight,
+    resetTimelineRowHeights,
     setAnchorLock,
     setAnchorLockGestureOverride,
     setPlaying,
