@@ -556,12 +556,12 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                         ctx.globalAlpha = 0.9;
                         setFont(10, true);
                         ctx.textAlign = "left";
-                        ctx.textBaseline = "middle";
+                        ctx.textBaseline = "alphabetic";
                         ctx.save();
                         ctx.beginPath();
                         ctx.rect(cx1 + 1, tr.y + 2, cw - 2, tr.h - 4);
                         ctx.clip();
-                        ctx.fillText(r.label, cx1 + 5, tr.y + tr.h / 2);
+                        ctx.fillText(r.label, cx1 + 5, tr.y + tr.h - 4);
                         ctx.restore();
                         ctx.globalAlpha = 1;
                     }
@@ -590,20 +590,25 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                     }
                 }
 
-                // Scene cuts
+                // Scene cuts — dimmed so they don't dominate the row
+                ctx.save();
+                ctx.globalAlpha = 0.4;
+                ctx.strokeStyle = pal.sceneColor;
+                ctx.lineWidth = 1;
                 for (const t of p.scenes) {
                     const x = tX(t);
                     if (x < -3 || x > W + 3) continue;
-                    ctx.strokeStyle = pal.sceneColor;
-                    ctx.lineWidth = 1;
                     ctx.beginPath();
                     ctx.moveTo(Math.round(x) + 0.5, tr.y + 2);
                     ctx.lineTo(Math.round(x) + 0.5, tr.y + tr.h - 2);
                     ctx.stroke();
                     addHit(x - 3, tr.y, 6, tr.h, { kind: "scene", time: t });
                 }
+                ctx.restore();
 
-                // Anchor pins (input space only — condensed has no output row)
+                // Anchor pins (input space only — condensed has no output
+                // row). Dimmed when idle so they don't dominate the strip;
+                // hover/selected anchors render at full intensity.
                 for (const a of anchors) {
                     const x = tX(a.time);
                     if (x < -TRI_HALF - 2 || x > W + TRI_HALF + 2) continue;
@@ -611,6 +616,8 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                     const sel =
                         p.selectedOrigAnchorIds.has(a.id) ||
                         (lassoOrigAnchorIds?.has(a.id) ?? false);
+                    ctx.save();
+                    if (!hov && !sel) ctx.globalAlpha = 0.5;
                     ctx.fillStyle = hov
                         ? pal.markerHover
                         : sel
@@ -623,6 +630,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                     ctx.closePath();
                     ctx.fill();
                     ctx.fillRect(Math.round(x), tr.y + TRI_H, 1, tr.h - TRI_H);
+                    ctx.restore();
                     addHit(x - TRI_HALF - 2, tr.y, (TRI_HALF + 2) * 2, tr.h, {
                         kind: "anchor",
                         id: a.id,
