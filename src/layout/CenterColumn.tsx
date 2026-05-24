@@ -3,6 +3,7 @@ import VideoPlayer from "../components/VideoPlayer";
 import Filmstrip from "../components/Filmstrip";
 import WarpView from "../components/WarpView";
 import Toolbar from "../components/Toolbar";
+import CondensedTimeline from "../components/CondensedTimeline";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { selectActiveRegion, selectSelectedIdsUnion, selectWarpData } from "../store/selectors";
 import {
@@ -523,6 +524,8 @@ export default function CenterColumn() {
                     return (playhead - beatZero) * (bpm / 60);
                 })()}
             />
+
+            <CondensedTimeline />
 
             <div
                 className="vj-resizer"
