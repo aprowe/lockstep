@@ -35,6 +35,8 @@ function defaultDeps() {
         panels: [],
         visiblePanelIds: new Set<string>(),
         showShortcuts: noop,
+        timelineMode: "warp" as const,
+        toggleTimelineMode: noop,
         saveProjectAs: noop,
         recentFiles: [],
         openRecentFile: (_path: string) => {},

@@ -51,7 +51,10 @@ import {
     deselectAll as deselectAllWarp,
 } from "./store/slices/warpSlice";
 import { selectWarpData, selectActiveRegion as selectActiveRegionRedux } from "./store/selectors";
-import { setExportOpen as setExportOpenAction } from "./store/slices/uiSlice";
+import {
+    setExportOpen as setExportOpenAction,
+    toggleTimelineMode,
+} from "./store/slices/uiSlice";
 import "./App.css";
 
 const VIDEO_EXTS = ["mp4", "mov", "avi", "mkv", "webm", "m4v"];
@@ -147,6 +150,7 @@ export default function App() {
         dispatch(updateRegionBeatTimesAction({ id, inBeatTime: inBT, outBeatTime: outBT }));
     const _renameRegion = (id: string, name: string) => dispatch(renameRegionAction({ id, name }));
     const exportOpen = useAppSelector((s) => s.ui.exportOpen);
+    const timelineMode = useAppSelector((s) => s.ui.timelineMode);
     const setExportOpen = (v: boolean) => dispatch(setExportOpenAction(v));
     const selectedClipinIds = useAppSelector((s) => s.lists.selection.clipin);
     const selectedClipoutIds = useAppSelector((s) => s.lists.selection.clipout);
@@ -196,10 +200,20 @@ export default function App() {
                 e.preventDefault();
                 setHotkeysOpen((o) => !o);
             }
+            if (
+                (e.key === "T" || e.key === "t") &&
+                e.shiftKey &&
+                !e.ctrlKey &&
+                !e.altKey &&
+                !e.metaKey
+            ) {
+                e.preventDefault();
+                dispatch(toggleTimelineMode());
+            }
         };
         window.addEventListener("keydown", h);
         return () => window.removeEventListener("keydown", h);
-    }, []);
+    }, [dispatch]);
 
     const playerRef = useRef<VideoPlayerHandle>(null);
 
@@ -411,8 +425,10 @@ export default function App() {
                 panels: PANEL_LIST,
                 visiblePanelIds,
                 showShortcuts: () => setHotkeysOpen(true),
+                timelineMode,
+                toggleTimelineMode: () => dispatch(toggleTimelineMode()),
             }),
-        [visiblePanelIds],
+        [visiblePanelIds, timelineMode, dispatch],
     );
 
     const brandMenu: MenuEntry[] = useMemo(

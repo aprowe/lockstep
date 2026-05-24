@@ -55,6 +55,12 @@ export const HOTKEYS: readonly HotkeyDef[] = [
     { id: "ui-scale-up", keys: "Ctrl+=", label: "Increase UI scale", category: "View" },
     { id: "ui-scale-down", keys: "Ctrl+-", label: "Decrease UI scale", category: "View" },
     { id: "ui-scale-reset", keys: "Ctrl+0", label: "Reset UI scale", category: "View" },
+    {
+        id: "toggle-condensed-timeline",
+        keys: "Shift+T",
+        label: "Toggle condensed timeline",
+        category: "View",
+    },
     { id: "show-shortcuts", keys: "?", label: "Show keyboard shortcuts", category: "View" },
 ];
 

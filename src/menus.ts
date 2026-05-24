@@ -128,6 +128,8 @@ interface ViewMenuDeps {
     /** Set of currently-visible panel ids (for the ✓ check state). */
     visiblePanelIds: ReadonlySet<string>;
     showShortcuts: () => void;
+    timelineMode: "warp" | "condensed";
+    toggleTimelineMode: () => void;
 }
 
 /**
@@ -141,6 +143,13 @@ export function buildViewMenu(d: ViewMenuDeps): MenuDef {
             { label: "Increase UI Scale", shortcut: "Ctrl+=", action: d.increaseUiScale },
             { label: "Decrease UI Scale", shortcut: "Ctrl+-", action: d.decreaseUiScale },
             { label: "Reset UI Scale", shortcut: "Ctrl+0", action: d.resetUiScale },
+            { separator: true },
+            {
+                label: "Condensed Timeline",
+                shortcut: "Shift+T",
+                action: d.toggleTimelineMode,
+                checked: d.timelineMode === "condensed",
+            },
             { separator: true },
             { label: "Keyboard Shortcuts…", shortcut: "?", action: d.showShortcuts },
             { separator: true },
