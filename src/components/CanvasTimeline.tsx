@@ -477,7 +477,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
         // Draws the time ruler's ticks (and labels) across the given track
         // rect. Shared between the warp `layerTimeRuler` and the condensed
         // mode background so the same ticks appear in both layouts.
-        function drawTimeRulerTicks(tr: LayoutTrack) {
+        function drawTimeRulerTicks(tr: LayoutTrack, labelAlpha = 1) {
             const pps = W / (view.end - view.start);
             for (const layer of timeLayers(pps)) {
                 const su = layer.spacingUnit;
@@ -504,6 +504,8 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
 
                 if (layer.label) {
                     const isMaj = layer.labelStyle === "major";
+                    ctx.save();
+                    if (labelAlpha !== 1) ctx.globalAlpha = labelAlpha;
                     ctx.fillStyle = isMaj ? pal.fg1 : pal.fg3;
                     setFont(isMaj ? 10 : 9, isMaj);
                     ctx.textAlign = "left";
@@ -518,6 +520,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                         if (text == null) continue;
                         ctx.fillText(text, x + 3, tr.y + (isMaj ? 3 : 5));
                     }
+                    ctx.restore();
                 }
             }
         }
@@ -533,8 +536,9 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                 ctx.fillRect(0, tr.y, W, tr.h);
 
                 // Time-ruler ticks as a background layer — every other
-                // element below is overlaid on top of these.
-                drawTimeRulerTicks(tr);
+                // element below is overlaid on top of these. Labels are
+                // heavily dimmed so they read as ambient context.
+                drawTimeRulerTicks(tr, 0.35);
 
                 // Region bodies + edges
                 for (const r of regions) {
