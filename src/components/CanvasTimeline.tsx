@@ -452,6 +452,76 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
 
         clearHits();
 
+        // Shared helper: draws a vertical playhead line (and optional glow)
+        // between y1..y2 at the given time x. Used by both the warp playhead
+        // layer and the condensed-mode track so the appearance matches.
+        function drawPlayheadLine(x: number, y1: number, y2: number, glow: boolean) {
+            const px = Math.round(x) + 0.5;
+            if (px < -2 || px > W + 2) return;
+            if (glow) {
+                ctx.strokeStyle = pal.playheadGlow;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(px, y1);
+                ctx.lineTo(px, y2);
+                ctx.stroke();
+            }
+            ctx.strokeStyle = pal.playhead;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(px, y1);
+            ctx.lineTo(px, y2);
+            ctx.stroke();
+        }
+
+        // Draws the time ruler's ticks (and labels) across the given track
+        // rect. Shared between the warp `layerTimeRuler` and the condensed
+        // mode background so the same ticks appear in both layouts.
+        function drawTimeRulerTicks(tr: LayoutTrack) {
+            const pps = W / (view.end - view.start);
+            for (const layer of timeLayers(pps)) {
+                const su = layer.spacingUnit;
+                const first = Math.floor(view.start / su) - 1;
+                const last = Math.ceil(view.end / su) + 1;
+                const tkClr = layer.styleKey === "bar" ? pal.barTick : pal.subTick;
+                const tickTop = layer.isMajor
+                    ? tr.y + 3
+                    : tr.y + tr.h - (layer.tickHeight ?? 6);
+
+                ctx.strokeStyle = tkClr;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for (let i = first; i <= last; i++) {
+                    if (layer.skipModulo && i % layer.skipModulo === 0) continue;
+                    const t = i * su;
+                    if (t < 0 || t > p.duration + 1e-6) continue;
+                    const x = Math.round(tX(t)) + 0.5;
+                    if (x < 0 || x > W) continue;
+                    ctx.moveTo(x, tickTop);
+                    ctx.lineTo(x, tr.y + tr.h - 1);
+                }
+                ctx.stroke();
+
+                if (layer.label) {
+                    const isMaj = layer.labelStyle === "major";
+                    ctx.fillStyle = isMaj ? pal.fg1 : pal.fg3;
+                    setFont(isMaj ? 10 : 9, isMaj);
+                    ctx.textAlign = "left";
+                    ctx.textBaseline = "top";
+                    for (let i = first; i <= last; i++) {
+                        if (layer.skipModulo && i % layer.skipModulo === 0) continue;
+                        const t = i * su;
+                        if (t < 0) continue;
+                        const x = Math.round(tX(t));
+                        if (x < 0 || x > W) continue;
+                        const text = layer.label(t);
+                        if (text == null) continue;
+                        ctx.fillText(text, x + 3, tr.y + (isMaj ? 3 : 5));
+                    }
+                }
+            }
+        }
+
         // ── Condensed mode (placeholder; body runs after minimap) ──
         // See `drawCondensed` defined below — gated by timelineMode.
         function drawCondensed(): boolean {
@@ -462,6 +532,10 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                 ctx.fillStyle = pal.bg0;
                 ctx.fillRect(0, tr.y, W, tr.h);
 
+                // Time-ruler ticks as a background layer — every other
+                // element below is overlaid on top of these.
+                drawTimeRulerTicks(tr);
+
                 // Region bodies + edges
                 for (const r of regions) {
                     const x1 = tX(r.inPoint);
@@ -469,13 +543,31 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                     if (x2 < 0 || x1 > W) continue;
                     const cx1 = Math.max(x1, 0);
                     const cx2 = Math.min(x2, W);
+                    const cw = cx2 - cx1;
                     ctx.fillStyle = clipHsl(r.colorIndex ?? 0, 0.32);
-                    ctx.fillRect(cx1, tr.y + 2, cx2 - cx1, tr.h - 4);
+                    ctx.fillRect(cx1, tr.y + 2, cw, tr.h - 4);
                     ctx.strokeStyle = clipHsl(r.colorIndex ?? 0, 0.9);
                     ctx.lineWidth = 1;
-                    ctx.strokeRect(cx1 + 0.5, tr.y + 2.5, cx2 - cx1 - 1, tr.h - 5);
+                    ctx.strokeRect(cx1 + 0.5, tr.y + 2.5, cw - 1, tr.h - 5);
+
+                    // Label — same style as the clipin track.
+                    if (cw > 20 && r.label) {
+                        ctx.fillStyle = pal.fg1;
+                        ctx.globalAlpha = 0.9;
+                        setFont(10, true);
+                        ctx.textAlign = "left";
+                        ctx.textBaseline = "middle";
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.rect(cx1 + 1, tr.y + 2, cw - 2, tr.h - 4);
+                        ctx.clip();
+                        ctx.fillText(r.label, cx1 + 5, tr.y + tr.h / 2);
+                        ctx.restore();
+                        ctx.globalAlpha = 1;
+                    }
+
                     // Body hit registered FIRST so edges below win at overlap.
-                    addHit(cx1, tr.y, cx2 - cx1, tr.h, {
+                    addHit(cx1, tr.y, cw, tr.h, {
                         kind: "region",
                         id: r.id,
                         isOutput: false,
@@ -538,17 +630,8 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                     });
                 }
 
-                // Playhead
-                const ph = p.playhead ?? 0;
-                const px = Math.round(tX(ph)) + 0.5;
-                if (px >= -2 && px <= W + 2) {
-                    ctx.strokeStyle = pal.playhead;
-                    ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.moveTo(px, tr.y);
-                    ctx.lineTo(px, tr.y + tr.h);
-                    ctx.stroke();
-                }
+                // Playhead — shared helper, matches warp-mode appearance.
+                drawPlayheadLine(tX(p.playhead ?? 0), tr.y, tr.y + tr.h, true);
             }
             // Still draw the minimap (top), but skip the rest of the warp-mode
             // layers — they all early-return on missing tracks anyway.
@@ -1395,26 +1478,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
             const inPx = tX(p.playhead ?? 0);
             const outPx = tX(p.beatPlayhead ?? p.playhead ?? 0);
 
-            function vline(x: number, y1: number, y2: number, glow: boolean) {
-                const px = Math.round(x) + 0.5;
-                if (px < -2 || px > W + 2) return;
-                if (glow) {
-                    ctx.strokeStyle = pal.playheadGlow;
-                    ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    ctx.moveTo(px, y1);
-                    ctx.lineTo(px, y2);
-                    ctx.stroke();
-                }
-                ctx.strokeStyle = pal.playhead;
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                ctx.moveTo(px, y1);
-                ctx.lineTo(px, y2);
-                ctx.stroke();
-            }
-
-            if (inp) vline(inPx, inp.top, inp.bottom, true);
+            if (inp) drawPlayheadLine(inPx, inp.top, inp.bottom, true);
             if (warp) {
                 ctx.strokeStyle = pal.playheadGlow;
                 ctx.lineWidth = 3;
@@ -1429,7 +1493,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                 ctx.lineTo(outPx + 0.5, warp.y + warp.h);
                 ctx.stroke();
             }
-            if (out) vline(outPx, out.top, out.bottom, true);
+            if (out) drawPlayheadLine(outPx, out.top, out.bottom, true);
 
             if (timeTr && inPx >= 0 && inPx <= W) {
                 const ax = Math.round(inPx);

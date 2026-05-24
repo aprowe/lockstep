@@ -199,7 +199,8 @@ const uiSlice = createSlice({
     initialState,
     reducers: {
         setTimelineHeight(state, action: PayloadAction<number>) {
-            state.timelineHeight = Math.max(275, action.payload);
+            const min = state.timelineMode === "condensed" ? 60 : 275;
+            state.timelineHeight = Math.max(min, action.payload);
         },
         setSidebarWidth(state, action: PayloadAction<number>) {
             state.sidebarWidth = Math.max(120, Math.min(320, action.payload));

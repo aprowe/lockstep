@@ -637,10 +637,16 @@ export function createTimelineController(): Controller {
         // Right-click is handled by contextMenu(); do not arm any drag state.
         if (e.button === 2) return [];
 
-        // Condensed mode: scrub on left-button drag without Alt. Alt falls
-        // through to the warp pointerDown branches so users can still
-        // lasso/anchor-drag/region-drag in condensed mode.
-        if (snap.timelineMode === "condensed" && !e.altKey && e.button === 0 && my(e) >= MINIMAP_H) {
+        // Condensed mode: scrub on left- or middle-button drag without Alt.
+        // Middle-click is captured here so it can't drag anchors/regions.
+        // Alt falls through to the warp pointerDown branches so users can
+        // still lasso/anchor-drag/region-drag in condensed mode.
+        if (
+            snap.timelineMode === "condensed" &&
+            !e.altKey &&
+            (e.button === 0 || e.button === 1) &&
+            my(e) >= MINIMAP_H
+        ) {
             const t = pxToT(mx(e), snap);
             drag = {
                 kind: "scrub",

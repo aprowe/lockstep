@@ -65,6 +65,22 @@ describe("controller condensed mode", () => {
         expect(c.getDragState()?.kind).toBe("scrub");
     });
 
+    it("middle-click pointerDown also starts a scrub (so it can't drag elements)", () => {
+        const c = createTimelineController();
+        const intents = c.pointerDown(pe(500, { button: 1 }), makeSnap());
+        const setPh = intents.find((i) => i.kind === "setPlayhead");
+        expect(setPh).toBeDefined();
+        expect((setPh as { tSec: number }).tSec).toBeCloseTo(5, 2);
+        expect(c.getDragState()?.kind).toBe("scrub");
+    });
+
+    it("right-click pointerDown does NOT start a scrub (context menu path)", () => {
+        const c = createTimelineController();
+        const intents = c.pointerDown(pe(500, { button: 2 }), makeSnap());
+        expect(intents.find((i) => i.kind === "setPlayhead")).toBeUndefined();
+        expect(c.getDragState()).toBeNull();
+    });
+
     it("pointerMove during scrub emits setPlayhead at the new cursor time", () => {
         const c = createTimelineController();
         c.pointerDown(pe(500), makeSnap());
