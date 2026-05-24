@@ -84,7 +84,9 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
     z-index: 300;
     padding: var(--sp-1) 0;
-    overflow: hidden;
+    /* No `overflow: hidden` — submenus position `left: 100%` and would be
+       clipped to the parent's right edge. Vertical padding above already
+       keeps hover backgrounds off the rounded corners. */
 }
 
 /* ── Menu item ──────────────────────────────────────────── */
@@ -140,6 +142,43 @@
 .menubar__dropdown--sub {
     top: -5px;
     left: 100%;
+    /* Cap so a 300-char absolute path doesn't blow the menu out to the
+       right edge of the screen — secondary line truncates instead. */
+    max-width: 420px;
+}
+
+/* ── Two-line item (Recent Files: basename + dim parent path) ────── */
+.menubar__item--two-line {
+    align-items: flex-start;
+}
+
+.menubar__item-stack {
+    display: flex;
+    flex-direction: column;
+    min-width: 0; /* let the secondary line ellipsis-truncate */
+    flex: 1;
+    line-height: 1.25;
+    gap: 1px;
+}
+
+.menubar__item--two-line .menubar__item-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.menubar__item-secondary {
+    color: var(--fg-3);
+    font-size: var(--t-sm, 11px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    /* Slightly dimmer than fg-3 to read as supporting context. */
+    opacity: 0.75;
+}
+
+.menubar__item:hover:not(:disabled) .menubar__item-secondary {
+    opacity: 0.95;
 }
 
 .menubar__item-arrow {

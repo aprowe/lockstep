@@ -13,6 +13,9 @@ interface MenuItem {
     checked?: boolean;
     /** Nested submenu — renders a ▶ and opens on hover. */
     submenu?: MenuEntry[];
+    /** Optional dim secondary line beneath the label. Used by Recent Files
+     *  to show the parent directory under the basename. */
+    secondary?: string;
     separator?: false;
 }
 
@@ -42,16 +45,78 @@ function slugify(s: string): string {
         .replace(/^-+|-+$/g, "");
 }
 
-// Brand uses a sentinel index so it shares the same single-open state as the other
-// menus — opening one closes the rest, and hover-switches work uniformly.
+function formatShortcut(s: string): string {
+    return s
+        .split("+")
+        .map((p) => (p === "Ctrl" ? "Ctrl" : p === "Shift" ? "Shift" : p.toUpperCase()))
+        .join("+");
+}
+
+// Brand uses a sentinel index so it shares the same single-open state as the
+// other menus — opening one closes the rest, and hover-switches work uniformly.
 const BRAND_IDX = -1;
+
+/**
+ * Shared button for every clickable menu entry — brand dropdown items,
+ * top-level dropdown items, submenu trigger buttons, and submenu items.
+ * Handles all the optional ornaments (check, two-line label/secondary,
+ * trailing arrow, keyboard shortcut hint).
+ */
+function MenuItemButton({
+    item,
+    extraClass,
+    arrow,
+    onClick,
+    layoutId,
+}: {
+    item: MenuItem;
+    /** Extra modifier class appended to `menubar__item` (e.g. `--sub-open`). */
+    extraClass?: string;
+    /** Render a trailing ▶ — used by buttons that open a submenu. */
+    arrow?: boolean;
+    onClick?: () => void;
+    /** When set, emits a `data-layout-id` attr for the layout-coverage tests. */
+    layoutId?: string;
+}) {
+    const twoLine = !!item.secondary;
+    return (
+        <button
+            className={`menubar__item${twoLine ? " menubar__item--two-line" : ""}${extraClass ? " " + extraClass : ""}`}
+            disabled={item.disabled}
+            data-layout-id={layoutId}
+            onClick={onClick}
+        >
+            {item.checked !== undefined && (
+                <span className="menubar__item-check" aria-hidden="true">
+                    {item.checked ? "✓" : ""}
+                </span>
+            )}
+            {twoLine ? (
+                <span className="menubar__item-stack">
+                    <span className="menubar__item-label">{item.label}</span>
+                    <span className="menubar__item-secondary">{item.secondary}</span>
+                </span>
+            ) : (
+                <span className="menubar__item-label">{item.label}</span>
+            )}
+            {arrow && <span className="menubar__item-arrow">▶</span>}
+            {item.shortcut && (
+                <span className="menubar__item-shortcut">{formatShortcut(item.shortcut)}</span>
+            )}
+        </button>
+    );
+}
+
+function Separator({ withLayoutAttr }: { withLayoutAttr?: boolean }) {
+    return <div data-layout-sep={withLayoutAttr ? "" : undefined} className="menubar__sep" />;
+}
 
 export default function MenuBar({ menus, brandMenu, rightContent }: MenuBarProps) {
     const [openIdx, setOpenIdx] = useState<number | null>(null);
     const [openSubmenuIdx, setOpenSubmenuIdx] = useState<number | null>(null);
     const barRef = useRef<HTMLDivElement>(null);
 
-    // Close dropdown when clicking outside
+    // Close dropdown when clicking outside.
     useEffect(() => {
         if (openIdx === null) return;
         const handler = (e: MouseEvent) => {
@@ -61,16 +126,16 @@ export default function MenuBar({ menus, brandMenu, rightContent }: MenuBarProps
         return () => document.removeEventListener("mousedown", handler);
     }, [openIdx]);
 
-    // Reset submenu when top-level menu closes
+    // Reset submenu when the top-level menu closes.
     useEffect(() => {
         if (openIdx === null) setOpenSubmenuIdx(null);
     }, [openIdx]);
 
-    // Register keyboard shortcuts
+    // Register keyboard shortcuts.
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
-            // Don't hijack shortcuts while the user is typing in an editable field —
-            // Ctrl+A, Ctrl+Z, etc. should behave natively inside inputs.
+            // Don't hijack shortcuts while the user is typing in an editable
+            // field — Ctrl+A, Ctrl+Z, etc. should behave natively in inputs.
             const active = document.activeElement as HTMLElement | null;
             if (
                 active &&
@@ -111,6 +176,8 @@ export default function MenuBar({ menus, brandMenu, rightContent }: MenuBarProps
         return () => window.removeEventListener("keydown", handler);
     }, [menus]);
 
+    const close = () => setOpenIdx(null);
+
     return (
         <div className="menubar" ref={barRef}>
             <div className="menubar__menus">
@@ -130,30 +197,20 @@ export default function MenuBar({ menus, brandMenu, rightContent }: MenuBarProps
 
                         {openIdx === BRAND_IDX && (
                             <div className="menubar__dropdown menubar__dropdown--brand">
-                                {brandMenu.map((item, j) => {
-                                    if ("separator" in item && item.separator) {
-                                        return <div key={j} className="menubar__sep" />;
-                                    }
-                                    const mi = item as MenuItem;
-                                    return (
-                                        <button
+                                {brandMenu.map((item, j) =>
+                                    "separator" in item && item.separator ? (
+                                        <Separator key={j} />
+                                    ) : (
+                                        <MenuItemButton
                                             key={j}
-                                            className="menubar__item"
-                                            disabled={mi.disabled}
+                                            item={item as MenuItem}
                                             onClick={() => {
-                                                mi.action?.();
-                                                setOpenIdx(null);
+                                                (item as MenuItem).action?.();
+                                                close();
                                             }}
-                                        >
-                                            <span className="menubar__item-label">{mi.label}</span>
-                                            {mi.shortcut && (
-                                                <span className="menubar__item-shortcut">
-                                                    {formatShortcut(mi.shortcut)}
-                                                </span>
-                                            )}
-                                        </button>
-                                    );
-                                })}
+                                        />
+                                    ),
+                                )}
                             </div>
                         )}
                     </div>
@@ -176,13 +233,10 @@ export default function MenuBar({ menus, brandMenu, rightContent }: MenuBarProps
                             <div className="menubar__dropdown">
                                 {menu.items.map((item, j) => {
                                     if ("separator" in item && item.separator) {
-                                        return (
-                                            <div key={j} data-layout-sep className="menubar__sep" />
-                                        );
+                                        return <Separator key={j} withLayoutAttr />;
                                     }
                                     const mi = item as MenuItem;
-                                    const hasSubmenu = !!mi.submenu?.length;
-                                    if (hasSubmenu) {
+                                    if (mi.submenu?.length) {
                                         return (
                                             <div
                                                 key={j}
@@ -190,85 +244,47 @@ export default function MenuBar({ menus, brandMenu, rightContent }: MenuBarProps
                                                 onMouseEnter={() => setOpenSubmenuIdx(j)}
                                                 onMouseLeave={() => setOpenSubmenuIdx(null)}
                                             >
-                                                <button
-                                                    data-layout-id={slugify(mi.label)}
-                                                    className={`menubar__item${openSubmenuIdx === j ? " menubar__item--sub-open" : ""}`}
-                                                    disabled={mi.disabled}
-                                                >
-                                                    <span className="menubar__item-label">
-                                                        {mi.label}
-                                                    </span>
-                                                    <span className="menubar__item-arrow">▶</span>
-                                                </button>
+                                                <MenuItemButton
+                                                    item={mi}
+                                                    extraClass={
+                                                        openSubmenuIdx === j
+                                                            ? "menubar__item--sub-open"
+                                                            : undefined
+                                                    }
+                                                    layoutId={slugify(mi.label)}
+                                                    arrow
+                                                />
                                                 {openSubmenuIdx === j && (
                                                     <div className="menubar__dropdown menubar__dropdown--sub">
-                                                        {mi.submenu!.map((subItem, k) => {
-                                                            if (
-                                                                "separator" in subItem &&
-                                                                subItem.separator
-                                                            ) {
-                                                                return (
-                                                                    <div
-                                                                        key={k}
-                                                                        className="menubar__sep"
-                                                                    />
-                                                                );
-                                                            }
-                                                            const smi = subItem as MenuItem;
-                                                            return (
-                                                                <button
+                                                        {mi.submenu.map((sub, k) =>
+                                                            "separator" in sub && sub.separator ? (
+                                                                <Separator key={k} />
+                                                            ) : (
+                                                                <MenuItemButton
                                                                     key={k}
-                                                                    className="menubar__item"
-                                                                    disabled={smi.disabled}
+                                                                    item={sub as MenuItem}
                                                                     onClick={() => {
-                                                                        smi.action?.();
-                                                                        setOpenIdx(null);
+                                                                        (sub as MenuItem).action?.();
+                                                                        close();
                                                                     }}
-                                                                >
-                                                                    <span className="menubar__item-label">
-                                                                        {smi.label}
-                                                                    </span>
-                                                                    {smi.shortcut && (
-                                                                        <span className="menubar__item-shortcut">
-                                                                            {formatShortcut(
-                                                                                smi.shortcut,
-                                                                            )}
-                                                                        </span>
-                                                                    )}
-                                                                </button>
-                                                            );
-                                                        })}
+                                                                />
+                                                            ),
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
                                         );
                                     }
                                     return (
-                                        <button
+                                        <MenuItemButton
                                             key={j}
-                                            data-layout-id={slugify(mi.label)}
-                                            className="menubar__item"
-                                            disabled={mi.disabled}
+                                            item={mi}
+                                            layoutId={slugify(mi.label)}
                                             onClick={() => {
                                                 mi.action?.();
-                                                setOpenIdx(null);
+                                                close();
                                             }}
-                                        >
-                                            {mi.checked !== undefined && (
-                                                <span
-                                                    className="menubar__item-check"
-                                                    aria-hidden="true"
-                                                >
-                                                    {mi.checked ? "✓" : ""}
-                                                </span>
-                                            )}
-                                            <span className="menubar__item-label">{mi.label}</span>
-                                            {mi.shortcut && (
-                                                <span className="menubar__item-shortcut">
-                                                    {formatShortcut(mi.shortcut)}
-                                                </span>
-                                            )}
-                                        </button>
+                                        />
                                     );
                                 })}
                             </div>
@@ -284,11 +300,4 @@ export default function MenuBar({ menus, brandMenu, rightContent }: MenuBarProps
             <WindowControls />
         </div>
     );
-}
-
-function formatShortcut(s: string): string {
-    return s
-        .split("+")
-        .map((p) => (p === "Ctrl" ? "Ctrl" : p === "Shift" ? "Shift" : p.toUpperCase()))
-        .join("+");
 }

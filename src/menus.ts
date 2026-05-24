@@ -11,6 +11,17 @@
 import type { MenuDef, MenuEntry } from "./components/MenuBar";
 import type { VideoInfo } from "./types";
 
+/** Shorten a path by replacing the middle with a single ellipsis so both
+ *  ends stay visible — keeps the volume/root and the immediate parent dir
+ *  legible when the absolute path is too long for the submenu width. */
+function truncateMiddle(s: string, max: number): string {
+    if (s.length <= max) return s;
+    const keep = Math.max(0, max - 1); // 1 char for the ellipsis
+    const head = Math.ceil(keep / 2);
+    const tail = Math.floor(keep / 2);
+    return `${s.slice(0, head)}…${s.slice(s.length - tail)}`;
+}
+
 interface FileMenuDeps {
     video: VideoInfo | null;
     anchorCount: number;
@@ -33,10 +44,17 @@ export function buildFileMenu(d: FileMenuDeps): MenuDef {
     const recentItems: MenuEntry[] =
         d.recentFiles.length > 0
             ? [
-                  ...d.recentFiles.map((path) => ({
-                      label: path.replace(/\\/g, "/").split("/").pop() ?? path,
-                      action: () => d.openRecentFile(path),
-                  })),
+                  ...d.recentFiles.map((path) => {
+                      const norm = path.replace(/\\/g, "/");
+                      const slash = norm.lastIndexOf("/");
+                      const basename = slash >= 0 ? norm.slice(slash + 1) : norm;
+                      const parent = slash >= 0 ? norm.slice(0, slash) : "";
+                      return {
+                          label: basename,
+                          secondary: parent ? truncateMiddle(parent, 56) : undefined,
+                          action: () => d.openRecentFile(path),
+                      };
+                  }),
                   { separator: true as const },
                   { label: "Clear Recent Files", action: d.clearRecentFiles },
               ]
