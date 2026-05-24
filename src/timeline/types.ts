@@ -85,6 +85,9 @@ export interface Snapshot {
      *  clipout edge/body drag. Defaults to false when absent. */
     clipAnchorLock?: boolean;
     followDrag: boolean;
+    /** Which timeline mode is active. 'warp' is the default multi-track view;
+     *  'condensed' is a single overlaid row with scrub-by-default drag. */
+    timelineMode: "warp" | "condensed";
     warpCollapsed: boolean;
     canvas: { width: number; height: number };
     tracks: LayoutTrack[];
@@ -268,11 +271,20 @@ export type DragState =
           /** Clipout regions swept by the lasso rectangle. */
           lassoClipoutIds: Set<string>;
           lassoSceneTimes: Set<number>;
+      }
+    | {
+          kind: "scrub";
+          startClientX: number;
+          startClientY: number;
+          moved: boolean;
       };
 
 export type Intent =
     // commits — wrapper forwards to prop callbacks
     | { kind: "seek" | "seekBeat"; time: number }
+    /** Condensed-mode scrub: write `warp.playhead` directly. Not routed
+     *  through the constraint pipeline; not snapshotted into history. */
+    | { kind: "SetPlayhead"; tSec: number }
     | { kind: "viewChange"; view: View }
     | { kind: "anchorsChanged"; next: Anchor[] }
     | { kind: "beatAnchorsChanged"; next: Anchor[] }
