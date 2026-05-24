@@ -536,9 +536,12 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                 ctx.fillRect(0, tr.y, W, tr.h);
 
                 // Time-ruler ticks as a background layer — every other
-                // element below is overlaid on top of these. Labels are
-                // heavily dimmed so they read as ambient context.
-                drawTimeRulerTicks(tr, 0.35);
+                // element below is overlaid on top of these. Heavily dimmed
+                // (ticks and labels) so they read as ambient context.
+                ctx.save();
+                ctx.globalAlpha = 0.35;
+                drawTimeRulerTicks(tr, 1);
+                ctx.restore();
 
                 // Region bodies + edges
                 for (const r of regions) {
