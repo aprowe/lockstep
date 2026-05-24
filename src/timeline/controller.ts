@@ -640,7 +640,7 @@ export function createTimelineController(): Controller {
         // Condensed mode: scrub on left-button drag without Alt. Alt falls
         // through to the warp pointerDown branches so users can still
         // lasso/anchor-drag/region-drag in condensed mode.
-        if (snap.timelineMode === "condensed" && !e.altKey && e.button === 0) {
+        if (snap.timelineMode === "condensed" && !e.altKey && e.button === 0 && my(e) >= MINIMAP_H) {
             const t = pxToT(mx(e), snap);
             drag = {
                 kind: "scrub",
@@ -648,7 +648,7 @@ export function createTimelineController(): Controller {
                 startClientY: e.clientY,
                 moved: false,
             };
-            return [{ kind: "SetPlayhead", tSec: t }];
+            return [{ kind: "setPlayhead", tSec: t }];
         }
 
         // Shift-drag pans the timeline. Arm pan immediately and skip all
@@ -1003,7 +1003,7 @@ export function createTimelineController(): Controller {
         if (drag.kind === "scrub") {
             markMovedIfBeyondThreshold(drag, e);
             const t = pxToT(mx(e), snap);
-            return [{ kind: "SetPlayhead", tSec: t }];
+            return [{ kind: "setPlayhead", tSec: t }];
         }
 
         // ── Active drag — publish modifier keys + cursor up front ───────────────

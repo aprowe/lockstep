@@ -8,7 +8,6 @@ import { clipHsl } from "../timeline/palette";
 import { gesture, useGesture } from "../store/gesture";
 import { dragStart, dragEnd } from "../store/slices/dragSlice";
 import { setActiveRegionId as setActiveRegionIdAction } from "../store/slices/regionSlice";
-import { setPlayhead } from "../store/slices/warpSlice";
 import {
     cancelDrag,
     snapshotPreDragState,
@@ -1672,8 +1671,8 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                 case "seekBeat":
                     p.onSeekBeat?.(i.time);
                     break;
-                case "SetPlayhead":
-                    dispatch(setPlayhead(i.tSec));
+                case "setPlayhead":
+                    p.onSeek?.(i.tSec);
                     break;
                 case "viewChange":
                     p.onViewChange(i.view);

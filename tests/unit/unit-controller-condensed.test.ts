@@ -56,20 +56,20 @@ function pe(x: number, opts: Partial<PointerEventLike> = {}): PointerEventLike {
 }
 
 describe("controller condensed mode", () => {
-    it("pointerDown emits SetPlayhead and starts a scrub drag", () => {
+    it("pointerDown emits setPlayhead and starts a scrub drag", () => {
         const c = createTimelineController();
         const intents = c.pointerDown(pe(500), makeSnap());
-        const setPh = intents.find((i) => i.kind === "SetPlayhead");
+        const setPh = intents.find((i) => i.kind === "setPlayhead");
         expect(setPh).toBeDefined();
         expect((setPh as { tSec: number }).tSec).toBeCloseTo(5, 2);
         expect(c.getDragState()?.kind).toBe("scrub");
     });
 
-    it("pointerMove during scrub emits SetPlayhead at the new cursor time", () => {
+    it("pointerMove during scrub emits setPlayhead at the new cursor time", () => {
         const c = createTimelineController();
         c.pointerDown(pe(500), makeSnap());
         const intents = c.pointerMove(pe(700), makeSnap());
-        const setPh = intents.find((i) => i.kind === "SetPlayhead");
+        const setPh = intents.find((i) => i.kind === "setPlayhead");
         expect(setPh).toBeDefined();
         expect((setPh as { tSec: number }).tSec).toBeCloseTo(7, 2);
     });
@@ -87,10 +87,10 @@ describe("controller condensed mode", () => {
         expect(c.getDragState()?.kind).not.toBe("scrub");
     });
 
-    it("warp mode is unaffected (no scrub, no SetPlayhead)", () => {
+    it("warp mode is unaffected (no scrub, no setPlayhead)", () => {
         const c = createTimelineController();
         const intents = c.pointerDown(pe(500), makeSnap({ timelineMode: "warp" }));
-        expect(intents.find((i) => i.kind === "SetPlayhead")).toBeUndefined();
+        expect(intents.find((i) => i.kind === "setPlayhead")).toBeUndefined();
         expect(c.getDragState()?.kind).not.toBe("scrub");
     });
 });

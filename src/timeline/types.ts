@@ -284,7 +284,7 @@ export type Intent =
     | { kind: "seek" | "seekBeat"; time: number }
     /** Condensed-mode scrub: write `warp.playhead` directly. Not routed
      *  through the constraint pipeline; not snapshotted into history. */
-    | { kind: "SetPlayhead"; tSec: number }
+    | { kind: "setPlayhead"; tSec: number }
     | { kind: "viewChange"; view: View }
     | { kind: "anchorsChanged"; next: Anchor[] }
     | { kind: "beatAnchorsChanged"; next: Anchor[] }
