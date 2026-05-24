@@ -35,6 +35,7 @@ function makeSnapshot(overrides: Partial<Snapshot> = {}): Snapshot {
         snapInterval: undefined,
         snapOffset: undefined,
         followDrag: false,
+        timelineMode: "warp",
         warpCollapsed: false,
         canvas: { width: CANVAS_W, height: CANVAS_H },
         tracks,

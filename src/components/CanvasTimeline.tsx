@@ -8,6 +8,7 @@ import { clipHsl } from "../timeline/palette";
 import { gesture, useGesture } from "../store/gesture";
 import { dragStart, dragEnd } from "../store/slices/dragSlice";
 import { setActiveRegionId as setActiveRegionIdAction } from "../store/slices/regionSlice";
+import { setPlayhead } from "../store/slices/warpSlice";
 import {
     cancelDrag,
     snapshotPreDragState,
@@ -193,6 +194,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
     const alwaysRegions = useAppSelector((s) => s.ui.timelineAlwaysRegions);
     const alwaysScenes = useAppSelector((s) => s.ui.timelineAlwaysScenes);
     const followDrag = useAppSelector((s) => s.ui.timelineFollowDrag);
+    const timelineMode = useAppSelector((s) => s.ui.timelineMode);
 
     const snapHintsIn = useGesture((s) => s.snapHintsIn);
     const snapHintsOut = useGesture((s) => s.snapHintsOut);
@@ -229,8 +231,11 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
     // in this file. Pure data derivations from slice state belong in
     // src/store/selectors/timeline.ts and arrive via props from WarpView.
     const tracks = useMemo(
-        () => (containerH > 0 ? buildLayout(warpCollapsed, containerH, rowOverrides) : []),
-        [warpCollapsed, containerH, rowOverrides],
+        () =>
+            containerH > 0
+                ? buildLayout(warpCollapsed, containerH, rowOverrides, timelineMode)
+                : [],
+        [warpCollapsed, containerH, rowOverrides, timelineMode],
     );
     const tracksRef = useRef<LayoutTrack[]>([]);
     tracksRef.current = tracks;
@@ -448,6 +453,109 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
 
         clearHits();
 
+        // ── Condensed mode (placeholder; body runs after minimap) ──
+        // See `drawCondensed` defined below — gated by timelineMode.
+        function drawCondensed(): boolean {
+            if (timelineMode !== "condensed") return false;
+            const tr = byId("condensed");
+            if (tr) {
+                // Track background
+                ctx.fillStyle = pal.bg0;
+                ctx.fillRect(0, tr.y, W, tr.h);
+
+                // Region bodies + edges
+                for (const r of regions) {
+                    const x1 = tX(r.inPoint);
+                    const x2 = tX(r.outPoint);
+                    if (x2 < 0 || x1 > W) continue;
+                    const cx1 = Math.max(x1, 0);
+                    const cx2 = Math.min(x2, W);
+                    ctx.fillStyle = clipHsl(r.colorIndex ?? 0, 0.32);
+                    ctx.fillRect(cx1, tr.y + 2, cx2 - cx1, tr.h - 4);
+                    ctx.strokeStyle = clipHsl(r.colorIndex ?? 0, 0.9);
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(cx1 + 0.5, tr.y + 2.5, cx2 - cx1 - 1, tr.h - 5);
+                    // Body hit registered FIRST so edges below win at overlap.
+                    addHit(cx1, tr.y, cx2 - cx1, tr.h, {
+                        kind: "region",
+                        id: r.id,
+                        isOutput: false,
+                    });
+                    if (x1 >= -2) {
+                        addHit(x1 - 5, tr.y, 10, tr.h, {
+                            kind: "region-edge",
+                            id: r.id,
+                            edge: "in",
+                            isOutput: false,
+                        });
+                    }
+                    if (x2 <= W + 2) {
+                        addHit(x2 - 5, tr.y, 10, tr.h, {
+                            kind: "region-edge",
+                            id: r.id,
+                            edge: "out",
+                            isOutput: false,
+                        });
+                    }
+                }
+
+                // Scene cuts
+                for (const t of p.scenes) {
+                    const x = tX(t);
+                    if (x < -3 || x > W + 3) continue;
+                    ctx.strokeStyle = pal.sceneColor;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(Math.round(x) + 0.5, tr.y + 2);
+                    ctx.lineTo(Math.round(x) + 0.5, tr.y + tr.h - 2);
+                    ctx.stroke();
+                    addHit(x - 3, tr.y, 6, tr.h, { kind: "scene", time: t });
+                }
+
+                // Anchor pins (input space only — condensed has no output row)
+                for (const a of anchors) {
+                    const x = tX(a.time);
+                    if (x < -TRI_HALF - 2 || x > W + TRI_HALF + 2) continue;
+                    const hov = gestHoverAnchorId === a.id;
+                    const sel =
+                        p.selectedOrigAnchorIds.has(a.id) ||
+                        (lassoOrigAnchorIds?.has(a.id) ?? false);
+                    ctx.fillStyle = hov
+                        ? pal.markerHover
+                        : sel
+                          ? "hsl(195,85%,78%)"
+                          : pal.markerColor;
+                    ctx.beginPath();
+                    ctx.moveTo(x - TRI_HALF, tr.y);
+                    ctx.lineTo(x + TRI_HALF, tr.y);
+                    ctx.lineTo(x, tr.y + TRI_H);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.fillRect(Math.round(x), tr.y + TRI_H, 1, tr.h - TRI_H);
+                    addHit(x - TRI_HALF - 2, tr.y, (TRI_HALF + 2) * 2, tr.h, {
+                        kind: "anchor",
+                        id: a.id,
+                        space: "input",
+                    });
+                }
+
+                // Playhead
+                const ph = p.playhead ?? 0;
+                const px = Math.round(tX(ph)) + 0.5;
+                if (px >= -2 && px <= W + 2) {
+                    ctx.strokeStyle = pal.playhead;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(px, tr.y);
+                    ctx.lineTo(px, tr.y + tr.h);
+                    ctx.stroke();
+                }
+            }
+            // Still draw the minimap (top), but skip the rest of the warp-mode
+            // layers — they all early-return on missing tracks anyway.
+            return true;
+        }
+
         // ── Backgrounds ──────────────────────────────────────
         function layerBackgrounds() {
             ctx.fillStyle = pal.bg0;
@@ -524,6 +632,12 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
         ctx.beginPath();
         ctx.rect(0, MINIMAP_H + 1, W, H);
         ctx.clip();
+
+        // Condensed mode: single overlaid row replaces the warp layers.
+        if (drawCondensed()) {
+            ctx.restore();
+            return;
+        }
 
         // ── Time ruler ───────────────────────────────────────
         function layerTimeRuler() {
@@ -1483,6 +1597,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
             clipLockedBeats: p.clipLockedBeats,
             clipAnchorLock: p.clipAnchorLock,
             followDrag,
+            timelineMode,
             warpCollapsed: p.warpCollapsed ?? false,
             canvas: { width: rect.width, height: rect.height },
             tracks: tracksRef.current,
@@ -1556,6 +1671,9 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                     break;
                 case "seekBeat":
                     p.onSeekBeat?.(i.time);
+                    break;
+                case "SetPlayhead":
+                    dispatch(setPlayhead(i.tSec));
                     break;
                 case "viewChange":
                     p.onViewChange(i.view);
