@@ -26,7 +26,21 @@ export function buildLayout(
     warpCollapsed: boolean,
     totalH: number,
     overrides: Record<string, number> = {},
+    timelineMode: "warp" | "condensed" = "warp",
 ): LayoutTrack[] {
+    if (timelineMode === "condensed") {
+        const available = totalH - MINIMAP_H - 1;
+        return [
+            {
+                id: "condensed",
+                label: "Condensed",
+                h: Math.max(0, available),
+                space: "input",
+                flex: 1,
+                y: MINIMAP_H + 1,
+            },
+        ];
+    }
     const visible = ALL_TRACKS.filter((def) => !(warpCollapsed && def.space !== "input"));
     const available = totalH - MINIMAP_H - 1 - visible.length; // gaps between rows
 
