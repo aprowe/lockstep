@@ -13,6 +13,7 @@ interface TimelinePrefs {
     alwaysAnchors: boolean;
     alwaysRegions: boolean;
     alwaysScenes: boolean;
+    timelineMode: "warp" | "condensed";
 }
 
 const DEFAULT_TIMELINE_PREFS: TimelinePrefs = {
@@ -23,6 +24,7 @@ const DEFAULT_TIMELINE_PREFS: TimelinePrefs = {
     alwaysAnchors: true,
     alwaysRegions: false,
     alwaysScenes: false,
+    timelineMode: "warp",
 };
 
 function loadTimelinePrefs(): TimelinePrefs {
@@ -54,6 +56,10 @@ function loadTimelinePrefs(): TimelinePrefs {
                 typeof p.alwaysScenes === "boolean"
                     ? p.alwaysScenes
                     : DEFAULT_TIMELINE_PREFS.alwaysScenes,
+            timelineMode:
+                p.timelineMode === "warp" || p.timelineMode === "condensed"
+                    ? p.timelineMode
+                    : DEFAULT_TIMELINE_PREFS.timelineMode,
         };
     } catch {
         return DEFAULT_TIMELINE_PREFS;
@@ -70,6 +76,7 @@ function saveTimelinePrefs(state: UiState) {
             alwaysAnchors: state.timelineAlwaysAnchors,
             alwaysRegions: state.timelineAlwaysRegions,
             alwaysScenes: state.timelineAlwaysScenes,
+            timelineMode: state.timelineMode,
         };
         localStorage.setItem(TIMELINE_PREFS_KEY, JSON.stringify(prefs));
     } catch {
@@ -117,6 +124,7 @@ interface UiState {
     timelineAlwaysAnchors: boolean;
     timelineAlwaysRegions: boolean;
     timelineAlwaysScenes: boolean;
+    timelineMode: "warp" | "condensed";
     /** Global anchor-lock toggle (§13). When true, beat anchors inside the active
      *  clipout window are position-locked: resize (lock='beats') keeps them in
      *  beat-space; body-pan carries them with the clip. Alt inverts this for a
@@ -173,6 +181,7 @@ const initialState: UiState = {
     timelineAlwaysAnchors: _prefs.alwaysAnchors,
     timelineAlwaysRegions: _prefs.alwaysRegions,
     timelineAlwaysScenes: _prefs.alwaysScenes,
+    timelineMode: _prefs.timelineMode,
     anchorLock: false,
     anchorLockGestureOverride: null,
     playing: false,
@@ -268,6 +277,14 @@ const uiSlice = createSlice({
         setLockMode(state, action: PayloadAction<"bpm" | "beats">) {
             state.lockMode = action.payload;
         },
+        setTimelineMode(state, action: PayloadAction<"warp" | "condensed">) {
+            state.timelineMode = action.payload;
+            saveTimelinePrefs(state);
+        },
+        toggleTimelineMode(state) {
+            state.timelineMode = state.timelineMode === "warp" ? "condensed" : "warp";
+            saveTimelinePrefs(state);
+        },
     },
 });
 
@@ -296,6 +313,8 @@ export const {
     setExportProgress,
     resetExportProgress,
     setLockMode,
+    setTimelineMode,
+    toggleTimelineMode,
 } = uiSlice.actions;
 
 export default uiSlice.reducer;
