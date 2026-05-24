@@ -630,8 +630,20 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                     });
                 }
 
-                // Playhead — shared helper, matches warp-mode appearance.
-                drawPlayheadLine(tX(p.playhead ?? 0), tr.y, tr.y + tr.h, true);
+                // Playhead — line + small downward triangle at the top of
+                // the track, matching the warp-mode time-ruler playhead.
+                const phX = tX(p.playhead ?? 0);
+                drawPlayheadLine(phX, tr.y, tr.y + tr.h, true);
+                if (phX >= 0 && phX <= W) {
+                    const ax = Math.round(phX);
+                    ctx.fillStyle = pal.playhead;
+                    ctx.beginPath();
+                    ctx.moveTo(ax - 5, tr.y);
+                    ctx.lineTo(ax + 6, tr.y);
+                    ctx.lineTo(ax + 0.5, tr.y + 8);
+                    ctx.closePath();
+                    ctx.fill();
+                }
             }
             // Still draw the minimap (top), but skip the rest of the warp-mode
             // layers — they all early-return on missing tracks anyway.
