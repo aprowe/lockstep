@@ -5,6 +5,7 @@
     flex: 1;
     overflow: hidden;
     padding: 0 2px;
+    outline: none;
 }
 
 .canvas-timeline__body {

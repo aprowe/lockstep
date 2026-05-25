@@ -37,42 +37,63 @@ export function buildLayout(
         (def) => !(warpCollapsed && def.space !== "input") && !hiddenTracks.has(def.id),
     );
     const minimapH = overrides[MINIMAP_KEY] ?? MINIMAP_H;
-    // gaps between rows + 1px sep below the minimap.
-    const available = Math.max(0, totalH - minimapH - 1 - visible.length);
+    // 1px separator below the minimap.
+    const available = Math.max(0, totalH - minimapH - 1);
 
+    // Tally preferred (or overridden) heights and flex weights for every
+    // visible track to decide between the two layout regimes below.
     let usedH = 0;
     let flexSum = 0;
     for (const t of visible) {
-        if (overrides[t.id] !== undefined) usedH += overrides[t.id];
-        else {
-            usedH += t.h;
-            flexSum += t.flex;
-        }
+        const baseH = overrides[t.id] ?? t.h;
+        usedH += baseH + 1; // +1 for the row separator below this track
+        if (overrides[t.id] === undefined) flexSum += t.flex;
     }
-    // When the canvas is too small to satisfy the preferred / overridden
-    // heights, scale everything down proportionally so no track spills off
-    // the bottom. Otherwise, give the flex tracks the leftover space.
-    const tightFit = usedH > available && usedH > 0;
-    const scale = tightFit ? available / usedH : 1;
-    const extra = tightFit ? 0 : available - usedH;
 
     const result: LayoutTrack[] = [];
     let y = minimapH + 1;
-    for (const def of visible) {
-        const overrideH = overrides[def.id];
-        const baseH = overrideH ?? def.h;
-        let h: number;
-        if (tightFit) {
-            h = baseH * scale;
-        } else if (overrideH === undefined && flexSum > 0) {
-            // Flex track at preferred size — also gets its share of the slack.
-            h = def.h + (def.flex / flexSum) * extra;
-        } else {
-            // Overridden track, or non-flex track at preferred size.
-            h = baseH;
+
+    if (usedH <= available) {
+        // Everything fits at preferred size; flex tracks split the leftover.
+        const extra = available - usedH;
+        for (const def of visible) {
+            const overrideH = overrides[def.id];
+            const baseH = overrideH ?? def.h;
+            const h =
+                overrideH === undefined && flexSum > 0
+                    ? def.h + (def.flex / flexSum) * extra
+                    : baseH;
+            result.push({ ...def, h, y });
+            y += h + 1;
         }
-        result.push({ ...def, h, y });
-        y += h + 1;
+        return result;
+    }
+
+    // Tight fit: walk top → bottom giving each track its preferred height
+    // while it still fits. The first track that doesn't fit at preferred
+    // either gets a partial render (if it would land at ≥ 2/3 preferred) or
+    // is dropped so rows never look squished. Any leftover slack is then
+    // absorbed by the last surviving track so the timeline never shows an
+    // empty band at the bottom.
+    let remaining = available;
+    for (const def of visible) {
+        const baseH = overrides[def.id] ?? def.h;
+        const needed = baseH + 1;
+        if (remaining >= needed) {
+            result.push({ ...def, h: baseH, y });
+            y += baseH + 1;
+            remaining -= needed;
+            continue;
+        }
+        const minPartial = Math.ceil((baseH * 2) / 3);
+        if (remaining - 1 >= minPartial) {
+            result.push({ ...def, h: remaining - 1, y });
+            remaining = 0;
+        }
+        break;
+    }
+    if (remaining > 0 && result.length > 0) {
+        result[result.length - 1].h += remaining;
     }
     return result;
 }

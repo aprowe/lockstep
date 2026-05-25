@@ -48,7 +48,10 @@ import { visibleSceneCuts } from "../utils/sceneFilter";
 import type { View } from "../types";
 import { useDockBridge } from "./DockContext";
 
-const MIN_TIMELINE = 60;
+// No floor — the timeline can collapse entirely. The resizer lives above it
+// so it stays grabbable, and buildLayout drops tracks progressively as space
+// shrinks (minimap drops last).
+const MIN_TIMELINE = 0;
 /** Stable empty default for the scanned-ranges selector. Allocating
  *  `[]` inline would change identity every render and re-key WarpView's
  *  scenes-track props, which on a busy panel becomes a measurable cost. */

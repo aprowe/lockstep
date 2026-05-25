@@ -1,0 +1,149 @@
+<h2>Site Layout Approaches</h2>
+<p class="subtitle">Three ways to structure the Lockstep website</p>
+
+<style>
+.cards { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 24px; }
+.card { flex: 1; min-width: 260px; background: #13131e; border: 2px solid #2a2a3a; border-radius: 12px; overflow: hidden; cursor: pointer; transition: border-color 0.2s; }
+.card.selected { border-color: #7c6af7; }
+.wire { background: #0d0d12; padding: 16px; display: flex; flex-direction: column; gap: 6px; height: 260px; overflow: hidden; }
+.w-nav { height: 18px; background: #1a1a28; border-radius: 3px; display: flex; align-items: center; padding: 0 8px; gap: 6px; }
+.w-dot { width: 32px; height: 6px; background: #7c6af7; border-radius: 2px; }
+.w-hero { background: #0d0d18; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 8px; }
+.w-title { height: 10px; background: #fff; border-radius: 2px; opacity: 0.85; }
+.w-sub { height: 6px; background: #7c6af7; border-radius: 2px; opacity: 0.6; }
+.w-cta { height: 18px; width: 80px; background: #7c6af7; border-radius: 4px; }
+.w-cta-ghost { height: 18px; width: 70px; background: transparent; border: 1px solid #7c6af744; border-radius: 4px; }
+.w-img { height: 40px; background: #1e1e30; border-radius: 4px; border: 1px solid #2a2a44; }
+.w-strip { display: flex; gap: 5px; }
+.w-feat { flex: 1; height: 30px; background: #1a1a28; border-radius: 4px; }
+.w-pricing { display: flex; gap: 5px; }
+.w-price-free { flex: 1; height: 45px; background: #1a1a28; border-radius: 4px; border: 1px solid #2a2a3a; }
+.w-price-paid { flex: 1; height: 45px; background: #1a1a28; border-radius: 4px; border: 1px solid #7c6af755; }
+.w-footer { height: 14px; background: #111118; border-radius: 3px; }
+.w-label { font-size: 9px; color: #7c6af7; letter-spacing: 0.05em; text-transform: uppercase; margin-top: 2px; }
+.w-divider { height: 1px; background: #2a2a3a; }
+.w-page-row { display: flex; gap: 5px; }
+.w-page { flex: 1; height: 22px; background: #1a1a28; border-radius: 3px; display: flex; align-items: center; justify-content: center; }
+.w-page-active { background: #7c6af733; border: 1px solid #7c6af755; }
+.w-screenshots { display: flex; gap: 4px; }
+.w-ss { flex: 1; height: 35px; background: #1e1e30; border-radius: 4px; border: 1px solid #2a2a44; }
+.rec-badge { display: inline-block; background: #7c6af722; color: #a78bfa; font-size: 11px; padding: 2px 8px; border-radius: 10px; border: 1px solid #7c6af744; margin-left: 8px; vertical-align: middle; }
+.card-body { padding: 14px; }
+.card-body h3 { margin: 0 0 6px; font-size: 15px; color: #e8e8f0; }
+.card-body p { margin: 0; font-size: 12px; color: #888; line-height: 1.5; }
+.pros-list { margin: 8px 0 0; padding: 0; list-style: none; }
+.pros-list li { font-size: 11px; color: #aaa; padding: 2px 0; }
+.pros-list li::before { content: "✓ "; color: #7c6af7; }
+.cons-list li::before { content: "– "; color: #666; }
+</style>
+
+<div class="cards">
+
+  <!-- Option A: Hero-forward single scroll -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="wire">
+      <div class="w-nav"><div class="w-dot"></div></div>
+      <div class="w-hero" style="flex:2">
+        <div class="w-title" style="width:65%"></div>
+        <div class="w-sub" style="width:50%"></div>
+        <div style="display:flex;gap:6px;margin-top:4px"><div class="w-cta"></div><div class="w-cta-ghost"></div></div>
+      </div>
+      <div class="w-label">App screenshot</div>
+      <div class="w-img" style="flex:2"></div>
+      <div class="w-label">Features</div>
+      <div class="w-strip"><div class="w-feat"></div><div class="w-feat"></div><div class="w-feat"></div></div>
+      <div class="w-label">Pricing</div>
+      <div class="w-pricing"><div class="w-price-free"></div><div class="w-price-paid"></div></div>
+      <div class="w-footer"></div>
+    </div>
+    <div class="card-body">
+      <h3>A — Single-page, hero-forward <span class="rec-badge">Recommended</span></h3>
+      <p>One long scrolling page. Big hero with app screenshot, feature highlights, 2-column pricing (Free vs $30), donate + GitHub in footer.</p>
+      <ul class="pros-list">
+        <li>No routing complexity, pure Next.js static export</li>
+        <li>Standard pattern for indie dev tools (Raycast, Warp, etc.)</li>
+        <li>Easy to deploy to Vercel as-is</li>
+      </ul>
+      <ul class="pros-list cons-list">
+        <li>Everything on one URL — can't deep-link to pricing</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Option B: Minimal one-pager -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="wire">
+      <div class="w-nav"><div class="w-dot"></div></div>
+      <div class="w-hero" style="flex:2.5">
+        <div class="w-title" style="width:70%"></div>
+        <div class="w-sub" style="width:45%"></div>
+        <div style="display:flex;gap:6px;margin-top:4px"><div class="w-cta"></div></div>
+        <div style="margin-top:6px;display:flex;gap:5px">
+          <div style="height:8px;width:60px;background:#7c6af733;border-radius:2px"></div>
+          <div style="height:8px;width:50px;background:#7c6af733;border-radius:2px"></div>
+        </div>
+      </div>
+      <div class="w-label">3 key features (icons + text)</div>
+      <div class="w-strip"><div class="w-feat"></div><div class="w-feat"></div><div class="w-feat"></div></div>
+      <div class="w-label">Pricing row</div>
+      <div style="height:20px;background:#1a1a28;border-radius:4px;display:flex;align-items:center;padding:0 8px;gap:8px">
+        <div style="height:6px;width:80px;background:#2a2a3a;border-radius:2px"></div>
+        <div style="height:6px;width:60px;background:#7c6af755;border-radius:2px"></div>
+      </div>
+      <div class="w-footer"></div>
+    </div>
+    <div class="card-body">
+      <h3>B — Minimal one-pager</h3>
+      <p>Stripped down. Hero + tagline + 3 features + inline pricing. Looks intentionally terse — like the README turned website.</p>
+      <ul class="pros-list">
+        <li>Fast to build, easy to maintain</li>
+        <li>Distinctive — most tools over-explain</li>
+      </ul>
+      <ul class="pros-list cons-list">
+        <li>Less room to showcase screenshots and workflow</li>
+        <li>Harder to sell the $30 commercial license without context</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Option C: Multi-page -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="wire">
+      <div class="w-nav">
+        <div class="w-dot"></div>
+        <div style="height:6px;width:24px;background:#2a2a3a;border-radius:2px"></div>
+        <div style="height:6px;width:24px;background:#2a2a3a;border-radius:2px"></div>
+        <div style="height:6px;width:24px;background:#2a2a3a;border-radius:2px"></div>
+      </div>
+      <div class="w-label">Pages</div>
+      <div class="w-page-row">
+        <div class="w-page w-page-active" style="font-size:8px;color:#a78bfa">Home</div>
+        <div class="w-page" style="font-size:8px;color:#555">Pricing</div>
+        <div class="w-page" style="font-size:8px;color:#555">Docs</div>
+      </div>
+      <div class="w-hero" style="flex:1.5">
+        <div class="w-title" style="width:60%"></div>
+        <div class="w-sub" style="width:40%"></div>
+        <div class="w-cta" style="margin-top:4px"></div>
+      </div>
+      <div class="w-label">Screenshots</div>
+      <div class="w-screenshots"><div class="w-ss"></div><div class="w-ss"></div><div class="w-ss"></div></div>
+      <div class="w-label">Features strip</div>
+      <div class="w-strip"><div class="w-feat"></div><div class="w-feat"></div></div>
+      <div class="w-footer"></div>
+    </div>
+    <div class="card-body">
+      <h3>C — Multi-page (Home / Pricing / Docs)</h3>
+      <p>Separate pages for home, pricing, and optional docs. More room for each section; works better if content grows.</p>
+      <ul class="pros-list">
+        <li>Deep-linkable pricing and docs URLs</li>
+        <li>Scales as the product matures</li>
+      </ul>
+      <ul class="pros-list cons-list">
+        <li>More routing to wire up; slower to build</li>
+        <li>Overkill for a pre-release indie tool</li>
+      </ul>
+    </div>
+  </div>
+
+</div>

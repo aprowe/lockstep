@@ -1,0 +1,92 @@
+<h2>Visual Direction</h2>
+<p class="subtitle">Which aesthetic fits Lockstep best?</p>
+
+<style>
+.cards { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 24px; }
+.card { flex: 1; min-width: 240px; border-radius: 12px; overflow: hidden; cursor: pointer; border: 2px solid transparent; transition: border-color 0.2s; }
+.card.selected { border-color: #7c6af7; }
+.card-preview { height: 180px; display: flex; flex-direction: column; padding: 16px; gap: 8px; }
+.card-body { padding: 14px; }
+.card-body h3 { margin: 0 0 4px; font-size: 15px; }
+.card-body p { margin: 0; font-size: 13px; opacity: 0.7; }
+
+/* Option A - Full dark */
+.dark-preview { background: #0d0d12; }
+.dark-preview .mock-nav-bar { background: #1a1a24; height: 28px; border-radius: 4px; display: flex; align-items: center; padding: 0 10px; gap: 8px; }
+.dark-preview .mock-nav-bar .dot { width: 6px; height: 6px; border-radius: 50%; background: #7c6af7; }
+.dark-preview .mock-hero { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; }
+.dark-preview .mock-tagline { height: 10px; width: 60%; background: #fff; border-radius: 3px; opacity: 0.9; }
+.dark-preview .mock-sub { height: 7px; width: 45%; background: #7c6af7; border-radius: 3px; opacity: 0.7; }
+.dark-preview .mock-btn { height: 24px; width: 100px; background: #7c6af7; border-radius: 6px; margin-top: 4px; }
+.dark-card-bg { background: #13131e; border-color: #2a2a3a; }
+
+/* Option B - Light/clean */
+.light-preview { background: #f8f8fb; }
+.light-preview .mock-nav-bar { background: #fff; height: 28px; border-radius: 4px; display: flex; align-items: center; padding: 0 10px; gap: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+.light-preview .mock-nav-bar .dot { width: 6px; height: 6px; border-radius: 50%; background: #6c63ff; }
+.light-preview .mock-hero { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; }
+.light-preview .mock-tagline { height: 10px; width: 60%; background: #1a1a2e; border-radius: 3px; }
+.light-preview .mock-sub { height: 7px; width: 45%; background: #6c63ff; border-radius: 3px; opacity: 0.6; }
+.light-preview .mock-btn { height: 24px; width: 100px; background: #6c63ff; border-radius: 6px; margin-top: 4px; }
+.light-card-bg { background: #fff; border-color: #e5e5ef; }
+
+/* Option C - Dark hero, light body */
+.split-preview { background: #0d0d12; }
+.split-preview .mock-nav-bar { background: #1a1a24; height: 28px; border-radius: 4px; display: flex; align-items: center; padding: 0 10px; gap: 8px; }
+.split-preview .mock-nav-bar .dot { width: 6px; height: 6px; border-radius: 50%; background: #a78bfa; }
+.split-preview .mock-hero { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 6px; }
+.split-preview .mock-tagline { height: 10px; width: 60%; background: #fff; border-radius: 3px; opacity: 0.9; }
+.split-preview .mock-sub { height: 7px; width: 45%; background: #a78bfa; border-radius: 3px; opacity: 0.8; }
+.split-preview .mock-btn { height: 24px; width: 100px; background: linear-gradient(135deg,#7c6af7,#a78bfa); border-radius: 6px; margin-top: 4px; }
+.split-lower { background: #f4f4f8; height: 40px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.split-lower .mock-chip { height: 14px; width: 50px; background: #e0dff8; border-radius: 8px; }
+.split-card-bg { background: linear-gradient(135deg,#13131e 50%,#f4f4f8 50%); border-color: #3a2a6a; }
+</style>
+
+<div class="cards">
+  <div class="card dark-card-bg" data-choice="dark" onclick="toggleSelect(this)">
+    <div class="card-preview dark-preview">
+      <div class="mock-nav-bar"><div class="dot"></div><div class="dot" style="opacity:.4"></div><div class="dot" style="opacity:.4"></div></div>
+      <div class="mock-hero">
+        <div class="mock-tagline"></div>
+        <div class="mock-sub"></div>
+        <div class="mock-btn"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Full Dark</h3>
+      <p>Matches the app UI exactly. Moody, technical, music-producer aesthetic. Works well with app screenshots.</p>
+    </div>
+  </div>
+
+  <div class="card light-card-bg" data-choice="light" onclick="toggleSelect(this)">
+    <div class="card-preview light-preview">
+      <div class="mock-nav-bar"><div class="dot"></div><div class="dot" style="opacity:.4;background:#6c63ff"></div><div class="dot" style="opacity:.4;background:#6c63ff"></div></div>
+      <div class="mock-hero">
+        <div class="mock-tagline"></div>
+        <div class="mock-sub"></div>
+        <div class="mock-btn"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Light & Clean</h3>
+      <p>Minimal and modern. Contrast against the dark app. Easier readability for long-form copy.</p>
+    </div>
+  </div>
+
+  <div class="card split-card-bg" data-choice="split" onclick="toggleSelect(this)">
+    <div class="card-preview split-preview">
+      <div class="mock-nav-bar"><div class="dot"></div><div class="dot" style="opacity:.4;background:#a78bfa"></div><div class="dot" style="opacity:.4;background:#a78bfa"></div></div>
+      <div class="mock-hero">
+        <div class="mock-tagline"></div>
+        <div class="mock-sub"></div>
+        <div class="mock-btn"></div>
+      </div>
+      <div class="split-lower"><div class="mock-chip"></div><div class="mock-chip"></div><div class="mock-chip"></div></div>
+    </div>
+    <div class="card-body">
+      <h3>C — Dark hero, light body</h3>
+      <p>Dark cinematic hero with light feature/pricing sections below. High contrast, dramatic first impression.</p>
+    </div>
+  </div>
+</div>
