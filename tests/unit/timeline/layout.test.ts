@@ -66,6 +66,21 @@ describe("buildLayout", () => {
         expect(layout.find((t) => t.id === "scenes")!.h).toBe(18);
     });
 
+    it("places scene-thumbs immediately after scenes with h=40", () => {
+        const layout = buildLayout(false, 800);
+        const ids = layout.map((t) => t.id);
+        const sceneIdx = ids.indexOf("scenes");
+        expect(sceneIdx).toBeGreaterThanOrEqual(0);
+        expect(ids[sceneIdx + 1]).toBe("scene-thumbs");
+        const thumbs = layout.find((t) => t.id === "scene-thumbs")!;
+        expect(thumbs.h).toBe(40);
+    });
+
+    it("keeps scene-thumbs row when warp is collapsed (input space)", () => {
+        const layout = buildLayout(true, 400);
+        expect(layout.some((t) => t.id === "scene-thumbs")).toBe(true);
+    });
+
     it("returns rows whose y + h never exceeds the available area", () => {
         const totalH = 500;
         const layout = buildLayout(false, totalH);

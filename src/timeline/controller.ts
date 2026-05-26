@@ -897,6 +897,15 @@ export function createTimelineController(): Controller {
             return intents;
         }
 
+        // 4b) Scene thumbnail hit — click seeks to the scene's input time.
+        //     Display-only otherwise; no drag, no selection, no context menu.
+        if (hit && hit.kind === "scene-thumb") {
+            const t = hit.time as number;
+            intents.push({ kind: "seek", time: t });
+            drag = { kind: "seek", space: "input" };
+            return intents;
+        }
+
         // 5) Alt or middle-button → pan
         if (e.altKey || e.button === 1) {
             drag = { kind: "pan", startClientX: e.clientX, startView: snap.view };
@@ -979,7 +988,7 @@ export function createTimelineController(): Controller {
             if (hit?.kind === "region-edge") cursor = "ew-resize";
             else if (hit?.kind === "anchor" || hit?.kind === "region" || hit?.kind === "warp-line")
                 cursor = "grab";
-            else if (hit?.kind === "scene") cursor = "pointer";
+            else if (hit?.kind === "scene" || hit?.kind === "scene-thumb") cursor = "pointer";
             intents.push({ kind: "cursor", cursor });
             intents.push({ kind: "redraw" });
             return intents;

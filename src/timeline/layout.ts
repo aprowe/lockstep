@@ -13,6 +13,7 @@ export type { TrackDef, LayoutTrack };
 export const ALL_TRACKS: TrackDef[] = [
     { id: "time", label: "Time", h: 20, space: "input", flex: 1 },
     { id: "scenes", label: "Scenes", h: 18, space: "input", flex: 0 },
+    { id: "scene-thumbs", label: "Scene Thumbnails", h: 40, space: "input", flex: 0 },
     { id: "clipin", label: "Clip In", h: 28, space: "input", flex: 1 },
     { id: "markerin", label: "Anchor In", h: 28, space: "input", flex: 1 },
     { id: "warp", label: "Warp", h: 44, space: "warp", flex: 1 },

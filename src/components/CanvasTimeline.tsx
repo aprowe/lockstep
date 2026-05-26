@@ -1,10 +1,13 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import type { RegionBlock } from "../timeline/types";
 import type { Anchor, Region, WarpSegment, View } from "../types";
 import type { State as ConstraintState } from "../constraints/types";
 import { buildAnchorPairs } from "../timeline/model/beatMap";
 import { clipHsl } from "../timeline/palette";
+import { visibleSceneThumbs } from "../timeline/sceneThumbs";
+import { selectThumbnailPathsFor } from "../store/slices/thumbnailsSlice";
 import { gesture, useGesture } from "../store/gesture";
 import { dragStart, dragEnd } from "../store/slices/dragSlice";
 import { setActiveRegionId as setActiveRegionIdAction } from "../store/slices/regionSlice";
@@ -194,6 +197,16 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
     const alwaysScenes = useAppSelector((s) => s.ui.timelineAlwaysScenes);
     const followDrag = useAppSelector((s) => s.ui.timelineFollowDrag);
 
+    // Video metadata + thumbnail cache for the scene-thumbs row. Read directly
+    // from the store so the timeline doesn't need to thread these through props.
+    const video = useAppSelector((s) => s.video.video);
+    const thumbPaths = useAppSelector(selectThumbnailPathsFor(video?.fileHash));
+    const videoFps = video?.fps ?? 0;
+    const videoAspect =
+        video && video.width && video.height && video.height > 0
+            ? video.width / video.height
+            : 16 / 9;
+
     const snapHintsIn = useGesture((s) => s.snapHintsIn);
     const snapHintsOut = useGesture((s) => s.snapHintsOut);
     const gestDragTime = useGesture((s) => s.dragTime);
@@ -316,6 +329,12 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
 
     // Gesture state machine — pure controller; all event handlers delegate to it.
     const controllerRef = useRef(createTimelineController());
+
+    // ── Scene thumbnail image cache ─────────────────────────
+    // Maps frame number → HTMLImageElement. The canvas draw routine is sync;
+    // when a thumbnail path is known but its image isn't loaded yet we kick
+    // off the load and request a redraw on completion.
+    const thumbImageCacheRef = useRef<Map<number, HTMLImageElement>>(new Map());
 
     // ── Hit list (per-draw builder, queried by handlers) ─────
     const hitsBuilderRef = useRef<HitListBuilder>(createHitListBuilder());
@@ -535,25 +554,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
                 const first = Math.floor(view.start / su) - 1;
                 const last = Math.ceil(view.end / su) + 1;
                 const tkClr = layer.styleKey === "bar" ? pal.barTick : pal.subTick;
-                const gdClr = layer.styleKey === "bar" ? pal.gridBar : pal.gridBeat;
                 const tickTop = layer.isMajor ? tr.y + 3 : tr.y + tr.h - (layer.tickHeight ?? 6);
-
-                const trWarp = byId("warp");
-                const inpBot =
-                    (spaceRange("input")?.bottom ?? tr.y + tr.h) + (trWarp ? trWarp.h / 2 : 0);
-                ctx.strokeStyle = gdClr;
-                ctx.lineWidth = 1;
-                ctx.beginPath();
-                for (let i = first; i <= last; i++) {
-                    if (layer.skipModulo && i % layer.skipModulo === 0) continue;
-                    const t = i * su;
-                    if (t < 0 || t > p.duration + 1e-6) continue;
-                    const x = Math.round(tX(t)) + 0.5;
-                    if (x < 0 || x > W) continue;
-                    ctx.moveTo(x, tr.y + tr.h);
-                    ctx.lineTo(x, inpBot);
-                }
-                ctx.stroke();
 
                 ctx.strokeStyle = tkClr;
                 ctx.lineWidth = 1;
@@ -659,6 +660,77 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
             }
         }
         layerScenes();
+
+        // ── Scene thumbnails ─────────────────────────────────
+        function layerSceneThumbnails() {
+            const tr = byId("scene-thumbs");
+            if (!tr) return;
+            if (videoFps <= 0 || p.scenes.length === 0) return;
+            const thumbW = Math.round(tr.h * videoAspect);
+            const slots = visibleSceneThumbs(p.scenes, (t) => Math.round(tX(t)), thumbW, W);
+            const cache = thumbImageCacheRef.current;
+            const drawNow = drawRef.current;
+            for (const slot of slots) {
+                const frame = Math.round(slot.time * videoFps);
+                const path = thumbPaths[frame];
+                const cached = cache.get(frame);
+                const ready = cached && cached.complete && cached.naturalWidth > 0;
+                const clipped = slot.width < slot.naturalW;
+                if (ready && cached) {
+                    if (!clipped) {
+                        ctx.drawImage(cached, slot.x, tr.y, slot.width, tr.h);
+                    } else {
+                        // Source-crop the left portion so the cut edge stays flush.
+                        const srcW = Math.max(
+                            1,
+                            (cached.naturalWidth * slot.width) / slot.naturalW,
+                        );
+                        ctx.drawImage(
+                            cached,
+                            0,
+                            0,
+                            srcW,
+                            cached.naturalHeight,
+                            slot.x,
+                            tr.y,
+                            slot.width,
+                            tr.h,
+                        );
+                    }
+                } else {
+                    // Placeholder
+                    ctx.fillStyle = th.bg2;
+                    ctx.fillRect(slot.x, tr.y, slot.width, tr.h);
+                    ctx.strokeStyle = th.border;
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(slot.x + 0.5, tr.y + 0.5, slot.width - 1, tr.h - 1);
+                    if (path && !cached) {
+                        const img = new Image();
+                        img.onload = () => drawNow();
+                        img.src = convertFileSrc(path);
+                        cache.set(frame, img);
+                    }
+                }
+                if (clipped) {
+                    // Right-edge fade so the user reads "more of this thumbnail
+                    // is hidden by the next cut." Fade width caps at 12 px and
+                    // never exceeds the slot itself.
+                    const fadeW = Math.min(12, slot.width);
+                    const gx = slot.x + slot.width - fadeW;
+                    const grad = ctx.createLinearGradient(gx, 0, gx + fadeW, 0);
+                    grad.addColorStop(0, "rgba(0,0,0,0)");
+                    grad.addColorStop(1, "rgba(0,0,0,0.7)");
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(gx, tr.y, fadeW, tr.h);
+                    // 1px accent on the right edge in the scene-cut color so
+                    // the clipped boundary is unmistakable.
+                    ctx.fillStyle = th.sceneCut;
+                    ctx.fillRect(slot.x + slot.width - 1, tr.y, 1, tr.h);
+                }
+                addHit(slot.x, tr.y, slot.width, tr.h, { kind: "scene-thumb", time: slot.time });
+            }
+        }
+        layerSceneThumbnails();
 
         // ── Clip regions (helper) ─────────────────────────────
         function drawRegions(
@@ -1405,7 +1477,21 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
         gestHoverRegionId,
         gestHoverSceneTime,
         gestHoverWarpLineId,
+        thumbPaths,
+        videoFps,
+        videoAspect,
     ]);
+
+    // Evict thumbnail image cache entries whose frames are no longer in the
+    // current scene set. Keeps the cache bounded by the visible scene count.
+    useEffect(() => {
+        if (videoFps <= 0) return;
+        const active = new Set(props.scenes.map((t) => Math.round(t * videoFps)));
+        const cache = thumbImageCacheRef.current;
+        for (const frame of cache.keys()) {
+            if (!active.has(frame)) cache.delete(frame);
+        }
+    }, [props.scenes, videoFps]);
 
     // View lerp — snap during active pan/minimap drag, animate otherwise
     useEffect(() => {

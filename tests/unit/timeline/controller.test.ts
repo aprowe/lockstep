@@ -1184,6 +1184,29 @@ describe("controller.pointerMove — hover (no drag)", () => {
         if (hov.kind === "pubHoveredRegion") expect(hov.id).toBe("r1");
     });
 
+    it('emits cursor "pointer" over a scene-thumb hit', () => {
+        const c = createTimelineController();
+        const snap = makeSnapshot({
+            scenes: [25],
+            hits: [pointHit(200, 80, { kind: "scene-thumb", time: 25 })],
+        });
+        const intents = c.pointerMove(makePointerEvent({ clientX: 200, clientY: 80 }), snap);
+        const cur = intents.find((i) => i.kind === "cursor")!;
+        if (cur.kind === "cursor") expect(cur.cursor).toBe("pointer");
+    });
+
+    it("clicking a scene-thumb hit emits a seek intent at the scene's time", () => {
+        const c = createTimelineController();
+        const snap = makeSnapshot({
+            scenes: [25],
+            hits: [pointHit(200, 80, { kind: "scene-thumb", time: 25 })],
+        });
+        const intents = c.pointerDown(makePointerEvent({ clientX: 200, clientY: 80 }), snap);
+        const seek = intents.find((i) => i.kind === "seek");
+        expect(seek).toBeDefined();
+        if (seek && seek.kind === "seek") expect(seek.time).toBe(25);
+    });
+
     it('emits cursor "pointer" + thumbnailHover payload over a scene hit', () => {
         const c = createTimelineController();
         const snap = makeSnapshot({
