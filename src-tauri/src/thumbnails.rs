@@ -1,184 +1,213 @@
-//! Background thumbnail pipeline.
+//! Thumbnail cache v2: two retainers (Static uncapped, Dynamic LRU), keyframe-indexed
+//! GOP clustering, two-worker pool, multi-input ffmpeg jobs with bonus-frame warming.
 //!
-//! A per-video priority queue of frames that the UI wants to display. A small
-//! pool of ffmpeg workers pulls the highest-priority unrendered frame, extracts
-//! it with a hybrid input/output seek, writes it to the app's thumbnail cache,
-//! and emits `thumbnail-ready` so the frontend can load it from disk.
-//!
-//! Scoring follows `docs/THUMBNAIL_CACHE_DESIGN.md`: a small required window
-//! around the playhead is hard-mandatory; beyond that, a weighted score
-//! (distance + recency + marker proximity) picks what to extract next and
-//! what to evict. "Markers" here = user anchors ∪ scene cuts.
+//! See docs/superpowers/specs/2026-05-26-thumbnail-backend-cache-v2-design.md.
 
-use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::collections::{BTreeSet, HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-/// Windows process priority class. Background thumb workers run at
-/// BELOW_NORMAL so a long queue can't fight the UI / scene detection /
-/// foreground apps for CPU. Playhead-window frames keep normal priority
-/// because the user is waiting on them right now.
-#[cfg(target_os = "windows")]
-const BELOW_NORMAL_PRIORITY_CLASS: u32 = 0x0000_4000;
 
 use crate::ffmpeg::find_bin;
 
-const MAX_WORKERS: u32 = 3;
-const DEFAULT_MAX_CACHED_FRAMES: usize = 2000;
+// ── constants ─────────────────────────────────────────────────────────────────
+
+const DEFAULT_MAX_CACHED: usize = 2000;
 const DEFAULT_THUMB_WIDTH: u32 = 120;
-/// Window (in frames, each side of playhead) where extraction runs at
-/// normal Windows priority instead of BELOW_NORMAL. Decoupled from the
-/// scoring `REQ_RADIUS` — process priority is a CPU hint, not cache policy.
-const PLAYHEAD_WINDOW: i64 = 15;
+const MAX_WORKERS: usize = 2;
+const MAX_INPUTS_PER_FFMPEG: usize = 32;
+/// Absolute hard cap on frames per ffmpeg input — safety net for giant GOPs.
+const MAX_GOP_LEN: i64 = 600;
+/// Bonus frames are only retained on disk if within this many frames of a
+/// currently-wanted frame. Bounds dynamic-cache fill for videos with giant GOPs,
+/// where decoding to reach a single wanted frame would otherwise dump the whole
+/// GOP into Dynamic.
+const BONUS_RADIUS: i64 = 5;
 
-// ── Scoring tiers ──────────────────────────────────────────────────────────
-//
-// Each tier's base outranks the next tier's max so a higher-tier candidate
-// always beats a lower-tier one regardless of recency. Sub-ordering happens
-// inside each band:
-//   T1  Playhead radius — gradient closer = higher
-//   T2  At-marker frames — sub-ordered by playhead proximity, then viewport
-//   T3  Marker neighborhoods — softer falloff
-//   +   Recency adds within whatever tier the frame falls in
-//
-// REQ_RADIUS is also the hard-protected eviction window — frames inside it
-// are never dropped and `pick_next` scans them outward before scoring.
-const REQ_RADIUS: i64 = 8;
+// ── retainer bits ─────────────────────────────────────────────────────────────
 
-const T_PLAYHEAD_BASE: f64 = 1000.0;
-const T_PLAYHEAD_GRADIENT: f64 = 100.0;
+const STATIC_BIT: u8 = 0b01;
+const DYNAMIC_BIT: u8 = 0b10;
 
-const T_MARKER_BASE: f64 = 100.0;
-const T_MARKER_PLAYHEAD: f64 = 50.0;
-const T_MARKER_VIEWPORT: f64 = 25.0;
-
-const T_NEAR_MARKER: f64 = 10.0;
-
-const T_RECENCY: f64 = 5.0;
-
-/// Falloff (in frames) for the playhead-proximity term that orders markers
-/// in T2: at one DIST_FALLOFF the bonus drops to ~37% of its peak.
-const DIST_FALLOFF: f64 = 90.0;
-/// Falloff for the marker-neighborhood term in T3.
-const MARK_RADIUS: f64 = 72.0;
-const REC_TAU_SECS: f64 = 99.0;
-/// 2× the falloff covers ~86% of the exponential mass; frames beyond that
-/// carry negligible neighborhood weight, so we don't seed them as candidates.
-const MARK_CANDIDATE_REACH: i64 = (MARK_RADIUS as i64) * 2;
-
-#[derive(Clone, Default, Debug)]
-struct PriorityContext {
-    playhead_frame: i64,
-    /// Scoring markers = user anchors ∪ filtered scene cuts. MUST be sorted
-    /// — `frame_score` uses binary_search to test "is f a marker?".
-    markers: Vec<i64>,
-    /// (start, end) viewport frames. Markers inside this range get a T2 bonus
-    /// so off-playhead-but-on-screen scenes outrank far-from-screen scenes.
-    viewport_frames: (i64, i64),
-    #[allow(dead_code)] recent_playheads: Vec<i64>,
-    #[allow(dead_code)] region_frames: Vec<(i64, i64)>,
-    #[allow(dead_code)] strip_frames: Vec<i64>,
-    #[allow(dead_code)] hover_frames: Vec<i64>,
+#[inline]
+fn has(r: u8, bit: u8) -> bool {
+    r & bit != 0
 }
 
-struct VideoState {
+// ── reason enum + tier mapping ────────────────────────────────────────────────
+
+#[derive(Serialize, Deserialize, Hash, Eq, PartialEq, Clone, Copy, Debug)]
+#[serde(rename_all = "kebab-case")]
+pub enum ThumbnailReason {
+    Filmstrip,
+    Clips,
+    ClipHover,
+    Scenes,
+    SceneHover,
+    Anchors,
+    AnchorHover,
+}
+
+fn tier_of(r: ThumbnailReason) -> u8 {
+    use ThumbnailReason::*;
+    match r {
+        ClipHover | SceneHover | AnchorHover => 0,
+        Filmstrip => 1,
+        Anchors | Clips => 2,
+        Scenes => 3,
+    }
+}
+
+// ── core structs ──────────────────────────────────────────────────────────────
+
+struct FrameEntry {
+    path: PathBuf,
+    retainers: u8,
+    /// Last time this frame was touched as Dynamic. Meaningless if DYNAMIC bit clear.
+    dynamic_touch: Instant,
+}
+
+struct VideoCache {
     video_path: String,
     fps: f64,
-    max_frame: i64,
-    cache_dir: PathBuf,
-    ready: HashSet<i64>,
-    in_flight: HashSet<i64>,
-    context: PriorityContext,
-    workers_running: u32,
     thumb_width: u32,
-    max_cached_frames: usize,
-    /// Wall-clock last-touch time per cached frame. Feeds the recency term
-    /// in `frame_score`. Absent = never touched (age → ∞, recency = 0).
-    frame_touched_at: HashMap<i64, Instant>,
+    cache_dir: PathBuf,
+
+    ready: HashMap<i64, FrameEntry>,
+    static_set: HashSet<i64>,
+    dynamic_set: HashSet<i64>,
+    max_dynamic: usize,
+
+    pending: BTreeSet<i64>,
+    in_flight: HashSet<i64>,
+    priority_rank: HashMap<i64, u8>,
+
+    /// Absolute frame numbers of I-frames, sorted ascending. Empty if not yet probed
+    /// (or probe failed — workers fall back to single-frame jobs).
+    keyframes: Vec<i64>,
+    keyframes_probed: bool,
+
+    active_workers: usize,
+    generation: u64,
+
+    // ── diagnostics ──
+    /// Wanted frames whose extraction attempts have failed; key = frame, value = attempt count.
+    /// Frames are auto-retried up to MAX_ATTEMPTS times before being abandoned.
+    failed_attempts: HashMap<i64, u32>,
+    /// Lifetime ffmpeg jobs that exited non-zero or produced no outputs.
+    lifetime_failures: u64,
+    /// Lifetime jobs attempted.
+    lifetime_jobs: u64,
+    /// Most recent ffmpeg stderr (truncated).
+    last_error: Option<String>,
+}
+
+const MAX_ATTEMPTS: u32 = 3;
+
+impl VideoCache {
+    fn keyframe_at_or_before(&self, f: i64) -> i64 {
+        if self.keyframes.is_empty() {
+            return f;
+        }
+        match self.keyframes.binary_search(&f) {
+            Ok(_) => f,
+            Err(0) => self.keyframes[0],
+            Err(idx) => self.keyframes[idx - 1],
+        }
+    }
+
+    fn gop_len_from(&self, kf: i64) -> i64 {
+        if self.keyframes.is_empty() {
+            return 1;
+        }
+        match self.keyframes.binary_search(&kf) {
+            Ok(idx) if idx + 1 < self.keyframes.len() => {
+                (self.keyframes[idx + 1] - kf).clamp(1, MAX_GOP_LEN)
+            }
+            _ => MAX_GOP_LEN,
+        }
+    }
 }
 
 #[derive(Default)]
-pub struct Registry {
-    videos: HashMap<String, Arc<Mutex<VideoState>>>,
+struct Registry {
+    videos: HashMap<String, Arc<Mutex<VideoCache>>>,
 }
 
-pub struct ThumbnailsState(pub Arc<Mutex<Registry>>);
+pub struct ThumbnailsState(Arc<Mutex<Registry>>);
 
-impl ThumbnailsState {
-    pub fn new() -> Self {
+impl Default for ThumbnailsState {
+    fn default() -> Self {
         Self(Arc::new(Mutex::new(Registry::default())))
     }
 }
 
-#[derive(serde::Deserialize)]
-pub struct PriorityRequest {
+impl ThumbnailsState {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+#[derive(Deserialize)]
+pub struct SetWantsRequest {
     pub file_hash: String,
     pub video_path: String,
     pub fps: f64,
-    pub duration: f64,
-    pub playhead_frame: i64,
-    #[serde(default)]
-    pub region_frames: Vec<(i64, i64)>,
-    #[serde(default)]
-    pub marker_frames: Vec<i64>,
-    #[serde(default)]
-    pub scene_frames: Vec<i64>,
-    #[serde(default)]
-    pub strip_frames: Vec<i64>,
-    #[serde(default)]
-    pub hover_frames: Vec<i64>,
-    pub viewport_frames: (i64, i64),
-    /// Output width for extracted thumbnails. Changing this invalidates the
-    /// existing cache for this video (entries at a different size get wiped).
-    #[serde(default)]
-    pub thumb_width: Option<u32>,
-    /// Maximum number of cached frames per video before LRU-style eviction
-    /// kicks in.
-    #[serde(default)]
+    pub by_reason: HashMap<ThumbnailReason, Vec<i64>>,
     pub max_cached_frames: Option<usize>,
+    pub thumb_width: Option<u32>,
 }
 
-fn thumbnails_root<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    let root = app
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+fn app_cache_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    let d = app
         .path()
-        .app_data_dir()
+        .app_cache_dir()
         .map_err(|e| e.to_string())?
         .join("thumbnails");
-    std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;
-    Ok(root)
+    std::fs::create_dir_all(&d).map_err(|e| e.to_string())?;
+    Ok(d)
 }
 
 fn cache_dir_for<R: Runtime>(app: &AppHandle<R>, file_hash: &str) -> Result<PathBuf, String> {
-    if !file_hash.chars().all(|c| c.is_ascii_hexdigit()) {
-        return Err("invalid file hash".to_string());
-    }
-    let dir = thumbnails_root(app)?.join(file_hash);
-    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    Ok(dir)
+    let d = app_cache_dir(app)?.join(file_hash);
+    std::fs::create_dir_all(&d).map_err(|e| e.to_string())?;
+    Ok(d)
 }
 
-fn thumb_path(cache_dir: &PathBuf, frame: i64) -> PathBuf {
-    cache_dir.join(format!("{frame:08}.jpg"))
+fn frame_path(cache_dir: &Path, frame: i64) -> PathBuf {
+    cache_dir.join(format!("{frame}.jpg"))
 }
 
-fn scan_ready(cache_dir: &PathBuf) -> HashSet<i64> {
-    let mut out = HashSet::new();
-    if let Ok(entries) = std::fs::read_dir(cache_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.extension().map_or(false, |e| e == "jpg") {
-                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                    if let Ok(frame) = stem.parse::<i64>() {
-                        out.insert(frame);
-                    }
+fn scan_existing(cache_dir: &Path) -> HashMap<i64, FrameEntry> {
+    let mut out = HashMap::new();
+    let now = Instant::now();
+    if let Ok(rd) = std::fs::read_dir(cache_dir) {
+        for entry in rd.flatten() {
+            let name = entry.file_name();
+            let s = name.to_string_lossy();
+            if let Some(stem) = s.strip_suffix(".jpg") {
+                if let Ok(f) = stem.parse::<i64>() {
+                    // Re-hydrated frames are treated as Dynamic warm leftovers; the
+                    // next set_thumbnail_wants will tag STATIC if the user wants them.
+                    out.insert(
+                        f,
+                        FrameEntry {
+                            path: cache_dir.join(name),
+                            retainers: DYNAMIC_BIT,
+                            dynamic_touch: now,
+                        },
+                    );
                 }
             }
         }
@@ -186,712 +215,1023 @@ fn scan_ready(cache_dir: &PathBuf) -> HashSet<i64> {
     out
 }
 
-/// Scoring function — higher = higher priority. See the tier comment block
-/// at the top of this file for the design.
-///
-/// The required window is *also* enforced as a hard preference in `pick_next`
-/// (outward scan) and `evict_overflow` (radius frames are never dropped) so
-/// even ties / float fuzz can't bump T1 frames to the back.
-fn frame_score(ctx: &PriorityContext, frame: i64, age_secs: f64) -> f64 {
-    let recency = (-age_secs / REC_TAU_SECS).exp();
-    let recency_term = T_RECENCY * recency;
-
-    let d_playhead = (frame - ctx.playhead_frame).abs();
-
-    if d_playhead <= REQ_RADIUS {
-        // T1 — playhead radius. Closer wins via a linear gradient so the
-        // exact-playhead frame always edges out its neighbours, and so on.
-        let closeness = 1.0 - (d_playhead as f64) / (REQ_RADIUS as f64);
-        return T_PLAYHEAD_BASE + T_PLAYHEAD_GRADIENT * closeness + recency_term;
-    }
-
-    // Cheap binary_search relies on `markers` being sorted in
-    // `set_thumbnail_priority`.
-    let is_marker = ctx.markers.binary_search(&frame).is_ok();
-    if is_marker {
-        // T2 — at a marker (user anchor or filtered scene cut). Sub-order:
-        // playhead-near markers first, then in-viewport, then everywhere else.
-        let prox = (-(d_playhead as f64) / DIST_FALLOFF).exp();
-        let (vp_lo, vp_hi) = ctx.viewport_frames;
-        let in_vp = if frame >= vp_lo && frame <= vp_hi { 1.0 } else { 0.0 };
-        return T_MARKER_BASE
-            + T_MARKER_PLAYHEAD * prox
-            + T_MARKER_VIEWPORT * in_vp
-            + recency_term;
-    }
-
-    // T3 — in the neighborhood of some marker. Soft falloff to the nearest
-    // marker; a frame far from every marker scores ≈ recency_term alone.
-    let mark_prox = ctx.markers.iter().fold(0.0_f64, |acc, &m| {
-        acc.max((-((frame - m).abs() as f64) / MARK_RADIUS).exp())
-    });
-    T_NEAR_MARKER * mark_prox + recency_term
-}
-
-fn required_window(ph: i64, max_frame: i64) -> std::ops::RangeInclusive<i64> {
-    (ph - REQ_RADIUS).max(0)..=(ph + REQ_RADIUS).min(max_frame)
-}
-
-fn age_secs(frame_touched_at: &HashMap<i64, Instant>, frame: i64, now: Instant) -> f64 {
-    frame_touched_at
-        .get(&frame)
-        .map(|t| now.saturating_duration_since(*t).as_secs_f64())
-        .unwrap_or(f64::INFINITY)
-}
-
-/// Candidate set = required window ∪ marker neighborhoods ∪ already-cached.
-/// Returned as (frame, score) pairs, unsorted — callers sort as needed.
-fn candidate_frames(st: &VideoState) -> Vec<(i64, f64)> {
-    let ctx = &st.context;
-    let ph = ctx.playhead_frame;
-    let max_frame = st.max_frame;
-    let mut set: HashSet<i64> = HashSet::new();
-
-    for f in required_window(ph, max_frame) {
-        set.insert(f);
-    }
-    for &m in &ctx.markers {
-        let lo = (m - MARK_CANDIDATE_REACH).max(0);
-        let hi = (m + MARK_CANDIDATE_REACH).min(max_frame);
-        for f in lo..=hi {
-            set.insert(f);
+/// Project a reason→frames map into (static_set, dynamic_set, priority_rank).
+fn project_wants(
+    by_reason: &HashMap<ThumbnailReason, Vec<i64>>,
+) -> (HashSet<i64>, HashSet<i64>, HashMap<i64, u8>) {
+    let mut static_set = HashSet::new();
+    let mut dynamic_set = HashSet::new();
+    let mut rank: HashMap<i64, u8> = HashMap::new();
+    for (r, frames) in by_reason {
+        let t = tier_of(*r);
+        let target = if matches!(r, ThumbnailReason::Filmstrip) {
+            &mut dynamic_set
+        } else {
+            &mut static_set
+        };
+        for &f in frames {
+            if f < 0 {
+                continue;
+            }
+            target.insert(f);
+            rank.entry(f).and_modify(|v| *v = (*v).min(t)).or_insert(t);
         }
     }
-    for &f in &st.ready {
-        set.insert(f);
-    }
-
-    let now = Instant::now();
-    set.into_iter()
-        .map(|f| (f, frame_score(ctx, f, age_secs(&st.frame_touched_at, f, now))))
-        .collect()
+    (static_set, dynamic_set, rank)
 }
 
-/// Pick the next frame to extract. Required-window frames always win if any
-/// aren't cached; otherwise, the highest-scoring candidate within the top-K
-/// (where K = cache capacity) that isn't ready or in flight.
-fn pick_next(st: &VideoState) -> Option<i64> {
-    let ph = st.context.playhead_frame;
-    // Scan required window outward so frames at the playhead get picked
-    // before their neighbours.
-    for r in 0..=REQ_RADIUS {
-        for &offset in &[-r, r] {
-            let f = ph + offset;
-            if f < 0 || f > st.max_frame { continue; }
-            if !st.ready.contains(&f) && !st.in_flight.contains(&f) {
-                return Some(f);
+// ── ffprobe keyframe index ────────────────────────────────────────────────────
+
+fn probe_keyframes(video_path: &str, fps: f64) -> Vec<i64> {
+    if fps <= 0.0 {
+        return vec![];
+    }
+    let bin = find_bin("ffprobe");
+    let mut cmd = Command::new(bin);
+    cmd.arg("-v")
+        .arg("error")
+        .arg("-select_streams")
+        .arg("v:0")
+        .arg("-show_packets")
+        .arg("-show_entries")
+        .arg("packet=pts_time,flags")
+        .arg("-of")
+        .arg("csv=p=0")
+        .arg(video_path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = match cmd.output() {
+        Ok(o) => o,
+        Err(_) => return vec![],
+    };
+    if !output.status.success() {
+        return vec![];
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut frames: Vec<i64> = Vec::new();
+    for line in text.lines() {
+        // Expected: "<pts_time>,<flags>" — flags like "K_" or "K__" mark keyframes.
+        let mut it = line.split(',');
+        let t = match it.next().and_then(|s| s.trim().parse::<f64>().ok()) {
+            Some(v) => v,
+            None => continue,
+        };
+        let flags = it.next().unwrap_or("");
+        if flags.contains('K') {
+            let f = (t * fps).floor() as i64;
+            if f >= 0 {
+                frames.push(f);
             }
         }
     }
-    let mut cands = candidate_frames(st);
-    cands.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-    cands.truncate(st.max_cached_frames);
-    cands.into_iter()
-        .find(|(f, _)| !st.ready.contains(f) && !st.in_flight.contains(f))
-        .map(|(f, _)| f)
+    frames.sort_unstable();
+    frames.dedup();
+    if frames.first().copied() != Some(0) {
+        frames.insert(0, 0);
+    }
+    frames
 }
 
-/// Evict ready frames to stay under the per-video cache cap. Drops the
-/// lowest-scoring frames first; required-window frames are preserved.
-fn evict_overflow(st: &mut VideoState) {
-    if st.ready.len() <= st.max_cached_frames {
+// ── eviction ──────────────────────────────────────────────────────────────────
+
+fn evict_dynamic(c: &mut VideoCache) {
+    let mut dynamic_count = c
+        .ready
+        .values()
+        .filter(|e| has(e.retainers, DYNAMIC_BIT))
+        .count();
+    if dynamic_count <= c.max_dynamic {
         return;
     }
-    let ph = st.context.playhead_frame;
-    let now = Instant::now();
-    let mut scored: Vec<(i64, f64)> = st
+
+    let mut victims: Vec<(i64, Instant)> = c
         .ready
         .iter()
-        .filter(|&&f| (f - ph).abs() > REQ_RADIUS)
-        .map(|&f| (f, frame_score(&st.context, f, age_secs(&st.frame_touched_at, f, now))))
+        .filter(|(f, e)| has(e.retainers, DYNAMIC_BIT) && !c.dynamic_set.contains(*f))
+        .map(|(f, e)| (*f, e.dynamic_touch))
         .collect();
-    scored.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
-    let excess = st.ready.len() - st.max_cached_frames;
-    for (f, _) in scored.into_iter().take(excess) {
-        let p = thumb_path(&st.cache_dir, f);
-        let _ = std::fs::remove_file(&p);
-        st.ready.remove(&f);
-        st.frame_touched_at.remove(&f);
-    }
-}
+    victims.sort_by_key(|(_, t)| *t);
 
-/// Stamp the required-window cached frames as "just used" — recency term
-/// decays for everything else. The sandbox found narrow touch (≈ playhead)
-/// beats wider touch bands.
-fn touch_near_playhead(st: &mut VideoState) {
-    let now = Instant::now();
-    for f in required_window(st.context.playhead_frame, st.max_frame) {
-        if st.ready.contains(&f) {
-            st.frame_touched_at.insert(f, now);
+    for (f, _) in victims {
+        if dynamic_count <= c.max_dynamic {
+            break;
         }
-    }
-}
-
-/// Wipe every cached thumbnail + in-memory tracking for this video. Called
-/// when the requested thumb width changes, since existing files are at the
-/// wrong resolution.
-fn purge_video_cache(st: &mut VideoState) {
-    if let Ok(entries) = std::fs::read_dir(&st.cache_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.extension().map_or(false, |e| e == "jpg") {
-                let _ = std::fs::remove_file(&path);
+        let mut delete_file: Option<PathBuf> = None;
+        if let Some(e) = c.ready.get_mut(&f) {
+            e.retainers &= !DYNAMIC_BIT;
+            if e.retainers == 0 {
+                delete_file = Some(e.path.clone());
             }
         }
+        if let Some(p) = delete_file {
+            c.ready.remove(&f);
+            let _ = std::fs::remove_file(&p);
+        }
+        dynamic_count -= 1;
     }
-    st.ready.clear();
-    st.frame_touched_at.clear();
 }
 
-fn frame_to_time(frame: i64, fps: f64) -> f64 {
-    // ffmpeg's output seek keeps the first frame whose pts >= seek_time and
-    // drops earlier ones. Frame N has pts = N/fps, so we need to seek to
-    // *just before* that — overshooting by even a fraction lands us on frame
-    // N+1 (off-by-one). Half a frame duration earlier is a safe margin.
-    ((frame as f64 - 0.5) / fps).max(0.0)
+// ── job picking ───────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+struct GopCluster {
+    keyframe_frame: i64,
+    gop_len: i64,
+    /// Frames in this GOP that were explicitly pending (drives tier selection).
+    wanted_pending: Vec<i64>,
+    /// Min priority tier across `wanted_pending`. Lower = more urgent.
+    tier: u8,
 }
 
-fn extract_frame(
-    video_path: &str,
-    time: f64,
-    out_path: &PathBuf,
-    width: u32,
-    high_priority: bool,
-) -> Result<(), String> {
-    let bin = find_bin("ffmpeg");
-    let out_str = out_path.to_string_lossy().to_string();
-    let mut cmd = Command::new(&bin);
-    cmd.args(["-hide_banner", "-nostats", "-loglevel", "error"]);
+#[derive(Debug)]
+struct Job {
+    generation: u64,
+    clusters: Vec<GopCluster>,
+}
 
-    // Hybrid seek: coarse input seek up to 0.5s before target, then precise
-    // output seek to the exact frame. For t < 0.5s we skip the coarse step.
-    if time >= 0.5 {
-        let coarse = format!("{:.3}", time - 0.5);
-        cmd.args(["-ss", &coarse, "-i", video_path, "-ss", "0.5"]);
+fn pick_job(c: &mut VideoCache) -> Option<Job> {
+    if c.pending.is_empty() {
+        return None;
+    }
+
+    // 1. Group pending frames by their containing GOP. Snapshot pending into a
+    //    Vec so we can call methods on `c` inside the loop without conflicting
+    //    with the BTreeSet borrow.
+    let mut by_kf: HashMap<i64, GopCluster> = HashMap::new();
+    let pending: Vec<i64> = c.pending.iter().copied().collect();
+    for f in pending {
+        let kf = c.keyframe_at_or_before(f);
+        let gop_len = c.gop_len_from(kf);
+        let tier = c.priority_rank.get(&f).copied().unwrap_or(u8::MAX);
+        let cl = by_kf.entry(kf).or_insert(GopCluster {
+            keyframe_frame: kf,
+            gop_len,
+            wanted_pending: vec![],
+            tier: u8::MAX,
+        });
+        cl.wanted_pending.push(f);
+        cl.tier = cl.tier.min(tier);
+    }
+
+    // 2. Tighten each cluster's gop_len: cover all wanted frames plus a small
+    //    trailing bonus of BONUS_RADIUS frames, bounded by the natural GOP.
+    //    Leading bonus (between keyframe and the first wanted) comes "for free"
+    //    from the decode but is filtered for retention in the worker.
+    for cl in by_kf.values_mut() {
+        let furthest = cl.wanted_pending.iter().max().copied().unwrap_or(cl.keyframe_frame);
+        let needed = furthest - cl.keyframe_frame + 1 + BONUS_RADIUS;
+        cl.gop_len = cl.gop_len.min(needed);
+    }
+
+    // 3. Best tier present.
+    let best_tier = by_kf.values().map(|cl| cl.tier).min()?;
+
+    // 4. Same-tier clusters, sorted by keyframe for deterministic ordering.
+    let mut chosen: Vec<GopCluster> = by_kf
+        .into_values()
+        .filter(|cl| cl.tier == best_tier)
+        .collect();
+    chosen.sort_by_key(|cl| cl.keyframe_frame);
+    if chosen.len() > MAX_INPUTS_PER_FFMPEG {
+        chosen.truncate(MAX_INPUTS_PER_FFMPEG);
+    }
+
+    // 5. Move every frame in each cluster's span from pending → in_flight.
+    for cl in &chosen {
+        for off in 0..cl.gop_len {
+            let f = cl.keyframe_frame + off;
+            c.pending.remove(&f);
+            c.in_flight.insert(f);
+        }
+    }
+
+    Some(Job {
+        generation: c.generation,
+        clusters: chosen,
+    })
+}
+
+/// Decide whether a decoded frame should be retained and with what retainer bits.
+/// `None` means "discard — outside both retainer sets and not close enough to a
+/// wanted frame to be worth keeping as bonus."
+fn retention_for_decoded(
+    f: i64,
+    static_set: &HashSet<i64>,
+    dynamic_set: &HashSet<i64>,
+    cluster_wanted: &[i64],
+) -> Option<u8> {
+    let mut bits = 0u8;
+    if static_set.contains(&f) {
+        bits |= STATIC_BIT;
+    }
+    if dynamic_set.contains(&f) {
+        bits |= DYNAMIC_BIT;
+    }
+    if bits != 0 {
+        return Some(bits);
+    }
+    let close = cluster_wanted.iter().any(|&w| (f - w).abs() <= BONUS_RADIUS);
+    if close {
+        Some(DYNAMIC_BIT)
     } else {
-        let fine = format!("{:.3}", time);
-        cmd.args(["-i", video_path, "-ss", &fine]);
+        None
     }
+}
 
-    cmd.args([
-        "-frames:v",
-        "1",
-        "-vf",
-        &format!("scale={width}:-2"),
-        "-q:v",
-        "5",
-        "-y",
-        &out_str,
-    ])
-    .stdout(Stdio::null())
-    .stderr(Stdio::piped());
+/// Increment per-frame attempt counts and re-add wanted frames to `pending`
+/// when still under the retry cap. Used by both ffmpeg-failure and
+/// zero-output failure paths in the worker.
+fn requeue_failed_wanted(c: &mut VideoCache, wanted_pending: &[i64]) {
+    for &wf in wanted_pending {
+        let attempts = c.failed_attempts.entry(wf).or_insert(0);
+        *attempts += 1;
+        if *attempts < MAX_ATTEMPTS
+            && (c.static_set.contains(&wf) || c.dynamic_set.contains(&wf))
+        {
+            c.pending.insert(wf);
+        }
+    }
+}
 
-    // Background thumb workers run at BELOW_NORMAL so a long queue can't fight
-    // the UI thread / scene detection for CPU. Playhead-window frames keep
-    // normal priority because the user is waiting on them right now.
+// ── ffmpeg job runner ─────────────────────────────────────────────────────────
+
+/// Run one ffmpeg job. Returns `Ok(())` if ffmpeg exited 0; `Err(stderr)` otherwise.
+/// The worker still checks output presence per-frame — a 0-exit with no files
+/// is counted as a failure separately.
+fn run_ffmpeg_job(
+    bin: &str,
+    video_path: &str,
+    fps: f64,
+    thumb_width: u32,
+    cache_dir: &Path,
+    job: &Job,
+) -> Result<(), String> {
+    if job.clusters.is_empty() {
+        return Err("empty job".into());
+    }
+    if fps <= 0.0 {
+        return Err("invalid fps".into());
+    }
+    let mut cmd = Command::new(bin);
+    cmd.arg("-y").arg("-loglevel").arg("error");
+
+    // N inputs, each with its own -ss before -i.
+    for cl in &job.clusters {
+        let t = (cl.keyframe_frame as f64) / fps.max(0.0001);
+        cmd.arg("-ss").arg(format!("{:.3}", t)).arg("-i").arg(video_path);
+    }
+    // N outputs, one per input.
+    let out_pattern = cache_dir.join("%d.jpg");
+    let out_str = out_pattern.to_string_lossy().to_string();
+    for (i, cl) in job.clusters.iter().enumerate() {
+        cmd.arg("-map")
+            .arg(format!("{i}:v:0"))
+            .arg("-frames:v")
+            .arg(cl.gop_len.to_string())
+            .arg("-fps_mode")
+            .arg("passthrough")
+            .arg("-vf")
+            .arg(format!("scale={thumb_width}:-2"))
+            .arg("-q:v")
+            .arg("4")
+            .arg("-start_number")
+            .arg(cl.keyframe_frame.to_string())
+            .arg("-f")
+            .arg("image2")
+            .arg(&out_str);
+    }
+    cmd.stdout(Stdio::null()).stderr(Stdio::piped());
     #[cfg(target_os = "windows")]
-    {
-        let flags = if high_priority {
-            CREATE_NO_WINDOW
-        } else {
-            CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS
-        };
-        cmd.creation_flags(flags);
-    }
+    cmd.creation_flags(CREATE_NO_WINDOW);
 
     let output = cmd
         .output()
-        .map_err(|e| format!("ffmpeg spawn failed at `{bin}`: {e}"))?;
+        .map_err(|e| format!("spawn failed: {e}"))?;
     if !output.status.success() {
-        return Err(format!(
-            "ffmpeg thumbnail failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-                .lines()
-                .filter(|l| !l.trim().is_empty())
-                .last()
-                .unwrap_or("unknown error")
-        ));
-    }
-    if !out_path.exists() {
-        return Err("ffmpeg produced no thumbnail".to_string());
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            format!("ffmpeg exited {}", output.status)
+        } else {
+            stderr
+        });
     }
     Ok(())
 }
 
-/// Top up worker slots until we hit MAX_WORKERS or run out of candidates.
-fn schedule<R: Runtime>(
+// ── worker loop ───────────────────────────────────────────────────────────────
+
+fn worker_loop<R: Runtime>(
     app: AppHandle<R>,
     file_hash: String,
-    entry: Arc<Mutex<VideoState>>,
+    entry: Arc<Mutex<VideoCache>>,
 ) {
+    let bin = find_bin("ffmpeg");
     loop {
-        let next = {
-            let mut st = entry.lock().unwrap();
-            if st.workers_running >= MAX_WORKERS {
-                return;
+        let job = {
+            let mut c = entry.lock().unwrap();
+            match pick_job(&mut c) {
+                Some(j) => j,
+                None => {
+                    c.active_workers = c.active_workers.saturating_sub(1);
+                    return;
+                }
             }
-            let Some(frame) = pick_next(&st) else {
-                return;
-            };
-            st.in_flight.insert(frame);
-            st.workers_running += 1;
-            let video_path = st.video_path.clone();
-            let fps = st.fps;
-            let width = st.thumb_width;
-            let playhead = st.context.playhead_frame;
-            let out_path = thumb_path(&st.cache_dir, frame);
-            Some((frame, video_path, fps, width, playhead, out_path))
         };
 
-        let Some((frame, video_path, fps, width, playhead, out_path)) = next else {
-            return;
+        let (video_path, fps, thumb_width, cache_dir, expected_gen) = {
+            let c = entry.lock().unwrap();
+            (
+                c.video_path.clone(),
+                c.fps,
+                c.thumb_width,
+                c.cache_dir.clone(),
+                job.generation,
+            )
         };
 
-        let app2 = app.clone();
-        let entry2 = entry.clone();
-        let file_hash2 = file_hash.clone();
+        let job_result = run_ffmpeg_job(&bin, &video_path, fps, thumb_width, &cache_dir, &job);
 
-        tokio::spawn(async move {
-            let time = frame_to_time(frame, fps);
-            let out_for_task = out_path.clone();
-            // Only frames the user is actively watching run at normal priority.
-            // Everything else yields to the foreground UI + other workloads.
-            let high_priority = (frame - playhead).abs() <= PLAYHEAD_WINDOW;
-            let extract_start = Instant::now();
-            let result = tokio::task::spawn_blocking(move || {
-                extract_frame(&video_path, time, &out_for_task, width, high_priority)
-            })
-            .await;
-            let duration_ms = extract_start.elapsed().as_secs_f64() * 1000.0;
+        // Post-process outputs.
+        let mut emit_list: Vec<(i64, String)> = Vec::new();
+        {
+            let mut c = entry.lock().unwrap();
 
-            let success = matches!(result, Ok(Ok(())));
+            // Width-change race: discard everything and clean up files we just
+            // wrote. Don't count toward lifetime_jobs — this isn't a "real" job.
+            if c.generation != expected_gen {
+                for cl in &job.clusters {
+                    for off in 0..cl.gop_len {
+                        let f = cl.keyframe_frame + off;
+                        c.in_flight.remove(&f);
+                        let _ = std::fs::remove_file(frame_path(&cache_dir, f));
+                    }
+                }
+                continue;
+            }
 
-            {
-                let mut st = entry2.lock().unwrap();
-                st.workers_running = st.workers_running.saturating_sub(1);
-                st.in_flight.remove(&frame);
-                if success {
-                    st.ready.insert(frame);
-                    // Freshly extracted frames are MRU by definition — stamp
-                    // them so the recency term starts at 1.0 instead of 0.
-                    st.frame_touched_at.insert(frame, Instant::now());
-                    evict_overflow(&mut st);
+            c.lifetime_jobs = c.lifetime_jobs.saturating_add(1);
+
+            // ffmpeg-level failure: log, increment counters, retry wanted frames
+            // up to MAX_ATTEMPTS, and clear in_flight for the cluster span.
+            if let Err(err) = &job_result {
+                let truncated: String = err.chars().take(400).collect();
+                log::warn!(
+                    target: "thumbnails",
+                    "ffmpeg job failed (clusters={}, gen={}): {truncated}",
+                    job.clusters.len(),
+                    expected_gen,
+                );
+                c.lifetime_failures = c.lifetime_failures.saturating_add(1);
+                c.last_error = Some(truncated);
+                for cl in &job.clusters {
+                    for off in 0..cl.gop_len {
+                        c.in_flight.remove(&(cl.keyframe_frame + off));
+                    }
+                    let wanted = cl.wanted_pending.clone();
+                    requeue_failed_wanted(&mut c, &wanted);
+                }
+                continue;
+            }
+
+            let now = Instant::now();
+            let mut inserted_count = 0usize;
+            let mut wanted_in_job = 0usize;
+            for cl in &job.clusters {
+                // Snapshot of currently-wanted frames in this cluster's range,
+                // used as the bonus-retention reference for nearby decoded frames.
+                let cluster_wanted: Vec<i64> = (cl.keyframe_frame
+                    ..cl.keyframe_frame + cl.gop_len)
+                    .filter(|f| c.static_set.contains(f) || c.dynamic_set.contains(f))
+                    .collect();
+                wanted_in_job += cluster_wanted.len();
+
+                for off in 0..cl.gop_len {
+                    let f = cl.keyframe_frame + off;
+                    c.in_flight.remove(&f);
+                    let path = frame_path(&cache_dir, f);
+                    if !path.exists() {
+                        continue;
+                    }
+                    match retention_for_decoded(
+                        f,
+                        &c.static_set,
+                        &c.dynamic_set,
+                        &cluster_wanted,
+                    ) {
+                        Some(bits) => {
+                            c.ready.insert(
+                                f,
+                                FrameEntry {
+                                    path: path.clone(),
+                                    retainers: bits,
+                                    dynamic_touch: now,
+                                },
+                            );
+                            inserted_count += 1;
+                            // Clear failure tracking on success.
+                            c.failed_attempts.remove(&f);
+                            emit_list.push((f, path.to_string_lossy().to_string()));
+                        }
+                        None => {
+                            // Outside retainer sets and not close to any wanted
+                            // frame in this cluster — discard the decoded JPEG.
+                            let _ = std::fs::remove_file(&path);
+                        }
+                    }
                 }
             }
 
-            if success {
-                let _ = app2.emit(
-                    "thumbnail-ready",
-                    serde_json::json!({
-                        "file_hash": &file_hash2,
-                        "frame": frame,
-                        "path": out_path.to_string_lossy().to_string(),
-                        "duration_ms": duration_ms,
-                    }),
+            // Zero-output detection: ffmpeg exited 0 but produced no usable
+            // outputs for the frames we expected. Treat as a soft failure so
+            // the panel surfaces it; retry within MAX_ATTEMPTS.
+            if wanted_in_job > 0 && inserted_count == 0 {
+                log::warn!(
+                    target: "thumbnails",
+                    "ffmpeg job returned success but produced no usable outputs \
+                     (clusters={}, wanted={wanted_in_job}); retrying within cap",
+                    job.clusters.len(),
                 );
+                c.lifetime_failures = c.lifetime_failures.saturating_add(1);
+                c.last_error = Some("ffmpeg produced no outputs".into());
+                for cl in &job.clusters {
+                    let wanted = cl.wanted_pending.clone();
+                    requeue_failed_wanted(&mut c, &wanted);
+                }
+            } else if inserted_count > 0 {
+                // Healthy job — clear stale error message so the panel reflects
+                // current state.
+                c.last_error = None;
             }
 
-            schedule(app2, file_hash2, entry2);
-        });
+            evict_dynamic(&mut c);
+        }
+
+        for (f, p) in emit_list {
+            let _ = app.emit(
+                "thumbnail-ready",
+                serde_json::json!({
+                    "file_hash": &file_hash,
+                    "frame": f,
+                    "path": p,
+                }),
+            );
+        }
     }
 }
 
+/// Spawn workers up to `MAX_WORKERS` for the given file's cache. The worker's
+/// captured `Arc<Mutex<VideoCache>>` keeps the cache alive even if it gets
+/// removed from the registry mid-decode (e.g., via `clear_thumbnails`).
+fn ensure_workers<R: Runtime>(
+    app: AppHandle<R>,
+    file_hash: String,
+    entry: Arc<Mutex<VideoCache>>,
+) {
+    let to_spawn = {
+        let mut c = entry.lock().unwrap();
+        let mut s = 0;
+        while c.active_workers < MAX_WORKERS && !c.pending.is_empty() {
+            c.active_workers += 1;
+            s += 1;
+        }
+        s
+    };
+    for _ in 0..to_spawn {
+        let app = app.clone();
+        let entry = entry.clone();
+        let file_hash = file_hash.clone();
+        std::thread::spawn(move || worker_loop(app, file_hash, entry));
+    }
+}
+
+// ── tauri commands ────────────────────────────────────────────────────────────
+
 #[tauri::command]
-pub async fn set_thumbnail_priority<R: Runtime>(
+pub async fn set_thumbnail_wants<R: Runtime>(
     app: AppHandle<R>,
     state: tauri::State<'_, ThumbnailsState>,
-    req: PriorityRequest,
+    req: SetWantsRequest,
 ) -> Result<(), String> {
-    if req.fps <= 0.0 || req.duration <= 0.0 {
-        return Err("invalid fps/duration".to_string());
+    if req.fps <= 0.0 {
+        return Err("invalid fps".into());
     }
-    let max_frame = (req.duration * req.fps).floor() as i64;
     let cache_dir = cache_dir_for(&app, &req.file_hash)?;
-
     let thumb_width = req.thumb_width.unwrap_or(DEFAULT_THUMB_WIDTH).max(16);
-    let max_cached_frames = req
-        .max_cached_frames
-        .unwrap_or(DEFAULT_MAX_CACHED_FRAMES)
-        .max(16);
+    let max_dynamic = req.max_cached_frames.unwrap_or(DEFAULT_MAX_CACHED).max(16);
 
     let entry = {
         let mut reg = state.0.lock().unwrap();
         reg.videos
             .entry(req.file_hash.clone())
             .or_insert_with(|| {
-                let ready = scan_ready(&cache_dir);
-                Arc::new(Mutex::new(VideoState {
+                let ready = scan_existing(&cache_dir);
+                Arc::new(Mutex::new(VideoCache {
                     video_path: req.video_path.clone(),
                     fps: req.fps,
-                    max_frame,
+                    thumb_width,
                     cache_dir: cache_dir.clone(),
                     ready,
+                    static_set: HashSet::new(),
+                    dynamic_set: HashSet::new(),
+                    max_dynamic,
+                    pending: BTreeSet::new(),
                     in_flight: HashSet::new(),
-                    context: PriorityContext::default(),
-                    workers_running: 0,
-                    thumb_width,
-                    max_cached_frames,
-                    frame_touched_at: HashMap::new(),
+                    priority_rank: HashMap::new(),
+                    keyframes: Vec::new(),
+                    keyframes_probed: false,
+                    active_workers: 0,
+                    generation: 0,
+                    failed_attempts: HashMap::new(),
+                    lifetime_failures: 0,
+                    lifetime_jobs: 0,
+                    last_error: None,
                 }))
             })
             .clone()
     };
 
+    // ffprobe runs outside the lock (it can be slow). Capture path+fps inside.
+    let need_probe = {
+        let c = entry.lock().unwrap();
+        !c.keyframes_probed
+    };
+    let probed = if need_probe {
+        Some(probe_keyframes(&req.video_path, req.fps))
+    } else {
+        None
+    };
+
+    let mut hit_emits: Vec<(i64, String)> = Vec::new();
     {
-        let mut st = entry.lock().unwrap();
-        // The path/fps can change if a file is replaced on disk without the
-        // hash changing (rare, but keep the latest).
-        st.video_path = req.video_path;
-        st.fps = req.fps;
-        st.max_frame = max_frame;
-        // Thumb width change invalidates on-disk cache — wipe it so workers
-        // regenerate at the new size.
-        if st.thumb_width != thumb_width {
-            st.thumb_width = thumb_width;
-            purge_video_cache(&mut st);
+        let mut c = entry.lock().unwrap();
+        c.video_path = req.video_path;
+        c.fps = req.fps;
+        c.max_dynamic = max_dynamic;
+        if let Some(kf) = probed {
+            c.keyframes = kf;
+            c.keyframes_probed = true;
         }
-        st.max_cached_frames = max_cached_frames;
-        // Scoring treats user anchors + scene cuts as a single marker set —
-        // both are "places the user is likely to jump to." Dedup so a cut
-        // that also has a user anchor doesn't get double weight.
-        let mut markers = req.marker_frames.clone();
-        markers.extend(req.scene_frames.iter().copied());
-        markers.sort_unstable();
-        markers.dedup();
-        st.context = PriorityContext {
-            playhead_frame: req.playhead_frame,
-            markers,
-            recent_playheads: Vec::new(),
-            region_frames: req.region_frames,
-            strip_frames: req.strip_frames,
-            viewport_frames: req.viewport_frames,
-            hover_frames: req.hover_frames,
-        };
-        touch_near_playhead(&mut st);
-        evict_overflow(&mut st);
+
+        // 1. Width change → purge + bump generation.
+        if c.thumb_width != thumb_width {
+            c.generation = c.generation.wrapping_add(1);
+            let drained: Vec<(i64, FrameEntry)> = c.ready.drain().collect();
+            for (_, e) in drained {
+                let _ = std::fs::remove_file(&e.path);
+            }
+            c.static_set.clear();
+            c.dynamic_set.clear();
+            c.pending.clear();
+            c.thumb_width = thumb_width;
+        }
+
+        // 2. Project new wants.
+        let (new_static, new_dynamic, new_rank) = project_wants(&req.by_reason);
+
+        // 3. Diff: clear retainer bits for frames that left their respective set.
+        let dropped_static: Vec<i64> = c
+            .static_set
+            .iter()
+            .filter(|f| !new_static.contains(f))
+            .copied()
+            .collect();
+        let dropped_dynamic: Vec<i64> = c
+            .dynamic_set
+            .iter()
+            .filter(|f| !new_dynamic.contains(f))
+            .copied()
+            .collect();
+        for f in dropped_static {
+            if let Some(e) = c.ready.get_mut(&f) {
+                e.retainers &= !STATIC_BIT;
+            }
+        }
+        for f in dropped_dynamic {
+            if let Some(e) = c.ready.get_mut(&f) {
+                e.retainers &= !DYNAMIC_BIT;
+            }
+        }
+
+        // 4. Apply new retainers + touch + enqueue or queue cache-hit emits.
+        let now = Instant::now();
+        let union: HashSet<i64> = new_static.union(&new_dynamic).copied().collect();
+        for &f in &union {
+            let in_static = new_static.contains(&f);
+            let in_dynamic = new_dynamic.contains(&f);
+            if let Some(e) = c.ready.get_mut(&f) {
+                if in_static {
+                    e.retainers |= STATIC_BIT;
+                }
+                if in_dynamic {
+                    e.retainers |= DYNAMIC_BIT;
+                    e.dynamic_touch = now;
+                }
+                hit_emits.push((f, e.path.to_string_lossy().to_string()));
+            } else if !c.in_flight.contains(&f) {
+                c.pending.insert(f);
+            }
+        }
+
+        c.static_set = new_static;
+        c.dynamic_set = new_dynamic;
+        c.priority_rank = new_rank;
+
+        // 5. Reap zero-retainer entries.
+        let zeroed: Vec<i64> = c
+            .ready
+            .iter()
+            .filter(|(_, e)| e.retainers == 0)
+            .map(|(f, _)| *f)
+            .collect();
+        for f in zeroed {
+            if let Some(e) = c.ready.remove(&f) {
+                let _ = std::fs::remove_file(&e.path);
+            }
+        }
+
+        // 6. Evict over-cap Dynamic.
+        evict_dynamic(&mut c);
     }
 
-    schedule(app, req.file_hash, entry);
+    // 7. Emit cache-hit thumbnail-ready events outside the lock.
+    for (f, p) in hit_emits {
+        let _ = app.emit(
+            "thumbnail-ready",
+            serde_json::json!({
+                "file_hash": &req.file_hash,
+                "frame": f,
+                "path": p,
+            }),
+        );
+    }
+
+    // 8. Spin up workers if there's work and pool has slack.
+    ensure_workers(app, req.file_hash, entry);
     Ok(())
 }
 
-#[derive(serde::Serialize)]
-pub struct QueueTierStats {
-    pub name: String,
-    pub total: usize,
-    pub ready: usize,
-    pub in_flight: usize,
-    pub pending: usize,
-}
-
-#[derive(serde::Serialize)]
-pub struct QueueStats {
-    pub file_hash: String,
-    pub workers_running: u32,
-    pub total_ready: usize,
-    pub total_in_flight: usize,
-    pub max_cached_frames: usize,
-    pub max_frame: i64,
-    pub tiers: Vec<QueueTierStats>,
-}
-
-/// Bucket a candidate frame for stats reporting. Mirrors the scoring tiers:
-/// required (T1 / playhead radius), marker (T2 / at a marker), neighborhood
-/// (T3 / near a marker), recent (recency carries it), cold (low-score carry).
-fn tier_name(ctx: &PriorityContext, max_frame: i64, frame: i64, age: f64) -> &'static str {
-    let ph = ctx.playhead_frame;
-    if (frame - ph).abs() <= REQ_RADIUS && frame >= 0 && frame <= max_frame {
-        return "required";
-    }
-    if ctx.markers.binary_search(&frame).is_ok() {
-        return "marker";
-    }
-    let mark = ctx.markers.iter().fold(0.0_f64, |acc, &m| {
-        acc.max((-((frame - m).abs() as f64) / MARK_RADIUS).exp())
-    });
-    if T_NEAR_MARKER * mark >= 0.5 { return "neighborhood"; }
-    let rec = (-age / REC_TAU_SECS).exp();
-    if T_RECENCY * rec >= 0.5 { return "recent"; }
-    "cold"
-}
-
 #[tauri::command]
-pub async fn get_thumbnail_queue_stats(
+pub fn clear_thumbnails(
     state: tauri::State<'_, ThumbnailsState>,
     file_hash: String,
-) -> Result<Option<QueueStats>, String> {
+) -> Result<(), String> {
     let entry = {
-        let reg = state.0.lock().unwrap();
-        match reg.videos.get(&file_hash) {
-            Some(e) => e.clone(),
-            None => return Ok(None),
-        }
-    };
-    let st = entry.lock().unwrap();
-    let cands = candidate_frames(&st);
-    let now = Instant::now();
-
-    let order = ["required", "marker", "neighborhood", "recent", "cold"];
-    let mut by_name: std::collections::HashMap<&'static str, QueueTierStats> =
-        std::collections::HashMap::new();
-    for name in order.iter() {
-        by_name.insert(*name, QueueTierStats {
-            name: (*name).to_string(),
-            total: 0, ready: 0, in_flight: 0, pending: 0,
-        });
-    }
-    for (f, _score) in &cands {
-        let age = age_secs(&st.frame_touched_at, *f, now);
-        let name = tier_name(&st.context, st.max_frame, *f, age);
-        let t = by_name.get_mut(name).unwrap();
-        t.total += 1;
-        if st.ready.contains(f) {
-            t.ready += 1;
-        } else if st.in_flight.contains(f) {
-            t.in_flight += 1;
-        } else {
-            t.pending += 1;
-        }
-    }
-    let tiers: Vec<QueueTierStats> = order
-        .iter()
-        .map(|n| by_name.remove(*n).unwrap())
-        .collect();
-
-    Ok(Some(QueueStats {
-        file_hash: file_hash.clone(),
-        workers_running: st.workers_running,
-        total_ready: st.ready.len(),
-        total_in_flight: st.in_flight.len(),
-        max_cached_frames: st.max_cached_frames,
-        max_frame: st.max_frame,
-        tiers,
-    }))
-}
-
-#[tauri::command]
-pub async fn get_thumbnail_path<R: Runtime>(
-    app: AppHandle<R>,
-    state: tauri::State<'_, ThumbnailsState>,
-    file_hash: String,
-    frame: i64,
-) -> Result<Option<String>, String> {
-    let is_ready = {
-        let reg = state.0.lock().unwrap();
-        reg.videos
-            .get(&file_hash)
-            .map(|entry| entry.lock().unwrap().ready.contains(&frame))
-            .unwrap_or(false)
-    };
-    if !is_ready {
-        // Fall back to disk (registry may not have been warmed for this hash yet).
-        let dir = cache_dir_for(&app, &file_hash)?;
-        let path = thumb_path(&dir, frame);
-        if path.exists() {
-            return Ok(Some(path.to_string_lossy().to_string()));
-        }
-        return Ok(None);
-    }
-    let dir = cache_dir_for(&app, &file_hash)?;
-    let path = thumb_path(&dir, frame);
-    Ok(Some(path.to_string_lossy().to_string()))
-}
-
-#[tauri::command]
-pub async fn clear_thumbnails<R: Runtime>(
-    app: AppHandle<R>,
-    state: tauri::State<'_, ThumbnailsState>,
-    file_hash: String,
-) -> Result<(), String> {
-    {
         let mut reg = state.0.lock().unwrap();
-        reg.videos.remove(&file_hash);
+        reg.videos.remove(&file_hash)
+    };
+    if let Some(e) = entry {
+        let c = e.lock().unwrap();
+        let _ = std::fs::remove_dir_all(&c.cache_dir);
     }
-    let dir = cache_dir_for(&app, &file_hash)?;
-    let _ = std::fs::remove_dir_all(&dir);
     Ok(())
 }
 
+#[derive(Serialize)]
+pub struct ThumbnailStats {
+    pub file_hash: String,
+    pub thumb_width: u32,
+    pub max_dynamic: usize,
+    pub generation: u64,
+    pub keyframes_probed: bool,
+    pub keyframes_count: usize,
+    pub active_workers: usize,
+    pub static_set: usize,
+    pub dynamic_set: usize,
+    pub ready_total: usize,
+    pub ready_static_only: usize,
+    pub ready_dynamic_only: usize,
+    pub ready_both: usize,
+    pub ready_dynamic_unwanted: usize,
+    pub pending: usize,
+    pub in_flight: usize,
+    pub lifetime_jobs: u64,
+    pub lifetime_failures: u64,
+    pub abandoned_frames: usize,
+    pub last_error: Option<String>,
+}
+
 #[tauri::command]
-pub async fn clear_all_thumbnails<R: Runtime>(
+pub fn get_thumbnail_stats(
+    state: tauri::State<'_, ThumbnailsState>,
+    file_hash: String,
+) -> Option<ThumbnailStats> {
+    let reg = state.0.lock().unwrap();
+    let entry = reg.videos.get(&file_hash)?.clone();
+    drop(reg);
+    let c = entry.lock().unwrap();
+
+    let mut s_only = 0usize;
+    let mut d_only = 0usize;
+    let mut both = 0usize;
+    let mut d_unwanted = 0usize;
+    for (f, e) in &c.ready {
+        let s = has(e.retainers, STATIC_BIT);
+        let d = has(e.retainers, DYNAMIC_BIT);
+        match (s, d) {
+            (true, true) => both += 1,
+            (true, false) => s_only += 1,
+            (false, true) => {
+                d_only += 1;
+                if !c.dynamic_set.contains(f) {
+                    d_unwanted += 1;
+                }
+            }
+            (false, false) => {}
+        }
+    }
+
+    Some(ThumbnailStats {
+        file_hash,
+        thumb_width: c.thumb_width,
+        max_dynamic: c.max_dynamic,
+        generation: c.generation,
+        keyframes_probed: c.keyframes_probed,
+        keyframes_count: c.keyframes.len(),
+        active_workers: c.active_workers,
+        static_set: c.static_set.len(),
+        dynamic_set: c.dynamic_set.len(),
+        ready_total: c.ready.len(),
+        ready_static_only: s_only,
+        ready_dynamic_only: d_only,
+        ready_both: both,
+        ready_dynamic_unwanted: d_unwanted,
+        pending: c.pending.len(),
+        in_flight: c.in_flight.len(),
+        lifetime_jobs: c.lifetime_jobs,
+        lifetime_failures: c.lifetime_failures,
+        abandoned_frames: c
+            .failed_attempts
+            .iter()
+            .filter(|(_, n)| **n >= MAX_ATTEMPTS)
+            .count(),
+        last_error: c.last_error.clone(),
+    })
+}
+
+#[tauri::command]
+pub fn clear_all_thumbnails<R: Runtime>(
     app: AppHandle<R>,
     state: tauri::State<'_, ThumbnailsState>,
 ) -> Result<(), String> {
-    {
-        let mut reg = state.0.lock().unwrap();
-        reg.videos.clear();
-    }
-    let root = thumbnails_root(&app)?;
+    let mut reg = state.0.lock().unwrap();
+    reg.videos.clear();
+    let root = app_cache_dir(&app)?;
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;
     Ok(())
 }
 
+// ── tests ─────────────────────────────────────────────────────────────────────
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
-    fn make_state(playhead: i64, ready: HashSet<i64>, cap: usize) -> VideoState {
-        VideoState {
-            video_path: "x".to_string(),
+    fn fresh_cache() -> VideoCache {
+        VideoCache {
+            video_path: "/tmp/x.mp4".into(),
             fps: 30.0,
-            max_frame: 1_000_000,
-            cache_dir: PathBuf::from("."),
-            ready,
-            in_flight: HashSet::new(),
-            context: PriorityContext { playhead_frame: playhead, ..Default::default() },
-            workers_running: 0,
             thumb_width: 120,
-            max_cached_frames: cap,
-            frame_touched_at: HashMap::new(),
+            cache_dir: std::env::temp_dir().join(format!("thumbtest_{}", std::process::id())),
+            ready: HashMap::new(),
+            static_set: HashSet::new(),
+            dynamic_set: HashSet::new(),
+            max_dynamic: 3,
+            pending: BTreeSet::new(),
+            in_flight: HashSet::new(),
+            priority_rank: HashMap::new(),
+            keyframes: vec![],
+            keyframes_probed: false,
+            active_workers: 0,
+            generation: 0,
+            failed_attempts: HashMap::new(),
+            lifetime_failures: 0,
+            lifetime_jobs: 0,
+            last_error: None,
+        }
+    }
+
+    fn entry(retainers: u8, touch: Instant) -> FrameEntry {
+        FrameEntry {
+            path: PathBuf::from("/tmp/x.jpg"),
+            retainers,
+            dynamic_touch: touch,
         }
     }
 
     #[test]
-    fn required_window_picked_first() {
-        // Nothing cached; playhead at 100. pick_next must return a frame in
-        // [97..=103] before anything in the marker neighborhood.
-        let mut st = make_state(100, HashSet::new(), 500);
-        st.context.markers = vec![500, 1000];
-        let picked = pick_next(&st).unwrap();
-        assert!(
-            (picked - 100).abs() <= REQ_RADIUS,
-            "expected required-window pick, got {picked}"
-        );
+    fn project_wants_routes_filmstrip_to_dynamic_others_to_static() {
+        use ThumbnailReason::*;
+        let mut by_reason = HashMap::new();
+        by_reason.insert(Filmstrip, vec![10, 11, 12]);
+        by_reason.insert(Scenes, vec![100]);
+        by_reason.insert(ClipHover, vec![50]);
+
+        let (s, d, rank) = project_wants(&by_reason);
+        assert_eq!(d, [10, 11, 12].into_iter().collect());
+        assert_eq!(s, [100, 50].into_iter().collect());
+        assert_eq!(rank.get(&50), Some(&0)); // hover tier
+        assert_eq!(rank.get(&10), Some(&1)); // filmstrip tier
+        assert_eq!(rank.get(&100), Some(&3)); // scenes tier
     }
 
     #[test]
-    fn required_window_is_never_evicted() {
-        // Cache already full of required + marker neighbourhood frames.
-        // evict_overflow must drop the marker frame, not the required one.
-        let ready: HashSet<i64> = [100i64, 101, 500].into_iter().collect();
-        let mut st = make_state(100, ready, 2);
-        st.context.markers = vec![500];
-        evict_overflow(&mut st);
-        assert_eq!(st.ready.len(), 2);
-        assert!(st.ready.contains(&100), "required frame 100 must survive");
-        assert!(st.ready.contains(&101), "required frame 101 must survive");
-        assert!(!st.ready.contains(&500), "non-required marker frame should evict");
+    fn project_wants_takes_min_tier_when_frame_in_multiple_reasons() {
+        use ThumbnailReason::*;
+        let mut by_reason = HashMap::new();
+        by_reason.insert(Scenes, vec![42]);
+        by_reason.insert(SceneHover, vec![42]);
+        let (_, _, rank) = project_wants(&by_reason);
+        assert_eq!(rank.get(&42), Some(&0)); // hover wins
     }
 
     #[test]
-    fn marker_neighborhood_enters_candidates() {
-        // Playhead far from the marker. The marker's neighbourhood should
-        // still show up as candidates so workers extract those frames.
-        let mut st = make_state(0, HashSet::new(), 500);
-        st.context.markers = vec![10_000];
-        let cands = candidate_frames(&st);
-        let frames: HashSet<i64> = cands.iter().map(|(f, _)| *f).collect();
-        assert!(frames.contains(&10_000), "marker itself should be a candidate");
-        assert!(frames.contains(&(10_000 - 50)), "frames near a marker should be candidates");
-        assert!(frames.contains(&(10_000 + 50)), "frames near a marker should be candidates");
+    fn dynamic_wanted_never_evicted_past_cap() {
+        let mut c = fresh_cache();
+        c.max_dynamic = 2;
+        let now = Instant::now();
+        for f in 1..=4i64 {
+            c.ready.insert(f, entry(DYNAMIC_BIT, now));
+            c.dynamic_set.insert(f);
+        }
+        evict_dynamic(&mut c);
+        assert_eq!(c.ready.len(), 4, "currently-wanted Dynamic frames are protected");
     }
 
     #[test]
-    fn evict_drops_lowest_scoring() {
-        // Two non-required ready frames: one close to a marker, one not.
-        // Cap=1 forces one eviction; the far-from-marker one should go.
-        let ready: HashSet<i64> = [1_000i64, 2_000].into_iter().collect();
-        let mut st = make_state(0, ready, 1);
-        st.context.markers = vec![1_000]; // 1_000 is on a marker, 2_000 isn't
-        evict_overflow(&mut st);
-        assert_eq!(st.ready.len(), 1);
-        assert!(st.ready.contains(&1_000), "on-marker frame should survive");
+    fn dynamic_lru_evicts_oldest_unwanted() {
+        let mut c = fresh_cache();
+        c.max_dynamic = 2;
+        let base = Instant::now();
+        c.ready.insert(1, entry(DYNAMIC_BIT, base));
+        c.ready
+            .insert(2, entry(DYNAMIC_BIT, base + Duration::from_millis(10)));
+        c.ready
+            .insert(3, entry(DYNAMIC_BIT, base + Duration::from_millis(20)));
+        c.ready
+            .insert(4, entry(DYNAMIC_BIT, base + Duration::from_millis(30)));
+        // None in dynamic_set → all eligible. Drop oldest until at cap.
+        evict_dynamic(&mut c);
+        assert_eq!(c.ready.len(), 2);
+        assert!(!c.ready.contains_key(&1));
+        assert!(!c.ready.contains_key(&2));
+        assert!(c.ready.contains_key(&3));
+        assert!(c.ready.contains_key(&4));
     }
 
     #[test]
-    fn touch_near_playhead_stamps_required_only() {
-        let ready: HashSet<i64> = [100i64, 200].into_iter().collect();
-        let mut st = make_state(100, ready, 1000);
-        touch_near_playhead(&mut st);
-        assert!(st.frame_touched_at.contains_key(&100), "playhead frame should be stamped");
-        assert!(!st.frame_touched_at.contains_key(&200), "distant frame must not be stamped");
+    fn dynamic_eviction_keeps_static_bit_alive() {
+        let mut c = fresh_cache();
+        c.max_dynamic = 0;
+        let now = Instant::now();
+        // Frame held by both retainers, dynamic_set empty → eligible for Dynamic eviction.
+        c.ready.insert(7, entry(STATIC_BIT | DYNAMIC_BIT, now));
+        evict_dynamic(&mut c);
+        // Entry stays (STATIC bit), file not deleted, DYNAMIC bit cleared.
+        let e = c.ready.get(&7).expect("entry must remain");
+        assert_eq!(e.retainers, STATIC_BIT);
     }
 
     #[test]
-    fn score_prefers_marker_over_nothing() {
-        let ctx = PriorityContext { playhead_frame: 0, markers: vec![1_000], ..Default::default() };
-        let s_on_marker = frame_score(&ctx, 1_000, f64::INFINITY);
-        let s_far = frame_score(&ctx, 50_000, f64::INFINITY);
-        assert!(s_on_marker > s_far, "on-marker must outscore a distant cold frame");
+    fn dynamic_eviction_drops_entry_when_no_retainers_left() {
+        let mut c = fresh_cache();
+        c.max_dynamic = 0;
+        let now = Instant::now();
+        c.ready.insert(8, entry(DYNAMIC_BIT, now));
+        evict_dynamic(&mut c);
+        assert!(!c.ready.contains_key(&8));
     }
 
     #[test]
-    fn playhead_radius_outranks_any_marker() {
-        // A frame anywhere in T1 must beat any T2 frame, even a marker that's
-        // both close to playhead AND in the viewport.
-        let ctx = PriorityContext {
-            playhead_frame: 100,
-            markers: vec![120],
-            viewport_frames: (0, 200),
-            ..Default::default()
-        };
-        let s_radius_edge = frame_score(&ctx, 100 + REQ_RADIUS, 0.0);
-        let s_marker = frame_score(&ctx, 120, 0.0);
-        assert!(
-            s_radius_edge > s_marker,
-            "T1 edge ({s_radius_edge}) must beat T2 marker ({s_marker})",
-        );
+    fn gop_lookup_with_keyframes() {
+        let mut c = fresh_cache();
+        c.keyframes = vec![0, 60, 120, 180];
+        c.keyframes_probed = true;
+        assert_eq!(c.keyframe_at_or_before(0), 0);
+        assert_eq!(c.keyframe_at_or_before(59), 0);
+        assert_eq!(c.keyframe_at_or_before(60), 60);
+        assert_eq!(c.keyframe_at_or_before(119), 60);
+        assert_eq!(c.keyframe_at_or_before(200), 180);
+        assert_eq!(c.gop_len_from(0), 60);
+        assert_eq!(c.gop_len_from(60), 60);
+        assert_eq!(c.gop_len_from(180), MAX_GOP_LEN);
     }
 
     #[test]
-    fn within_radius_closer_scores_higher() {
-        // Inside the playhead radius, closeness to the playhead increases
-        // priority — the gradient drives extraction order.
-        let ctx = PriorityContext { playhead_frame: 100, ..Default::default() };
-        let s_at = frame_score(&ctx, 100, 0.0);
-        let s_near = frame_score(&ctx, 102, 0.0);
-        let s_edge = frame_score(&ctx, 100 + REQ_RADIUS, 0.0);
-        assert!(s_at > s_near && s_near > s_edge, "expected at > near > edge");
+    fn gop_lookup_falls_back_when_unprobed() {
+        let c = fresh_cache();
+        assert_eq!(c.keyframe_at_or_before(42), 42);
+        assert_eq!(c.gop_len_from(42), 1);
     }
 
     #[test]
-    fn marker_in_viewport_outranks_marker_outside() {
-        // Two markers at the same playhead distance — the in-viewport one wins.
-        let ctx = PriorityContext {
-            playhead_frame: 0,
-            markers: vec![1_000, 10_000],
-            // Viewport contains 1000 but not 10000.
-            viewport_frames: (500, 5_000),
-            ..Default::default()
-        };
-        // Equalize playhead-proximity by scoring same-distance markers — pick
-        // markers that are both far enough that the proximity term is tiny.
-        let m_in_vp = frame_score(&ctx, 1_000, f64::INFINITY);
-        let m_out_vp = frame_score(&ctx, 10_000, f64::INFINITY);
-        assert!(
-            m_in_vp > m_out_vp,
-            "in-viewport marker ({m_in_vp}) must outscore out-of-viewport ({m_out_vp})",
-        );
+    fn pick_job_groups_by_gop_and_picks_best_tier() {
+        let mut c = fresh_cache();
+        c.keyframes = vec![0, 60, 120];
+        c.keyframes_probed = true;
+        // Three pending frames across two GOPs; tier 3 (scenes) at frames 70 and 130,
+        // tier 1 (filmstrip) at frame 10.
+        c.pending.insert(10);
+        c.pending.insert(70);
+        c.pending.insert(130);
+        c.priority_rank.insert(10, 1);
+        c.priority_rank.insert(70, 3);
+        c.priority_rank.insert(130, 3);
+        let job = pick_job(&mut c).unwrap();
+        assert_eq!(job.clusters.len(), 1, "only tier-1 cluster picked");
+        assert_eq!(job.clusters[0].keyframe_frame, 0);
+        // Wanted offset 10 + BONUS_RADIUS=5 trailing → 16 frames.
+        assert_eq!(job.clusters[0].gop_len, 11 + BONUS_RADIUS);
+        assert!(c.in_flight.contains(&10));
+        // Other-tier pending frames are untouched.
+        assert!(c.pending.contains(&70));
+        assert!(c.pending.contains(&130));
     }
 
     #[test]
-    fn at_marker_outranks_neighborhood() {
-        // A frame that *is* a marker (T2) must beat a frame in the marker's
-        // neighborhood (T3), so the marker frame itself fills first.
-        let ctx = PriorityContext {
-            playhead_frame: 0,
-            markers: vec![10_000],
-            ..Default::default()
-        };
-        let s_at = frame_score(&ctx, 10_000, 0.0);
-        let s_neighbor = frame_score(&ctx, 10_010, 0.0);
-        assert!(s_at > s_neighbor, "at-marker ({s_at}) must beat neighbor ({s_neighbor})");
+    fn pick_job_packs_same_tier_clusters() {
+        let mut c = fresh_cache();
+        c.keyframes = vec![0, 60, 120];
+        c.keyframes_probed = true;
+        c.pending.insert(10);
+        c.pending.insert(70);
+        c.pending.insert(130);
+        // All same tier — should pack all three GOPs into one job.
+        c.priority_rank.insert(10, 3);
+        c.priority_rank.insert(70, 3);
+        c.priority_rank.insert(130, 3);
+        let job = pick_job(&mut c).unwrap();
+        assert_eq!(job.clusters.len(), 3);
     }
 
     #[test]
-    fn recency_does_not_promote_t3_above_t2() {
-        // Even a max-recency T3 frame must not climb into the T2 band.
-        let ctx = PriorityContext {
-            playhead_frame: 0,
-            markers: vec![10_000, 20_000],
-            ..Default::default()
-        };
-        let s_t2_stale = frame_score(&ctx, 20_000, f64::INFINITY);
-        let s_t3_fresh = frame_score(&ctx, 10_010, 0.0);
-        assert!(
-            s_t2_stale > s_t3_fresh,
-            "stale T2 ({s_t2_stale}) must outrank fresh T3 ({s_t3_fresh})",
-        );
+    fn pick_job_returns_none_when_pending_empty() {
+        let mut c = fresh_cache();
+        assert!(pick_job(&mut c).is_none());
+    }
+
+    #[test]
+    fn pick_job_gop_len_covers_far_wanted_frame_plus_radius() {
+        let mut c = fresh_cache();
+        c.keyframes = vec![0];
+        c.keyframes_probed = true;
+        c.pending.insert(50);
+        c.priority_rank.insert(50, 1);
+        let job = pick_job(&mut c).unwrap();
+        // Wanted offset 50 + radius 5 trailing → 56 frames.
+        assert_eq!(job.clusters[0].gop_len, 51 + BONUS_RADIUS);
+    }
+
+    #[test]
+    fn pick_job_gop_len_respects_natural_gop_boundary() {
+        let mut c = fresh_cache();
+        c.keyframes = vec![0, 10, 20];
+        c.keyframes_probed = true;
+        // Wanted offset 8 in a 10-frame GOP: needed = 8+1+5 = 14, capped at 10.
+        c.pending.insert(8);
+        c.priority_rank.insert(8, 1);
+        let job = pick_job(&mut c).unwrap();
+        assert_eq!(job.clusters[0].gop_len, 10);
+    }
+
+    #[test]
+    fn retention_keeps_wanted_frames() {
+        let s: HashSet<i64> = [10].into_iter().collect();
+        let d: HashSet<i64> = HashSet::new();
+        let bits = retention_for_decoded(10, &s, &d, &[10]).unwrap();
+        assert_eq!(bits, STATIC_BIT);
+        let bits = retention_for_decoded(10, &HashSet::new(), &[10].into_iter().collect(), &[10]).unwrap();
+        assert_eq!(bits, DYNAMIC_BIT);
+    }
+
+    #[test]
+    fn retention_keeps_bonus_within_radius() {
+        let s: HashSet<i64> = HashSet::new();
+        let d: HashSet<i64> = HashSet::new();
+        let wanted = vec![100];
+        for off in -BONUS_RADIUS..=BONUS_RADIUS {
+            let f = 100 + off;
+            let bits = retention_for_decoded(f, &s, &d, &wanted);
+            assert!(bits.is_some(), "frame {} (offset {}) should be kept", f, off);
+            // Bonus-only retention → DYNAMIC only.
+            if off != 0 {
+                assert_eq!(bits.unwrap(), DYNAMIC_BIT);
+            }
+        }
+    }
+
+    #[test]
+    fn retention_discards_bonus_outside_radius() {
+        let s: HashSet<i64> = HashSet::new();
+        let d: HashSet<i64> = HashSet::new();
+        let wanted = vec![100];
+        assert!(retention_for_decoded(100 + BONUS_RADIUS + 1, &s, &d, &wanted).is_none());
+        assert!(retention_for_decoded(100 - BONUS_RADIUS - 1, &s, &d, &wanted).is_none());
+        // Empty cluster_wanted → never bonus-kept.
+        assert!(retention_for_decoded(0, &s, &d, &[]).is_none());
     }
 }

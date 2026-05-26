@@ -13,6 +13,7 @@ import gestureReducer from "./slices/gestureSlice";
 import { persistenceMiddleware } from "./middleware/persistenceMiddleware";
 import { historyMiddleware } from "./middleware/historyMiddleware";
 import { revealPlayheadMiddleware } from "./middleware/revealPlayheadMiddleware";
+import { thumbnailMiddleware } from "./middleware/thumbnailMiddleware";
 
 export const store = configureStore({
     reducer: {
@@ -38,7 +39,8 @@ export const store = configureStore({
         })
             .prepend(persistenceMiddleware.middleware)
             .prepend(historyMiddleware.middleware)
-            .prepend(revealPlayheadMiddleware.middleware),
+            .prepend(revealPlayheadMiddleware.middleware)
+            .prepend(thumbnailMiddleware.middleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

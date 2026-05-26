@@ -1,11 +1,12 @@
 import { useCallback, useMemo } from "react";
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { useAppSelector } from "../store/hooks";
-import { selectThumbnailPathsFor } from "../store/slices/thumbnailsSlice";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { setHover } from "../store/slices/thumbnailsSlice";
+import { ThumbnailReason } from "../api/thumbnailReason";
 import { gesture } from "../store/gesture";
 import type { View } from "../types";
 import { timeToViewPct } from "../utils/view";
 import { useSetThumbnailHover } from "./ThumbnailPopup";
+import Thumbnail from "./Thumbnail";
 import "./SceneRow.css";
 
 interface SceneRowProps {
@@ -59,20 +60,9 @@ export default function SceneRow({
     selectedTimes,
     userTimes,
 }: SceneRowProps) {
+    const dispatch = useAppDispatch();
     const video = useAppSelector((s) => s.video.video);
-    const thumbPaths = useAppSelector(selectThumbnailPathsFor(video?.fileHash));
     const setThumbnailHover = useSetThumbnailHover();
-
-    // Precompute the per-scene inline thumbnail URLs only when expanded. Without
-    // this, convertFileSrc runs N times per render (N = scene count), and the
-    // render runs on every playhead tick during playback.
-    const inlineSrcs = useMemo<(string | null)[]>(() => {
-        if (!expanded || !video || video.fps <= 0) return [];
-        return scenes.map((t) => {
-            const path = thumbPaths[Math.floor(t * video.fps)];
-            return path ? convertFileSrc(path) : null;
-        });
-    }, [expanded, scenes, thumbPaths, video]);
 
     // Active-scene index: the scene closest to the current playhead (within
     // one video frame). Memoized so repeated playhead ticks that don't cross
@@ -97,17 +87,31 @@ export default function SceneRow({
     const handleDiamondEnter = useCallback(
         (time: number, e: React.MouseEvent<HTMLElement>) => {
             gesture.setHoveredScene(time);
+            if (video && video.fps > 0) {
+                dispatch(setHover({
+                    fileHash: video.fileHash,
+                    reason: ThumbnailReason.SceneHover,
+                    frame: Math.floor(time * video.fps),
+                }));
+            }
             if (expanded) return;
             const rect = e.currentTarget.getBoundingClientRect();
             setThumbnailHover({ time, x: rect.left + rect.width / 2, y: rect.top });
         },
-        [expanded, setThumbnailHover],
+        [expanded, setThumbnailHover, dispatch, video],
     );
 
     const handleLeave = useCallback(() => {
         gesture.setHoveredScene(null);
         setThumbnailHover(null);
-    }, [setThumbnailHover]);
+        if (video) {
+            dispatch(setHover({
+                fileHash: video.fileHash,
+                reason: ThumbnailReason.SceneHover,
+                frame: null,
+            }));
+        }
+    }, [setThumbnailHover, dispatch, video]);
 
     // Double-click on empty row background → add a cut at the clicked timestamp.
     const handleBackgroundDoubleClick = useCallback(
@@ -175,7 +179,6 @@ export default function SceneRow({
                 const active = i === activeIdx;
                 const selected = !!selectedTimes?.has(t);
                 const isUser = !!userTimes?.has(t);
-                const inlineSrc = expanded ? (inlineSrcs[i] ?? null) : null;
                 return (
                     <div key={i} className="scene-band__marker" style={{ left: `${x}%` }}>
                         <button
@@ -211,15 +214,13 @@ export default function SceneRow({
                                 aria-label={`Scene ${i + 1} thumbnail`}
                                 title={`Scene ${i + 1}`}
                             >
-                                {inlineSrc ? (
-                                    <img
+                                {video && video.fps > 0 && (
+                                    <Thumbnail
+                                        fileHash={video.fileHash}
+                                        frame={Math.floor(t * video.fps)}
                                         className="scene-band__thumb-img"
-                                        src={inlineSrc}
-                                        alt=""
-                                        draggable={false}
+                                        placeholderClassName="scene-band__thumb-img--placeholder"
                                     />
-                                ) : (
-                                    <div className="scene-band__thumb-img scene-band__thumb-img--placeholder" />
                                 )}
                             </button>
                         )}

@@ -42,6 +42,7 @@ import {
     openJsonFileThunk,
 } from "./store/thunks/videoThunks";
 import { ensureSceneListener } from "./store/thunks/sceneThunks";
+import { startThumbnailMiddleware } from "./store/middleware/thumbnailMiddleware";
 
 import { useAppDispatch, useAppSelector } from "./store/hooks";
 import { setDetectingBpm as setDetectingBpmAction } from "./store/slices/videoSlice";
@@ -172,6 +173,10 @@ export default function App() {
     useEffect(() => {
         getRecentFiles().then(setRecentFiles);
     }, []);
+
+    useEffect(() => {
+        startThumbnailMiddleware(dispatch);
+    }, [dispatch]);
 
     useEffect(() => {
         if (!video?.path) return;

@@ -67,9 +67,8 @@ pub fn run() {
             commands::get_recent_files,
             commands::add_recent_file,
             commands::clear_recent_files,
-            thumbnails::set_thumbnail_priority,
-            thumbnails::get_thumbnail_path,
-            thumbnails::get_thumbnail_queue_stats,
+            thumbnails::set_thumbnail_wants,
+            thumbnails::get_thumbnail_stats,
             thumbnails::clear_thumbnails,
             thumbnails::clear_all_thumbnails,
         ])

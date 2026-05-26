@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import type { RowContext } from "./ListPanel";
 import { IconPlay, IconTrash } from "../icons";
+import Thumbnail from "../Thumbnail";
 
 /**
  * Boilerplate every list row shares: container with active/selected
@@ -50,7 +51,8 @@ export default function RowShell({
         isPlaying,
         isSelected,
         viewMode,
-        thumbnailSrc,
+        fileHash,
+        thumbnailFrame,
         onRowClick,
         onRowMouseEnter,
         onRowMouseLeave,
@@ -72,16 +74,12 @@ export default function RowShell({
         >
             {viewMode !== "none" && (
                 <div className="list-panel__row-thumb-wrap">
-                    {thumbnailSrc ? (
-                        <img
-                            className="list-panel__row-thumb"
-                            src={thumbnailSrc}
-                            alt=""
-                            draggable={false}
-                        />
-                    ) : (
-                        <div className="list-panel__row-thumb list-panel__row-thumb--placeholder" />
-                    )}
+                    <Thumbnail
+                        fileHash={fileHash}
+                        frame={thumbnailFrame}
+                        className="list-panel__row-thumb"
+                        placeholderClassName="list-panel__row-thumb--placeholder"
+                    />
                     {isPlaying && (
                         <span className="list-panel__row-thumb-play" aria-hidden>
                             <IconPlay size={20} />

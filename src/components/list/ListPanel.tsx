@@ -1,5 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { type ReactNode, useCallback, useMemo, useRef } from "react";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import {
     setListFilterMode,
@@ -11,7 +10,8 @@ import {
 } from "../../store/slices/listsSlice";
 import { selectActiveRegion } from "../../store/selectors";
 import { formatTime } from "../../utils/time";
-import { setStripFrames, selectThumbnailPathsFor } from "../../store/slices/thumbnailsSlice";
+import { setHover } from "../../store/slices/thumbnailsSlice";
+import { ThumbnailReason, type HoverReason } from "../../api/thumbnailReason";
 import { useSetThumbnailHover } from "../ThumbnailPopup";
 import { IconDeselect, IconTrash } from "../icons";
 import ListFilterTabs from "./ListFilterTabs";
@@ -49,7 +49,8 @@ export interface RowContext {
      *  back to `isActive`. */
     isPlaying: boolean;
     viewMode: ListViewMode;
-    thumbnailSrc: string | null;
+    fileHash: string | null;
+    thumbnailFrame: number | null;
     /** Wire onto the row's outermost element so click/keyboard semantics
      *  flow through useListSelection. */
     onRowClick: (e: React.MouseEvent) => void;
@@ -118,9 +119,8 @@ export default function ListPanel<T extends ListItem>({
     clipFilterDisabled,
 }: ListPanelProps<T>) {
     const dispatch = useAppDispatch();
-    const setHover = useSetThumbnailHover();
+    const setPopupHover = useSetThumbnailHover();
     const video = useAppSelector((s) => s.video.video);
-    const thumbPaths = useAppSelector(selectThumbnailPathsFor(video?.fileHash));
     const viewMode = useAppSelector((s) => s.lists.viewMode[listId]);
     const thumbnailSize = useAppSelector((s) => s.lists.thumbnailSize[listId]);
     const filterMode = useAppSelector((s) => s.lists.filterMode[listId]);
@@ -155,33 +155,37 @@ export default function ListPanel<T extends ListItem>({
         onDelete,
     });
 
-    // ── Always-on thumbnail wiring ────────────────────────────────────────
-    // When viewMode is list or grid, push every item's frame to the backend
-    // thumbnail queue so the strip-tier scoring covers them. In `none` mode
-    // we push nothing; the hover popup uses the standard score.
     const fps = video?.fps ?? 0;
-    const stripFrames = useMemo(() => {
-        if (viewMode === "none" || fps <= 0) return [];
-        return items
-            .map((i) => i.thumbnailTime)
-            .filter((t): t is number => typeof t === "number")
-            .map((t) => Math.max(0, Math.floor(t * fps)));
-    }, [items, viewMode, fps]);
+    const dragActive = useAppSelector((s) => s.drag.active);
 
-    // Push the always-on frames into the thumbnail strip queue so the
-    // backend prioritises them. None mode pushes nothing — the popup hits
-    // the standard scoring path. Source-keyed so each list panel doesn't
-    // overwrite the others' contributions, and clears its source on unmount
-    // so closing a panel via View → Panels stops polluting the cache.
-    useEffect(() => {
-        if (!video) return;
-        const fileHash = video.fileHash;
-        const source = `list:${listId}`;
-        dispatch(setStripFrames({ fileHash, source, frames: stripFrames }));
-        return () => {
-            dispatch(setStripFrames({ fileHash, source, frames: [] }));
-        };
-    }, [video, stripFrames, dispatch, listId]);
+    // Freeze each row's resolved thumbnail frame while a drag is in flight.
+    // Region in-points and anchor times mutate every pointer event during
+    // a drag (the constraint pipeline replays them); without freezing, list
+    // rows flicker to placeholder until the new frame is extracted on
+    // dragEnd. Snapshot is taken once at dragStart and cleared on dragEnd.
+    const frozenFramesRef = useRef<Map<string, number | null> | null>(null);
+    const wasDraggingRef = useRef(false);
+    if (dragActive && !wasDraggingRef.current) {
+        const snap = new Map<string, number | null>();
+        for (const i of items) {
+            snap.set(
+                i.id,
+                i.thumbnailTime != null && fps > 0
+                    ? Math.max(0, Math.floor(i.thumbnailTime * fps))
+                    : null,
+            );
+        }
+        frozenFramesRef.current = snap;
+    } else if (!dragActive && wasDraggingRef.current) {
+        frozenFramesRef.current = null;
+    }
+    wasDraggingRef.current = dragActive;
+
+    const hoverReason: HoverReason | null =
+        listId === "clips" ? ThumbnailReason.ClipHover :
+        listId === "scenes" ? ThumbnailReason.SceneHover :
+        listId === "markers" ? ThumbnailReason.AnchorHover :
+        null;
 
     const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -197,29 +201,43 @@ export default function ListPanel<T extends ListItem>({
             const isActive = activeId != null && activeId === item.id;
             const isPlaying = effectivePlayingId != null && effectivePlayingId === item.id;
             const isSelected = selectedSet.has(item.id);
-            const thumbFrame =
+            const liveFrame =
                 item.thumbnailTime != null && fps > 0
                     ? Math.max(0, Math.floor(item.thumbnailTime * fps))
-                    : -1;
-            const thumbPath = thumbFrame >= 0 ? thumbPaths[thumbFrame] : undefined;
-            const thumbnailSrc = thumbPath ? convertFileSrc(thumbPath) : null;
+                    : null;
+            const thumbFrame = dragActive
+                ? (frozenFramesRef.current?.get(item.id) ?? liveFrame)
+                : liveFrame;
 
             return {
                 isActive,
                 isPlaying,
                 isSelected,
                 viewMode,
-                thumbnailSrc,
+                fileHash: video?.fileHash ?? null,
+                thumbnailFrame: thumbFrame,
                 onRowClick: (e) => handleRowClick(item.id, e),
                 onRowMouseEnter: (e) => {
+                    if (video && hoverReason != null && thumbFrame != null) {
+                        dispatch(setHover({
+                            fileHash: video.fileHash,
+                            reason: hoverReason,
+                            frame: thumbFrame,
+                        }));
+                    }
                     if (viewMode !== "none" || item.thumbnailTime == null) return;
-                    // Anchor the popup to the row's right edge so it doesn't hide the
-                    // list while hovering — keeps the click target visible.
                     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                    setHover({ time: item.thumbnailTime, x: rect.right, y: rect.top });
+                    setPopupHover({ time: item.thumbnailTime, x: rect.right, y: rect.top });
                 },
                 onRowMouseLeave: () => {
-                    if (viewMode === "none") setHover(null);
+                    if (video && hoverReason != null) {
+                        dispatch(setHover({
+                            fileHash: video.fileHash,
+                            reason: hoverReason,
+                            frame: null,
+                        }));
+                    }
+                    if (viewMode === "none") setPopupHover(null);
                 },
             };
         },
@@ -228,10 +246,13 @@ export default function ListPanel<T extends ListItem>({
             effectivePlayingId,
             selectedSet,
             viewMode,
-            thumbPaths,
+            video,
             fps,
             handleRowClick,
-            setHover,
+            setPopupHover,
+            hoverReason,
+            dispatch,
+            dragActive,
         ],
     );
 

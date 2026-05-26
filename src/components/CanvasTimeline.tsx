@@ -7,7 +7,6 @@ import type { State as ConstraintState } from "../constraints/types";
 import { buildAnchorPairs } from "../timeline/model/beatMap";
 import { clipHsl } from "../timeline/palette";
 import { visibleSceneThumbs } from "../timeline/sceneThumbs";
-import { selectThumbnailPathsFor } from "../store/slices/thumbnailsSlice";
 import { gesture, useGesture } from "../store/gesture";
 import { dragStart, dragEnd } from "../store/slices/dragSlice";
 import { setActiveRegionId as setActiveRegionIdAction } from "../store/slices/regionSlice";
@@ -200,7 +199,9 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
     // Video metadata + thumbnail cache for the scene-thumbs row. Read directly
     // from the store so the timeline doesn't need to thread these through props.
     const video = useAppSelector((s) => s.video.video);
-    const thumbPaths = useAppSelector(selectThumbnailPathsFor(video?.fileHash));
+    const thumbPaths = useAppSelector((s) =>
+        video?.fileHash ? s.thumbnails.pathsByHashAndFrame[video.fileHash] : undefined,
+    );
     const videoFps = video?.fps ?? 0;
     const videoAspect =
         video && video.width && video.height && video.height > 0
@@ -672,7 +673,7 @@ export default function CanvasTimeline(props: CanvasTimelineProps) {
             const drawNow = drawRef.current;
             for (const slot of slots) {
                 const frame = Math.round(slot.time * videoFps);
-                const path = thumbPaths[frame];
+                const path = thumbPaths?.[frame];
                 const cached = cache.get(frame);
                 const ready = cached && cached.complete && cached.naturalWidth > 0;
                 const clipped = slot.width < slot.naturalW;

@@ -27,13 +27,13 @@ import ScenesPanel from "./panels/ScenesPanel";
 import MarkersPanel from "./panels/MarkersPanel";
 import VideoInfoPanel from "./panels/VideoInfoPanel";
 import AssistantPanelDock from "./panels/AssistantPanel";
+import ThumbDebugPanel from "./panels/ThumbDebugPanel";
 import CenterColumn from "./CenterColumn";
-import DevRecorderPanel from "../components/DevRecorderPanel";
 
-// Show the thumbnail recorder panel in dev OR when VITE_THUMB_RECORDER=1 is
-// set at build time (for opt-in instrumented release builds).
-const SHOW_THUMB_RECORDER = import.meta.env.DEV || import.meta.env.VITE_THUMB_RECORDER === "1";
-
+// Mirror the old thumb-recorder gate: dev builds always get the panel; release
+// builds can opt in with VITE_THUMB_RECORDER=1 at build time.
+const SHOW_THUMB_DEBUG =
+    import.meta.env.DEV || import.meta.env.VITE_THUMB_RECORDER === "1";
 // ── Component registry ─────────────────────────────────────────────────────
 //
 // Keys are the `component` strings round-tripped through serialized layouts.
@@ -47,8 +47,8 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps>> =
     markers: () => <MarkersPanel />,
     "video-info": () => <VideoInfoPanel />,
     assistant: () => <AssistantPanelDock />,
+    ...(SHOW_THUMB_DEBUG ? { "thumb-debug": () => <ThumbDebugPanel /> } : {}),
     center: () => <CenterColumn />,
-    ...(SHOW_THUMB_RECORDER ? { "thumb-recorder": () => <DevRecorderPanel /> } : {}),
 };
 
 const PANEL_TITLES: Record<string, string> = {
@@ -59,8 +59,8 @@ const PANEL_TITLES: Record<string, string> = {
     markers: "Anchors",
     "video-info": "Video Info",
     assistant: "Assistant",
+    ...(SHOW_THUMB_DEBUG ? { "thumb-debug": "Thumb Debug" } : {}),
     center: "Player",
-    ...(SHOW_THUMB_RECORDER ? { "thumb-recorder": "Thumb Recorder" } : {}),
 };
 
 const SIDE_PANEL_IDS = [
@@ -71,6 +71,7 @@ const SIDE_PANEL_IDS = [
     "markers",
     "video-info",
     "assistant",
+    ...(SHOW_THUMB_DEBUG ? (["thumb-debug"] as const) : ([] as const)),
 ] as const;
 
 // Versioned key — bump when the default layout shape changes so previously
@@ -138,16 +139,6 @@ function buildDefaultLayout(api: DockviewApi) {
         position: { referencePanel: "scenes" },
         inactive: true,
     });
-    if (SHOW_THUMB_RECORDER) {
-        api.addPanel({
-            id: "thumb-recorder",
-            component: "thumb-recorder",
-            title: PANEL_TITLES["thumb-recorder"],
-            position: { referencePanel: "scenes" },
-            inactive: true,
-        });
-    }
-
     // SE — clip-info below the scenes/markers group, with video-info tabbed
     // alongside it (both "metadata about a thing" panels).
     api.addPanel({
@@ -424,9 +415,6 @@ export default PanelDock;
 // eslint-disable-next-line react-refresh/only-export-components
 export const PANEL_LIST: Array<{ id: string; title: string }> = [
     ...SIDE_PANEL_IDS.map((id) => ({ id, title: PANEL_TITLES[id] })),
-    ...(SHOW_THUMB_RECORDER
-        ? [{ id: "thumb-recorder", title: PANEL_TITLES["thumb-recorder"] }]
-        : []),
 ];
 
 function loadLayout(): SerializedDockview | null {

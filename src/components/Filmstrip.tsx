@@ -1,20 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { useCallback, useMemo, useRef } from "react";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { listenThumbnailReady, setThumbnailPriority } from "../api/thumbnails";
-import {
-    setThumbnail,
-    selectThumbnailPathsFor,
-    selectStripFramesFor,
-} from "../store/slices/thumbnailsSlice";
 import { setFilmstripHeight } from "../store/slices/uiSlice";
 import { secondsToFrames } from "../utils/time";
-import * as devRec from "../utils/devThumbnailRecorder";
-import { visibleSceneCuts } from "../utils/sceneFilter";
+import Thumbnail from "./Thumbnail";
 import "./Filmstrip.css";
 
 const SLOTS = 7;
-const PUSH_DEBOUNCE_MS = 120;
 
 interface FilmstripProps {
     onSeekFrame?: (frame: number) => void;
@@ -26,141 +17,24 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
     const livePlayhead = useAppSelector((s) => s.warp.playhead);
     const playing = useAppSelector((s) => s.ui.playing);
     const origAnchors = useAppSelector((s) => s.warp.origAnchors);
-    const regions = useAppSelector((s) => s.region.regions);
-    const view = useAppSelector((s) => s.ui.view);
     const stripHeight = useAppSelector((s) => s.ui.filmstripHeight);
-    const thumbWidth = useAppSelector((s) => s.settings.thumbWidth);
-    const maxCachedFrames = useAppSelector((s) => s.settings.maxCachedFrames);
-    const rawScenes = useAppSelector((s) => (video ? (s.scene.cutsByPath[video.path] ?? []) : []));
-    const userScenes = useAppSelector((s) =>
-        video ? (s.scene.userCutsByPath[video.path] ?? []) : [],
-    );
-    const sceneMinGap =
-        useAppSelector((s) => (video ? s.scene.minGapByPath[video.path] : undefined)) ?? 2;
-    // Use the *visible* set so the backend queues the same scene markers the
-    // user sees on the timeline — min-gap-collapsed detected cuts merged with
-    // user-placed ones (the latter bypass min-gap, since the user explicitly
-    // dropped them there).
-    const scenes = useMemo(
-        () => visibleSceneCuts(rawScenes, userScenes, sceneMinGap),
-        [rawScenes, userScenes, sceneMinGap],
-    );
-    const thumbPaths = useAppSelector(selectThumbnailPathsFor(video?.fileHash));
-    const stripFrames = useAppSelector(selectStripFramesFor(video?.fileHash));
-    const hoverFrames = useAppSelector((s) =>
-        video ? (s.thumbnails.hoverFramesByHash[video.fileHash] ?? []) : [],
-    );
 
-    // Freeze the playhead (and therefore the filmstrip slots + priority signature)
-    // while the video is playing — we don't want thumbnail churn during playback.
     const frozenPlayheadRef = useRef<number>(livePlayhead);
     if (!playing) frozenPlayheadRef.current = livePlayhead;
     const playhead = playing ? frozenPlayheadRef.current : livePlayhead;
-
-    // Listen once for thumbnail-ready events while the component is mounted.
-    useEffect(() => {
-        let cancelled = false;
-        let unlisten: (() => void) | undefined;
-        listenThumbnailReady((p) => {
-            if (cancelled) return;
-            dispatch(setThumbnail({ fileHash: p.file_hash, frame: p.frame, path: p.path }));
-            if (p.duration_ms != null) devRec.recordThumbnailDone(p.duration_ms);
-        }).then((u) => {
-            if (cancelled) u();
-            else unlisten = u;
-        });
-        return () => {
-            cancelled = true;
-            unlisten?.();
-        };
-    }, [dispatch]);
-
-    // Debounced push of priority context to the backend.
-    const lastPushedRef = useRef<string>("");
-    useEffect(() => {
-        if (!video) return;
-        const fps = video.fps;
-        const duration = video.duration;
-        if (fps <= 0 || duration <= 0) return;
-
-        const maxFrame = Math.max(0, Math.floor(duration * fps));
-        const clampFrame = (t: number) => Math.max(0, Math.min(maxFrame, Math.floor(t * fps)));
-        // Playhead rounds (not floors) so the filmstrip center slot matches the
-        // toolbar frame counter exactly — see thumbnail-scrolling::a02186dc.
-        const playheadFrame = Math.max(0, Math.min(maxFrame, secondsToFrames(playhead, fps)));
-        const regionFrames: [number, number][] = regions.map((r) => [
-            clampFrame(r.inPoint),
-            clampFrame(r.outPoint),
-        ]);
-        const markerFrames = origAnchors.map((a) => clampFrame(a.time));
-        const sceneFrames = scenes.map(clampFrame);
-        const viewportFrames: [number, number] = [clampFrame(view.start), clampFrame(view.end)];
-
-        const signature = [
-            video.fileHash,
-            playheadFrame,
-            regionFrames.flat().join(","),
-            markerFrames.join(","),
-            sceneFrames.join(","),
-            stripFrames.join(","),
-            hoverFrames.join(","),
-            viewportFrames.join(","),
-            thumbWidth,
-            maxCachedFrames,
-        ].join("|");
-        if (signature === lastPushedRef.current) return;
-
-        const timer = setTimeout(() => {
-            lastPushedRef.current = signature;
-            const req = {
-                fileHash: video.fileHash,
-                videoPath: video.path,
-                fps,
-                duration,
-                playheadFrame,
-                regionFrames,
-                markerFrames,
-                sceneFrames,
-                stripFrames,
-                hoverFrames,
-                viewportFrames,
-                thumbWidth,
-                maxCachedFrames,
-            };
-            setThumbnailPriority(req).catch(() => {});
-            devRec.recordPriorityPush(req);
-        }, PUSH_DEBOUNCE_MS);
-        return () => clearTimeout(timer);
-    }, [
-        video,
-        playhead,
-        origAnchors,
-        regions,
-        scenes,
-        stripFrames,
-        hoverFrames,
-        view,
-        thumbWidth,
-        maxCachedFrames,
-    ]);
 
     const slots = useMemo(() => {
         if (!video) return [];
         const fps = video.fps;
         const maxFrame = Math.max(0, Math.floor(video.duration * fps));
         const center = Math.max(0, Math.min(maxFrame, secondsToFrames(playhead, fps)));
-        // Round (not floor) to match how `center` is derived from `playhead` —
-        // otherwise a marker at time 9.3s (fps=60 → round=558, floor=557) would
-        // light up the 557 slot when the playhead sits on 558.
         const markerFrameSet = new Set(origAnchors.map((a) => secondsToFrames(a.time, fps)));
         const half = Math.floor(SLOTS / 2);
-        const result: { frame: number; offset: number; inBounds: boolean; hasMarker: boolean }[] =
-            [];
+        const result: { frame: number; offset: number; inBounds: boolean; hasMarker: boolean }[] = [];
         for (let i = -half; i <= half; i++) {
             const frame = center + i;
             result.push({
-                frame,
-                offset: i,
+                frame, offset: i,
                 inBounds: frame >= 0 && frame <= maxFrame,
                 hasMarker: markerFrameSet.has(frame),
             });
@@ -204,16 +78,12 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
             />
             <div className="filmstrip" role="group" aria-label="Thumbnail filmstrip">
                 {slots.map(({ frame, offset, inBounds, hasMarker }) => {
-                    const path = inBounds ? thumbPaths[frame] : undefined;
-                    const src = path ? convertFileSrc(path) : null;
                     const classes = [
                         "filmstrip__slot",
                         offset === 0 ? "filmstrip__slot--center" : "",
                         !inBounds ? "filmstrip__slot--out" : "",
                         hasMarker ? "filmstrip__slot--marker" : "",
-                    ]
-                        .filter(Boolean)
-                        .join(" ");
+                    ].filter(Boolean).join(" ");
                     return (
                         <button
                             key={offset}
@@ -222,16 +92,12 @@ export default function Filmstrip({ onSeekFrame }: FilmstripProps) {
                             onClick={() => inBounds && onSeekFrame?.(frame)}
                             title={inBounds ? `Frame ${frame}` : ""}
                         >
-                            {src ? (
-                                <img
-                                    className="filmstrip__img"
-                                    src={src}
-                                    alt=""
-                                    draggable={false}
-                                />
-                            ) : (
-                                <div className="filmstrip__placeholder" />
-                            )}
+                            <Thumbnail
+                                fileHash={video.fileHash}
+                                frame={inBounds ? frame : null}
+                                className="filmstrip__img"
+                                placeholderClassName="filmstrip__placeholder"
+                            />
                         </button>
                     );
                 })}

@@ -1,92 +1,73 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { ThumbnailReason } from "./thumbnailReason";
 
-export interface ThumbnailPriorityRequest {
+export interface SetThumbnailWantsRequest {
     fileHash: string;
     videoPath: string;
     fps: number;
-    duration: number;
-    playheadFrame: number;
-    regionFrames: [number, number][];
-    markerFrames: number[];
-    sceneFrames: number[];
-    stripFrames?: number[];
-    hoverFrames?: number[];
-    viewportFrames: [number, number];
-    thumbWidth?: number;
+    byReason: Partial<Record<ThumbnailReason, number[]>>;
     maxCachedFrames?: number;
+    thumbWidth?: number;
 }
 
-/** Replaces the priority context for the given file. Workers re-rank against it. */
-export function setThumbnailPriority(r: ThumbnailPriorityRequest): Promise<void> {
-    return invoke("set_thumbnail_priority", {
+/** Replace the full wants state for one file. Backend extracts wanted-but-uncached
+ *  frames and evicts unwanted frames in LRU order when over cap. */
+export function setThumbnailWants(r: SetThumbnailWantsRequest): Promise<void> {
+    return invoke("set_thumbnail_wants", {
         req: {
             file_hash: r.fileHash,
             video_path: r.videoPath,
             fps: r.fps,
-            duration: r.duration,
-            playhead_frame: r.playheadFrame,
-            region_frames: r.regionFrames,
-            marker_frames: r.markerFrames,
-            scene_frames: r.sceneFrames,
-            strip_frames: r.stripFrames ?? [],
-            hover_frames: r.hoverFrames ?? [],
-            viewport_frames: r.viewportFrames,
-            thumb_width: r.thumbWidth,
+            by_reason: r.byReason,
             max_cached_frames: r.maxCachedFrames,
+            thumb_width: r.thumbWidth,
         },
     });
 }
 
-/** Resolve the on-disk path of a cached thumbnail. Returns null if not yet generated. */
-export function getThumbnailPath(fileHash: string, frame: number): Promise<string | null> {
-    return invoke<string | null>("get_thumbnail_path", { fileHash, frame });
-}
-
-export interface QueueTierStats {
-    name: string;
-    total: number;
-    ready: number;
-    in_flight: number;
-    pending: number;
-}
-
-export interface QueueStats {
-    file_hash: string;
-    workers_running: number;
-    total_ready: number;
-    total_in_flight: number;
-    max_cached_frames: number;
-    max_frame: number;
-    tiers: QueueTierStats[];
-}
-
-/** Per-tier queue statistics for the diagnostic panel. Returns null while no queue is active. */
-export function getThumbnailQueueStats(fileHash: string): Promise<QueueStats | null> {
-    return invoke<QueueStats | null>("get_thumbnail_queue_stats", { fileHash });
-}
-
-/** Drop the entire thumbnail cache for one video. */
 export function clearThumbnails(fileHash: string): Promise<void> {
     return invoke("clear_thumbnails", { fileHash });
 }
 
-/** Drop the thumbnail cache for every video. */
 export function clearAllThumbnails(): Promise<void> {
     return invoke("clear_all_thumbnails");
+}
+
+/** Mirrors `ThumbnailStats` in `src-tauri/src/thumbnails.rs`. */
+export interface ThumbnailStats {
+    file_hash: string;
+    thumb_width: number;
+    max_dynamic: number;
+    generation: number;
+    keyframes_probed: boolean;
+    keyframes_count: number;
+    active_workers: number;
+    static_set: number;
+    dynamic_set: number;
+    ready_total: number;
+    ready_static_only: number;
+    ready_dynamic_only: number;
+    ready_both: number;
+    ready_dynamic_unwanted: number;
+    pending: number;
+    in_flight: number;
+    lifetime_jobs: number;
+    lifetime_failures: number;
+    abandoned_frames: number;
+    last_error: string | null;
+}
+
+export function getThumbnailStats(fileHash: string): Promise<ThumbnailStats | null> {
+    return invoke<ThumbnailStats | null>("get_thumbnail_stats", { fileHash });
 }
 
 export interface ThumbnailReadyPayload {
     file_hash: string;
     frame: number;
     path: string;
-    duration_ms?: number;
 }
 
-/**
- * Subscribe to per-frame thumbnail-ready events. Invoke the returned
- * `UnlistenFn` to stop listening.
- */
 export function listenThumbnailReady(cb: (p: ThumbnailReadyPayload) => void): Promise<UnlistenFn> {
     return listen<ThumbnailReadyPayload>("thumbnail-ready", (e) => cb(e.payload));
 }

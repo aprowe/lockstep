@@ -16,11 +16,8 @@ import { useGesture } from "../../store/gesture";
 import "./ScenesPanel.css";
 
 // Stable empty-array sentinel — `?? []` in a selector allocates a fresh
-// array every render, which would re-key `filteredCuts` → `allItems` →
-// the items prop ListPanel feeds into its `stripFrames` useMemo. With an
-// unstable items ref, ListPanel's `setStripFrames` effect dispatches on
-// every render and (in `always` mode) state churn turns into an infinite
-// render loop. Sharing one frozen `[]` keeps the default identity stable.
+// array every render, churning downstream memos that depend on items
+// identity. Sharing one frozen `[]` keeps the default identity stable.
 const EMPTY_CUTS: readonly number[] = Object.freeze([]) as readonly number[];
 
 export default function ScenesPanel() {
