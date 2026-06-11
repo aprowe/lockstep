@@ -1128,6 +1128,7 @@ mod tests {
         assert_eq!(c.gop_len_from(42), 1);
     }
 
+    // @behavior thumbnail-scrolling::7498a0df
     #[test]
     fn pick_job_groups_by_gop_and_picks_best_tier() {
         let mut c = fresh_cache();

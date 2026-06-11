@@ -30,6 +30,7 @@ const FEATURES_DIR = join(ROOT, "spec", "features");
 const DEFS_PATH = join(ROOT, "spec", "defs.yaml");
 const TESTS_DIR = join(ROOT, "tests");
 const RUST_TESTS_DIR = join(ROOT, "src-tauri", "tests");
+const RUST_SRC_DIR = join(ROOT, "src-tauri", "src");
 const GENERATED = join(ROOT, "spec", "generated");
 const REGISTRY = join(GENERATED, "behavior-registry.json");
 const COVERAGE_OUT = join(GENERATED, "coverage.json");
@@ -502,7 +503,9 @@ function scanTests(dir: string): CoverageRef[] {
 function scanRustTests(dir: string): CoverageRef[] {
     if (!existsSync(dir)) return [];
     const refs: CoverageRef[] = [];
-    const BEHAVIOR_RE = /^\s*\/\/\s*behavior:\s*(\S+)/;
+    // Accept the same `@behavior` form as TS tests, plus the legacy
+    // `behavior:` spelling — Rust and TS markers are interchangeable.
+    const BEHAVIOR_RE = /^\s*\/\/\s*@?behavior:?\s+(\S+)/;
     const TEST_RE = /^\s*#\[test\]/;
     const IGNORE_RE = /^\s*#\[ignore\b/;
     const FN_RE = /^\s*(?:pub\s+)?fn\s+\w+/;
@@ -561,7 +564,11 @@ function runCoverage(print = true): boolean {
         behaviors: Record<string, BehaviorEntry>;
     };
     const expectedIds = new Set(Object.keys(behaviors));
-    const testRefs = [...scanTests(TESTS_DIR), ...scanRustTests(RUST_TESTS_DIR)];
+    const testRefs = [
+        ...scanTests(TESTS_DIR),
+        ...scanRustTests(RUST_TESTS_DIR),
+        ...scanRustTests(RUST_SRC_DIR),
+    ];
 
     const coverage = new Map<string, CoverageRef[]>([...expectedIds].map((id) => [id, []]));
     for (const ref of testRefs) {
@@ -828,7 +835,11 @@ function runAudit(): void {
     const { behaviors } = JSON.parse(readFileSync(REGISTRY, "utf8")) as {
         behaviors: Record<string, BehaviorEntry>;
     };
-    const testRefs = [...scanTests(TESTS_DIR), ...scanRustTests(RUST_TESTS_DIR)];
+    const testRefs = [
+        ...scanTests(TESTS_DIR),
+        ...scanRustTests(RUST_TESTS_DIR),
+        ...scanRustTests(RUST_SRC_DIR),
+    ];
     const refsById = new Map<string, CoverageRef[]>();
     for (const ref of testRefs) {
         if (!refsById.has(ref.id)) refsById.set(ref.id, []);
