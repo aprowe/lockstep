@@ -14,6 +14,7 @@ function makeStore() {
 }
 
 describe("<Thumbnail />", () => {
+    // @behavior thumbnail-scrolling::76f18ec6
     it("renders a placeholder when no path", () => {
         const store = makeStore();
         const { container } = render(

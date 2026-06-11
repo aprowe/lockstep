@@ -5,15 +5,15 @@ Feature: Thumbnail scrolling
         When [a video is loaded]
         Then thumbnail generation starts in the background
 
-    Scenario: Thumbnails near the playhead are generated first
+    Scenario: Filmstrip thumbnails are generated before background thumbnails
         Given [a video is loaded]
-        When the playhead jumps to a new position
-        Then thumbnails near the playhead are generated before thumbnails elsewhere
+        When the playhead moves to a new position
+        Then the frames the filmstrip requests around the playhead are decoded before scene, clip, and anchor thumbnails
 
-    Scenario: Thumbnails inside a region are generated first
+    Scenario: A region contributes a thumbnail at its in-point
         Given [a video is loaded]
         When a [region] is created or updated
-        Then thumbnails for frames inside that region are generated first
+        Then a thumbnail is requested for the frame at the region's in-point
 
     Scenario: Scrubbing the [input ruler] updates the thumbnail viewer
         Given [a video is loaded]

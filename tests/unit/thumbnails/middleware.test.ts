@@ -99,6 +99,7 @@ describe("thumbnailMiddleware — steady-state derivation", () => {
     });
     afterEach(() => vi.useRealTimers());
 
+    // @behavior thumbnail-scrolling::a010aa67
     it("coalesces multi-source changes into one IPC call", async () => {
         const store = makeStore();
         store.dispatch(setVideo(makeVideo()));

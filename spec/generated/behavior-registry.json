@@ -1030,14 +1030,14 @@
         "a video is loaded"
       ]
     },
-    "thumbnail-scrolling::38691341": {
+    "thumbnail-scrolling::7498a0df": {
       "feature": "Thumbnail scrolling",
-      "scenario": "Thumbnails near the playhead are generated first",
+      "scenario": "Filmstrip thumbnails are generated before background thumbnails",
       "isOutline": false,
       "steps": [
         "Given [a video is loaded]",
-        "When the playhead jumps to a new position",
-        "Then thumbnails near the playhead are generated before thumbnails elsewhere"
+        "When the playhead moves to a new position",
+        "Then the frames the filmstrip requests around the playhead are decoded before scene, clip, and anchor thumbnails"
       ],
       "file": "spec/features/thumbnails.feature",
       "line": 8,
@@ -1045,14 +1045,14 @@
         "a video is loaded"
       ]
     },
-    "thumbnail-scrolling::56235449": {
+    "thumbnail-scrolling::a010aa67": {
       "feature": "Thumbnail scrolling",
-      "scenario": "Thumbnails inside a region are generated first",
+      "scenario": "A region contributes a thumbnail at its in-point",
       "isOutline": false,
       "steps": [
         "Given [a video is loaded]",
         "When a [region] is created or updated",
-        "Then thumbnails for frames inside that region are generated first"
+        "Then a thumbnail is requested for the frame at the region's in-point"
       ],
       "file": "spec/features/thumbnails.feature",
       "line": 13,
