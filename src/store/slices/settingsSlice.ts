@@ -21,19 +21,6 @@ interface SettingsState {
     /** Active color theme. The active theme name is reflected onto
      *  `<html data-theme="…">` by App.tsx so theme tokens cascade. */
     theme: Theme;
-    /** Anthropic API key for the in-app assistant panel. Stored locally only
-     *  (localStorage); never logged or transmitted anywhere besides
-     *  api.anthropic.com when the user actually sends a query. */
-    anthropicApiKey: string;
-    /** Claude model id used by the assistant. Defaults to the latest opus. */
-    assistantModel: string;
-    /** Google Gemini API key. Used by the gemini extension to send the active
-     *  video to Gemini's video-understanding endpoint for whole-clip analysis
-     *  (e.g. "find every scene with a horse"). Empty disables the extension. */
-    geminiApiKey: string;
-    /** Gemini model id. Default is the fastest video-capable variant; the
-     *  pro variant is more accurate but slower. */
-    geminiModel: string;
     /** Lerp-animate the timeline view window when scrolling/panning. */
     smoothPan: boolean;
 }
@@ -42,10 +29,6 @@ const DEFAULTS: SettingsState = {
     thumbWidth: 120,
     maxCachedFrames: 2000,
     theme: "obsidian-bloom",
-    anthropicApiKey: "",
-    assistantModel: "claude-opus-4-7",
-    geminiApiKey: "",
-    geminiModel: "gemini-2.5-flash",
     smoothPan: true,
 };
 
@@ -68,22 +51,6 @@ function loadFromStorage(): SettingsState {
                     ? parsed.maxCachedFrames
                     : DEFAULTS.maxCachedFrames,
             theme: isTheme(parsed.theme) ? parsed.theme : DEFAULTS.theme,
-            anthropicApiKey:
-                typeof parsed.anthropicApiKey === "string"
-                    ? parsed.anthropicApiKey
-                    : DEFAULTS.anthropicApiKey,
-            assistantModel:
-                typeof parsed.assistantModel === "string" && parsed.assistantModel.length > 0
-                    ? parsed.assistantModel
-                    : DEFAULTS.assistantModel,
-            geminiApiKey:
-                typeof parsed.geminiApiKey === "string"
-                    ? parsed.geminiApiKey
-                    : DEFAULTS.geminiApiKey,
-            geminiModel:
-                typeof parsed.geminiModel === "string" && parsed.geminiModel.length > 0
-                    ? parsed.geminiModel
-                    : DEFAULTS.geminiModel,
             smoothPan:
                 typeof parsed.smoothPan === "boolean" ? parsed.smoothPan : DEFAULTS.smoothPan,
         };
@@ -116,22 +83,6 @@ const settingsSlice = createSlice({
             state.theme = action.payload;
             saveToStorage(state);
         },
-        setAnthropicApiKey(state, action: PayloadAction<string>) {
-            state.anthropicApiKey = action.payload;
-            saveToStorage(state);
-        },
-        setAssistantModel(state, action: PayloadAction<string>) {
-            state.assistantModel = action.payload;
-            saveToStorage(state);
-        },
-        setGeminiApiKey(state, action: PayloadAction<string>) {
-            state.geminiApiKey = action.payload;
-            saveToStorage(state);
-        },
-        setGeminiModel(state, action: PayloadAction<string>) {
-            state.geminiModel = action.payload;
-            saveToStorage(state);
-        },
         setSmoothPan(state, action: PayloadAction<boolean>) {
             state.smoothPan = action.payload;
             saveToStorage(state);
@@ -140,9 +91,7 @@ const settingsSlice = createSlice({
             state.thumbWidth = DEFAULTS.thumbWidth;
             state.maxCachedFrames = DEFAULTS.maxCachedFrames;
             state.theme = DEFAULTS.theme;
-            // Keep API keys on reset — credentials, not UI preferences.
-            state.assistantModel = DEFAULTS.assistantModel;
-            state.geminiModel = DEFAULTS.geminiModel;
+            state.smoothPan = DEFAULTS.smoothPan;
             saveToStorage(state);
         },
     },
@@ -152,10 +101,6 @@ export const {
     setThumbWidth,
     setMaxCachedFrames,
     setTheme,
-    setAnthropicApiKey,
-    setAssistantModel,
-    setGeminiApiKey,
-    setGeminiModel,
     setSmoothPan,
     resetSettings,
 } = settingsSlice.actions;

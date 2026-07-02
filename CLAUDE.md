@@ -32,7 +32,6 @@ src/                            # React frontend
 │   ├── diagnostic.ts           #   diagnostic + overlay video jobs
 │   ├── scene.ts                #   scene detection (PySceneDetect-style cuts)
 │   ├── thumbnails.ts           #   thumbnail queue priority + cache control
-│   ├── extract.ts              #   single-frame extract
 │   └── storage.ts              #   save_video_state / load_video_state by file fingerprint
 ├── store/
 │   ├── store.ts                # Redux store wiring + middleware stack
@@ -101,7 +100,6 @@ src/                            # React frontend
 │   ├── MenuBar.tsx             #   custom app menu bar
 │   ├── ContextMenu.tsx         #   generic context menu
 │   ├── HotkeySheet.tsx         #   ? overlay
-│   ├── AssistantPanel.tsx      #   in-app assistant
 │   └── …                       #   filmstrip, thumbnails, scenes, speed strip, etc.
 ├── layout/                     # dockview panels + center column (video + timeline)
 │   ├── CenterColumn.tsx
@@ -109,7 +107,6 @@ src/                            # React frontend
 │   └── panels/                 # ClipInfo, Clips, FileBrowser, Markers, Scenes, VideoInfo, …
 ├── utils/                      # quantize, snap, time fmt, anchor augmentation, …
 ├── themes/                     # CSS themes
-├── assistant/                  # core tools registered with the in-app assistant
 ├── hotkeys.ts, menus.ts
 ├── App.tsx, main.tsx
 └── types.ts                    # VideoInfo, Anchor, Region, WarpData, …
@@ -139,7 +136,6 @@ All IPC uses `invoke()` on the frontend and `#[tauri::command]` on the backend. 
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **File / folder**   | `open_video`, `load_video`, `open_folder`, `list_folder_videos`, `reveal_in_folder`, `show_in_folder`                                                                                                                                      |
 | **Warp / export**   | `analyze_anchors`, `start_warp`, `start_diagnostic`, `save_output`, `pick_export_folder`, `save_to_folder`                                                                                                                                 |
-| **Frame extract**   | `extract_frame`                                                                                                                                                                                                                            |
 | **Scenes**          | `start_scene_detection`, `cancel_scene_detection`                                                                                                                                                                                          |
 | **Thumbnails**      | `set_thumbnail_priority`, `get_thumbnail_queue_stats`, `get_thumbnail_path`, `clear_thumbnails`, `clear_all_thumbnails`                                                                                                                    |
 | **Sidecar / state** | `save_video_state`, `load_video_state`, `list_saved_hashes`, `get_file_hash`, `check_video_sidecar`, `write_video_sidecar`, `delete_video_sidecar`, `open_json_file`, `read_json_sidecar_for_video`, `load_llc_project`, `write_text_file` |

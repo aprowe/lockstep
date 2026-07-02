@@ -53,7 +53,6 @@ pub fn run() {
             commands::pick_export_folder,
             commands::save_to_folder,
             commands::write_text_file,
-            commands::extract_frame,
             commands::reveal_in_folder,
             commands::show_in_folder,
             commands::check_video_sidecar,

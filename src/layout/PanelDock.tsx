@@ -26,7 +26,6 @@ import ClipInfoPanel from "./panels/ClipInfoPanel";
 import ScenesPanel from "./panels/ScenesPanel";
 import MarkersPanel from "./panels/MarkersPanel";
 import VideoInfoPanel from "./panels/VideoInfoPanel";
-import AssistantPanelDock from "./panels/AssistantPanel";
 import ThumbDebugPanel from "./panels/ThumbDebugPanel";
 import CenterColumn from "./CenterColumn";
 
@@ -46,7 +45,6 @@ const components: Record<string, React.FunctionComponent<IDockviewPanelProps>> =
     scenes: () => <ScenesPanel />,
     markers: () => <MarkersPanel />,
     "video-info": () => <VideoInfoPanel />,
-    assistant: () => <AssistantPanelDock />,
     ...(SHOW_THUMB_DEBUG ? { "thumb-debug": () => <ThumbDebugPanel /> } : {}),
     center: () => <CenterColumn />,
 };
@@ -58,7 +56,6 @@ const PANEL_TITLES: Record<string, string> = {
     scenes: "Scenes",
     markers: "Anchors",
     "video-info": "Video Info",
-    assistant: "Assistant",
     ...(SHOW_THUMB_DEBUG ? { "thumb-debug": "Thumb Debug" } : {}),
     center: "Player",
 };
@@ -70,13 +67,12 @@ const SIDE_PANEL_IDS = [
     "scenes",
     "markers",
     "video-info",
-    "assistant",
     ...(SHOW_THUMB_DEBUG ? (["thumb-debug"] as const) : ([] as const)),
 ] as const;
 
 // Versioned key — bump when the default layout shape changes so previously
 // saved layouts are dropped instead of half-deserializing into the new schema.
-const STORAGE_KEY = "lockstep:panel-layout:v7";
+const STORAGE_KEY = "lockstep:panel-layout:v8";
 
 /**
  * Default 4-slot layout the dock falls back to whenever there's no saved
@@ -129,13 +125,6 @@ function buildDefaultLayout(api: DockviewApi) {
         id: "markers",
         component: "markers",
         title: PANEL_TITLES.markers,
-        position: { referencePanel: "scenes" },
-        inactive: true,
-    });
-    api.addPanel({
-        id: "assistant",
-        component: "assistant",
-        title: PANEL_TITLES.assistant,
         position: { referencePanel: "scenes" },
         inactive: true,
     });

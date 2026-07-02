@@ -1,6 +1,6 @@
 /**
- * Loaded-video metadata surfaced to the UI. Returned by the `open_video`,
- * `load_video`, and `extract_frame` Tauri command surfaces.
+ * Loaded-video metadata surfaced to the UI. Returned by the `open_video`
+ * and `load_video` Tauri command surfaces.
  */
 export interface VideoInfo {
     /** Absolute filesystem path. Pass this to any Tauri command that takes a video. */
