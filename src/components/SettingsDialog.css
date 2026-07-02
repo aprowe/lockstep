@@ -12,7 +12,7 @@
     background: var(--bg-3);
     border: 1px solid var(--border-hi);
     border-radius: 8px;
-    width: 440px;
+    width: min(720px, 92vw);
     max-height: 90vh;
     display: flex;
     flex-direction: column;
@@ -78,15 +78,19 @@
 }
 
 .settings-row {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-2);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    align-items: start;
+    column-gap: var(--sp-6);
 }
 
 .settings-row__label {
     display: flex;
     flex-direction: column;
     gap: 2px;
+    /* Nudge the label baseline down so single-line titles sit level with
+       their control instead of hugging the top of the row. */
+    padding-top: 3px;
 }
 
 .settings-row__title {
